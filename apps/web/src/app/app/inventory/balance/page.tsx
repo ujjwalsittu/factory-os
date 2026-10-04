@@ -8,7 +8,7 @@ import { EntityGate } from '@/components/entity-gate';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDate, formatMoney, formatQty, today, WAREHOUSE_TYPE_LABELS } from '@/lib/format';
-import type { BalanceRow, Warehouse } from '@/lib/types';
+import type { BalanceRow, Party, Warehouse } from '@/lib/types';
 
 export default function BalancePage() {
   return (
@@ -25,10 +25,12 @@ function Balance() {
   const ws = useWorkspace();
   const [q, setQ] = useState('');
   const [warehouseId, setWarehouseId] = useState('');
+  const [owner, setOwner] = useState('');
+  const customers = useQuery({ queryKey: ['parties', ws.tenantId, '', 'customer'], queryFn: () => api<Party[]>('/parties?role=customer&limit=500', { scope: ws.scope }), enabled: ws.can('masters.party.read') });
   const warehouses = useQuery({ queryKey: ['warehouses', ws.entityId], queryFn: () => api<Warehouse[]>('/warehouses', { scope: ws.scope }) });
   const rows = useQuery({
-    queryKey: ['balance', ws.entityId, warehouseId],
-    queryFn: () => api<BalanceRow[]>(`/stock/balance${warehouseId ? `?warehouseId=${warehouseId}` : ''}`, { scope: ws.scope }),
+    queryKey: ['balance', ws.entityId, warehouseId, owner],
+    queryFn: () => api<BalanceRow[]>(`/stock/balance?${new URLSearchParams({ ...(warehouseId && { warehouseId }), ...(owner && { owner }) })}`, { scope: ws.scope }),
   });
 
   const groups = useMemo(() => {
@@ -60,6 +62,16 @@ function Balance() {
           {warehouses.data?.map((w) => (
             <option key={w.id} value={w.id}>
               {w.code} · {w.name}
+            </option>
+          ))}
+        </Select>
+        <Select className="w-56" value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Owner">
+          <option value="">All owners</option>
+          <option value="company">Our own stock</option>
+          <option value="customers">All customer material</option>
+          {customers.data?.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}&apos;s material
             </option>
           ))}
         </Select>
@@ -108,7 +120,7 @@ function Balance() {
                       <span className="font-mono">{r.warehouseCode}</span> <span className="text-muted">{r.warehouseName}</span>
                       {r.ownership === 'customer' && (
                         <Badge tone="warning" className="ml-2">
-                          Customer-owned
+                          {r.ownerName ?? 'Customer'}&apos;s
                         </Badge>
                       )}
                       {(r.warehouseType === 'quarantine' || r.warehouseType === 'mrb') && (

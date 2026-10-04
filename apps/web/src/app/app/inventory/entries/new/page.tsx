@@ -5,7 +5,7 @@ import { EntityGate } from '@/components/entity-gate';
 import { StockEntryForm } from '@/components/stock-entry-form';
 import type { StockPurpose } from '@/lib/types';
 
-const PURPOSES: StockPurpose[] = ['receipt', 'issue', 'transfer', 'adjustment'];
+const PURPOSES: StockPurpose[] = ['receipt', 'issue', 'transfer', 'adjustment', 'return', 'scrap'];
 
 function NewEntry() {
   const p = useSearchParams().get('purpose') as StockPurpose | null;

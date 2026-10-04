@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { formatDate, formatDateTime, formatMoney, formatQty, today, WAREHOUSE_TYPE_LABELS } from '@/lib/format';
-import { PURPOSE_LABELS, STATUS_TONE } from '@/lib/stock';
+import { PURPOSE_LABELS, STATUS_TONE, WASTE_CATEGORY_LABELS } from '@/lib/stock';
 import type { Batch, Item, Party, StockEntryDetail, StockPurpose, Warehouse } from '@/lib/types';
 import { fieldErrors, FormDialog } from './form-dialog';
 import { ItemPicker } from './item-picker';
@@ -24,6 +24,8 @@ interface DraftLine {
   heatNo: string;
   expiryDate: string;
   rate: string;
+  /** Scrap lines: waste-register category. */
+  wasteCategory: string;
   /** Adjustments only: increase (to a warehouse) or decrease (from one). */
   direction: 'in' | 'out';
 }
@@ -40,6 +42,7 @@ const blankLine = (prev?: DraftLine): DraftLine => ({
   heatNo: '',
   expiryDate: '',
   rate: '',
+  wasteCategory: prev?.wasteCategory ?? '',
   direction: prev?.direction ?? 'in',
 });
 
@@ -58,13 +61,21 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
     queryFn: () => api<Party[]>('/parties?role=supplier&limit=500', { scope: ws.scope }),
     enabled: purpose === 'receipt' && ws.can('masters.party.read'),
   });
+  const customers = useQuery({
+    queryKey: ['parties', ws.tenantId, '', 'customer'],
+    queryFn: () => api<Party[]>('/parties?role=customer&limit=500', { scope: ws.scope }),
+    enabled: ws.can('masters.party.read'),
+  });
 
   const [header, setHeader] = useState({
     postingDate: entry?.postingDate ?? today(),
     partyId: entry?.partyId ?? '',
     reference: entry?.reference ?? '',
     remarks: entry?.remarks ?? '',
+    /** Customer who owns the material (decision 024); '' = our own stock. */
+    ownerPartyId: entry?.ownerPartyId ?? '',
   });
+  const customerOwned = !!header.ownerPartyId;
   const [lines, setLines] = useState<DraftLine[]>(() =>
     entry?.lines.length
       ? entry.lines.map((l) => ({
@@ -78,6 +89,7 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
           heatNo: l.heatNo ?? '',
           expiryDate: l.expiryDate ?? '',
           rate: l.rate ? String(Number(l.rate)) : '',
+          wasteCategory: l.wasteCategory ?? '',
           direction: l.toWarehouseId && !l.fromWarehouseId ? 'in' : 'out',
         }))
       : [blankLine()],
@@ -95,20 +107,24 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
       ls.map((l) => ({
         ...l,
         toWarehouseId: l.toWarehouseId || (purpose === 'receipt' ? by('quarantine') || by('stores') : purpose === 'transfer' ? by('stores') : purpose === 'adjustment' ? by('stores') : ''),
-        fromWarehouseId: l.fromWarehouseId || (purpose === 'issue' ? by('stores') : purpose === 'transfer' ? by('quarantine') : purpose === 'adjustment' ? by('stores') : ''),
+        fromWarehouseId:
+          l.fromWarehouseId ||
+          (purpose === 'issue' || purpose === 'return' ? by('stores') : purpose === 'transfer' ? by('quarantine') : purpose === 'scrap' ? by('mrb') || by('stores') : purpose === 'adjustment' ? by('stores') : ''),
       })),
     );
   }, [warehouses.data, entry, purpose]);
 
   const update = (key: string, patch: Partial<DraftLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
-  const usesFrom = (l: DraftLine) => purpose === 'issue' || purpose === 'transfer' || (purpose === 'adjustment' && l.direction === 'out');
+  const usesFrom = (l: DraftLine) => purpose === 'issue' || purpose === 'transfer' || purpose === 'return' || purpose === 'scrap' || (purpose === 'adjustment' && l.direction === 'out');
   const usesTo = (l: DraftLine) => purpose === 'receipt' || purpose === 'transfer' || (purpose === 'adjustment' && l.direction === 'in');
   const incoming = (l: DraftLine) => purpose === 'receipt' || (purpose === 'adjustment' && l.direction === 'in');
 
   const payload = () => ({
     purpose,
     postingDate: header.postingDate,
-    partyId: header.partyId || null,
+    // Returns go to the owner; a customer's own receipts come from them.
+    partyId: purpose === 'return' || (purpose === 'receipt' && customerOwned) ? header.ownerPartyId || null : header.partyId || null,
+    ownerPartyId: header.ownerPartyId || null,
     reference: header.reference || null,
     remarks: header.remarks || null,
     lines: lines
@@ -122,7 +138,8 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
         newBatchNo: l.item.tracking === 'batch' && incoming(l) ? l.newBatchNo || null : null,
         heatNo: l.item.tracking === 'batch' && incoming(l) ? l.heatNo || l.newBatchNo || null : null,
         expiryDate: l.item.tracking === 'batch' && incoming(l) ? l.expiryDate || null : null,
-        rate: incoming(l) ? l.rate || null : null,
+        rate: incoming(l) && !customerOwned ? l.rate || null : null,
+        wasteCategory: purpose === 'scrap' ? l.wasteCategory || null : null,
       })),
   });
 
@@ -196,6 +213,7 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
                 {entry.status[0]!.toUpperCase() + entry.status.slice(1)}
               </Badge>
             )}
+            {entry?.ownerName && <Badge tone="warning">{entry.ownerName}&apos;s material</Badge>}
           </h1>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -232,6 +250,9 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
           {entry.cancelReason} · The ledger shows the original postings and their exact reversals.
         </Alert>
       )}
+      {editable && purpose === 'scrap' && (
+        <Alert tone="info">Scrapped stock leaves inventory and enters the waste register under the same owner, where it's later returned, sold or sent to a recycler.</Alert>
+      )}
       {editable && purpose === 'receipt' && (
         <Alert tone="info">Receipts go to quarantine by default. Transfer to stores once incoming inspection passes; quarantine stock can't be issued.</Alert>
       )}
@@ -241,7 +262,24 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
           <Field label="Posting date">
             {(p) => <Input {...p} type="date" value={header.postingDate} onChange={(e) => setHeader({ ...header, postingDate: e.target.value })} disabled={!editable} />}
           </Field>
-          {purpose === 'receipt' && (
+          <Field label="Material belongs to" hint={customerOwned ? 'Customer-supplied: counted, never valued' : undefined}>
+            {(p) => (
+              <Select
+                {...p}
+                value={header.ownerPartyId}
+                onChange={(e) => (setHeader({ ...header, ownerPartyId: e.target.value }), setLines((ls) => ls.map((l) => ({ ...l, batchId: '' }))))}
+                disabled={!editable}
+              >
+                <option value="">{purpose === 'return' ? 'Choose the customer…' : 'Us (own stock)'}</option>
+                {customers.data?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          {purpose === 'receipt' && !customerOwned && (
             <Field label="Supplier">
               {(p) => (
                 <Select {...p} value={header.partyId} onChange={(e) => setHeader({ ...header, partyId: e.target.value })} disabled={!editable}>
@@ -255,10 +293,10 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
               )}
             </Field>
           )}
-          <Field label={purpose === 'receipt' ? 'Delivery challan / invoice no.' : 'Reference'}>
+          <Field label={purpose === 'receipt' ? (customerOwned ? "Customer's challan no." : 'Delivery challan / invoice no.') : purpose === 'return' ? 'Return challan no.' : purpose === 'scrap' ? 'NCR / reason ref.' : 'Job / work order ref.'}>
             {(p) => <Input {...p} value={header.reference} onChange={(e) => setHeader({ ...header, reference: e.target.value })} disabled={!editable} />}
           </Field>
-          <Field label="Remarks" className={purpose === 'receipt' ? '' : 'lg:col-span-2'}>
+          <Field label="Remarks" className={purpose === 'receipt' && !customerOwned ? 'lg:col-span-4' : ''}>
             {(p) => <Input {...p} value={header.remarks} onChange={(e) => setHeader({ ...header, remarks: e.target.value })} disabled={!editable} />}
           </Field>
         </div>
@@ -272,9 +310,10 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
               <Th className="min-w-64">Item</Th>
               {purpose === 'adjustment' && <Th>Direction</Th>}
               <Th className="w-28 text-right">Qty</Th>
-              {(purpose === 'issue' || purpose === 'transfer' || purpose === 'adjustment') && <Th className="min-w-36">From</Th>}
+              {purpose !== 'receipt' && <Th className="min-w-36">From</Th>}
               {(purpose === 'receipt' || purpose === 'transfer' || purpose === 'adjustment') && <Th className="min-w-36">To</Th>}
               <Th className="min-w-48">Batch / heat no.</Th>
+              {purpose === 'scrap' && <Th className="min-w-44">Waste category</Th>}
               <Th className="w-32 text-right">{editable ? 'Unit cost' : 'Rate'}</Th>
               {!editable && <Th className="text-right">Value</Th>}
               {editable && <Th className="w-10" />}
@@ -306,7 +345,7 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
                         <span className="w-9 text-[11px] text-subtle">{l.item?.uomCode}</span>
                       </div>
                     </Td>
-                    {(purpose === 'issue' || purpose === 'transfer' || purpose === 'adjustment') && (
+                    {purpose !== 'receipt' && (
                       <Td>{usesFrom(l) ? <WarehouseSelect value={l.fromWarehouseId} onChange={(v) => update(l.key, { fromWarehouseId: v, batchId: '' })} warehouses={whs} label="From warehouse" /> : <Muted />}</Td>
                     )}
                     {(purpose === 'receipt' || purpose === 'transfer' || purpose === 'adjustment') && (
@@ -323,11 +362,25 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
                           <Input type="date" value={l.expiryDate} onChange={(e) => update(l.key, { expiryDate: e.target.value })} aria-label="Expiry date" title="Expiry (optional; defaults from shelf life)" />
                         </div>
                       ) : (
-                        <BatchSelect itemId={l.item.id} warehouseId={l.fromWarehouseId} value={l.batchId} onChange={(v) => update(l.key, { batchId: v })} />
+                        <BatchSelect itemId={l.item.id} warehouseId={l.fromWarehouseId} owner={header.ownerPartyId || 'company'} value={l.batchId} onChange={(v) => update(l.key, { batchId: v })} />
                       )}
                     </Td>
+                    {purpose === 'scrap' && (
+                      <Td>
+                        <Select value={l.wasteCategory} onChange={(e) => update(l.key, { wasteCategory: e.target.value })} aria-label="Waste category">
+                          <option value="">Choose…</option>
+                          {Object.entries(WASTE_CATEGORY_LABELS).map(([k, v]) => (
+                            <option key={k} value={k}>
+                              {v}
+                            </option>
+                          ))}
+                        </Select>
+                      </Td>
+                    )}
                     <Td>
-                      {incoming(l) ? (
+                      {incoming(l) && customerOwned ? (
+                        <p className="pt-2 text-right text-[12px] text-subtle">No cost</p>
+                      ) : incoming(l) ? (
                         <Input className="tabular text-right" inputMode="decimal" placeholder="₹" value={l.rate} onChange={(e) => update(l.key, { rate: e.target.value })} aria-label="Unit cost" />
                       ) : (
                         <p className="pt-2 text-right text-[12px] text-subtle">FIFO</p>
@@ -350,10 +403,11 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
                     <Td className="tabular text-right">
                       {formatQty(l.qty)} <span className="text-[11px] text-subtle">{l.uomCode}</span>
                     </Td>
-                    {(purpose === 'issue' || purpose === 'transfer' || purpose === 'adjustment') && <Td className="font-mono text-[12px]">{whLabel(l.fromWarehouseId)}</Td>}
+                    {purpose !== 'receipt' && <Td className="font-mono text-[12px]">{whLabel(l.fromWarehouseId)}</Td>}
                     {(purpose === 'receipt' || purpose === 'transfer' || purpose === 'adjustment') && <Td className="font-mono text-[12px]">{whLabel(l.toWarehouseId)}</Td>}
                     <Td className="font-mono text-[12px]">{l.batchNo ?? '—'}</Td>
-                    <Td className="tabular text-right text-[13px]">{l.rate ? formatMoney(l.rate) : '—'}</Td>
+                    {purpose === 'scrap' && <Td className="text-[13px]">{l.wasteCategory ? WASTE_CATEGORY_LABELS[l.wasteCategory] : '—'}</Td>}
+                    <Td className="tabular text-right text-[13px]">{l.rate && !customerOwned ? formatMoney(l.rate) : '—'}</Td>
                     <Td className="tabular text-right text-[13px] font-medium">{l.value ? formatMoney(l.value) : '—'}</Td>
                   </tr>
                 ))}
@@ -407,11 +461,11 @@ function WarehouseSelect({ value, onChange, warehouses, label }: { value: string
 }
 
 /** Batches with stock in the chosen warehouse, earliest expiry first (FEFO). */
-function BatchSelect({ itemId, warehouseId, value, onChange }: { itemId: string; warehouseId: string; value: string; onChange: (v: string) => void }) {
+function BatchSelect({ itemId, warehouseId, owner, value, onChange }: { itemId: string; warehouseId: string; owner: string; value: string; onChange: (v: string) => void }) {
   const ws = useWorkspace();
   const q = useQuery({
-    queryKey: ['batches', ws.entityId, itemId, warehouseId],
-    queryFn: () => api<Batch[]>(`/batches?itemId=${itemId}&inStock=true${warehouseId ? `&warehouseId=${warehouseId}` : ''}`, { scope: ws.scope }),
+    queryKey: ['batches', ws.entityId, itemId, warehouseId, owner],
+    queryFn: () => api<Batch[]>(`/batches?itemId=${itemId}&inStock=true&owner=${owner}${warehouseId ? `&warehouseId=${warehouseId}` : ''}`, { scope: ws.scope }),
   });
   return (
     <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Batch">

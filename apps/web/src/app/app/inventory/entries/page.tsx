@@ -35,6 +35,7 @@ export default function StockEntriesPage() {
                   New {p}
                 </Link>
               ))}
+              <OtherPurposes />
             </div>
           )
         }
@@ -43,6 +44,19 @@ export default function StockEntriesPage() {
         <EntryList />
       </EntityGate>
     </>
+  );
+}
+
+/** Less frequent purposes live in a menu so the toolbar stays calm. */
+function OtherPurposes() {
+  const router = useRouter();
+  return (
+    <Select className="w-44" value="" onChange={(e) => e.target.value && router.push(`/app/inventory/entries/new?purpose=${e.target.value}`)} aria-label="Other entry types">
+      <option value="">Other…</option>
+      <option value="return">Return to customer</option>
+      <option value="scrap">Scrap</option>
+      <option value="adjustment">Adjustment</option>
+    </Select>
   );
 }
 

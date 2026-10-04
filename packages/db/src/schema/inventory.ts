@@ -90,7 +90,8 @@ export const numberSeries = pgTable(
 );
 
 export const docStatus = pgEnum('doc_status', ['draft', 'submitted', 'cancelled']);
-export const stockEntryPurpose = pgEnum('stock_entry_purpose', ['receipt', 'issue', 'transfer', 'adjustment']);
+/** return: customer material sent back to its owner. scrap: stock written off into the waste register. */
+export const stockEntryPurpose = pgEnum('stock_entry_purpose', ['receipt', 'issue', 'transfer', 'adjustment', 'return', 'scrap']);
 
 export const stockEntry = pgTable(
   'stock_entry',
@@ -147,6 +148,10 @@ export const stockEntryLine = pgTable(
     newBatchNo: text('new_batch_no'),
     heatNo: text('heat_no'),
     expiryDate: date('expiry_date'),
+    /** Owning customer for customer-supplied material; null = owned by the entity (decision 024). */
+    ownerPartyId: uuid('owner_party_id').references(() => party.id),
+    /** Scrap lines: the waste-register category the stock goes into. */
+    wasteCategory: text('waste_category'),
     /** Receipt cost per unit; for issues it's computed from FIFO on submit. */
     rate: qty('rate'),
     value: qty('value'),
@@ -165,6 +170,8 @@ export const stockLedgerEntry = pgTable(
     itemId: uuid('item_id').notNull(),
     warehouseId: uuid('warehouse_id').notNull(),
     batchId: uuid('batch_id'),
+    /** null = owned by the entity; otherwise the customer who owns this stock. */
+    ownerPartyId: uuid('owner_party_id'),
     /** Signed: + in, − out. */
     qty: qty('qty').notNull(),
     rate: qty('rate').notNull(),
@@ -181,6 +188,7 @@ export const stockLedgerEntry = pgTable(
     index('sle_item_idx').on(t.entityId, t.itemId, t.seq),
     index('sle_voucher_idx').on(t.voucherId),
     index('sle_batch_idx').on(t.batchId),
+    index('sle_owner_idx').on(t.entityId, t.ownerPartyId, t.postingDate),
   ],
 );
 
@@ -227,8 +235,9 @@ export const stockBin = pgTable(
     itemId: uuid('item_id').notNull(),
     warehouseId: uuid('warehouse_id').notNull(),
     batchId: uuid('batch_id'),
+    ownerPartyId: uuid('owner_party_id'),
     qty: qty('qty').notNull().default('0'),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [unique('stock_bin_uq').on(t.entityId, t.itemId, t.warehouseId, t.batchId).nullsNotDistinct()],
+  (t) => [unique('stock_bin_owner_uq').on(t.entityId, t.itemId, t.warehouseId, t.batchId, t.ownerPartyId).nullsNotDistinct()],
 );

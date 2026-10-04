@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   Boxes,
   Contact,
+  Handshake,
   Package,
   Ruler,
   Warehouse,
@@ -66,6 +67,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     items: [
       { href: '/app/inventory/entries', label: 'Stock entries', icon: ArrowLeftRight, permission: 'inventory.stock_entry.read', entityScoped: true },
       { href: '/app/inventory/balance', label: 'Stock balance', icon: Boxes, permission: 'inventory.report.read', entityScoped: true },
+      { href: '/app/inventory/customer-material', label: 'Customer material', icon: Handshake, permission: 'inventory.report.read', entityScoped: true },
       { href: '/app/inventory/warehouses', label: 'Warehouses', icon: Warehouse, permission: 'inventory.warehouse.read', entityScoped: true },
     ],
   },
@@ -88,7 +90,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     section: 'Plant',
     items: [
       { href: '/app/machines', label: 'Machines', icon: Cpu, phase: 5 },
-      { href: '/app/ehs', label: 'Waste & EHS', icon: Recycle, phase: 5 },
+      { href: '/app/ehs/waste', label: 'Waste register', icon: Recycle, permission: 'ehs.waste.read', entityScoped: true },
     ],
   },
   {
@@ -120,7 +122,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh">
-      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line bg-surface md:flex">
+      <aside className="sticky top-0 hidden h-dvh w-60 print:!hidden shrink-0 flex-col border-r border-line bg-surface md:flex">
         <div className="flex h-14 items-center px-4">
           <Link href="/app" aria-label="FactoryOS home">
             <Logo />
@@ -130,7 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur md:px-6">
+        <header className="sticky top-0 z-20 flex h-14 print:hidden items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur md:px-6">
           <button
             type="button"
             onClick={() => setMenuOpen(true)}

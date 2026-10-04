@@ -1,7 +1,7 @@
 import { Dec } from '@factoryos/core';
 import { batch, type Database, fifoLayer, item, party, stockBin, stockEntry, stockEntryLine, stockLedgerEntry, uom, user, warehouse } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
-import { and, asc, desc, eq, gt, inArray, lte, ne, type SQL, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, ne, type SQL, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../common/access.js';
 import { AuditService } from '../common/audit.service.js';
@@ -24,6 +24,8 @@ const STANDARD_WAREHOUSES: { code: string; name: string; type: (typeof WAREHOUSE
   { code: 'SCRAP', name: 'Scrap yard', type: 'scrap' },
   { code: 'CUST', name: 'Customer-owned material', type: 'customer_owned' },
 ];
+
+export const WASTE_CATEGORIES = ['metal_swarf', 'metal_offcut', 'rejected_parts', 'metal_powder', 'e_waste', 'coolant_oil', 'solvent', 'packaging', 'other'] as const;
 
 const qtyString = z
   .union([z.string(), z.number()])
@@ -50,11 +52,14 @@ const lineInput = z.object({
   expiryDate: z.string().date().nullable().optional(),
   rate: qtyString.nullable().optional(),
   remarks: z.string().trim().max(500).nullable().optional(),
+  wasteCategory: z.enum(WASTE_CATEGORIES).nullable().optional(),
 });
 const entryInput = z.object({
-  purpose: z.enum(['receipt', 'issue', 'transfer', 'adjustment']),
+  purpose: z.enum(['receipt', 'issue', 'transfer', 'adjustment', 'return', 'scrap']),
   postingDate: z.string().date(),
   partyId: z.string().uuid().nullable().optional(),
+  /** Customer who owns the material on every line (decision 024); null = our own stock. */
+  ownerPartyId: z.string().uuid().nullable().optional(),
   reference: z.string().trim().max(100).nullable().optional(),
   remarks: z.string().trim().max(2000).nullable().optional(),
   lines: z.array(lineInput).min(1).max(500),
@@ -137,12 +142,19 @@ export class InventoryController {
   @RequirePermission('inventory.batch.read')
   async batches(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
     const entityId = entityOf(ctx);
-    const { itemId, warehouseId, inStock } = parse(
-      z.object({ itemId: z.string().uuid(), warehouseId: z.string().uuid().optional(), inStock: z.enum(['true', 'false']).optional() }),
+    const { itemId, warehouseId, inStock, owner } = parse(
+      z.object({
+        itemId: z.string().uuid(),
+        warehouseId: z.string().uuid().optional(),
+        inStock: z.enum(['true', 'false']).optional(),
+        /** "company" = our own stock, a party id = that customer's material; omit for all. */
+        owner: z.union([z.literal('company'), z.string().uuid()]).optional(),
+      }),
       query,
     );
     // Explicit aliases: drizzle renders columns unqualified inside sql``, which would bind "id" to stock_bin.
-    const whFilter = warehouseId ? sql` and sb.warehouse_id = ${warehouseId}` : sql``;
+    const ownerFilter = owner === 'company' ? sql` and sb.owner_party_id is null` : owner ? sql` and sb.owner_party_id = ${owner}` : sql``;
+    const whFilter = warehouseId ? sql` and sb.warehouse_id = ${warehouseId}${ownerFilter}` : ownerFilter;
     const rows = await this.db
       .select({
         batch,
@@ -162,7 +174,7 @@ export class InventoryController {
     const { status, purpose, limit } = parse(
       z.object({
         status: z.enum(['draft', 'submitted', 'cancelled']).optional(),
-        purpose: z.enum(['receipt', 'issue', 'transfer', 'adjustment']).optional(),
+        purpose: z.enum(['receipt', 'issue', 'transfer', 'adjustment', 'return', 'scrap']).optional(),
         limit: z.coerce.number().int().min(1).max(500).default(200),
       }),
       query,
@@ -199,15 +211,18 @@ export class InventoryController {
     const [e] = await this.db.select().from(stockEntry).where(and(eq(stockEntry.id, id), eq(stockEntry.entityId, entityId)));
     if (!e) throw new NotFoundException('Stock entry not found');
     const lines = await this.db
-      .select({ line: stockEntryLine, itemCode: item.code, itemName: item.name, tracking: item.tracking, uomCode: uom.code, batchNo: batch.batchNo, batchHeatNo: batch.heatNo })
+      .select({ line: stockEntryLine, itemCode: item.code, itemName: item.name, tracking: item.tracking, uomCode: uom.code, batchNo: batch.batchNo, batchHeatNo: batch.heatNo, ownerName: party.name })
       .from(stockEntryLine)
       .innerJoin(item, eq(item.id, stockEntryLine.itemId))
       .innerJoin(uom, eq(uom.id, item.stockUomId))
       .leftJoin(batch, eq(batch.id, stockEntryLine.batchId))
+      .leftJoin(party, eq(party.id, stockEntryLine.ownerPartyId))
       .where(eq(stockEntryLine.entryId, id))
       .orderBy(asc(stockEntryLine.lineNo));
     return {
       ...e,
+      ownerPartyId: lines[0]?.line.ownerPartyId ?? null,
+      ownerName: lines[0]?.ownerName ?? null,
       lines: lines.map((l) => ({ ...l.line, itemCode: l.itemCode, itemName: l.itemName, tracking: l.tracking, uomCode: l.uomCode, batchNo: l.batchNo ?? l.line.newBatchNo, heatNo: l.batchHeatNo ?? l.line.heatNo })),
     };
   }
@@ -219,9 +234,9 @@ export class InventoryController {
     const input = parse(entryInput, body);
     await this.assertRefs(ctx, input);
     return this.db.transaction(async (tx) => {
-      const { lines, ...header } = input;
+      const { lines, ownerPartyId, ...header } = input;
       const [e] = await tx.insert(stockEntry).values({ ...header, tenantId: ctx.tenant.tenantId, entityId, createdBy: ctx.user.id }).returning();
-      await tx.insert(stockEntryLine).values(lines.map((l, i) => ({ ...l, entryId: e!.id, lineNo: i + 1 })));
+      await tx.insert(stockEntryLine).values(lines.map((l, i) => ({ ...l, ownerPartyId: ownerPartyId ?? null, entryId: e!.id, lineNo: i + 1 })));
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'stock_entry.create', targetType: 'stock_entry', targetId: e!.id, after: input }, tx);
       return e;
     });
@@ -238,10 +253,10 @@ export class InventoryController {
       const [e] = await tx.select().from(stockEntry).where(and(eq(stockEntry.id, id), eq(stockEntry.entityId, entityId))).for('update');
       if (!e) throw new NotFoundException('Stock entry not found');
       if (e.status !== 'draft') throw new ConflictException('Only drafts can be edited');
-      const { lines, ...header } = input;
+      const { lines, ownerPartyId, ...header } = input;
       await tx.update(stockEntry).set({ ...header, updatedAt: new Date() }).where(eq(stockEntry.id, id));
       await tx.delete(stockEntryLine).where(eq(stockEntryLine.entryId, id));
-      await tx.insert(stockEntryLine).values(lines.map((l, i) => ({ ...l, entryId: id, lineNo: i + 1 })));
+      await tx.insert(stockEntryLine).values(lines.map((l, i) => ({ ...l, ownerPartyId: ownerPartyId ?? null, entryId: id, lineNo: i + 1 })));
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'stock_entry.update', targetType: 'stock_entry', targetId: id, after: input }, tx);
       return { ok: true };
     });
@@ -281,10 +296,16 @@ export class InventoryController {
   @RequirePermission('inventory.report.read')
   async balance(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
     const entityId = entityOf(ctx);
-    const { itemId, warehouseId } = parse(z.object({ itemId: z.string().uuid().optional(), warehouseId: z.string().uuid().optional() }), query);
+    const { itemId, warehouseId, owner } = parse(
+      z.object({ itemId: z.string().uuid().optional(), warehouseId: z.string().uuid().optional(), owner: z.union([z.literal('company'), z.literal('customers'), z.string().uuid()]).optional() }),
+      query,
+    );
     const where: SQL[] = [eq(stockBin.entityId, entityId), ne(stockBin.qty, '0')];
     if (itemId) where.push(eq(stockBin.itemId, itemId));
     if (warehouseId) where.push(eq(stockBin.warehouseId, warehouseId));
+    if (owner === 'company') where.push(isNull(stockBin.ownerPartyId));
+    else if (owner === 'customers') where.push(isNotNull(stockBin.ownerPartyId));
+    else if (owner) where.push(eq(stockBin.ownerPartyId, owner));
     const rows = await this.db
       .select({
         itemId: stockBin.itemId,
@@ -300,6 +321,8 @@ export class InventoryController {
         batchNo: batch.batchNo,
         heatNo: batch.heatNo,
         expiryDate: batch.expiryDate,
+        ownerPartyId: stockBin.ownerPartyId,
+        ownerName: party.name,
         qty: stockBin.qty,
       })
       .from(stockBin)
@@ -307,8 +330,9 @@ export class InventoryController {
       .innerJoin(uom, eq(uom.id, item.stockUomId))
       .innerJoin(warehouse, eq(warehouse.id, stockBin.warehouseId))
       .leftJoin(batch, eq(batch.id, stockBin.batchId))
+      .leftJoin(party, eq(party.id, stockBin.ownerPartyId))
       .where(and(...where))
-      .orderBy(asc(item.code), asc(warehouse.code), asc(batch.batchNo));
+      .orderBy(asc(item.code), sql`${party.name} nulls first`, asc(warehouse.code), asc(batch.batchNo));
 
     // FIFO value per (item, batch) from open layers; allocate to warehouses by owned quantity.
     const itemIds = [...new Set(rows.map((r) => r.itemId))];
@@ -323,7 +347,7 @@ export class InventoryController {
     const valued = new Map(layers.map((l) => [key(l.itemId, l.batchId), { qty: Dec.of(l.qty), value: Dec.of(l.value) }]));
     return rows.map((r) => {
       const v = valued.get(key(r.itemId, r.batchId));
-      const owned = r.warehouseType !== 'customer_owned';
+      const owned = r.ownerPartyId === null;
       const value = owned && v && v.qty.gt(Dec.ZERO) ? v.value.mul(Dec.of(r.qty).div(v.qty)) : Dec.ZERO;
       return { ...r, ownership: owned ? 'company' : 'customer', value: value.toFixed(2) };
     });
@@ -349,6 +373,7 @@ export class InventoryController {
         warehouseCode: warehouse.code,
         batchNo: batch.batchNo,
         heatNo: batch.heatNo,
+        ownerName: party.name,
         qty: stockLedgerEntry.qty,
         rate: stockLedgerEntry.rate,
         value: stockLedgerEntry.value,
@@ -364,6 +389,7 @@ export class InventoryController {
       .innerJoin(warehouse, eq(warehouse.id, stockLedgerEntry.warehouseId))
       .leftJoin(batch, eq(batch.id, stockLedgerEntry.batchId))
       .leftJoin(stockEntry, eq(stockEntry.id, stockLedgerEntry.voucherId))
+      .leftJoin(party, eq(party.id, stockLedgerEntry.ownerPartyId))
       .where(and(...where))
       .orderBy(asc(stockLedgerEntry.postingDate), asc(stockLedgerEntry.seq));
     // Running totals include earlier movements; the date filter only trims what's shown.
@@ -384,6 +410,16 @@ export class InventoryController {
     if (input.partyId) {
       const [p] = await this.db.select({ id: party.id }).from(party).where(and(eq(party.id, input.partyId), eq(party.tenantId, ctx.tenant.tenantId)));
       if (!p) throw new BadRequestException('Unknown party');
+    }
+    if (input.ownerPartyId) {
+      const [o] = await this.db.select({ isCustomer: party.isCustomer }).from(party).where(and(eq(party.id, input.ownerPartyId), eq(party.tenantId, ctx.tenant.tenantId)));
+      if (!o?.isCustomer) throw new BadRequestException({ message: 'The material owner must be a customer', issues: [{ path: 'ownerPartyId', message: 'Pick a customer' }] });
+    }
+    if (input.purpose === 'return' && (!input.ownerPartyId || input.partyId !== input.ownerPartyId)) {
+      throw new BadRequestException({ message: "Returns send a customer's own material back to them", issues: [{ path: 'ownerPartyId', message: 'Owner and receiving customer must match' }] });
+    }
+    if (input.purpose === 'scrap' && input.lines.some((l) => !l.wasteCategory)) {
+      throw new BadRequestException({ message: 'Each scrap line needs a waste category', issues: [{ path: 'lines', message: 'Choose a waste category' }] });
     }
   }
 }

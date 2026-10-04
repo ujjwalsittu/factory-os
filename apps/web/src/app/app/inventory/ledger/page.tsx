@@ -56,6 +56,11 @@ function Ledger() {
                         {r.voucherNumber}
                       </Link>{' '}
                       <span className="text-muted">{r.purpose ? PURPOSE_LABELS[r.purpose] : ''}</span>
+                      {r.ownerName && (
+                        <Badge tone="warning" className="ml-2">
+                          {r.ownerName}&apos;s
+                        </Badge>
+                      )}
                       {r.isReversal && (
                         <Badge tone="danger" className="ml-2">
                           Reversal

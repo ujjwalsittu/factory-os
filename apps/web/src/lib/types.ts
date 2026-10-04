@@ -191,7 +191,7 @@ export interface Batch {
   qty: string;
 }
 
-export type StockPurpose = 'receipt' | 'issue' | 'transfer' | 'adjustment';
+export type StockPurpose = 'receipt' | 'issue' | 'transfer' | 'adjustment' | 'return' | 'scrap';
 export type DocStatus = 'draft' | 'submitted' | 'cancelled';
 
 export interface StockEntryRow {
@@ -226,6 +226,8 @@ export interface StockEntryLine {
   rate: string | null;
   value: string | null;
   remarks: string | null;
+  ownerPartyId: string | null;
+  wasteCategory: string | null;
 }
 
 export interface StockEntryDetail {
@@ -241,6 +243,8 @@ export interface StockEntryDetail {
   cancelledAt: string | null;
   cancelReason: string | null;
   createdAt: string;
+  ownerPartyId: string | null;
+  ownerName: string | null;
   lines: StockEntryLine[];
 }
 
@@ -261,6 +265,8 @@ export interface BalanceRow {
   qty: string;
   value: string;
   ownership: 'company' | 'customer';
+  ownerPartyId: string | null;
+  ownerName: string | null;
 }
 
 export interface LedgerRow {
@@ -269,6 +275,7 @@ export interface LedgerRow {
   warehouseCode: string;
   batchNo: string | null;
   heatNo: string | null;
+  ownerName: string | null;
   qty: string;
   rate: string;
   value: string;
@@ -278,4 +285,65 @@ export interface LedgerRow {
   purpose: StockPurpose | null;
   balanceQty: string;
   balanceValue: string;
+}
+
+// ---- Customer material & waste (decisions 024, 025) ----
+export interface WasteMovement {
+  id: string;
+  kind: 'generated' | 'disposed';
+  movementDate: string;
+  category: string;
+  material: string;
+  qty: string;
+  uomCode: string;
+  ownerPartyId: string | null;
+  ownerName: string | null;
+  hazardous: boolean;
+  sourceRef: string | null;
+  stockEntryId: string | null;
+  stockEntryNumber: string | null;
+  disposalMethod: string | null;
+  counterpartyName: string | null;
+  documentNo: string | null;
+  consentRef: string | null;
+  remarks: string | null;
+  createdByName: string;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+}
+
+export interface WasteBalance {
+  category: string;
+  material: string;
+  ownerPartyId: string | null;
+  ownerName: string | null;
+  uomCode: string;
+  hazardous: boolean;
+  generated: string;
+  disposed: string;
+  balance: string;
+  firstGenerated: string | null;
+}
+
+export interface CustomerStatement {
+  customer: { id: string; name: string; gstin: string | null; code: string };
+  from: string;
+  to: string;
+  items: {
+    itemId: string;
+    itemCode: string;
+    itemName: string;
+    uomCode: string;
+    batchNo: string | null;
+    heatNo: string | null;
+    opening: string;
+    received: string;
+    consumed: string;
+    returned: string;
+    scrapped: string;
+    adjusted: string;
+    closing: string;
+  }[];
+  movements: { postingDate: string; number: string | null; entryId: string; purpose: StockPurpose; reference: string | null; itemCode: string; batchNo: string | null; qty: string; isReversal: boolean }[];
+  waste: { category: string; material: string; uomCode: string; opening: string; generated: string; returned: string; disposedWithConsent: string; pending: string }[];
 }

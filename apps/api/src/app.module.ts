@@ -16,9 +16,10 @@ import { MembersController } from './modules/members.controller.js';
 import { PlatformController } from './modules/platform.controller.js';
 import { RolesController } from './modules/roles.controller.js';
 import { TenancyService } from './modules/tenancy.service.js';
+import { WasteController } from './modules/waste.controller.js';
 
 @Module({
-  controllers: [HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController],
+  controllers: [HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController],
   providers: [
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: DB, inject: [CONFIG], useFactory: (c: AppConfig) => createDb(c.DATABASE_URL) },

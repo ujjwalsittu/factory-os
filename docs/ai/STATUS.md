@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-04 · Phase 1 slice 1a (inventory core) built, verified and deployed to dev_
+_Last updated: 2026-10-05 · Slice 1a + customer-supplied material & waste register built, verified, deployed to dev_
 
 ## Done
 - [x] Plan docs 01–16, decision register (001–016 accepted), open questions (docs/10)
@@ -29,13 +29,20 @@ _Last updated: 2026-10-04 · Phase 1 slice 1a (inventory core) built, verified a
   - System roles re-sync from the permission catalog at startup; default UoMs seeded per tenant
   - Web: Masters (items, customers & suppliers, units & HSN/SAC), Inventory (stock entries list + document form with item picker, batch picker, Ctrl+Enter save; stock balance; stock ledger; warehouses), entity gate, ⌘K actions
   - Verified: `apps/api/scripts/smoke-inventory.sh` 43/43, `smoke.sh` 26/26, `pnpm --filter @factoryos/web e2e` and `e2e:inventory` pass
+- [x] **Customer-supplied material & waste** (decisions 024, 025; migration 0003)
+  - Owner (`owner_party_id`) on stock lines, ledger and balances; customer stock unvalued, outside FIFO, owner never changes on transfer; owner-aware batch picker and balances
+  - New stock purposes: **Return to customer** (only to the owner) and **Scrap** (into the waste register, same owner, cancel cascades)
+  - Waste register (`waste_movement`, append-only): generated / disposed (returned, sold, authorised recycler, TSDF), consent required for disposing customer waste, document no. required for sale/recycler/TSDF, balance-checked with locks, hazardous flag + 90-day hold warning
+  - Customer material statement (`GET /reports/customer-material`, `/app/inventory/customer-material`): opening, received, consumed, returned, scrapped, adjusted, with us; waste generated/returned/disposed/pending; documents; print/PDF layout
+  - Permissions: `ehs.waste.*`; Stores gets waste, Quality can record waste
+  - Verified: `smoke-customer-material.sh` 36/36, `smoke-inventory.sh`, `smoke.sh`, e2e `customer-material`, `inventory`, base walkthrough all pass
 - [x] Dockerfiles for api and web; `pnpm deploy` bundle and Next standalone output verified to boot. (A full `docker build` could not run in the dev sandbox: its TLS proxy blocks npm inside containers.)
 
 ## In progress
 - Nothing. Stopping point is clean.
 
 ## Next (in order; confirm with the user before starting)
-1. User review of slice 1a on dev, and decision 022 (FIFO per entity vs per warehouse).
+1. User review of slice 1a and customer material / waste on dev.
 2. **Slice 1b: buying** — purchase order → GRN (into quarantine, posts via the stock engine) → incoming inspection (accept → stores / reject → return) → purchase invoice; landed cost for imports (B4).
 3. **Slice 1c: selling + GST engine** — quotation → sales order → delivery → sales invoice; tax engine in `packages/compliance-in` (place of supply, CGST/SGST/IGST, RCM) with golden-file tests; tax invoice PDF.
 4. **Slice 1d: GL core** — chart of accounts (Tally group names), journal posting from stock and invoices.

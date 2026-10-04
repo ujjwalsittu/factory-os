@@ -7,11 +7,13 @@ import {
   item,
   legalEntity,
   numberSeries,
+  party,
   stockBin,
   stockEntry,
   stockEntryLine,
   stockLedgerEntry,
   warehouse,
+  wasteMovement,
 } from '@factoryos/db';
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
@@ -21,12 +23,11 @@ import { DB } from '../common/tokens.js';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 type Line = typeof stockEntryLine.$inferSelect;
-type Wh = typeof warehouse.$inferSelect;
 
 export const DEFAULT_SERIES: Record<string, string> = { stock_entry: '{ENTITY}/SE/{FY}/{#####}' };
 
-/** Customer-owned stock is held in custody: it moves in quantity but carries no value (docs/03 §2). */
-const isCustomerOwned = (w: Wh) => w.type === 'customer_owned';
+/** Waste categories that are hazardous under the Hazardous Waste Rules 2016 (docs/03 §9). */
+const HAZARDOUS = new Set(['metal_powder', 'coolant_oil', 'solvent']);
 
 /**
  * Posts stock entries to the append-only ledger (decision 018: FIFO per entity × item, per batch for
@@ -56,6 +57,12 @@ export class StockPostingService {
         (whIds.length ? await tx.select().from(warehouse).where(and(inArray(warehouse.id, whIds), eq(warehouse.entityId, entityId))) : []).map((w) => [w.id, w]),
       );
 
+      // Owners of customer-supplied material (decision 024) must be customers of this tenant.
+      const ownerIds = [...new Set(lines.map((l) => l.ownerPartyId).filter((x): x is string => !!x))];
+      const owners = new Map(
+        (ownerIds.length ? await tx.select().from(party).where(and(inArray(party.id, ownerIds), eq(party.tenantId, ctx.tenant.tenantId))) : []).map((p) => [p.id, p]),
+      );
+
       // Backdating would require re-valuing later issues; until the repost engine exists it is refused.
       for (const id of itemIds) {
         const [last] = await tx
@@ -82,6 +89,15 @@ export class StockPostingService {
 
         const direction = lineDirection(entry.purpose, line);
         let batchId = line.batchId;
+        const owner = line.ownerPartyId;
+        if (owner && !owners.get(owner)?.isCustomer) throw new BadRequestException(`Line ${line.lineNo}: the material owner must be a customer`);
+        if (entry.purpose === 'return' && (!owner || owner !== entry.partyId)) {
+          throw new BadRequestException(`Line ${line.lineNo}: only the customer's own material can be returned to them`);
+        }
+        if (entry.purpose === 'scrap' && !line.wasteCategory) throw new BadRequestException(`Line ${line.lineNo}: choose a waste category`);
+        for (const w of [from, to]) {
+          if (w?.type === 'customer_owned' && !owner) throw new BadRequestException(`Line ${line.lineNo}: ${w.name} holds customer material; choose the owner`);
+        }
 
         if (direction === 'in' || direction === 'transfer') {
           if (!to) throw new BadRequestException(`Line ${line.lineNo}: choose a target warehouse`);
@@ -93,9 +109,6 @@ export class StockPostingService {
           }
         }
         if (direction === 'transfer' && from!.id === to!.id) throw new BadRequestException(`Line ${line.lineNo}: source and target are the same`);
-        if (direction === 'transfer' && isCustomerOwned(from!) !== isCustomerOwned(to!)) {
-          throw new BadRequestException(`Line ${line.lineNo}: customer-owned and company-owned stock can't be transferred into each other`);
-        }
 
         if (it.tracking === 'batch') {
           if (direction === 'in' && !batchId) {
@@ -125,22 +138,25 @@ export class StockPostingService {
           throw new BadRequestException(`Line ${line.lineNo}: ${it.code} is not batch-tracked`);
         }
 
-        const base = { tenantId: ctx.tenant.tenantId, entityId, itemId: it.id, batchId, postingDate: entry.postingDate, voucherType: 'stock_entry', voucherId: entry.id, voucherLineId: line.id };
+        const base = { tenantId: ctx.tenant.tenantId, entityId, itemId: it.id, batchId, ownerPartyId: owner, postingDate: entry.postingDate, voucherType: 'stock_entry', voucherId: entry.id, voucherLineId: line.id };
 
         if (direction === 'in') {
-          const owned = !isCustomerOwned(to!);
+          const owned = !owner;
           if (owned && line.rate === null) throw new BadRequestException(`Line ${line.lineNo}: enter the unit cost`);
+          if (!owned && line.rate !== null && Dec.of(line.rate).gt(Dec.ZERO)) {
+            throw new BadRequestException(`Line ${line.lineNo}: customer-supplied material has no cost to us; leave the unit cost empty`);
+          }
           const rate = owned ? Dec.of(line.rate!) : Dec.ZERO;
           const value = q.mul(rate);
           const [sle] = await tx.insert(stockLedgerEntry).values({ ...base, warehouseId: to!.id, qty: q.toString(), rate: rate.toString(), value: value.toString() }).returning();
           if (owned) {
             await tx.insert(fifoLayer).values({ tenantId: ctx.tenant.tenantId, entityId, itemId: it.id, batchId, qtyIn: q.toString(), qtyRemaining: q.toString(), rate: rate.toString(), sourceSeq: sle!.seq, postingDate: entry.postingDate, voucherId: entry.id });
           }
-          await this.moveBin(tx, ctx.tenant.tenantId, entityId, it.id, to!.id, batchId, q);
+          await this.moveBin(tx, ctx.tenant.tenantId, entityId, it.id, to!.id, batchId, owner, q);
           await tx.update(stockEntryLine).set({ batchId, rate: rate.toString(), value: value.toString() }).where(eq(stockEntryLine.id, line.id));
         } else if (direction === 'out') {
-          await this.moveBin(tx, ctx.tenant.tenantId, entityId, it.id, from!.id, batchId, q.neg(), `Line ${line.lineNo}: ${it.code}`);
-          const owned = !isCustomerOwned(from!);
+          await this.moveBin(tx, ctx.tenant.tenantId, entityId, it.id, from!.id, batchId, owner, q.neg(), `Line ${line.lineNo}: ${it.code}`);
+          const owned = !owner;
           let value = Dec.ZERO;
           let consumed: { layerId: string; qty: Dec }[] = [];
           if (owned) {
@@ -166,10 +182,31 @@ export class StockPostingService {
           const [sle] = await tx.insert(stockLedgerEntry).values({ ...base, warehouseId: from!.id, qty: q.neg().toString(), rate: rate.toString(), value: value.neg().toString() }).returning();
           if (consumed.length) await tx.insert(fifoConsumption).values(consumed.map((c) => ({ sleSeq: sle!.seq, layerId: c.layerId, qty: c.qty.toString() })));
           await tx.update(stockEntryLine).set({ rate: rate.toString(), value: value.toString() }).where(eq(stockEntryLine.id, line.id));
+          if (entry.purpose === 'scrap') {
+            // Scrapped stock enters the waste register with the same owner (decision 025).
+            await tx.insert(wasteMovement).values({
+              tenantId: ctx.tenant.tenantId,
+              entityId,
+              kind: 'generated',
+              movementDate: entry.postingDate,
+              category: line.wasteCategory as typeof wasteMovement.$inferInsert.category,
+              material: `${it.code} · ${it.name}`,
+              itemId: it.id,
+              qty: q.toString(),
+              uomId: it.stockUomId,
+              ownerPartyId: owner,
+              hazardous: HAZARDOUS.has(line.wasteCategory!),
+              warehouseId: from!.id,
+              sourceRef: entry.reference,
+              stockEntryId: entry.id,
+              createdBy: ctx.user.id,
+            });
+          }
         } else {
           // Transfer inside one entity: FIFO layers are entity-level, so value doesn't move between warehouses.
-          await this.moveBin(tx, ctx.tenant.tenantId, entityId, it.id, from!.id, batchId, q.neg(), `Line ${line.lineNo}: ${it.code}`);
-          await this.moveBin(tx, ctx.tenant.tenantId, entityId, it.id, to!.id, batchId, q);
+          // Ownership travels with the stock: a transfer can never turn customer material into ours.
+          await this.moveBin(tx, ctx.tenant.tenantId, entityId, it.id, from!.id, batchId, owner, q.neg(), `Line ${line.lineNo}: ${it.code}`);
+          await this.moveBin(tx, ctx.tenant.tenantId, entityId, it.id, to!.id, batchId, owner, q);
           await tx.insert(stockLedgerEntry).values([
             { ...base, warehouseId: from!.id, qty: q.neg().toString(), rate: '0', value: '0' },
             { ...base, warehouseId: to!.id, qty: q.toString(), rate: '0', value: '0' },
@@ -209,13 +246,13 @@ export class StockPostingService {
             throw new ConflictException('Stock from this entry has already been issued. Cancel the later issues first.');
           }
           if (layer) await tx.update(fifoLayer).set({ qtyRemaining: '0' }).where(eq(fifoLayer.id, layer.id));
-          await this.moveBin(tx, s.tenantId, entityId, s.itemId, s.warehouseId, s.batchId, q.neg(), 'Cancelling would make stock negative; later movements used it');
+          await this.moveBin(tx, s.tenantId, entityId, s.itemId, s.warehouseId, s.batchId, s.ownerPartyId, q.neg(), 'Cancelling would make stock negative; later movements used it');
         } else {
           const used = await tx.select().from(fifoConsumption).where(eq(fifoConsumption.sleSeq, s.seq));
           for (const c of used) {
             await tx.update(fifoLayer).set({ qtyRemaining: sql`${fifoLayer.qtyRemaining} + ${c.qty}` }).where(eq(fifoLayer.id, c.layerId));
           }
-          await this.moveBin(tx, s.tenantId, entityId, s.itemId, s.warehouseId, s.batchId, q.neg());
+          await this.moveBin(tx, s.tenantId, entityId, s.itemId, s.warehouseId, s.batchId, s.ownerPartyId, q.neg());
         }
         await tx.insert(stockLedgerEntry).values({
           tenantId: s.tenantId,
@@ -223,6 +260,7 @@ export class StockPostingService {
           itemId: s.itemId,
           warehouseId: s.warehouseId,
           batchId: s.batchId,
+          ownerPartyId: s.ownerPartyId,
           qty: q.neg().toString(),
           rate: s.rate,
           value: Dec.of(s.value).neg().toString(),
@@ -232,6 +270,18 @@ export class StockPostingService {
           voucherLineId: s.voucherLineId,
           isReversal: true,
         });
+      }
+
+      // Waste generated by a scrap entry is withdrawn too, unless some of it has already been disposed of.
+      const waste = await tx.select().from(wasteMovement).where(and(eq(wasteMovement.stockEntryId, entryId), isNull(wasteMovement.cancelledAt)));
+      for (const w of waste) {
+        const [bal] = await tx.execute<{ balance: string }>(sql`
+          select coalesce(sum(case when kind = 'generated' then qty else -qty end), 0) as balance
+          from waste_movement
+          where entity_id = ${entityId} and category = ${w.category} and material = ${w.material}
+            and owner_party_id is not distinct from ${w.ownerPartyId} and cancelled_at is null`).then((r) => r.rows);
+        if (Dec.of(bal!.balance).lt(w.qty)) throw new ConflictException('Waste from this scrap entry has already been disposed of. Cancel the disposal first.');
+        await tx.update(wasteMovement).set({ cancelledAt: new Date(), cancelledBy: ctx.user.id, cancelReason: `Stock entry cancelled: ${reason}` }).where(eq(wasteMovement.id, w.id));
       }
 
       const [after] = await tx
@@ -251,18 +301,18 @@ export class StockPostingService {
   }
 
   /** Adjusts a balance row; refuses to go below zero (negative stock is disallowed, docs/03 §3). */
-  private async moveBin(tx: Tx, tenantId: string, entityId: string, itemId: string, warehouseId: string, batchId: string | null, delta: Dec, context = '') {
+  private async moveBin(tx: Tx, tenantId: string, entityId: string, itemId: string, warehouseId: string, batchId: string | null, ownerPartyId: string | null, delta: Dec, context = '') {
     const [row] = await tx
       .insert(stockBin)
-      .values({ tenantId, entityId, itemId, warehouseId, batchId, qty: delta.toString() })
+      .values({ tenantId, entityId, itemId, warehouseId, batchId, ownerPartyId, qty: delta.toString() })
       .onConflictDoUpdate({
-        target: [stockBin.entityId, stockBin.itemId, stockBin.warehouseId, stockBin.batchId],
+        target: [stockBin.entityId, stockBin.itemId, stockBin.warehouseId, stockBin.batchId, stockBin.ownerPartyId],
         set: { qty: sql`${stockBin.qty} + ${delta.toString()}`, updatedAt: new Date() },
       })
       .returning({ qty: stockBin.qty });
     if (Dec.of(row!.qty).isNeg()) {
       const had = Dec.of(row!.qty).sub(delta);
-      throw new BadRequestException(`${context ? `${context}: ` : ''}only ${had.toFixed(3)} in this warehouse${batchId ? '/batch' : ''}, ${delta.abs().toFixed(3)} needed`);
+      throw new BadRequestException(`${context ? `${context}: ` : ''}only ${had.toFixed(3)} ${ownerPartyId ? "of this customer's material " : ''}in this warehouse${batchId ? '/batch' : ''}, ${delta.abs().toFixed(3)} needed`);
     }
   }
 
@@ -283,7 +333,7 @@ export class StockPostingService {
 /** receipt → in; issue → out; transfer → transfer; adjustment → in or out depending on which warehouse is set. */
 function lineDirection(purpose: string, line: Line): 'in' | 'out' | 'transfer' {
   if (purpose === 'receipt') return 'in';
-  if (purpose === 'issue') return 'out';
+  if (purpose === 'issue' || purpose === 'return' || purpose === 'scrap') return 'out';
   if (purpose === 'transfer') return 'transfer';
   if (line.toWarehouseId && !line.fromWarehouseId) return 'in';
   if (line.fromWarehouseId && !line.toWarehouseId) return 'out';

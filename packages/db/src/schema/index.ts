@@ -3,3 +3,4 @@ export * from './platform.js';
 export * from './access.js';
 export * from './masters.js';
 export * from './inventory.js';
+export * from './ehs.js';

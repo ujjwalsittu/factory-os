@@ -127,7 +127,7 @@ Sales order / Forecast / Reorder
 | Return to stores | Unused material back with same batch identity |
 | Gate pass | Every physical outward (returnable/non-returnable) — tied to challan/invoice; security desk verifies by scan |
 | Cycle count | ABC classification, blind counts on mobile, variance approval, adjustment posting |
-| Customer-owned | Separate ownership; issued/consumed/returned against the customer's inward challan |
+| Customer-owned | Owner recorded on every stock row (decision 024): received against the customer's challan, consumed on jobs, returned, or scrapped into the waste register; per-customer statement in Inventory → Customer material |
 
 **Remnant management** matters with Ti/Inconel: a 1 m bar cut to 340 mm leaves a 660 mm remnant
 that stays traceable to the original heat.

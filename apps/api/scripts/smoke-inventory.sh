@@ -83,11 +83,14 @@ r=$(req GET "/stock/balance?itemId=$TI")
 check "heat HN-23-4471: 6 kg worth 30000" "$(field "$r" "[(x['qty'],x['value']) for x in d if x['batchNo']=='HN-23-4471']")" "[('6.000000', '30000.00')]"
 check "heat HN-23-4480: 5 kg worth 30000" "$(field "$r" "[(x['qty'],x['value']) for x in d if x['batchNo']=='HN-23-4480']")" "[('5.000000', '30000.00')]"
 
-expect "customer-owned receipt without cost" 201 "$(entry receipt 2026-10-05 "[{\"itemId\":\"$SC\",\"qty\":\"40\",\"toWarehouseId\":\"$CUST\"}]")"
+r=$(req POST /parties "{\"code\":\"SKYR\",\"name\":\"Skyroot Aerospace\",\"isCustomer\":true,\"gstin\":\"$(gstin 36AAACS1234B1Z)\"}")
+expect "customer" 201 "$r"; CUS=$(field "$r" "d['id']")
+expect "customer area needs an owner" 400 "$(entry receipt 2026-10-05 "[{\"itemId\":\"$SC\",\"qty\":\"40\",\"toWarehouseId\":\"$CUST\"}]")"
+r=$(req POST /stock-entries "{\"purpose\":\"receipt\",\"postingDate\":\"2026-10-05\",\"ownerPartyId\":\"$CUS\",\"lines\":[{\"itemId\":\"$SC\",\"qty\":\"40\",\"toWarehouseId\":\"$CUST\"}]}")
+expect "customer material receipt (draft)" 201 "$r"
+expect "customer material receipt submitted" 201 "$(req POST /stock-entries/$(field "$r" "d['id']")/submit)"
 r=$(req GET "/stock/balance?itemId=$SC&warehouseId=$CUST")
-check "customer stock carries no value" "$(field "$r" "(d[0]['ownership'], d[0]['value'])")" "('customer', '0.00')"
-expect "custody stock can't merge into own stock" 400 "$(entry transfer 2026-10-05 "[{\"itemId\":\"$SC\",\"qty\":\"5\",\"fromWarehouseId\":\"$CUST\",\"toWarehouseId\":\"$STORES\"}]")"
-
+check "customer stock carries no value" "$(field "$r" "(d[0]['ownership'], d[0]['ownerName'], d[0]['value'])")" "('customer', 'Skyroot Aerospace', '0.00')"
 r=$(req GET "/stock/ledger?itemId=$TI"); expect "stock ledger" 200 "$r"
 check "running balance = 11 kg" "$(field "$r" "d[-1]['balanceQty']")" "11.000000"
 check "running value = 60000" "$(field "$r" "d[-1]['balanceValue']")" "60000.000000"

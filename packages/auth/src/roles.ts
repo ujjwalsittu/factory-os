@@ -64,8 +64,8 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
   {
     key: 'stores',
     name: 'Stores',
-    description: 'Stock receipts, issues, transfers and counts.',
-    permissions: all((p) => p.startsWith('inventory.') || p === 'masters.item.read'),
+    description: 'Stock receipts, issues, transfers, counts and the waste register.',
+    permissions: all((p) => p.startsWith('inventory.') || p.startsWith('ehs.') || p === 'masters.item.read' || p === 'masters.party.read'),
   },
   {
     key: 'production_planner',
@@ -82,8 +82,8 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
   {
     key: 'quality',
     name: 'Quality',
-    description: 'Inspections, NCR, FAI and calibration.',
-    permissions: all((p) => p.startsWith('quality.') || p === 'masters.item.read'),
+    description: 'Inspections, NCR, FAI, calibration and recording scrap/waste.',
+    permissions: all((p) => p.startsWith('quality.') || p === 'masters.item.read' || p === 'ehs.waste.read' || p === 'ehs.waste.create'),
   },
   {
     key: 'auditor',
