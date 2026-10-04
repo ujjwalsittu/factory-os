@@ -39,7 +39,11 @@ _Last updated: 2026-10-05 · Slice 1a + customer-supplied material & waste regis
 - [x] Dockerfiles for api and web; `pnpm deploy` bundle and Next standalone output verified to boot. (A full `docker build` could not run in the dev sandbox: its TLS proxy blocks npm inside containers.)
 
 ## In progress
-- Nothing. Stopping point is clean.
+- **Slice 1b: buying.** Backend done and verified (`smoke-buying.sh` 60/60, migration 0004, GST engine in `packages/compliance-in` with 16 tests):
+  purchase orders (draft/submit/cancel/short-close, live tax preview), receipts against a PO (over-receipt and wrong supplier refused, PO rate fills value),
+  incoming inspection (queue of quarantine lines, accept → stores / reject → MRB via a system-generated transfer that can't be cancelled directly),
+  purchase invoices (CGST/SGST vs IGST, 3-way match, rate-variance confirmation, duplicate supplier invoice per FY blocked, MSME due date ≤ 45 days).
+  **Stopping point:** buying web screens (Purchase nav, PO list/form, Receive from PO, inspection queue, purchase invoices) + e2e not started.
 
 ## Next (in order; confirm with the user before starting)
 1. User review of slice 1a and customer material / waste on dev.

@@ -8,6 +8,9 @@ import {
   legalEntity,
   numberSeries,
   party,
+  purchaseOrder,
+  purchaseOrderLine,
+  qualityInspection,
   stockBin,
   stockEntry,
   stockEntryLine,
@@ -24,7 +27,12 @@ import { DB } from '../common/tokens.js';
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 type Line = typeof stockEntryLine.$inferSelect;
 
-export const DEFAULT_SERIES: Record<string, string> = { stock_entry: '{ENTITY}/SE/{FY}/{#####}' };
+export const DEFAULT_SERIES: Record<string, string> = {
+  stock_entry: '{ENTITY}/SE/{FY}/{#####}',
+  purchase_order: '{ENTITY}/PO/{FY}/{####}',
+  quality_inspection: '{ENTITY}/QI/{FY}/{#####}',
+  purchase_invoice: '{ENTITY}/PI/{FY}/{#####}',
+};
 
 /** Waste categories that are hazardous under the Hazardous Waste Rules 2016 (docs/03 §9). */
 const HAZARDOUS = new Set(['metal_powder', 'coolant_oil', 'solvent']);
@@ -40,8 +48,13 @@ export class StockPostingService {
     private readonly audit: AuditService,
   ) {}
 
-  async submit(ctx: TenantRequestContext, entityId: string, entryId: string) {
-    return this.db.transaction(async (tx) => {
+  submit(ctx: TenantRequestContext, entityId: string, entryId: string) {
+    return this.db.transaction((tx) => this.submitIn(tx, ctx, entityId, entryId));
+  }
+
+  /** Same as submit, inside the caller's transaction (e.g. an inspection posting its transfer). */
+  async submitIn(tx: Tx, ctx: TenantRequestContext, entityId: string, entryId: string) {
+    {
       const entry = await this.lockEntry(tx, entityId, entryId);
       if (entry.status !== 'draft') throw new ConflictException(`Only drafts can be submitted (this one is ${entry.status})`);
       const lines = await tx.select().from(stockEntryLine).where(eq(stockEntryLine.entryId, entryId)).orderBy(asc(stockEntryLine.lineNo));
@@ -56,6 +69,31 @@ export class StockPostingService {
       const whs = new Map(
         (whIds.length ? await tx.select().from(warehouse).where(and(inArray(warehouse.id, whIds), eq(warehouse.entityId, entityId))) : []).map((w) => [w.id, w]),
       );
+
+      // Goods receipt against a purchase order: same supplier, PO approved and open, no over-receipt.
+      const poLines = new Map<string, typeof purchaseOrderLine.$inferSelect>();
+      if (entry.purchaseOrderId) {
+        if (entry.purpose !== 'receipt') throw new BadRequestException('Only receipts can reference a purchase order');
+        const [po] = await tx.select().from(purchaseOrder).where(and(eq(purchaseOrder.id, entry.purchaseOrderId), eq(purchaseOrder.entityId, entityId))).for('update');
+        if (!po || po.status !== 'submitted') throw new BadRequestException('The purchase order must be submitted (approved) before receiving against it');
+        if (po.closedAt) throw new BadRequestException(`Purchase order ${po.number} is closed`);
+        if (entry.partyId !== po.supplierId) throw new BadRequestException('The receipt supplier differs from the purchase order supplier');
+        for (const l of await tx.select().from(purchaseOrderLine).where(eq(purchaseOrderLine.poId, po.id)).for('update')) poLines.set(l.id, l);
+      }
+      for (const line of lines) {
+        if (!line.poLineId) continue;
+        const pl = poLines.get(line.poLineId);
+        if (!pl) throw new BadRequestException(`Line ${line.lineNo}: not a line of this purchase order`);
+        if (pl.itemId !== line.itemId) throw new BadRequestException(`Line ${line.lineNo}: item differs from the purchase order line`);
+        if (line.ownerPartyId) throw new BadRequestException(`Line ${line.lineNo}: purchased material belongs to us, not a customer`);
+        const pending = Dec.of(pl.qty).sub(pl.receivedQty);
+        if (Dec.of(line.qty).gt(pending)) throw new BadRequestException(`Line ${line.lineNo}: only ${pending.toFixed(3)} still due on the purchase order`);
+        if (line.rate === null) {
+          line.rate = pl.rate;
+          await tx.update(stockEntryLine).set({ rate: pl.rate }).where(eq(stockEntryLine.id, line.id));
+        }
+        await tx.update(purchaseOrderLine).set({ receivedQty: sql`${purchaseOrderLine.receivedQty} + ${line.qty}` }).where(eq(purchaseOrderLine.id, pl.id));
+      }
 
       // Owners of customer-supplied material (decision 024) must be customers of this tenant.
       const ownerIds = [...new Set(lines.map((l) => l.ownerPartyId).filter((x): x is string => !!x))];
@@ -222,14 +260,39 @@ export class StockPostingService {
         .returning();
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'stock_entry.submit', targetType: 'stock_entry', targetId: entryId, after: { number, purpose: entry.purpose } }, tx);
       return after!;
-    });
+    }
   }
 
   /** Exact reversal: restores FIFO layers and balances, appends negating ledger rows. */
-  async cancel(ctx: TenantRequestContext, entityId: string, entryId: string, reason: string) {
+  cancel(ctx: TenantRequestContext, entityId: string, entryId: string, reason: string) {
     return this.db.transaction(async (tx) => {
       const entry = await this.lockEntry(tx, entityId, entryId);
+      // Postings made by another document (e.g. an inspection) are cancelled through that document.
+      if (entry.systemGenerated) throw new ConflictException('This entry was posted by another document; cancel that document instead');
+      return this.cancelIn(tx, ctx, entityId, entryId, reason);
+    });
+  }
+
+  async cancelIn(tx: Tx, ctx: TenantRequestContext, entityId: string, entryId: string, reason: string) {
+    {
+      const entry = await this.lockEntry(tx, entityId, entryId);
       if (entry.status !== 'submitted') throw new ConflictException('Only submitted entries can be cancelled');
+      if (entry.purchaseOrderId) {
+        const lines = await tx.select().from(stockEntryLine).where(eq(stockEntryLine.entryId, entryId));
+        const inspected = await tx
+          .select({ id: qualityInspection.id })
+          .from(qualityInspection)
+          .where(and(inArray(qualityInspection.receiptLineId, lines.map((l) => l.id)), eq(qualityInspection.status, 'submitted')));
+        if (inspected.length) throw new ConflictException('This receipt has been inspected. Cancel the inspections first.');
+        for (const l of lines.filter((x) => x.poLineId)) {
+          const [pl] = await tx
+            .update(purchaseOrderLine)
+            .set({ receivedQty: sql`${purchaseOrderLine.receivedQty} - ${l.qty}` })
+            .where(eq(purchaseOrderLine.id, l.poLineId!))
+            .returning();
+          if (Dec.of(pl!.billedQty).gt(pl!.receivedQty)) throw new ConflictException('This receipt has already been invoiced. Cancel the purchase invoice first.');
+        }
+      }
       const sles = await tx
         .select()
         .from(stockLedgerEntry)
@@ -291,7 +354,7 @@ export class StockPostingService {
         .returning();
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'stock_entry.cancel', targetType: 'stock_entry', targetId: entryId, reason }, tx);
       return after!;
-    });
+    }
   }
 
   private async lockEntry(tx: Tx, entityId: string, entryId: string) {

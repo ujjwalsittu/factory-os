@@ -53,11 +53,14 @@ const lineInput = z.object({
   rate: qtyString.nullable().optional(),
   remarks: z.string().trim().max(500).nullable().optional(),
   wasteCategory: z.enum(WASTE_CATEGORIES).nullable().optional(),
+  poLineId: z.string().uuid().nullable().optional(),
 });
 const entryInput = z.object({
   purpose: z.enum(['receipt', 'issue', 'transfer', 'adjustment', 'return', 'scrap']),
   postingDate: z.string().date(),
   partyId: z.string().uuid().nullable().optional(),
+  /** Goods receipt against this purchase order (slice 1b). */
+  purchaseOrderId: z.string().uuid().nullable().optional(),
   /** Customer who owns the material on every line (decision 024); null = our own stock. */
   ownerPartyId: z.string().uuid().nullable().optional(),
   reference: z.string().trim().max(100).nullable().optional(),
@@ -417,6 +420,9 @@ export class InventoryController {
     }
     if (input.purpose === 'return' && (!input.ownerPartyId || input.partyId !== input.ownerPartyId)) {
       throw new BadRequestException({ message: "Returns send a customer's own material back to them", issues: [{ path: 'ownerPartyId', message: 'Owner and receiving customer must match' }] });
+    }
+    if (input.purchaseOrderId && (!input.partyId || input.purpose !== 'receipt')) {
+      throw new BadRequestException({ message: 'A goods receipt against a PO needs the supplier', issues: [{ path: 'partyId', message: 'Choose the supplier' }] });
     }
     if (input.purpose === 'scrap' && input.lines.some((l) => !l.wasteCategory)) {
       throw new BadRequestException({ message: 'Each scrap line needs a waste category', issues: [{ path: 'lines', message: 'Choose a waste category' }] });

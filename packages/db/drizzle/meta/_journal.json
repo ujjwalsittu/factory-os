@@ -29,6 +29,13 @@
       "when": 1791138205207,
       "tag": "0003_customer_material_waste",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791140010769,
+      "tag": "0004_buying",
+      "breakpoints": true
     }
   ]
 }
