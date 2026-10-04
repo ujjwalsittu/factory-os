@@ -118,6 +118,8 @@ export const party = pgTable(
     msmeUdyam: text('msme_udyam'),
     msmeCategory: text('msme_category'),
     creditDays: integer('credit_days'),
+    /** Rupees; null = no credit check (decision 032). */
+    creditLimit: numeric('credit_limit', { precision: 18, scale: 2 }),
     email: text('email'),
     phone: text('phone'),
     addresses: jsonb('addresses')

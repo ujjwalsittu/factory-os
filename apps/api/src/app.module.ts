@@ -18,10 +18,12 @@ import { RolesController } from './modules/roles.controller.js';
 import { TenancyService } from './modules/tenancy.service.js';
 import { BuyingController } from './modules/buying.controller.js';
 import { LandedCostController } from './modules/landed-cost.controller.js';
+import { SellingController } from './modules/selling.controller.js';
+import { SeriesController } from './modules/series.controller.js';
 import { WasteController } from './modules/waste.controller.js';
 
 @Module({
-  controllers: [HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController],
+  controllers: [HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
   providers: [
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: DB, inject: [CONFIG], useFactory: (c: AppConfig) => createDb(c.DATABASE_URL) },

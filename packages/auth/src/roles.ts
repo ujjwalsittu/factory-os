@@ -58,7 +58,10 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     name: 'Sales',
     description: 'Customers, quotations, orders and draft invoices.',
     permissions: all(
-      (p) => p.startsWith('masters.party.') || ['selling.sales_invoice.read', 'selling.sales_invoice.create'].includes(p),
+      (p) =>
+        p.startsWith('masters.party.') ||
+        p.startsWith('selling.quotation.') ||
+        ['selling.sales_order.read', 'selling.sales_order.create', 'selling.sales_order.submit', 'selling.sales_invoice.read', 'selling.sales_invoice.create'].includes(p),
     ),
   },
   {

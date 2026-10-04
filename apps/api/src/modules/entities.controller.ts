@@ -31,6 +31,10 @@ const gstInput = z.object({
   irpProvider: z.enum(PROVIDERS).default('mock'),
   ewbProvider: z.enum(PROVIDERS).default('mock'),
   returnsProvider: z.enum(PROVIDERS).default('mock'),
+  /** Letter of Undertaking for exports / SEZ supplies without IGST (decision 031). ARN is 15 characters. */
+  lutArn: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{15}$/, 'LUT ARN is 15 letters and digits').nullable().optional(),
+  lutValidFrom: z.string().date().nullable().optional(),
+  lutValidTo: z.string().date().nullable().optional(),
 });
 
 const plantInput = z.object({

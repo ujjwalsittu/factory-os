@@ -91,7 +91,8 @@ export const numberSeries = pgTable(
 
 export const docStatus = pgEnum('doc_status', ['draft', 'submitted', 'cancelled']);
 /** return: customer material sent back to its owner. scrap: stock written off into the waste register. */
-export const stockEntryPurpose = pgEnum('stock_entry_purpose', ['receipt', 'issue', 'transfer', 'adjustment', 'return', 'scrap']);
+/** `delivery` = goods shipped to a customer by a sales invoice (decision 030). */
+export const stockEntryPurpose = pgEnum('stock_entry_purpose', ['receipt', 'issue', 'transfer', 'adjustment', 'return', 'scrap', 'delivery']);
 
 export const stockEntry = pgTable(
   'stock_entry',

@@ -99,6 +99,10 @@ export const gstRegistration = pgTable(
     irpProvider: text('irp_provider').notNull().default('mock'),
     ewbProvider: text('ewb_provider').notNull().default('mock'),
     returnsProvider: text('returns_provider').notNull().default('mock'),
+    /** Letter of Undertaking for zero-rated supplies without IGST (decision 031). */
+    lutArn: text('lut_arn'),
+    lutValidFrom: date('lut_valid_from'),
+    lutValidTo: date('lut_valid_to'),
     /** Reference into the secrets store. Credentials are never stored in this table. */
     credentialRef: text('credential_ref'),
     ...timestamps,

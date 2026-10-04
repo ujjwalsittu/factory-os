@@ -191,7 +191,7 @@ export interface Batch {
   qty: string;
 }
 
-export type StockPurpose = 'receipt' | 'issue' | 'transfer' | 'adjustment' | 'return' | 'scrap';
+export type StockPurpose = 'receipt' | 'issue' | 'transfer' | 'adjustment' | 'return' | 'scrap' | 'delivery';
 export type DocStatus = 'draft' | 'submitted' | 'cancelled';
 
 export interface StockEntryRow {

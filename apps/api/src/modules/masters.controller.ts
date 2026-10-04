@@ -72,6 +72,12 @@ const partyInput = z
     msmeUdyam: z.string().trim().toUpperCase().regex(/^UDYAM-[A-Z]{2}-\d{2}-\d{7}$/, 'Format: UDYAM-XX-00-0000000').optional().nullable(),
     msmeCategory: z.enum(['micro', 'small', 'medium']).optional().nullable(),
     creditDays: z.number().int().min(0).max(365).optional().nullable(),
+    creditLimit: z
+      .union([z.string(), z.number()])
+      .transform((v) => String(v).trim())
+      .pipe(z.string().regex(/^\d+(\.\d{1,2})?$/, 'Credit limit in rupees'))
+      .optional()
+      .nullable(),
     email: z.string().email().optional().nullable(),
     phone: z.string().trim().max(20).optional().nullable(),
     addresses: z.array(addressInput).max(20).default([]),

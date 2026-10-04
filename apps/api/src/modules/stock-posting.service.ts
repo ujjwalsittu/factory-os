@@ -36,7 +36,15 @@ export const DEFAULT_SERIES: Record<string, string> = {
   quality_inspection: '{ENTITY}/QI/{FY}/{#####}',
   purchase_invoice: '{ENTITY}/PI/{FY}/{#####}',
   landed_cost_voucher: '{ENTITY}/LCV/{FY}/{#####}',
+  quotation: '{ENTITY}/QTN/{FY}/{####}',
+  sales_order: '{ENTITY}/SO/{FY}/{####}',
+  /** Per GSTIN (doc type `sales_invoice:<gst registration id>`), ≤ 16 characters (decision 029). */
+  sales_invoice: '{ENTITY}/{FY}/{#####}',
+  credit_note: '{ENTITY}/CN/{FY}/{####}',
 };
+
+/** Statutory documents whose number goes on a GST return: at most 16 characters. */
+const GST_DOCS = new Set(['sales_invoice', 'credit_note']);
 
 /** Waste categories that are hazardous under the Hazardous Waste Rules 2016 (docs/03 §9). */
 const HAZARDOUS = new Set(['metal_powder', 'coolant_oil', 'solvent']);
@@ -139,6 +147,7 @@ export class StockPostingService {
         if (entry.purpose === 'return' && (!owner || owner !== entry.partyId)) {
           throw new BadRequestException(`Line ${line.lineNo}: only the customer's own material can be returned to them`);
         }
+        if (entry.purpose === 'delivery' && owner) throw new BadRequestException(`Line ${line.lineNo}: customer material goes back with a return, not a sales delivery`);
         if (entry.purpose === 'scrap' && !line.wasteCategory) throw new BadRequestException(`Line ${line.lineNo}: choose a waste category`);
         for (const w of [from, to]) {
           if (w?.type === 'customer_owned' && !owner) throw new BadRequestException(`Line ${line.lineNo}: ${w.name} holds customer material; choose the owner`);
@@ -149,7 +158,7 @@ export class StockPostingService {
         }
         if (direction === 'out' || direction === 'transfer') {
           if (!from) throw new BadRequestException(`Line ${line.lineNo}: choose a source warehouse`);
-          if (entry.purpose === 'issue' && !from.availableForIssue) {
+          if ((entry.purpose === 'issue' || entry.purpose === 'delivery') && !from.availableForIssue) {
             throw new BadRequestException(`Line ${line.lineNo}: ${from.name} is not available for issue (${from.type}). Transfer the stock out first.`);
           }
         }
@@ -176,7 +185,7 @@ export class StockPostingService {
           if (!batchId) throw new BadRequestException(`Line ${line.lineNo}: ${it.code} is batch-tracked; select a batch`);
           const [b] = await tx.select().from(batch).where(and(eq(batch.id, batchId), eq(batch.itemId, it.id)));
           if (!b) throw new BadRequestException(`Line ${line.lineNo}: batch doesn't belong to ${it.code}`);
-          if (direction !== 'in' && b.expiryDate && b.expiryDate < entry.postingDate && entry.purpose === 'issue') {
+          if (direction !== 'in' && b.expiryDate && b.expiryDate < entry.postingDate && (entry.purpose === 'issue' || entry.purpose === 'delivery')) {
             throw new BadRequestException(`Line ${line.lineNo}: batch ${b.batchNo} expired on ${b.expiryDate}`);
           }
         } else if (batchId || line.newBatchNo) {
@@ -409,20 +418,34 @@ export class StockPostingService {
   async allocateNumber(tx: Tx, tenantId: string, entityId: string, docType: string, postingDate: string): Promise<string> {
     const [e] = await tx.select({ code: legalEntity.code, fy: legalEntity.fyStartMonth }).from(legalEntity).where(eq(legalEntity.id, entityId));
     const fy = fyCode(new Date(`${postingDate}T00:00:00Z`), e!.fy);
-    const pattern = DEFAULT_SERIES[docType]!;
+    const base = docType.split(':')[0]!;
+    const pattern = DEFAULT_SERIES[base]!;
     const [row] = await tx
       .insert(numberSeries)
       .values({ tenantId, entityId, docType, fy, pattern, nextValue: 2 })
       .onConflictDoUpdate({ target: [numberSeries.entityId, numberSeries.docType, numberSeries.fy], set: { nextValue: sql`${numberSeries.nextValue} + 1` } })
       .returning({ next: numberSeries.nextValue, pattern: numberSeries.pattern });
-    return formatSeries(row!.pattern, { entityCode: e!.code, fy, counter: row!.next - 1 });
+    const number = formatSeries(row!.pattern, { entityCode: e!.code, fy, counter: row!.next - 1 });
+    if (GST_DOCS.has(base) && number.length > 16) throw new BadRequestException(`${number} is longer than the 16 characters GST allows; shorten the entity code`);
+    return number;
+  }
+
+  /** Move a series forward, e.g. to continue after invoices already raised in Tally (decision 029). Never backwards. */
+  async setNextValue(tx: Tx, tenantId: string, entityId: string, docType: string, fy: string, nextValue: number) {
+    const base = docType.split(':')[0]!;
+    if (!DEFAULT_SERIES[base]) throw new BadRequestException('Unknown document type');
+    const [cur] = await tx.select().from(numberSeries).where(and(eq(numberSeries.entityId, entityId), eq(numberSeries.docType, docType), eq(numberSeries.fy, fy))).for('update');
+    if (cur && nextValue < cur.nextValue) throw new BadRequestException(`Numbers up to ${cur.nextValue - 1} may already be used; the series can only move forward`);
+    if (cur) await tx.update(numberSeries).set({ nextValue }).where(eq(numberSeries.id, cur.id));
+    else await tx.insert(numberSeries).values({ tenantId, entityId, docType, fy, pattern: DEFAULT_SERIES[base]!, nextValue });
+    return { before: cur?.nextValue ?? 1, after: nextValue };
   }
 }
 
 /** receipt → in; issue → out; transfer → transfer; adjustment → in or out depending on which warehouse is set. */
 function lineDirection(purpose: string, line: Line): 'in' | 'out' | 'transfer' {
   if (purpose === 'receipt') return 'in';
-  if (purpose === 'issue' || purpose === 'return' || purpose === 'scrap') return 'out';
+  if (purpose === 'issue' || purpose === 'return' || purpose === 'scrap' || purpose === 'delivery') return 'out';
   if (purpose === 'transfer') return 'transfer';
   if (line.toWarehouseId && !line.fromWarehouseId) return 'in';
   if (line.fromWarehouseId && !line.toWarehouseId) return 'out';

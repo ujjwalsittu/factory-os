@@ -52,11 +52,14 @@ _Last updated: 2026-10-05 · Slice 1b (buying) + 1b-2 (imports & landed cost) bu
 - [x] Dockerfiles for api and web; `pnpm deploy` bundle and Next standalone output verified to boot. (A full `docker build` could not run in the dev sandbox: its TLS proxy blocks npm inside containers.)
 
 ## In progress
-- Nothing. Stopping point is clean.
+- **Slice 1c: selling** (decisions 029–032, migration 0006). Backend done and verified (`smoke-selling.sh` 48/48):
+  quotations → sales orders (from quotation, credit warning) → sales invoices that ship the goods via a system-generated
+  `delivery` stock entry; outward GST (intra/inter, SEZ, export under LUT with LUT on the GSTIN), foreign-currency exports,
+  per-GSTIN gapless invoice series ≤ 16 chars with a forward-only "next number" (`GET/PUT /number-series`), customer credit limits.
+  **Stopping point:** web screens (Sales nav, quotation/order/invoice forms, statutory tax invoice print, series + LUT settings) + e2e not started.
 
 ## Next (in order; confirm with the user before starting)
-1. User review of buying + imports on dev.
-2. **Slice 1c: selling** — quotation → sales order → delivery → sales invoice using the existing GST engine (outward supply types); tax invoice PDF.
+1. Finish slice 1c web screens + tax invoice print, then user review on dev.
 3. **Slice 1d: GL core** — chart of accounts (Tally group names), journal posting from stock and invoices.
 4. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
 5. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS, number-series settings UI.

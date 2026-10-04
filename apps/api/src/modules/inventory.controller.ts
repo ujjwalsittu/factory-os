@@ -177,7 +177,7 @@ export class InventoryController {
     const { status, purpose, limit } = parse(
       z.object({
         status: z.enum(['draft', 'submitted', 'cancelled']).optional(),
-        purpose: z.enum(['receipt', 'issue', 'transfer', 'adjustment', 'return', 'scrap']).optional(),
+        purpose: z.enum(['receipt', 'issue', 'transfer', 'adjustment', 'return', 'scrap', 'delivery']).optional(),
         limit: z.coerce.number().int().min(1).max(500).default(200),
       }),
       query,
