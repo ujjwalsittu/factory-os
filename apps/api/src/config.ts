@@ -14,6 +14,11 @@ const schema = z.object({
     .default('')
     .transform((v) => v.split(',').map((o) => o.trim()).filter(Boolean))
     .pipe(z.array(z.string().url())),
+  /**
+   * One-time bootstrap for hosts where the seed CLI can't be run: at startup, if no SuperAdmin exists
+   * yet and a user with this email has signed up, promote them. Does nothing once any SuperAdmin exists.
+   */
+  BOOTSTRAP_SUPERADMIN_EMAIL: z.preprocess((v) => (v === '' ? undefined : v), z.string().email().optional()),
   MIGRATE_ON_START: z
     .enum(['true', 'false'])
     .default('false')
