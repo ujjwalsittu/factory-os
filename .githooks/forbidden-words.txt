@@ -1,0 +1,14 @@
+# One case-insensitive pattern per line (extended regex, matched as whole words).
+# Commit messages, PR titles and PR bodies must not contain any of these.
+# Rule owner: project lead. Do not remove entries without their approval.
+claude
+anthropic
+fable
+opus
+sonnet
+haiku
+chatgpt
+openai
+gpt-?[0-9a-z.]*
+gemini
+copilot

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Pre-commit guard: reject commit messages naming AI vendors/models.
+exec "$(git rev-parse --show-toplevel)/scripts/check-message.sh" "$1"
