@@ -45,6 +45,9 @@ at the end of the relevant section, with a date.
   `claude/zealous-allen-35g1vm`. Server public IP 13.205.93.77.
 - Coolify gotchas: env vars created via API default to build-time; set `is_buildtime:false`.
   Containers aren't reachable by app UUID; use `custom_network_aliases`. `/deploy` is POST.
+- **Every push to `claude/zealous-allen-35g1vm` auto-redeploys both dev apps** (GitHub webhook).
+  Don't push broken code to that branch; use another branch for experiments.
+- First SuperAdmin on dev: sittu.ujjwal@gmail.com (bootstrapped 2026-10-04; the setting is now inert).
 - `turbo` rewrites a managed block at the bottom of AGENTS.md. Keep it and commit it.
 - Force-push is not permitted. The first commit on `claude/zealous-allen-35g1vm` predates the
   message guard and is left as-is.

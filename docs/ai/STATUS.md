@@ -27,7 +27,7 @@ _Last updated: 2026-10-04 · Phase 0 built and deployed to dev (https://factoryo
 - Nothing. Stopping point is clean.
 
 ## Next (in order; confirm with the user before starting)
-1. User signs up at https://factoryos.azeonics.com as sittu.ujjwal@gmail.com; then restart `factoryos-api` in Coolify to promote that account to SuperAdmin, and create the Azeonics Group tenant from the platform console.
+1. User confirms SuperAdmin access at https://factoryos.azeonics.com/platform, creates the Azeonics Group tenant, and turns on two-factor.
 2. User review of Phase 0 UI and the remaining open questions in docs/10.
 3. Phase 0 leftovers: email delivery (invites, password reset), SSO (needs Google/Microsoft OAuth apps), passkeys, impersonation, Postgres RLS policies, number-series engine, document lifecycle engine in `packages/core`.
 4. Phase 1 kickoff: masters (items, UoM, parties, HSN/SAC), warehouses/locations, stock ledger + batches/serials/heat numbers.

@@ -8,3 +8,4 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 - 2026-10-04 · agent · Recorded decisions 018–021 from user answers; created Coolify project FactoryOS + healthy Postgres via REST API. Blocked: Coolify GitHub App can't see the repo; web domain needed. Next: finish deploy once unblocked.
 - 2026-10-04 · agent · Deployed dev to Coolify: factoryos-web at https://factoryos.azeonics.com, internal factoryos-api, Postgres. Added EXTRA_TRUSTED_ORIGINS and the BOOTSTRAP_SUPERADMIN_EMAIL first-run promotion. Next: user signs up, restart API, create tenant.
 - 2026-10-04 · agent · Cloudflare switched to DNS-only; https://factoryos.azeonics.com verified (200s, valid cert). Next: user signs up, restart API for SuperAdmin.
+- 2026-10-04 · agent · User signed up on dev; API restarted. Bootstrap already ran in the webhook redeploy at 16:51 UTC (promotion silent on later starts). Noted that pushes auto-redeploy dev.
