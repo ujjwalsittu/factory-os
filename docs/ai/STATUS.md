@@ -63,9 +63,10 @@ _Last updated: 2026-10-05 · Slice 1c (selling) web and settings implemented; lo
 
 ## Next (in order; confirm with the user before starting)
 1. User review of slice 1c on dev.
-2. **Slice 1d: GL core** — chart of accounts (Tally group names), journal posting from stock and invoices.
-3. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
-4. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
+2. **Slice 1d: GL core** — chart of accounts (Tally group names), journal posting from stock, purchase/sales invoices and landed cost (variance → cost of production), customer receipts and supplier payments (these make credit warnings and MSME due dates meaningful), forex gain/loss.
+3. **Credit / debit notes** (series `AZ/CN/26-27/0001` already reserved in the backend) and sales returns into stock.
+4. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
+5. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
 
 ## Blockers
 - None. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)
