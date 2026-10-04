@@ -50,6 +50,8 @@ export class MeController {
     return {
       tenantId: t.tenantId,
       isOwner: t.isOwner,
+      /** False when the member only has entity-scoped roles: the UI must then pick an entity. */
+      allEntities: t.entityIds === null,
       activeEntityId: t.activeEntityId,
       entities,
       permissions: [...t.permissions].sort(),

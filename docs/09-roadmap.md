@@ -3,7 +3,7 @@
 Each phase ends with something usable in production by Azeonics/EarthNow. Durations are rough
 and assume a small team; we will re-plan after Phase 0.
 
-## Phase 0 — Foundation
+## Phase 0 — Foundation ✅ (core built 2026-10-04; leftovers listed in ai/STATUS.md)
 - Monorepo, CI, environments, DB migrations, RLS.
 - Tenancy, legal entities, GST registrations, plants, fiscal years, number series.
 - Auth (MFA, SSO), RBAC/ABAC, audit log.

@@ -35,3 +35,19 @@ at the end of the relevant section, with a date.
 - Force-push is not permitted. The first commit on `claude/zealous-allen-35g1vm` predates the
   message guard and is left as-is.
 - Local dev DB: PostgreSQL 16 (`docker compose up -d db`, or a local cluster). See `.env.example`.
+
+## Implementation notes (2026-10-04)
+
+- Everything is ESM (NestJS 12 and Better Auth 1.7 are ESM-only). Relative imports in TS use `.js`.
+- Next.js 16: `middleware` is now `src/proxy.ts`; request APIs are async. Read
+  `apps/web/node_modules/next/dist/docs/` before changing Next conventions.
+- The web app reaches the API via a runtime route handler (`apps/web/src/app/api/[...path]/route.ts`)
+  using `API_INTERNAL_URL`, so cookies are first-party and the API URL can change without a rebuild.
+- Better Auth's two-factor plugin needs `verified`, `failed_verification_count`, `locked_until` on
+  `two_factor` (migration 0001). If Better Auth is upgraded, run the API and watch for
+  "Drizzle schema mismatch" at startup.
+- API permissions without `x-entity-id` come from tenant-wide grants only. With `x-entity-id`, mutations
+  must target that same entity (see `getEntity` in `entities.controller.ts`).
+- When killing dev servers, anchor the pattern (`pkill -f '^next-server'`). An unanchored pattern
+  matches the shell running the command and kills it.
+- Dev SuperAdmin in a local DB is created with `seed:superadmin`; no default credentials exist.

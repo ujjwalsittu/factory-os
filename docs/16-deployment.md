@@ -32,6 +32,18 @@ See `.env.example` in the repo root. Required in Coolify:
 own environment (Coolify → Security → API Tokens). Tokens are never committed. Agents must not
 create or delete Coolify resources unless the user asks (AGENTS.md L8).
 
+## Image notes
+
+- Build both images from the repo root: `docker build -f apps/api/Dockerfile .` and
+  `docker build -f apps/web/Dockerfile .`. In Coolify, set the Dockerfile location accordingly and
+  keep the build context at `/`.
+- The API image is a `pnpm deploy` bundle (only production dependencies) and includes the SQL
+  migrations; set `MIGRATE_ON_START=true` for dev.
+- The web image runs the Next.js standalone server. `API_INTERNAL_URL` is read at runtime, so the
+  API can move without rebuilding the web image.
+- After the first deploy, create the SuperAdmin from the API container:
+  `node dist/cli/seed-superadmin.js --email … --name … --password …`.
+
 ## Pipeline (later)
 
 GitHub Actions: typecheck, build, test → build images → Coolify deploy webhook for `staging` on
