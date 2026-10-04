@@ -29,6 +29,8 @@ import {
   Users,
   Wrench,
   X,
+  ReceiptText,
+  ScanSearch,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -56,10 +58,17 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     section: 'Operations',
     items: [
       { href: '/app/sales', label: 'Sales', icon: Truck, phase: 1 },
-      { href: '/app/purchase', label: 'Purchase', icon: ShoppingCart, phase: 1 },
       { href: '/app/manufacturing', label: 'Manufacturing', icon: Factory, phase: 2 },
       { href: '/app/quality', label: 'Quality', icon: ClipboardCheck, phase: 2 },
       { href: '/app/services', label: 'Services', icon: Wrench, phase: 3 },
+    ],
+  },
+  {
+    section: 'Buying',
+    items: [
+      { href: '/app/buying/orders', label: 'Purchase orders', icon: ShoppingCart, permission: 'buying.purchase_order.read', entityScoped: true },
+      { href: '/app/buying/inspections', label: 'Incoming inspection', icon: ScanSearch, permission: 'quality.inspection.read', entityScoped: true },
+      { href: '/app/buying/invoices', label: 'Purchase invoices', icon: ReceiptText, permission: 'buying.purchase_invoice.read', entityScoped: true },
     ],
   },
   {

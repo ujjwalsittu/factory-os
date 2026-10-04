@@ -42,6 +42,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         actions.push({ id: `se-${p}`, label: `New stock ${p}`, group: 'Actions', run: go(`/app/inventory/entries/new?purpose=${p}`) });
       }
     }
+    if (ws.can('buying.purchase_order.create')) actions.push({ id: 'po', label: 'New purchase order', group: 'Actions', run: go('/app/buying/orders/new') });
+    if (ws.can('buying.purchase_invoice.create')) actions.push({ id: 'pi', label: 'New purchase invoice', group: 'Actions', run: go('/app/buying/invoices/new') });
     if (ws.can('masters.item.create')) actions.push({ id: 'item', label: 'New item', group: 'Actions', run: go('/app/masters/items?new=1') });
     if (ws.can('masters.party.create')) actions.push({ id: 'party', label: 'New customer or supplier', group: 'Actions', run: go('/app/masters/parties?new=1') });
     for (const e of ws.tenantCtx.entities) {

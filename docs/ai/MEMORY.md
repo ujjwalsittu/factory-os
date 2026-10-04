@@ -75,3 +75,8 @@ at the end of the relevant section, with a date.
   params in state if a page rewrites its own URL (see `inventory/entries/new/page.tsx`).
 - Local Postgres in the cloud sandbox stops between sessions: `sudo pg_ctlcluster 16 main start`.
 - Inventory APIs need `x-entity-id`; masters are tenant-wide but accept it so entity-scoped roles work.
+- Buying: a goods receipt *is* a stock entry (purpose `receipt`) with `purchaseOrderId`/`poLineId`; PO `receivedQty`/`billedQty`
+  are maintained by submit/cancel hooks in `stock-posting.service.ts` and `buying.controller.ts`. Documents that post stock on
+  their own (inspections) create `system_generated` entries through `posting.submitIn(tx, …)`; the public cancel endpoint refuses them.
+- GST is only ever computed on the server (`computeGst`); the web shows `POST /buying/tax-preview`. Never compute tax in the UI.
+- Smoke suites must run ~15 s apart locally (auth rate limit → 429).

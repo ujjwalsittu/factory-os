@@ -10,7 +10,7 @@ import type { LegalEntity, Member } from '@/lib/types';
 
 const PHASES: { n: number; title: string; body: string; done?: boolean; current?: boolean }[] = [
   { n: 0, title: 'Foundation', body: 'Tenancy, entities, users, roles, audit, design system', done: true },
-  { n: 1, title: 'Inventory, buying, selling, GST', body: 'Inventory core is live: items, batches and heat numbers, FIFO stock ledger. Next: purchase, sales, GST.', current: true },
+  { n: 1, title: 'Inventory, buying, selling, GST', body: 'Inventory and buying are live: FIFO stock ledger, purchase orders, receipts into quarantine, incoming inspection, purchase invoices with GST. Next: sales and tax invoices.', current: true },
   { n: 2, title: 'Manufacturing & quality', body: 'BOM, routing, work orders, job cards, genealogy, FAI, NCR' },
   { n: 3, title: 'Services', body: 'Machine-hours, test campaigns, memberships, subscriptions' },
   { n: 4, title: 'Accounts & returns', body: 'GSTR-1/3B, 2B reconciliation, TDS, MSME, Tally sync' },

@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { formatDate, formatDateTime, formatMoney, formatQty, today, WAREHOUSE_TYPE_LABELS } from '@/lib/format';
 import { PURPOSE_LABELS, STATUS_TONE, WASTE_CATEGORY_LABELS } from '@/lib/stock';
-import type { Batch, Item, Party, StockEntryDetail, StockPurpose, Warehouse } from '@/lib/types';
+import type { Batch, Item, Party, PurchaseOrderDetail, StockEntryDetail, StockPurpose, Warehouse } from '@/lib/types';
 import { fieldErrors, FormDialog } from './form-dialog';
 import { ItemPicker } from './item-picker';
 import { useWorkspace } from './workspace';
@@ -28,6 +28,9 @@ interface DraftLine {
   wasteCategory: string;
   /** Adjustments only: increase (to a warehouse) or decrease (from one). */
   direction: 'in' | 'out';
+  /** Receipts against a purchase order: the PO line and what is still to come. */
+  poLineId: string | null;
+  pendingQty: string | null;
 }
 
 let keySeq = 0;
@@ -44,10 +47,12 @@ const blankLine = (prev?: DraftLine): DraftLine => ({
   rate: '',
   wasteCategory: prev?.wasteCategory ?? '',
   direction: prev?.direction ?? 'in',
+  poLineId: null,
+  pendingQty: null,
 });
 
 /** Create or edit a draft; view a submitted/cancelled entry. Server enforces every rule; the UI explains them. */
-export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDetail; initialPurpose?: StockPurpose }) {
+export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockEntryDetail; initialPurpose?: StockPurpose; poId?: string }) {
   const ws = useWorkspace();
   const router = useRouter();
   const qc = useQueryClient();
@@ -74,6 +79,12 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
     remarks: entry?.remarks ?? '',
     /** Customer who owns the material (decision 024); '' = our own stock. */
     ownerPartyId: entry?.ownerPartyId ?? '',
+    purchaseOrderId: entry?.purchaseOrderId ?? (purpose === 'receipt' ? (poId ?? '') : ''),
+  });
+  const po = useQuery({
+    queryKey: ['purchase-order', header.purchaseOrderId],
+    queryFn: () => api<PurchaseOrderDetail>(`/purchase-orders/${header.purchaseOrderId}`, { scope: ws.scope }),
+    enabled: !!header.purchaseOrderId && ws.can('buying.purchase_order.read'),
   });
   const customerOwned = !!header.ownerPartyId;
   const [lines, setLines] = useState<DraftLine[]>(() =>
@@ -91,6 +102,8 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
           rate: l.rate ? String(Number(l.rate)) : '',
           wasteCategory: l.wasteCategory ?? '',
           direction: l.toWarehouseId && !l.fromWarehouseId ? 'in' : 'out',
+          poLineId: l.poLineId ?? null,
+          pendingQty: null,
         }))
       : [blankLine()],
   );
@@ -114,6 +127,27 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
     );
   }, [warehouses.data, entry, purpose]);
 
+  // Receiving against a PO: one line per item still to come, at the PO rate; inspected items go to quarantine.
+  const [poFilled, setPoFilled] = useState(!!entry);
+  useEffect(() => {
+    if (poFilled || !po.data || !warehouses.data) return;
+    setPoFilled(true);
+    const by = (t: string) => warehouses.data.find((w) => w.type === t)?.id ?? '';
+    setHeader((h) => ({ ...h, partyId: po.data.supplierId, ownerPartyId: '' }));
+    const ls = po.data.lines
+      .filter((l) => Number(l.pendingQty) > 0)
+      .map((l) => ({
+        ...blankLine(),
+        item: { id: l.itemId, code: l.itemCode, name: l.itemName, tracking: l.tracking, uomCode: l.uomCode },
+        qty: String(Number(l.pendingQty)),
+        rate: String(Number(l.rate)),
+        toWarehouseId: l.requiresInspection ? by('quarantine') || by('stores') : by('stores'),
+        poLineId: l.id,
+        pendingQty: l.pendingQty,
+      }));
+    if (ls.length) setLines(ls);
+  }, [po.data, warehouses.data, poFilled]);
+
   const update = (key: string, patch: Partial<DraftLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const usesFrom = (l: DraftLine) => purpose === 'issue' || purpose === 'transfer' || purpose === 'return' || purpose === 'scrap' || (purpose === 'adjustment' && l.direction === 'out');
   const usesTo = (l: DraftLine) => purpose === 'receipt' || purpose === 'transfer' || (purpose === 'adjustment' && l.direction === 'in');
@@ -125,6 +159,7 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
     // Returns go to the owner; a customer's own receipts come from them.
     partyId: purpose === 'return' || (purpose === 'receipt' && customerOwned) ? header.ownerPartyId || null : header.partyId || null,
     ownerPartyId: header.ownerPartyId || null,
+    purchaseOrderId: header.purchaseOrderId || null,
     reference: header.reference || null,
     remarks: header.remarks || null,
     lines: lines
@@ -140,6 +175,7 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
         expiryDate: l.item.tracking === 'batch' && incoming(l) ? l.expiryDate || null : null,
         rate: incoming(l) && !customerOwned ? l.rate || null : null,
         wasteCategory: purpose === 'scrap' ? l.wasteCategory || null : null,
+        poLineId: header.purchaseOrderId ? l.poLineId : null,
       })),
   });
 
@@ -163,6 +199,8 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
       void qc.invalidateQueries({ queryKey: ['stock-entries'] });
       void qc.invalidateQueries({ queryKey: ['stock-entry', id] });
       void qc.invalidateQueries({ queryKey: ['balance'] });
+      void qc.invalidateQueries({ queryKey: ['purchase-order'] });
+      void qc.invalidateQueries({ queryKey: ['inspections-pending'] });
       // A brand-new document opens its own page once saved; existing ones refetch in place.
       if (!entry && andSubmit) router.replace(`/app/inventory/entries/${id}`);
     },
@@ -232,7 +270,7 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
               <Send className="size-4" /> Submit
             </Button>
           )}
-          {entry?.status === 'submitted' && ws.can('inventory.stock_entry.cancel') && (
+          {entry?.status === 'submitted' && !entry.systemGenerated && ws.can('inventory.stock_entry.cancel') && (
             <Button variant="secondary" onClick={() => setCancelling(true)}>
               <Ban className="size-4" /> Cancel entry
             </Button>
@@ -253,9 +291,19 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
       {editable && purpose === 'scrap' && (
         <Alert tone="info">Scrapped stock leaves inventory and enters the waste register under the same owner, where it's later returned, sold or sent to a recycler.</Alert>
       )}
-      {editable && purpose === 'receipt' && (
-        <Alert tone="info">Receipts go to quarantine by default. Transfer to stores once incoming inspection passes; quarantine stock can't be issued.</Alert>
+      {header.purchaseOrderId && (
+        <Alert tone="info">
+          {editable ? 'Receiving against ' : 'Received against '}
+          <Link href={`/app/buying/orders/${header.purchaseOrderId}`} className="font-mono font-medium underline">
+            {po.data?.number ?? 'the purchase order'}
+          </Link>
+          {editable ? '. Quantities above what is still pending are refused; leave the cost blank to use the PO rate.' : '.'}
+        </Alert>
       )}
+      {editable && purpose === 'receipt' && !header.purchaseOrderId && (
+        <Alert tone="info">Receipts go to quarantine by default. Items that need incoming inspection are released from there under Buying → Incoming inspection; quarantine stock can't be issued.</Alert>
+      )}
+      {entry?.systemGenerated && <Alert tone="info">Posted automatically by another document (e.g. an incoming inspection). Cancel that document to reverse it.</Alert>}
 
       <Card className="p-5">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -268,7 +316,7 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
                 {...p}
                 value={header.ownerPartyId}
                 onChange={(e) => (setHeader({ ...header, ownerPartyId: e.target.value }), setLines((ls) => ls.map((l) => ({ ...l, batchId: '' }))))}
-                disabled={!editable}
+                disabled={!editable || !!header.purchaseOrderId}
               >
                 <option value="">{purpose === 'return' ? 'Choose the customer…' : 'Us (own stock)'}</option>
                 {customers.data?.map((c) => (
@@ -282,7 +330,7 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
           {purpose === 'receipt' && !customerOwned && (
             <Field label="Supplier">
               {(p) => (
-                <Select {...p} value={header.partyId} onChange={(e) => setHeader({ ...header, partyId: e.target.value })} disabled={!editable}>
+                <Select {...p} value={header.partyId} onChange={(e) => setHeader({ ...header, partyId: e.target.value })} disabled={!editable || !!header.purchaseOrderId}>
                   <option value="">—</option>
                   {suppliers.data?.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -344,6 +392,7 @@ export function StockEntryForm({ entry, initialPurpose }: { entry?: StockEntryDe
                         <Input className="tabular text-right" inputMode="decimal" value={l.qty} onChange={(e) => update(l.key, { qty: e.target.value })} aria-label="Quantity" />
                         <span className="w-9 text-[11px] text-subtle">{l.item?.uomCode}</span>
                       </div>
+                      {l.pendingQty && <p className="mt-1 text-[11px] text-subtle">{formatQty(l.pendingQty)} pending on PO</p>}
                     </Td>
                     {purpose !== 'receipt' && (
                       <Td>{usesFrom(l) ? <WarehouseSelect value={l.fromWarehouseId} onChange={(v) => update(l.key, { fromWarehouseId: v, batchId: '' })} warehouses={whs} label="From warehouse" /> : <Muted />}</Td>

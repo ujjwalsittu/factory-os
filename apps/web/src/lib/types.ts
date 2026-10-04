@@ -228,6 +228,7 @@ export interface StockEntryLine {
   remarks: string | null;
   ownerPartyId: string | null;
   wasteCategory: string | null;
+  poLineId: string | null;
 }
 
 export interface StockEntryDetail {
@@ -245,6 +246,8 @@ export interface StockEntryDetail {
   createdAt: string;
   ownerPartyId: string | null;
   ownerName: string | null;
+  purchaseOrderId: string | null;
+  systemGenerated: boolean;
   lines: StockEntryLine[];
 }
 
@@ -346,4 +349,188 @@ export interface CustomerStatement {
   }[];
   movements: { postingDate: string; number: string | null; entryId: string; purpose: StockPurpose; reference: string | null; itemCode: string; batchNo: string | null; qty: string; isReversal: boolean }[];
   waste: { category: string; material: string; uomCode: string; opening: string; generated: string; returned: string; disposedWithConsent: string; pending: string }[];
+}
+
+export interface TaxPreview {
+  kind: 'intra' | 'inter' | 'zero_rated' | 'customs';
+  reverseCharge: boolean;
+  lines: { taxableValue: string; igst: string; cgst: string; sgst: string; cess: string }[];
+  taxableValue: string;
+  igst: string;
+  cgst: string;
+  sgst: string;
+  cess: string;
+  totalTax: string;
+  invoiceTotal: string;
+  notes: string[];
+  gstRates: string[];
+}
+
+export interface PurchaseOrderRow {
+  id: string;
+  number: string | null;
+  status: DocStatus;
+  closedAt: string | null;
+  orderDate: string;
+  expectedDate: string | null;
+  supplierId: string;
+  supplierName: string;
+  grandTotal: string | null;
+  orderedQty: string;
+  receivedQty: string;
+  billedQty: string;
+}
+
+export interface PurchaseOrderLine {
+  id: string;
+  lineNo: number;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  tracking: 'none' | 'batch' | 'serial';
+  uomCode: string;
+  requiresInspection: boolean;
+  description: string | null;
+  qty: string;
+  rate: string;
+  gstRate: string;
+  taxableValue: string | null;
+  receivedQty: string;
+  billedQty: string;
+  pendingQty: string;
+  unbilledQty: string;
+}
+
+export interface PurchaseOrderDetail {
+  id: string;
+  number: string | null;
+  status: DocStatus;
+  closedAt: string | null;
+  supplierId: string;
+  supplierName: string;
+  gstRegistrationId: string | null;
+  orderDate: string;
+  expectedDate: string | null;
+  supplierQuoteRef: string | null;
+  paymentTermsDays: number | null;
+  remarks: string | null;
+  taxableValue: string | null;
+  totalTax: string | null;
+  grandTotal: string | null;
+  submittedAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  lines: PurchaseOrderLine[];
+  receipts: { id: string; number: string | null; status: DocStatus; postingDate: string; reference: string | null }[];
+  invoices: { id: string; number: string | null; status: DocStatus; supplierInvoiceNo: string; grandTotal: string | null }[];
+}
+
+export interface PendingInspection {
+  receiptLineId: string;
+  receiptId: string;
+  receiptNumber: string;
+  postingDate: string;
+  reference: string | null;
+  supplierName: string | null;
+  ownerName: string | null;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  uomCode: string;
+  batchNo: string | null;
+  heatNo: string | null;
+  warehouseId: string;
+  warehouseCode: string;
+  qty: string;
+  inspected: string;
+  pending: string;
+}
+
+export interface InspectionRow {
+  id: string;
+  number: string | null;
+  status: DocStatus;
+  inspectionDate: string;
+  result: 'accepted' | 'rejected' | 'partial' | null;
+  qtyInspected: string;
+  qtyAccepted: string;
+  qtyRejected: string;
+  checks: string | null;
+  remarks: string | null;
+  cancelReason: string | null;
+  itemCode: string;
+  itemName: string;
+  batchNo: string | null;
+  receiptNumber: string;
+  transferEntryId: string | null;
+  inspectorName: string;
+}
+
+export interface PurchaseInvoiceRow {
+  id: string;
+  number: string | null;
+  status: DocStatus;
+  supplierName: string;
+  supplierInvoiceNo: string;
+  supplierInvoiceDate: string;
+  postingDate: string;
+  dueDate: string | null;
+  msmeCategory: string | null;
+  reverseCharge: boolean;
+  taxableValue: string | null;
+  totalTax: string | null;
+  grandTotal: string | null;
+  poNumber: string | null;
+}
+
+export interface PurchaseInvoiceLine {
+  id: string;
+  lineNo: number;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  uomCode: string;
+  poLineId: string | null;
+  poRate: string | null;
+  hsnCode: string | null;
+  qty: string;
+  rate: string;
+  gstRate: string;
+  taxableValue: string | null;
+  igst: string | null;
+  cgst: string | null;
+  sgst: string | null;
+  cess: string | null;
+}
+
+export interface PurchaseInvoiceDetail {
+  id: string;
+  number: string | null;
+  status: DocStatus;
+  supplierId: string;
+  supplierName: string;
+  supplierGstin: string | null;
+  gstRegistrationId: string | null;
+  purchaseOrderId: string | null;
+  poNumber: string | null;
+  supplierInvoiceNo: string;
+  supplierInvoiceDate: string;
+  postingDate: string;
+  supplyType: string;
+  reverseCharge: boolean;
+  itcEligible: boolean;
+  dueDate: string | null;
+  msmeCategory: string | null;
+  taxableValue: string | null;
+  igst: string | null;
+  cgst: string | null;
+  sgst: string | null;
+  cess: string | null;
+  totalTax: string | null;
+  grandTotal: string | null;
+  remarks: string | null;
+  submittedAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  lines: PurchaseInvoiceLine[];
 }

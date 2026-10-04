@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-05 · Slice 1a + customer-supplied material & waste register built, verified, deployed to dev_
+_Last updated: 2026-10-05 · Slice 1b (buying) built, verified, deployed to dev_
 
 ## Done
 - [x] Plan docs 01–16, decision register (001–016 accepted), open questions (docs/10)
@@ -36,22 +36,25 @@ _Last updated: 2026-10-05 · Slice 1a + customer-supplied material & waste regis
   - Customer material statement (`GET /reports/customer-material`, `/app/inventory/customer-material`): opening, received, consumed, returned, scrapped, adjusted, with us; waste generated/returned/disposed/pending; documents; print/PDF layout
   - Permissions: `ehs.waste.*`; Stores gets waste, Quality can record waste
   - Verified: `smoke-customer-material.sh` 36/36, `smoke-inventory.sh`, `smoke.sh`, e2e `customer-material`, `inventory`, base walkthrough all pass
+- [x] **Phase 1 · slice 1b: buying** (migration 0004)
+  - GST engine (`packages/compliance-in/src/gst.ts`, 16 tests): intra/inter-state, SEZ, export/LUT, import of goods and services (RCM), cess, per-line paise rounding
+  - Purchase orders: draft → submit (`AZ/PO/26-27/0001`) → short-close or cancel (only if nothing received/billed); GST rate from the item's HSN on the order date unless overridden; live tax preview (`POST /buying/tax-preview`)
+  - Receipts against a PO (stock entry with `purchaseOrderId` + `poLineId`): same supplier only, no over-receipt, PO rate fills the cost; cancelling refused once inspected or invoiced
+  - Incoming inspection (`/app/buying/inspections`): queue of quarantine receipt lines for items needing inspection; accept → stores, reject → MRB via a system-generated transfer (`stock_entry.system_generated`), reversible only by cancelling the inspection
+  - Purchase invoices: GST computed server-side, 3-way match (qty ≤ received − billed), rate variance needs explicit confirmation, same supplier invoice no. blocked within a FY, MSME micro/small due date capped at 45 days (Sec 43B(h)), RCM and ITC-eligibility flags; cancel returns billed qty to the PO
+  - Web: Buying nav (Purchase orders, Incoming inspection, Purchase invoices), PO and invoice forms with live totals, "Receive goods" and "Record invoice" from a PO, ⌘K actions
+  - Verified: `smoke-buying.sh` 60/60, `smoke.sh`, `smoke-inventory.sh`, `smoke-customer-material.sh`; e2e `buying`, `inventory`, `customer-material`, base walkthrough all pass
 - [x] Dockerfiles for api and web; `pnpm deploy` bundle and Next standalone output verified to boot. (A full `docker build` could not run in the dev sandbox: its TLS proxy blocks npm inside containers.)
 
 ## In progress
-- **Slice 1b: buying.** Backend done and verified (`smoke-buying.sh` 60/60, migration 0004, GST engine in `packages/compliance-in` with 16 tests):
-  purchase orders (draft/submit/cancel/short-close, live tax preview), receipts against a PO (over-receipt and wrong supplier refused, PO rate fills value),
-  incoming inspection (queue of quarantine lines, accept → stores / reject → MRB via a system-generated transfer that can't be cancelled directly),
-  purchase invoices (CGST/SGST vs IGST, 3-way match, rate-variance confirmation, duplicate supplier invoice per FY blocked, MSME due date ≤ 45 days).
-  **Stopping point:** buying web screens (Purchase nav, PO list/form, Receive from PO, inspection queue, purchase invoices) + e2e not started.
+- Nothing. Stopping point is clean.
 
 ## Next (in order; confirm with the user before starting)
-1. User review of slice 1a and customer material / waste on dev.
-2. **Slice 1b: buying** — purchase order → GRN (into quarantine, posts via the stock engine) → incoming inspection (accept → stores / reject → return) → purchase invoice; landed cost for imports (B4).
-3. **Slice 1c: selling + GST engine** — quotation → sales order → delivery → sales invoice; tax engine in `packages/compliance-in` (place of supply, CGST/SGST/IGST, RCM) with golden-file tests; tax invoice PDF.
-4. **Slice 1d: GL core** — chart of accounts (Tally group names), journal posting from stock and invoices.
-5. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
-6. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS, number-series settings UI.
+1. User review of slice 1b (buying) on dev. Ask whether they import material: that decides when landed cost (Bill of Entry, BCD + SWS + IGST allocated to batches) is built.
+2. **Slice 1c: selling** — quotation → sales order → delivery → sales invoice using the existing GST engine (outward supply types); tax invoice PDF.
+3. **Slice 1d: GL core** — chart of accounts (Tally group names), journal posting from stock and invoices.
+4. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
+5. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS, number-series settings UI.
 
 ## Blockers
 - None. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)

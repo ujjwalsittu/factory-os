@@ -10,7 +10,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "e2e": "node e2e/walkthrough.mjs",
     "e2e:inventory": "node e2e/inventory.mjs",
-    "e2e:customer-material": "node e2e/customer-material.mjs"
+    "e2e:customer-material": "node e2e/customer-material.mjs",
+    "e2e:buying": "node e2e/buying.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",
