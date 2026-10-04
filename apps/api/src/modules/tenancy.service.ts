@@ -7,6 +7,7 @@ import { z } from 'zod';
 import type { RequestContext } from '../common/access.js';
 import { AuditService } from '../common/audit.service.js';
 import { DB } from '../common/tokens.js';
+import { seedTenantDefaults } from '../defaults.js';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
@@ -72,6 +73,8 @@ export class TenancyService {
           })),
         )
         .returning();
+
+      await seedTenantDefaults(tx, t!.id);
 
       if (input.ownerUserId) {
         const [m] = await tx

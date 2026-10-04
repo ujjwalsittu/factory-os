@@ -8,6 +8,9 @@ import { AUTH, CONFIG, DB } from './common/tokens.js';
 import { type AppConfig, loadConfig } from './config.js';
 import { EntitiesController } from './modules/entities.controller.js';
 import { HealthController } from './modules/health.controller.js';
+import { InventoryController } from './modules/inventory.controller.js';
+import { MastersController } from './modules/masters.controller.js';
+import { StockPostingService } from './modules/stock-posting.service.js';
 import { MeController } from './modules/me.controller.js';
 import { MembersController } from './modules/members.controller.js';
 import { PlatformController } from './modules/platform.controller.js';
@@ -15,7 +18,7 @@ import { RolesController } from './modules/roles.controller.js';
 import { TenancyService } from './modules/tenancy.service.js';
 
 @Module({
-  controllers: [HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController],
+  controllers: [HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController],
   providers: [
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: DB, inject: [CONFIG], useFactory: (c: AppConfig) => createDb(c.DATABASE_URL) },
@@ -23,6 +26,7 @@ import { TenancyService } from './modules/tenancy.service.js';
     { provide: APP_GUARD, useClass: AccessGuard },
     AuditService,
     TenancyService,
+    StockPostingService,
   ],
 })
 export class AppModule {}

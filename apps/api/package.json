@@ -19,6 +19,7 @@
   "dependencies": {
     "@factoryos/auth": "workspace:*",
     "@factoryos/compliance-in": "workspace:*",
+    "@factoryos/core": "workspace:*",
     "@factoryos/db": "workspace:*",
     "@nestjs/common": "^12.1.2",
     "@nestjs/core": "^12.1.2",

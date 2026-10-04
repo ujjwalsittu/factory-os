@@ -2,6 +2,17 @@ import { createDb, platformAdmin, user } from '@factoryos/db';
 import { Logger } from '@nestjs/common';
 import { count, eq } from 'drizzle-orm';
 import type { AppConfig } from './config.js';
+import { syncSystemRoles } from './defaults.js';
+
+/** Startup housekeeping: keep system roles and tenant defaults current. Safe to run on every start. */
+export async function syncOnStartup(config: AppConfig): Promise<void> {
+  const db = createDb(config.DATABASE_URL, 1);
+  try {
+    await syncSystemRoles(db);
+  } finally {
+    await db.$client.end();
+  }
+}
 
 /** See BOOTSTRAP_SUPERADMIN_EMAIL in config.ts. Safe to run on every start. */
 export async function bootstrapSuperadmin(config: AppConfig): Promise<void> {
