@@ -19,8 +19,10 @@ Pure, deterministic, golden-file tested.
 
 ## 2. E-invoice (IRN)
 
-- Auto-generate on submit of B2B / export / SEZ invoices, debit & credit notes (if entity is above
-  the AATO threshold; flag per entity).
+- **Applicability is a date per GST registration** (`einvoice_applicable_from`), not a flag.
+  Azeonics: applies from **1 Apr 2027** (FY 2027-28). Before that date invoices are issued without
+  IRN, and the UI shows a countdown and readiness checklist (masters complete, test IRNs on sandbox).
+- Auto-generate on submit of B2B / export / SEZ invoices, debit & credit notes once applicable.
 - Flow: build INV-01 JSON → validate locally (schema + business rules) → GSP → IRN, Ack no,
   **signed QR** → stored immutably → printed on invoice PDF.
 - Cancel within 24 h (with reason), else credit note. Bulk generation & retry queue.
@@ -39,11 +41,16 @@ Pure, deterministic, golden-file tested.
 
 | Return | FactoryOS behaviour |
 |---|---|
-| **GSTR-1 / IFF** | Built from submitted invoices/notes/advances; sections B2B, B2CL, B2CS, CDNR, EXP, HSN summary, doc summary; diff against last filed; push via GSP; **filing stays with a human** (EVC/DSC) **[confirm whether to file via GSP API]** |
+| **GSTR-1 / IFF** | Built from submitted invoices/notes/advances; sections B2B, B2CL, B2CS, CDNR, EXP, HSN summary, doc summary; diff against last filed; push and **file via GSP** after the approval workflow below |
 | **GSTR-3B** | Auto-computed liability + eligible ITC (net of ineligible / blocked u/s 17(5), reversals); variance vs GSTR-1 / 2B shown before filing |
 | **GSTR-2B / IMS** | Download monthly; match engine (GSTIN + invoice no fuzzy + date + value tolerance); statuses: matched / mismatch / missing-in-books / missing-in-2B; **IMS accept/reject/pending** actions pushed back; supplier follow-up emails |
 | **ITC-04** | Job-work challans outward/inward per quarter/half-year, auto from challans |
 | **GSTR-9 / 9C** | Phase 2 — data workbook |
+
+**Filing workflow (decision 007):** `Draft (preparer) → Reviewed (Accounts) → Approved (Finance
+Controller) → Saved to GSTN → Filed (EVC/OTP by the approver)`. Each step needs its own
+permission (`compliance.gst_return.create / approve / file`); the preparer can't approve their own
+return; every transition and the GSTN acknowledgement are audited.
 
 ## 5. TDS / TCS
 
@@ -91,4 +98,12 @@ interface GspProvider {
 - Every request/response persisted in `gsp_call_log` (redacted secrets) for audit & support.
 - Idempotency: dedupe by `(gstin, doc type, doc no, FY)`; safe retries; circuit breaker per provider.
 - **`mock` provider** for dev/CI with deterministic IRNs; **sandbox** mode per provider for staging.
-- Adapters ship in this order: mock → **[your first live provider]** → the rest.
+- Adapters ship in this order (decision 005): `mock` → **`nic_direct`** (NIC IRP
+  `einvoice1.gst.gov.in` and the NIC e-way bill system) → other IRPs and GSPs, all selectable per GSTIN.
+- **Constraints to verify before building `nic_direct`:** NIC grants direct API access only to
+  taxpayers meeting its eligibility criteria (registration on the API portal, a static IP
+  whitelist, and turnover conditions that NIC revises from time to time). If Azeonics isn't
+  eligible, e-invoice and EWB go through an IRP/GSP adapter with the same canonical payloads, and
+  the swap is a settings change.
+- **GST returns (GSTR-1/3B/2B/IMS) can only be filed through a GSP** (GSTN doesn't open its
+  returns APIs to taxpayers directly). So a GSP must be chosen before Phase 4.

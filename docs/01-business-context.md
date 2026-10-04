@@ -7,7 +7,9 @@
 
 | | Azeonics | EarthNow |
 |---|---|---|
-| Relationship | Parent | "Part of Azeonics" — assumed separate legal entity **[confirm]** |
+| Legal | Azeonics Private Limited, Thane West, MH 400604 | Separate legal entity, **acquired subsidiary** of Azeonics |
+| GST | Maharashtra today; other states and SEZ units possible later | Same |
+| E-invoice | Above threshold; applies from **1 Apr 2027** (FY 2026-27 is the first year after GST registration) | Per its own turnover |
 | What | Integrated precision manufacturing, testing & innovation facility for drones, satellites, aerospace — sold **pay-per-use** | Satellite imagery → decision-ready intelligence (16 solutions, 9 industries) |
 | Where | HQ Thane, manufacturing Navi Mumbai (both Maharashtra) | India-wide coverage, 95,000+ ha monitored |
 | Quality | ISO 9001, AS9100, ISRO-grade | — |

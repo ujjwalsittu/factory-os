@@ -1,0 +1,23 @@
+name: handoff-guard
+# Any PR that changes code must also update docs/ai/STATUS.md (AGENTS.md section 4),
+# so the next contributor can always resume.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+jobs:
+  status-updated:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require STATUS.md update when code changes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE" "$HEAD")
+          if echo "$changed" | grep -qE '^(apps|packages)/'; then
+            echo "$changed" | grep -qx 'docs/ai/STATUS.md' || {
+              echo "Code changed but docs/ai/STATUS.md was not updated. See AGENTS.md section 4."; exit 1; }
+          fi

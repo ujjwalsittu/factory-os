@@ -4,8 +4,8 @@ A modern, India-compliant ERP for a **single company group with multiple legal e
 **precision manufacturing and services**, shaped around **Azeonics** (aerospace manufacturing,
 testing and integration sold as pay-per-use) and **EarthNow** (satellite analytics services).
 
-> **Status: plan for review.** The repo contains a structural scaffold only. No feature code
-> is written until this plan and the open decisions are approved.
+> **Status:** plan accepted; Phase 0 (landing, auth, tenancy, RBAC, SuperAdmin) in progress.
+> See [ai/STATUS.md](./ai/STATUS.md).
 
 | Doc | Contents |
 |---|---|
@@ -18,7 +18,15 @@ testing and integration sold as pay-per-use) and **EarthNow** (satellite analyti
 | [07 · IoT](./07-iot.md) | Edge agent, OPC UA/MTConnect/Modbus, machine states, metering, environmental evidence |
 | [08 · UX & design system](./08-ux-design-system.md) | Where we beat Frappe and how |
 | [09 · Roadmap](./09-roadmap.md) | Phases 0–6 with exit criteria |
-| [10 · Open decisions](./10-open-decisions.md) | **What I need from you** |
+| [10 · Open questions](./10-open-decisions.md) | **What is still open** |
+| [11 · IoT machine plan](./11-iot-machine-plan.md) | Machine-by-machine integration from the CAPEX register, self-built nodes, RFQ clause |
+| [12 · Tally](./12-tally.md) | Import, two-way sync, and Tally-familiar accounting UX |
+| [13 · UI & UX decisions](./13-ui-ux-decisions.md) | Binding visual and interaction rules, information architecture |
+| [14 · Wireframes](./14-wireframes.md) | Landing, sign-in, shell, dashboard, list, document, settings, platform console, job card |
+| [15 · Tenancy, RBAC, auth](./15-tenancy-rbac-auth.md) | Tenant/entity model, Better Auth, roles and permissions, SuperAdmin |
+| [16 · Deployment](./16-deployment.md) | Coolify dev hosting and environment variables |
+| [Decision register](./decisions/DECISIONS.md) | **Binding decisions** |
+| [AI/handoff state](./ai/STATUS.md) | Current status, memory and log for any contributor |
 
 ## The plan in one paragraph
 

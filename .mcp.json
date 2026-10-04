@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "coolify": {
+      "type": "http",
+      "url": "https://central.azeonics.com/mcp",
+      "headers": { "Authorization": "Bearer ${COOLIFY_API_TOKEN}" }
+    }
+  }
+}
