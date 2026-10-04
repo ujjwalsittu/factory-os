@@ -33,7 +33,7 @@ _Last updated: 2026-10-04 · Phase 0 built and deployed to dev (https://factoryo
 4. Phase 1 kickoff: masters (items, UoM, parties, HSN/SAC), warehouses/locations, stock ledger + batches/serials/heat numbers.
 
 ## Blockers
-- **Cloudflare 526 on https://factoryos.azeonics.com** since the DNS record was switched to proxied (orange cloud). The origin is healthy (http://slubm3yhqacghghrqwg4barm.13.205.93.77.sslip.io/api/health returns 200). Fix in Cloudflare (user): set the record to DNS-only (grey cloud), or keep the proxy and use SSL mode "Full" for this host, or install a Cloudflare Origin Certificate on Coolify.
+- None. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)
 
 ## Noticed (out of scope, for later)
 - The first commit on this branch predates the message guard; its message names the assistant. Fixing it needs a force-push, which the user hasn't approved.

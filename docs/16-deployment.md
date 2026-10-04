@@ -12,7 +12,7 @@ Decision 012: during development we deploy to the existing Coolify instance at
 |---|---|---|
 | `factoryos-db` | PostgreSQL 16 (Coolify one-click) | Daily backups to S3. Later: TimescaleDB image |
 | `factoryos-api` | `apps/api/Dockerfile` | Port 4000. Runs migrations on start (`MIGRATE_ON_START=true`) |
-| `factoryos-web` | `apps/web/Dockerfile` | Port 3000. `NEXT_PUBLIC_API_URL` points to the API domain |
+| `factoryos-web` | `apps/web/Dockerfile` | Port 3000. `API_INTERNAL_URL` points to the API on the internal network |
 | `factoryos-worker` | (Phase 1) | Background jobs |
 | `factoryos-mqtt` | (Phase 5) EMQX/Mosquitto | mTLS for edge agents |
 
@@ -22,9 +22,13 @@ app proxies `/api` to it over Coolify's `coolify` network using the alias `facto
 
 ## Environment variables
 
-See `.env.example` in the repo root. Required in Coolify:
-`DATABASE_URL`, `BETTER_AUTH_SECRET` (32+ random bytes), `BETTER_AUTH_URL` (API public URL),
-`WEB_ORIGIN` (web public URL), `NEXT_PUBLIC_API_URL`.
+See `.env.example` in the repo root. Required in Coolify (all runtime-only):
+- API: `DATABASE_URL`, `BETTER_AUTH_SECRET` (32+ random bytes), `BETTER_AUTH_URL` and `WEB_ORIGIN`
+  (both the public web URL), `MIGRATE_ON_START`; optional `EXTRA_TRUSTED_ORIGINS`,
+  `ALLOW_SELF_SERVE_TENANTS` (false on shared hosts), `BOOTSTRAP_SUPERADMIN_EMAIL`.
+- Web: `API_INTERNAL_URL`.
+- DNS: keep the Cloudflare record **DNS-only** (grey cloud). Proxied mode returned 526 because
+  Cloudflare rejected the origin certificate.
 
 ## Coolify MCP (for agents)
 
