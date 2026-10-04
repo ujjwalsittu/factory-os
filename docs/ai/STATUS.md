@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-04 · Phase 0 built; dev deploy half done (database up, apps blocked on repo access)_
+_Last updated: 2026-10-04 · Phase 0 built and deployed to dev (https://factoryos.azeonics.com)_
 
 ## Done
 - [x] Plan docs 01–16, decision register (001–016 accepted), open questions (docs/10)
@@ -20,21 +20,20 @@ _Last updated: 2026-10-04 · Phase 0 built; dev deploy half done (database up, a
   - Platform console
 - [x] Verification: `pnpm typecheck`/`build`/`test` green (13 unit tests); `apps/api/scripts/smoke.sh` 26/26; browser walkthrough (`pnpm --filter @factoryos/web e2e`) passes incl. 2FA sign-in, mobile, dark mode
 - [x] Decisions 018–021 recorded (FIFO, Tally Edit Log + sync, NIC/Adaequare, Coolify token).
-- [x] Coolify: project FactoryOS and Postgres 16 `factoryos-db` created and healthy.
+- [x] **Dev deployed on Coolify**: https://factoryos.azeonics.com (Let's Encrypt). Apps `factoryos-web` (public) and `factoryos-api` (internal, network alias `factoryos-api`), Postgres `factoryos-db`. Self-serve tenant creation is off on this host; the first SuperAdmin is promoted via `BOOTSTRAP_SUPERADMIN_EMAIL` after signing up.
 - [x] Dockerfiles for api and web; `pnpm deploy` bundle and Next standalone output verified to boot. (A full `docker build` could not run in the dev sandbox: its TLS proxy blocks npm inside containers.)
 
 ## In progress
 - Nothing. Stopping point is clean.
 
 ## Next (in order; confirm with the user before starting)
-1. Finish the dev deploy on Coolify (docs/16): create `factoryos-api` (internal only) and `factoryos-web` apps from the repo, set env vars, deploy, seed the SuperAdmin. **Blocked**, see Blockers.
+1. User signs up at https://factoryos.azeonics.com as sittu.ujjwal@gmail.com; then restart `factoryos-api` in Coolify to promote that account to SuperAdmin, and create the Azeonics Group tenant from the platform console.
 2. User review of Phase 0 UI and the remaining open questions in docs/10.
 3. Phase 0 leftovers: email delivery (invites, password reset), SSO (needs Google/Microsoft OAuth apps), passkeys, impersonation, Postgres RLS policies, number-series engine, document lifecycle engine in `packages/core`.
 4. Phase 1 kickoff: masters (items, UoM, parties, HSN/SAC), warehouses/locations, stock ledger + batches/serials/heat numbers.
 
 ## Blockers
-- **Coolify can't read the repo.** The `azeonics-git` GitHub App only has access to Azeonics-org repos. Need one of: install the app on `ujjwalsittu/factory-os`, or transfer the repo to the Azeonics org. Tried: listing the app's repositories via the Coolify API (repo absent).
-- **Web domain.** No wildcard domain on the Coolify server, and DNS is on Cloudflare. Need a hostname (proposed `factoryos.azeonics.com`) pointed at the Coolify server. The API needs no public domain: the web app reaches it on Coolify's internal network.
+- **Cloudflare 526 on https://factoryos.azeonics.com** since the DNS record was switched to proxied (orange cloud). The origin is healthy (http://slubm3yhqacghghrqwg4barm.13.205.93.77.sslip.io/api/health returns 200). Fix in Cloudflare (user): set the record to DNS-only (grey cloud), or keep the proxy and use SSL mode "Full" for this host, or install a Cloudflare Origin Certificate on Coolify.
 
 ## Noticed (out of scope, for later)
 - The first commit on this branch predates the message guard; its message names the assistant. Fixing it needs a force-push, which the user hasn't approved.

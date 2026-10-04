@@ -37,8 +37,14 @@ at the end of the relevant section, with a date.
   `rb56904benfhtj6up1bluhrm:5432`, db/user `factoryos`; password only in Coolify). Server
   `localhost` `3mk1wlx3v2ous2tw0booaby2`. No wildcard domain is set; `central.azeonics.com` is
   behind Cloudflare.
-- Coolify's GitHub App `azeonics-git` only sees repos in the **Azeonics** org, not
-  `ujjwalsittu/factory-os`.
+- Coolify GitHub Apps: `azeonics-git` (Azeonics org repos) and `ujjwal-azeonics-git`
+  `efit50pxykwkpiubgz4zir3l` (personal repos incl. `ujjwalsittu/factory-os`).
+- Dev apps: `factoryos-api` `bsv3inwzrvuhuau7vojaxkms` (no public domain; network alias
+  `factoryos-api`), `factoryos-web` `slubm3yhqacghghrqwg4barm` at https://factoryos.azeonics.com and
+  http://slubm3yhqacghghrqwg4barm.13.205.93.77.sslip.io. Both build branch
+  `claude/zealous-allen-35g1vm`. Server public IP 13.205.93.77.
+- Coolify gotchas: env vars created via API default to build-time; set `is_buildtime:false`.
+  Containers aren't reachable by app UUID; use `custom_network_aliases`. `/deploy` is POST.
 - `turbo` rewrites a managed block at the bottom of AGENTS.md. Keep it and commit it.
 - Force-push is not permitted. The first commit on `claude/zealous-allen-35g1vm` predates the
   message guard and is left as-is.
