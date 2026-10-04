@@ -8,7 +8,7 @@ import { fieldErrors, FormDialog } from '@/components/form-dialog';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/format';
-import type { LegalEntity } from '@/lib/types';
+import type { GstRegistration, LegalEntity } from '@/lib/types';
 
 const PROVIDERS: [string, string][] = [
   ['mock', 'Mock (testing)'],
@@ -28,7 +28,7 @@ const GST_TYPES: [string, string][] = [
   ['isd', 'Input service distributor'],
 ];
 
-type DialogState = { kind: 'entity' } | { kind: 'gst'; entity: LegalEntity } | { kind: 'plant'; entity: LegalEntity } | null;
+type DialogState = { kind: 'entity' } | { kind: 'gst'; entity: LegalEntity } | { kind: 'plant'; entity: LegalEntity } | { kind: 'lut'; registration: GstRegistration } | null;
 
 export default function EntitiesPage() {
   const ws = useWorkspace();
@@ -112,6 +112,10 @@ export default function EntitiesPage() {
                         <p className="mt-1 text-[12px] text-muted">
                           IRP: {label(r.irpProvider)} · E-way bill: {label(r.ewbProvider)} · Returns: {label(r.returnsProvider)}
                         </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                          <p className="text-[12px] text-muted">{r.lutArn ? `LUT ${r.lutArn} · ${formatDate(r.lutValidFrom ?? '')} – ${formatDate(r.lutValidTo ?? '')}` : 'No LUT recorded'}</p>
+                          {canUpdate && <Button variant="secondary" size="sm" onClick={() => setDialog({ kind: 'lut', registration: r })}>Edit LUT</Button>}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -139,11 +143,27 @@ export default function EntitiesPage() {
       {dialog?.kind === 'entity' && <EntityDialog entities={entities} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'gst' && <GstDialog entity={dialog.entity} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'plant' && <PlantDialog entity={dialog.entity} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'lut' && <LutDialog registration={dialog.registration} onClose={() => setDialog(null)} />}
     </>
   );
 }
 
 const label = (p: string) => PROVIDERS.find(([k]) => k === p)?.[1] ?? p;
+
+function LutDialog({ registration, onClose }: { registration: GstRegistration; onClose: () => void }) {
+  const ws = useWorkspace(), qc = useQueryClient();
+  const [f, setF] = useState({ lutArn: registration.lutArn ?? '', lutValidFrom: registration.lutValidFrom ?? '', lutValidTo: registration.lutValidTo ?? '' });
+  const m = useMutation({
+    mutationFn: () => api(`/gst-registrations/${registration.id}`, { method: 'PATCH', body: { lutArn: f.lutArn.trim().toUpperCase() || null, lutValidFrom: f.lutValidFrom || null, lutValidTo: f.lutValidTo || null }, scope: ws.tenantScope }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['entities'] }); onClose(); },
+  });
+  const errors = fieldErrors(m.error);
+  return <FormDialog title={`LUT · ${registration.gstin}`} description="Exports under LUT require a valid ARN on the invoice date. These details are copied onto issued invoices." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error}>
+    <Field label="LUT ARN" error={errors.lutArn}>{p => <Input {...p} value={f.lutArn} onChange={e => setF({ ...f, lutArn: e.target.value })} maxLength={15} className="font-mono uppercase" />}</Field>
+    <Field label="Valid from" error={errors.lutValidFrom}>{p => <Input {...p} type="date" value={f.lutValidFrom} onChange={e => setF({ ...f, lutValidFrom: e.target.value })} required={!!f.lutArn} />}</Field>
+    <Field label="Valid to" error={errors.lutValidTo}>{p => <Input {...p} type="date" value={f.lutValidTo} onChange={e => setF({ ...f, lutValidTo: e.target.value })} required={!!f.lutArn} />}</Field>
+  </FormDialog>;
+}
 
 function useSave<T>(path: string) {
   const ws = useWorkspace();

@@ -112,6 +112,7 @@ function PartyDialog({ party, onClose }: { party: Party | null; onClose: () => v
     msmeUdyam: party?.msmeUdyam ?? '',
     msmeCategory: party?.msmeCategory ?? '',
     creditDays: party?.creditDays?.toString() ?? '',
+    creditLimit: party?.creditLimit ?? '',
     email: party?.email ?? '',
     phone: party?.phone ?? '',
     isActive: party?.isActive ?? true,
@@ -132,6 +133,7 @@ function PartyDialog({ party, onClose }: { party: Party | null; onClose: () => v
         msmeUdyam: f.msmeUdyam || null,
         msmeCategory: f.msmeCategory || null,
         creditDays: f.creditDays ? Number(f.creditDays) : null,
+        creditLimit: f.creditLimit || null,
         email: f.email || null,
         phone: f.phone || null,
         isActive: f.isActive,
@@ -191,6 +193,7 @@ function PartyDialog({ party, onClose }: { party: Party | null; onClose: () => v
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Credit days" error={e.creditDays}>{(p) => <Input {...p} value={f.creditDays} onChange={set('creditDays')} inputMode="numeric" />}</Field>
+          {f.isCustomer && <Field label="Credit limit (₹)" hint="Leave blank for no limit. Submitting above the limit requires an approver." error={e.creditLimit}>{(p) => <Input {...p} value={f.creditLimit} onChange={set('creditLimit')} inputMode="decimal" />}</Field>}
           <Field label="Email" error={e.email}>{(p) => <Input {...p} type="email" value={f.email} onChange={set('email')} />}</Field>
           <Field label="Phone" error={e.phone}>{(p) => <Input {...p} value={f.phone} onChange={set('phone')} />}</Field>
         </div>

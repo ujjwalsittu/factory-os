@@ -84,3 +84,6 @@ at the end of the relevant section, with a date.
   `landed_cost_layer_change` stores old/new rate and qty on hand at posting; cancels (voucher, covered receipt, earlier issue)
   are refused whenever they would make ledger value ≠ layer value. Keep that invariant if you touch FIFO or cancel code.
 - Debounced previews (`useTaxPreview`, landed-cost preview) must decide `enabled` from the debounced body, not live inputs.
+- Current cloud setup uses Docker Compose PostgreSQL (`docker compose up -d db`), Node 24, and pnpm 10.28.0; use the version pinned in package.json. API migrations apply at startup.
+- Selling invoice creation uses company-owned in-stock batches (`owner=company`); invoice submission generates delivery and cancellation reverses it. Tax previews remain server-calculated.
+- Draft autosave must compare saved payload snapshots, reschedule after pending requests, and suppress retries only for unchanged rejected payloads. Read/submit reviewers can submit without draft-update permission.

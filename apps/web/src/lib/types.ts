@@ -15,11 +15,13 @@ export interface TenantContextData {
 }
 
 export interface Address {
+  label?: string;
   line1: string;
   line2?: string;
   city: string;
   stateCode: string;
   pincode: string;
+  country?: string;
 }
 
 export interface GstRegistration {
@@ -32,6 +34,10 @@ export interface GstRegistration {
   irpProvider: string;
   ewbProvider: string;
   returnsProvider: string;
+  address: Address | null;
+  lutArn: string | null;
+  lutValidFrom: string | null;
+  lutValidTo: string | null;
 }
 
 export interface Plant {
@@ -168,6 +174,8 @@ export interface Party {
   msmeUdyam: string | null;
   msmeCategory: string | null;
   creditDays: number | null;
+  creditLimit: string | null;
+  addresses: (Address & { label: string })[];
   email: string | null;
   phone: string | null;
   isActive: boolean;

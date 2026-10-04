@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-05 · Slice 1b (buying) + 1b-2 (imports & landed cost) built, verified, deployed to dev_
+_Last updated: 2026-10-05 · Slice 1c (selling) web and settings implemented; local verification complete_
 
 ## Done
 - [x] Plan docs 01–16, decision register (001–016 accepted), open questions (docs/10)
@@ -51,18 +51,21 @@ _Last updated: 2026-10-05 · Slice 1b (buying) + 1b-2 (imports & landed cost) bu
   - Verified: `smoke-imports.sh` 39/39; e2e `imports` plus all earlier suites pass
 - [x] Dockerfiles for api and web; `pnpm deploy` bundle and Next standalone output verified to boot. (A full `docker build` could not run in the dev sandbox: its TLS proxy blocks npm inside containers.)
 
+- [x] **Slice 1c: selling** (decisions 029–032, migration 0006)
+  - Quotations → sales orders → invoices with system-generated delivery; outward GST, SEZ, foreign-currency exports under LUT, credit warnings with permission-gated override, exact stock reversal on cancel
+  - Web: Sales navigation, scoped lists and forms, server-calculated tax previews, draft autosave, quotation conversion, partial invoice creation, document history, reason confirmations, keyboard save, mobile layouts
+  - A4 tax invoice print/PDF: seller/customer addresses, GSTIN, HSN, quantities, heat/batch, tax breakdown, currency/rate and LUT declaration
+  - Settings: per-GSTIN/FY forward-only number series, LUT ARN/validity, customer credit limits
+  - Verified: production build, typecheck, 36 unit tests, selling API smoke 48/48; production selling, buying and base browser walkthroughs pass. Selling coverage covers delivery/cancel, printed tax columns, LUT exports, settings, credit approval, address reopening and autosave race/error recovery. `pnpm lint` executes zero tasks (no package lint scripts).
+
 ## In progress
-- **Slice 1c: selling** (decisions 029–032, migration 0006). Backend done and verified (`smoke-selling.sh` 48/48):
-  quotations → sales orders (from quotation, credit warning) → sales invoices that ship the goods via a system-generated
-  `delivery` stock entry; outward GST (intra/inter, SEZ, export under LUT with LUT on the GSTIN), foreign-currency exports,
-  per-GSTIN gapless invoice series ≤ 16 chars with a forward-only "next number" (`GET/PUT /number-series`), customer credit limits.
-  **Stopping point:** web screens (Sales nav, quotation/order/invoice forms, statutory tax invoice print, series + LUT settings) + e2e not started.
+- None. Selling UI is ready for user review on dev after branch deployment.
 
 ## Next (in order; confirm with the user before starting)
-1. Finish slice 1c web screens + tax invoice print, then user review on dev.
-3. **Slice 1d: GL core** — chart of accounts (Tally group names), journal posting from stock and invoices.
-4. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
-5. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS, number-series settings UI.
+1. User review of slice 1c on dev.
+2. **Slice 1d: GL core** — chart of accounts (Tally group names), journal posting from stock and invoices.
+3. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
+4. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
 
 ## Blockers
 - None. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)

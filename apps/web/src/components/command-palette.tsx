@@ -34,6 +34,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         .map((i) => ({ id: i.href, label: i.label, group: g.section ?? 'Go to', run: go(i.href) })),
     );
     const actions: Command[] = [];
+    for (const [resource, path, label] of [['quotation', 'quotations', 'quotation'], ['sales_order', 'orders', 'sales order'], ['sales_invoice', 'invoices', 'sales invoice']] as const) {
+      if (ws.can(`selling.${resource}.create`)) actions.push({ id: resource, label: `New ${label}`, group: 'Actions', run: go(`/app/selling/${path}/new`) });
+    }
     if (ws.canTenant('settings.user.create')) actions.push({ id: 'invite', label: 'Invite a user', group: 'Actions', run: go('/app/settings/users?invite=1') });
     if (ws.canTenant('settings.entity.create')) actions.push({ id: 'entity', label: 'Add a legal entity', group: 'Actions', run: go('/app/settings/entities?new=1') });
     if (ws.canTenant('settings.role.create')) actions.push({ id: 'role', label: 'Create a role', group: 'Actions', run: go('/app/settings/roles?new=1') });

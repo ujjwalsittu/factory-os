@@ -58,10 +58,17 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
   {
     section: 'Operations',
     items: [
-      { href: '/app/sales', label: 'Sales', icon: Truck, phase: 1 },
       { href: '/app/manufacturing', label: 'Manufacturing', icon: Factory, phase: 2 },
       { href: '/app/quality', label: 'Quality', icon: ClipboardCheck, phase: 2 },
       { href: '/app/services', label: 'Services', icon: Wrench, phase: 3 },
+    ],
+  },
+  {
+    section: 'Sales',
+    items: [
+      { href: '/app/selling/quotations', label: 'Quotations', icon: FileSpreadsheet, permission: 'selling.quotation.read', entityScoped: true },
+      { href: '/app/selling/orders', label: 'Sales orders', icon: Truck, permission: 'selling.sales_order.read', entityScoped: true },
+      { href: '/app/selling/invoices', label: 'Sales invoices', icon: ReceiptText, permission: 'selling.sales_invoice.read', entityScoped: true },
     ],
   },
   {
@@ -108,6 +115,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     section: 'Settings',
     items: [
       { href: '/app/settings/entities', label: 'Entities & GST', icon: Building2, permission: 'settings.entity.read' },
+      { href: '/app/settings/number-series', label: 'Number series', icon: FileSpreadsheet, permission: 'settings.entity.read', entityScoped: true },
       { href: '/app/settings/users', label: 'Users', icon: Users, permission: 'settings.user.read' },
       { href: '/app/settings/roles', label: 'Roles', icon: KeyRound, permission: 'settings.role.read' },
       { href: '/app/settings/audit', label: 'Audit log', icon: ScrollText, permission: 'settings.audit.read' },
