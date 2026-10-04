@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-04 · Phase 0 built and deployed to dev (https://factoryos.azeonics.com)_
+_Last updated: 2026-10-04 · Phase 1 slice 1a (inventory core) built, verified and deployed to dev_
 
 ## Done
 - [x] Plan docs 01–16, decision register (001–016 accepted), open questions (docs/10)
@@ -21,16 +21,26 @@ _Last updated: 2026-10-04 · Phase 0 built and deployed to dev (https://factoryo
 - [x] Verification: `pnpm typecheck`/`build`/`test` green (13 unit tests); `apps/api/scripts/smoke.sh` 26/26; browser walkthrough (`pnpm --filter @factoryos/web e2e`) passes incl. 2FA sign-in, mobile, dark mode
 - [x] Decisions 018–021 recorded (FIFO, Tally Edit Log + sync, NIC/Adaequare, Coolify token).
 - [x] **Dev deployed on Coolify**: https://factoryos.azeonics.com (Let's Encrypt). Apps `factoryos-web` (public) and `factoryos-api` (internal, network alias `factoryos-api`), Postgres `factoryos-db`. Self-serve tenant creation is off on this host; the first SuperAdmin is promoted via `BOOTSTRAP_SUPERADMIN_EMAIL` after signing up.
+- [x] **Phase 1 · slice 1a: inventory core**
+  - `packages/core`: `Dec` fixed-point decimal (no floats for money/qty), FIFO engine, number-series formatting, FY codes (12 tests)
+  - DB (migration 0002): uom, hsn_code, item, party, warehouse (tree), batch, number_series, stock_entry(+line), stock_ledger_entry (append-only), fifo_layer, fifo_consumption, stock_bin
+  - API: masters (UoM, HSN/SAC, items, parties with GSTIN/MSME), warehouses (+ standard layout), batches (FEFO, in-stock), stock entries (draft → submit → cancel with exact reversal), stock balance (FIFO value), stock ledger (running balance)
+  - Rules: quarantine/MRB not issuable, customer-owned stock unvalued and unmixable, negative stock and backdating refused, gapless numbers per entity/FY (`AZ/SE/26-27/00001`), per-item advisory locks (race-tested)
+  - System roles re-sync from the permission catalog at startup; default UoMs seeded per tenant
+  - Web: Masters (items, customers & suppliers, units & HSN/SAC), Inventory (stock entries list + document form with item picker, batch picker, Ctrl+Enter save; stock balance; stock ledger; warehouses), entity gate, ⌘K actions
+  - Verified: `apps/api/scripts/smoke-inventory.sh` 43/43, `smoke.sh` 26/26, `pnpm --filter @factoryos/web e2e` and `e2e:inventory` pass
 - [x] Dockerfiles for api and web; `pnpm deploy` bundle and Next standalone output verified to boot. (A full `docker build` could not run in the dev sandbox: its TLS proxy blocks npm inside containers.)
 
 ## In progress
 - Nothing. Stopping point is clean.
 
 ## Next (in order; confirm with the user before starting)
-1. User confirms SuperAdmin access at https://factoryos.azeonics.com/platform, creates the Azeonics Group tenant, and turns on two-factor.
-2. User review of Phase 0 UI and the remaining open questions in docs/10.
-3. Phase 0 leftovers: email delivery (invites, password reset), SSO (needs Google/Microsoft OAuth apps), passkeys, impersonation, Postgres RLS policies, number-series engine, document lifecycle engine in `packages/core`.
-4. Phase 1 kickoff: masters (items, UoM, parties, HSN/SAC), warehouses/locations, stock ledger + batches/serials/heat numbers.
+1. User review of slice 1a on dev, and decision 022 (FIFO per entity vs per warehouse).
+2. **Slice 1b: buying** — purchase order → GRN (into quarantine, posts via the stock engine) → incoming inspection (accept → stores / reject → return) → purchase invoice; landed cost for imports (B4).
+3. **Slice 1c: selling + GST engine** — quotation → sales order → delivery → sales invoice; tax engine in `packages/compliance-in` (place of supply, CGST/SGST/IGST, RCM) with golden-file tests; tax invoice PDF.
+4. **Slice 1d: GL core** — chart of accounts (Tally group names), journal posting from stock and invoices.
+5. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
+6. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS, number-series settings UI.
 
 ## Blockers
 - None. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)

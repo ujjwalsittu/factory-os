@@ -141,12 +141,12 @@ export class InventoryController {
       z.object({ itemId: z.string().uuid(), warehouseId: z.string().uuid().optional(), inStock: z.enum(['true', 'false']).optional() }),
       query,
     );
-    const binWhere: SQL[] = [eq(stockBin.entityId, entityId), eq(stockBin.itemId, itemId)];
-    if (warehouseId) binWhere.push(eq(stockBin.warehouseId, warehouseId));
+    // Explicit aliases: drizzle renders columns unqualified inside sql``, which would bind "id" to stock_bin.
+    const whFilter = warehouseId ? sql` and sb.warehouse_id = ${warehouseId}` : sql``;
     const rows = await this.db
       .select({
         batch,
-        qty: sql<string>`coalesce((select sum(${stockBin.qty}) from ${stockBin} where ${and(...binWhere)} and ${stockBin.batchId} = ${batch.id}), 0)`,
+        qty: sql<string>`coalesce((select sum(sb.qty) from stock_bin sb where sb.entity_id = ${entityId} and sb.item_id = ${itemId} and sb.batch_id = "batch"."id"${whFilter}), 0)`,
       })
       .from(batch)
       .where(and(eq(batch.tenantId, ctx.tenant.tenantId), eq(batch.itemId, itemId)))
@@ -181,8 +181,8 @@ export class InventoryController {
         partyName: party.name,
         createdByName: user.name,
         createdAt: stockEntry.createdAt,
-        lineCount: sql<number>`(select count(*)::int from ${stockEntryLine} where ${stockEntryLine.entryId} = ${stockEntry.id})`,
-        totalValue: sql<string>`(select coalesce(sum(${stockEntryLine.value}), 0) from ${stockEntryLine} where ${stockEntryLine.entryId} = ${stockEntry.id})`,
+        lineCount: sql<number>`(select count(*)::int from stock_entry_line l where l.entry_id = "stock_entry"."id")`,
+        totalValue: sql<string>`(select coalesce(sum(l.value), 0) from stock_entry_line l where l.entry_id = "stock_entry"."id")`,
       })
       .from(stockEntry)
       .leftJoin(party, eq(party.id, stockEntry.partyId))

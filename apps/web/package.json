@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start -p 3000",
     "typecheck": "next typegen && tsc --noEmit",
-    "e2e": "node e2e/walkthrough.mjs"
+    "e2e": "node e2e/walkthrough.mjs",
+    "e2e:inventory": "node e2e/inventory.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",

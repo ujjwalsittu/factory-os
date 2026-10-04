@@ -68,3 +68,10 @@ at the end of the relevant section, with a date.
 - When killing dev servers, anchor the pattern (`pkill -f '^next-server'`). An unanchored pattern
   matches the shell running the command and kills it.
 - Dev SuperAdmin in a local DB is created with `seed:superadmin`; no default credentials exist.
+- **Drizzle pitfall:** inside `sql\`...\`` subqueries, column references render *unqualified*, so
+  `${table.id}` silently binds to the inner table. Use explicit aliases (`from stock_bin sb where
+  sb.batch_id = "batch"."id"`). Bit us twice (platform counts, batch balances); smoke tests now cover both.
+- **Next.js:** `window.history.replaceState` is synced into `useSearchParams`; capture initial query
+  params in state if a page rewrites its own URL (see `inventory/entries/new/page.tsx`).
+- Local Postgres in the cloud sandbox stops between sessions: `sudo pg_ctlcluster 16 main start`.
+- Inventory APIs need `x-entity-id`; masters are tenant-wide but accept it so entity-scoped roles work.

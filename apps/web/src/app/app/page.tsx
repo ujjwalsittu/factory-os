@@ -8,9 +8,9 @@ import { api } from '@/lib/api';
 import { formatDate, fyLabel } from '@/lib/format';
 import type { LegalEntity, Member } from '@/lib/types';
 
-const PHASES = [
+const PHASES: { n: number; title: string; body: string; done?: boolean; current?: boolean }[] = [
   { n: 0, title: 'Foundation', body: 'Tenancy, entities, users, roles, audit, design system', done: true },
-  { n: 1, title: 'Inventory, buying, selling, GST', body: 'Stock ledger, batches and heat numbers, invoices, e-invoice and e-way bill' },
+  { n: 1, title: 'Inventory, buying, selling, GST', body: 'Inventory core is live: items, batches and heat numbers, FIFO stock ledger. Next: purchase, sales, GST.', current: true },
   { n: 2, title: 'Manufacturing & quality', body: 'BOM, routing, work orders, job cards, genealogy, FAI, NCR' },
   { n: 3, title: 'Services', body: 'Machine-hours, test campaigns, memberships, subscriptions' },
   { n: 4, title: 'Accounts & returns', body: 'GSTR-1/3B, 2B reconciliation, TDS, MSME, Tally sync' },
@@ -128,7 +128,7 @@ export default function HomePage() {
             {PHASES.map((p) => (
               <li key={p.n} className="flex gap-3">
                 <span
-                  className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${p.done ? 'bg-success-soft text-success' : 'bg-surface-2 text-muted'}`}
+                  className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${p.done ? 'bg-success-soft text-success' : p.current ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-muted'}`}
                 >
                   {p.n}
                 </span>

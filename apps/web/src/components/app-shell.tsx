@@ -1,7 +1,12 @@
 'use client';
 import { cn, Logo } from '@factoryos/ui';
 import {
+  ArrowLeftRight,
   Boxes,
+  Contact,
+  Package,
+  Ruler,
+  Warehouse,
   Building2,
   ChevronDown,
   ClipboardCheck,
@@ -40,6 +45,8 @@ interface NavItem {
   /** Shown disabled with the phase it arrives in (docs/09). */
   phase?: number;
   permission?: string;
+  /** Permission is evaluated for the active entity (inventory, masters) rather than tenant-wide. */
+  entityScoped?: boolean;
 }
 
 export const NAV: { section?: string; items: NavItem[] }[] = [
@@ -49,10 +56,25 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     items: [
       { href: '/app/sales', label: 'Sales', icon: Truck, phase: 1 },
       { href: '/app/purchase', label: 'Purchase', icon: ShoppingCart, phase: 1 },
-      { href: '/app/inventory', label: 'Inventory', icon: Boxes, phase: 1 },
       { href: '/app/manufacturing', label: 'Manufacturing', icon: Factory, phase: 2 },
       { href: '/app/quality', label: 'Quality', icon: ClipboardCheck, phase: 2 },
       { href: '/app/services', label: 'Services', icon: Wrench, phase: 3 },
+    ],
+  },
+  {
+    section: 'Inventory',
+    items: [
+      { href: '/app/inventory/entries', label: 'Stock entries', icon: ArrowLeftRight, permission: 'inventory.stock_entry.read', entityScoped: true },
+      { href: '/app/inventory/balance', label: 'Stock balance', icon: Boxes, permission: 'inventory.report.read', entityScoped: true },
+      { href: '/app/inventory/warehouses', label: 'Warehouses', icon: Warehouse, permission: 'inventory.warehouse.read', entityScoped: true },
+    ],
+  },
+  {
+    section: 'Masters',
+    items: [
+      { href: '/app/masters/items', label: 'Items', icon: Package, permission: 'masters.item.read', entityScoped: true },
+      { href: '/app/masters/parties', label: 'Customers & suppliers', icon: Contact, permission: 'masters.party.read', entityScoped: true },
+      { href: '/app/masters/units', label: 'Units & HSN/SAC', icon: Ruler, permission: 'masters.uom.read', entityScoped: true },
     ],
   },
   {
@@ -163,7 +185,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
             <div key={i} className="mt-3">
               {group.section && <p className="px-3 pb-1 text-[11px] font-semibold tracking-wider text-subtle uppercase">{group.section}</p>}
               {group.items
-                .filter((item) => !item.permission || ws.canTenant(item.permission))
+                .filter((item) => !item.permission || (item.entityScoped ? ws.can(item.permission) : ws.canTenant(item.permission)))
                 .map((item) => {
                   const active = item.href === '/app' ? pathname === '/app' : pathname.startsWith(item.href);
                   const Icon = item.icon;

@@ -53,6 +53,8 @@ r=$(entry receipt 2026-10-01 "[{\"itemId\":\"$TI\",\"qty\":\"10\",\"toWarehouseI
 expect "receipt submitted" 201 "$r"; R1=$(field "$r" "d['id']")
 check "gapless number" "$(field "$r" "d['number']")" "AZ/SE/26-27/00001"
 B1=$(field "$(req GET "/batches?itemId=$TI")" "[b['id'] for b in d if b['batchNo']=='HN-23-4471'][0]")
+check "in-stock batches per warehouse" "$(field "$(req GET "/batches?itemId=$TI&warehouseId=$QUAR&inStock=true")" "[(b['batchNo'], b['qty']) for b in d]")" "[('HN-23-4471', '10.000000')]"
+check "entry list shows lines and value" "$(field "$(req GET "/stock-entries?status=submitted")" "[(e['lineCount'], e['totalValue']) for e in d if e['id']=='$R1']")" "[(3, '80200.000000')]"
 
 expect "batch item needs a batch" 400 "$(entry issue 2026-10-02 "[{\"itemId\":\"$TI\",\"qty\":\"1\",\"fromWarehouseId\":\"$STORES\"}]")"
 expect "quarantine stock can't be issued" 400 "$(entry issue 2026-10-02 "[{\"itemId\":\"$TI\",\"qty\":\"1\",\"fromWarehouseId\":\"$QUAR\",\"batchId\":\"$B1\"}]")"

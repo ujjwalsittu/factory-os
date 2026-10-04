@@ -30,13 +30,20 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     };
     const nav = NAV.flatMap((g) =>
       g.items
-        .filter((i) => !i.phase && (!i.permission || ws.canTenant(i.permission)))
+        .filter((i) => !i.phase && (!i.permission || (i.entityScoped ? ws.can(i.permission) : ws.canTenant(i.permission))))
         .map((i) => ({ id: i.href, label: i.label, group: g.section ?? 'Go to', run: go(i.href) })),
     );
     const actions: Command[] = [];
     if (ws.canTenant('settings.user.create')) actions.push({ id: 'invite', label: 'Invite a user', group: 'Actions', run: go('/app/settings/users?invite=1') });
     if (ws.canTenant('settings.entity.create')) actions.push({ id: 'entity', label: 'Add a legal entity', group: 'Actions', run: go('/app/settings/entities?new=1') });
     if (ws.canTenant('settings.role.create')) actions.push({ id: 'role', label: 'Create a role', group: 'Actions', run: go('/app/settings/roles?new=1') });
+    if (ws.can('inventory.stock_entry.create')) {
+      for (const p of ['receipt', 'issue', 'transfer'] as const) {
+        actions.push({ id: `se-${p}`, label: `New stock ${p}`, group: 'Actions', run: go(`/app/inventory/entries/new?purpose=${p}`) });
+      }
+    }
+    if (ws.can('masters.item.create')) actions.push({ id: 'item', label: 'New item', group: 'Actions', run: go('/app/masters/items?new=1') });
+    if (ws.can('masters.party.create')) actions.push({ id: 'party', label: 'New customer or supplier', group: 'Actions', run: go('/app/masters/parties?new=1') });
     for (const e of ws.tenantCtx.entities) {
       actions.push({ id: `entity:${e.id}`, label: `Switch to ${e.shortName}`, group: 'Entities', run: () => (ws.setEntityId(e.id), onClose()) });
     }
