@@ -11,7 +11,7 @@ export function createAuth(db: Database, config: AppConfig) {
     baseURL: config.BETTER_AUTH_URL,
     basePath: '/api/auth',
     secret: config.BETTER_AUTH_SECRET,
-    trustedOrigins: [config.WEB_ORIGIN],
+    trustedOrigins: [config.WEB_ORIGIN, ...config.EXTRA_TRUSTED_ORIGINS],
     database: drizzleAdapter(db, {
       provider: 'pg',
       schema: { user, session, account, verification, twoFactor },

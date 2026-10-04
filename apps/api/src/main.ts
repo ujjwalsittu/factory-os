@@ -22,7 +22,7 @@ async function bootstrap() {
   app.use(express.json({ limit: '1mb' }));
 
   app.setGlobalPrefix('api');
-  app.enableCors({ origin: [config.WEB_ORIGIN], credentials: true });
+  app.enableCors({ origin: [config.WEB_ORIGIN, ...config.EXTRA_TRUSTED_ORIGINS], credentials: true });
   app.enableShutdownHooks();
   await app.listen(config.PORT);
   Logger.log(`API listening on :${config.PORT}`, 'Bootstrap');

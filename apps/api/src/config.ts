@@ -8,6 +8,12 @@ const schema = z.object({
   BETTER_AUTH_URL: z.string().url(),
   BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters'),
   WEB_ORIGIN: z.string().url(),
+  /** Optional comma-separated extra origins the web app is served from (e.g. a temporary sslip.io host). */
+  EXTRA_TRUSTED_ORIGINS: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((o) => o.trim()).filter(Boolean))
+    .pipe(z.array(z.string().url())),
   MIGRATE_ON_START: z
     .enum(['true', 'false'])
     .default('false')
