@@ -29,8 +29,16 @@ at the end of the relevant section, with a date.
 
 - Dev hosting: Coolify at `https://central.azeonics.com`. Its MCP endpoint is `/mcp` with a
   Sanctum bearer token (Coolify → Security → API Tokens). Configure it as the env var
-  `COOLIFY_API_TOKEN`; never commit it. **A token was pasted in chat on 2026-10-04 and should be
-  rotated.**
+  `COOLIFY_API_TOKEN`; never commit it. The current token was shared in chat on 2026-10-04; the
+  user chose not to rotate it (it expires ~30 days later). The REST API (`/api/v1`, same bearer
+  token) works when the MCP connection isn't configured.
+- Coolify resources (dev): project **FactoryOS** `hglookncst2vhgcplrqjvk2d`, environment
+  `production`; Postgres 16 `factoryos-db` `rb56904benfhtj6up1bluhrm` (internal host
+  `rb56904benfhtj6up1bluhrm:5432`, db/user `factoryos`; password only in Coolify). Server
+  `localhost` `3mk1wlx3v2ous2tw0booaby2`. No wildcard domain is set; `central.azeonics.com` is
+  behind Cloudflare.
+- Coolify's GitHub App `azeonics-git` only sees repos in the **Azeonics** org, not
+  `ujjwalsittu/factory-os`.
 - `turbo` rewrites a managed block at the bottom of AGENTS.md. Keep it and commit it.
 - Force-push is not permitted. The first commit on `claude/zealous-allen-35g1vm` predates the
   message guard and is left as-is.

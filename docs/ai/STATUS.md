@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-04 · Phase 0 built and verified; awaiting user review before Phase 1_
+_Last updated: 2026-10-04 · Phase 0 built; dev deploy half done (database up, apps blocked on repo access)_
 
 ## Done
 - [x] Plan docs 01–16, decision register (001–016 accepted), open questions (docs/10)
@@ -19,19 +19,22 @@ _Last updated: 2026-10-04 · Phase 0 built and verified; awaiting user review be
   - Home dashboard (setup checklist, e-invoice readiness, roadmap), Settings: entities & GST, users & invitations, roles matrix, audit log (chain check), my security (2FA)
   - Platform console
 - [x] Verification: `pnpm typecheck`/`build`/`test` green (13 unit tests); `apps/api/scripts/smoke.sh` 26/26; browser walkthrough (`pnpm --filter @factoryos/web e2e`) passes incl. 2FA sign-in, mobile, dark mode
+- [x] Decisions 018–021 recorded (FIFO, Tally Edit Log + sync, NIC/Adaequare, Coolify token).
+- [x] Coolify: project FactoryOS and Postgres 16 `factoryos-db` created and healthy.
 - [x] Dockerfiles for api and web; `pnpm deploy` bundle and Next standalone output verified to boot. (A full `docker build` could not run in the dev sandbox: its TLS proxy blocks npm inside containers.)
 
 ## In progress
 - Nothing. Stopping point is clean.
 
 ## Next (in order; confirm with the user before starting)
-1. User review of Phase 0 UI and the open questions in docs/10 (especially B6 valuation, B7 Tally cut-over, B18/B19 GSP).
-2. Deploy dev to Coolify (docs/16). Needs the user to rotate the Coolify token and set `COOLIFY_API_TOKEN`.
+1. Finish the dev deploy on Coolify (docs/16): create `factoryos-api` (internal only) and `factoryos-web` apps from the repo, set env vars, deploy, seed the SuperAdmin. **Blocked**, see Blockers.
+2. User review of Phase 0 UI and the remaining open questions in docs/10.
 3. Phase 0 leftovers: email delivery (invites, password reset), SSO (needs Google/Microsoft OAuth apps), passkeys, impersonation, Postgres RLS policies, number-series engine, document lifecycle engine in `packages/core`.
 4. Phase 1 kickoff: masters (items, UoM, parties, HSN/SAC), warehouses/locations, stock ledger + batches/serials/heat numbers.
 
 ## Blockers
-- None for code. Business answers in docs/10 are needed before the Phase 1 data model is finalised.
+- **Coolify can't read the repo.** The `azeonics-git` GitHub App only has access to Azeonics-org repos. Need one of: install the app on `ujjwalsittu/factory-os`, or transfer the repo to the Azeonics org. Tried: listing the app's repositories via the Coolify API (repo absent).
+- **Web domain.** No wildcard domain on the Coolify server, and DNS is on Cloudflare. Need a hostname (proposed `factoryos.azeonics.com`) pointed at the Coolify server. The API needs no public domain: the web app reaches it on Coolify's internal network.
 
 ## Noticed (out of scope, for later)
 - The first commit on this branch predates the message guard; its message names the assistant. Fixing it needs a force-push, which the user hasn't approved.

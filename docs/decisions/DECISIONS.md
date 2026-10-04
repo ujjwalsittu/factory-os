@@ -23,4 +23,7 @@ To add one, append the next number and keep it short: context → decision → c
 | 015 | 2026-10-04 | Accepted | **RBAC model:** permission strings `module.resource.action`; roles are tenant-defined bundles of permissions; role assignments are scoped (tenant-wide, or limited to entities/plants). Postgres RLS added as defence-in-depth in Phase 1. |
 | 016 | 2026-10-04 | Accepted | **IoT:** buy machines with open interfaces (IPC-CFX/Hermes for SMT, MTConnect/OPC UA for CNC/EDM) where possible. Self-built ESP32 nodes for legacy/simple equipment. Edge agent per plant, MQTT to cloud. See docs/11. |
 | 017 | 2026-10-04 | Proposed | **Job queue:** pg-boss (Postgres) rather than BullMQ/Redis. |
-| 018 | 2026-10-04 | Proposed | **Valuation:** FIFO with batch-wise valuation for traceable metals/powders; moving average for consumables. |
+| 018 | 2026-10-04 | Accepted | **Valuation:** FIFO for all items, per legal entity. Batch-tracked items (metals, powders, components) are valued per batch at their own landed cost. |
+| 019 | 2026-10-04 | Accepted | **Tally:** the CA uses the latest TallyPrime Edit Log release. Build the one-time import **and** ongoing sync (FactoryOS → Tally by default, CA journals back via a review queue), switchable per entity. Confirm the XML interface on the Edit Log release before building. |
+| 020 | 2026-10-04 | Accepted | **Providers:** e-invoice and e-way bill via NIC direct, with Adaequare as the alternative if NIC direct access isn't granted. GST returns via **Adaequare** (returns can only go through a GSP). |
+| 021 | 2026-10-04 | Accepted | **Coolify token:** used as-is, no rotation; it expires automatically about 30 days after 2026-10-04. Never commit it. |
