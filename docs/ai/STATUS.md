@@ -47,10 +47,13 @@ _Last updated: 2026-10-05 · Slice 1b (buying) built, verified, deployed to dev_
 - [x] Dockerfiles for api and web; `pnpm deploy` bundle and Next standalone output verified to boot. (A full `docker build` could not run in the dev sandbox: its TLS proxy blocks npm inside containers.)
 
 ## In progress
-- Nothing. Stopping point is clean.
+- **Slice 1b-2: imports & landed cost** (decisions 026–028, migration 0005). Backend done and verified (`smoke-imports.sh` 39/39):
+  foreign-currency PO/invoice (overseas suppliers only, receipts valued at the PO exchange rate), landed cost vouchers with Bill of Entry,
+  charges split by value / quantity / weight, FIFO revaluation of stock on hand + variance for issued stock, guarded cancels.
+  **Stopping point:** web screens (currency on PO/invoice forms, Landed cost list/form with allocation preview) + e2e not started.
 
 ## Next (in order; confirm with the user before starting)
-1. User review of slice 1b (buying) on dev. Ask whether they import material: that decides when landed cost (Bill of Entry, BCD + SWS + IGST allocated to batches) is built.
+1. Finish slice 1b-2 web screens, then user review of buying + imports on dev.
 2. **Slice 1c: selling** — quotation → sales order → delivery → sales invoice using the existing GST engine (outward supply types); tax invoice PDF.
 3. **Slice 1d: GL core** — chart of accounts (Tally group names), journal posting from stock and invoices.
 4. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.

@@ -40,6 +40,14 @@ const gstRate = z
   .transform((v) => String(Number(v)))
   .pipe(z.enum(GST_RATES));
 
+const currency = z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Use a 3-letter currency code').default('INR');
+const exchangeRate = z
+  .union([z.string(), z.number()])
+  .transform((v) => String(v).trim())
+  .pipe(z.string().regex(/^\d+(\.\d{1,6})?$/, 'Exchange rate: a number with up to 6 decimals'))
+  .nullable()
+  .optional();
+
 const poLineInput = z.object({ itemId: z.string().uuid(), description: z.string().trim().max(500).nullable().optional(), qty: qtyString, rate: qtyString, gstRate: gstRate.optional() });
 const poInput = z.object({
   supplierId: z.string().uuid(),
@@ -49,6 +57,8 @@ const poInput = z.object({
   supplierQuoteRef: z.string().trim().max(100).nullable().optional(),
   paymentTermsDays: z.number().int().min(0).max(365).nullable().optional(),
   remarks: z.string().trim().max(2000).nullable().optional(),
+  currency,
+  exchangeRate,
   lines: z.array(poLineInput).min(1).max(300),
 });
 
@@ -64,6 +74,8 @@ const piInput = z.object({
   itcEligible: z.boolean().default(true),
   acceptRateVariance: z.boolean().default(false),
   remarks: z.string().trim().max(2000).nullable().optional(),
+  currency,
+  exchangeRate,
   lines: z.array(piLineInput).min(1).max(300),
 });
 
@@ -146,6 +158,7 @@ export class BuyingController {
         supplierId: purchaseOrder.supplierId,
         supplierName: party.name,
         grandTotal: purchaseOrder.grandTotal,
+        currency: purchaseOrder.currency,
         orderedQty: sql<string>`(select coalesce(sum(l.qty), 0) from purchase_order_line l where l.po_id = "purchase_order"."id")`,
         receivedQty: sql<string>`(select coalesce(sum(l.received_qty), 0) from purchase_order_line l where l.po_id = "purchase_order"."id")`,
         billedQty: sql<string>`(select coalesce(sum(l.billed_qty), 0) from purchase_order_line l where l.po_id = "purchase_order"."id")`,
@@ -515,6 +528,7 @@ export class BuyingController {
         taxableValue: purchaseInvoice.taxableValue,
         totalTax: purchaseInvoice.totalTax,
         grandTotal: purchaseInvoice.grandTotal,
+        currency: purchaseInvoice.currency,
         poNumber: purchaseOrder.number,
       })
       .from(purchaseInvoice)
@@ -631,7 +645,7 @@ export class BuyingController {
         if (pl.poId !== inv.purchaseOrderId) throw new BadRequestException(`Line ${l.lineNo}: not a line of the linked purchase order`);
         const unbilled = Dec.of(pl.receivedQty).sub(pl.billedQty);
         if (Dec.of(l.qty).gt(unbilled)) throw new BadRequestException(`Line ${l.lineNo}: only ${unbilled.toFixed(3)} received and not yet billed (3-way match)`);
-        if (!Dec.of(l.rate).eq(pl.rate)) variances.push(`line ${l.lineNo}: ₹${Dec.of(l.rate).toFixed(2)} vs PO ₹${Dec.of(pl.rate).toFixed(2)}`);
+        if (!Dec.of(l.rate).eq(pl.rate)) variances.push(`line ${l.lineNo}: ${inv.currency} ${Dec.of(l.rate).toFixed(2)} vs PO ${inv.currency} ${Dec.of(pl.rate).toFixed(2)}`);
       }
       if (variances.length && !acceptRateVariance) {
         throw new BadRequestException({ message: `Rate differs from the purchase order (${variances.join('; ')}). Confirm the variance to submit.`, issues: [{ path: 'acceptRateVariance', message: 'Confirm rate variance' }] });
@@ -720,6 +734,18 @@ export class BuyingController {
     return out;
   }
 
+  /** Decision 026: foreign currency only for overseas suppliers, with an exchange rate; INR is always 1. */
+  private currencyOf(supplier: Party, input: { currency: string; exchangeRate?: string | null }) {
+    if (input.currency === 'INR') return { currency: 'INR', exchangeRate: '1' };
+    if (supplier.gstTreatment !== 'overseas') {
+      throw new BadRequestException({ message: `${supplier.name} is not an overseas supplier; Indian suppliers are billed in INR`, issues: [{ path: 'currency', message: 'Use INR' }] });
+    }
+    if (!input.exchangeRate || !Dec.of(input.exchangeRate).gt('0')) {
+      throw new BadRequestException({ message: `Enter the exchange rate (INR per 1 ${input.currency})`, issues: [{ path: 'exchangeRate', message: 'Required' }] });
+    }
+    return { currency: input.currency, exchangeRate: input.exchangeRate };
+  }
+
   private tax(supplier: Party, reg: GstReg, lines: { qty: string; rate: string; gstRate: string; isService: boolean }[], reverseCharge: boolean): TaxResult {
     const overseas = supplier.gstTreatment === 'overseas';
     // Unregistered and composition suppliers can't charge GST (RCM aside).
@@ -739,6 +765,7 @@ export class BuyingController {
     const t = this.tax(supplier, reg, lines, false);
     return {
       header: {
+        ...this.currencyOf(supplier, input),
         supplierId: supplier.id,
         gstRegistrationId: reg.id,
         orderDate: input.orderDate,
@@ -761,6 +788,7 @@ export class BuyingController {
       const [po] = await this.db.select().from(purchaseOrder).where(and(eq(purchaseOrder.id, input.purchaseOrderId), eq(purchaseOrder.entityId, entityId)));
       if (!po || po.status !== 'submitted') throw new BadRequestException('Link a submitted purchase order');
       if (po.supplierId !== supplier.id) throw new BadRequestException('The purchase order belongs to another supplier');
+      if (po.currency !== input.currency) throw new BadRequestException({ message: `The purchase order is in ${po.currency}`, issues: [{ path: 'currency', message: `Use ${po.currency}` }] });
     } else if (input.lines.some((l) => l.poLineId)) {
       throw new BadRequestException('Lines reference a purchase order that is not linked');
     }
@@ -773,6 +801,7 @@ export class BuyingController {
     const dueDays = msme ? Math.min(terms, 45) : terms;
     return {
       header: {
+        ...this.currencyOf(supplier, input),
         supplierId: supplier.id,
         gstRegistrationId: reg.id,
         purchaseOrderId: input.purchaseOrderId ?? null,

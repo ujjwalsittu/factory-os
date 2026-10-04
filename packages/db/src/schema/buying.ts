@@ -1,6 +1,6 @@
 // Buying: purchase orders, incoming inspection, purchase invoices (slice 1b).
 // Goods receipts are stock entries (purpose 'receipt') linked to a PO, so they post through the one stock engine.
-import { boolean, date, index, integer, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, date, index, integer, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { user } from './auth.js';
 import { batch, docStatus, stockEntry, stockEntryLine, warehouse } from './inventory.js';
 import { item, party, qty } from './masters.js';
@@ -44,6 +44,10 @@ export const purchaseOrder = pgTable(
     supplierQuoteRef: text('supplier_quote_ref'),
     paymentTermsDays: integer('payment_terms_days'),
     remarks: text('remarks'),
+    /** ISO 4217. Amounts on the order are in this currency (decision 026). */
+    currency: text('currency').notNull().default('INR'),
+    /** INR per unit of `currency`; receipts are valued at this rate. */
+    exchangeRate: numeric('exchange_rate', { precision: 18, scale: 6 }).notNull().default('1'),
     taxableValue: money('taxable_value'),
     totalTax: money('total_tax'),
     grandTotal: money('grand_total'),
@@ -150,6 +154,8 @@ export const purchaseInvoice = pgTable(
     /** Payment due date; for micro/small suppliers capped at 45 days (Sec 43B(h)). */
     dueDate: date('due_date'),
     msmeCategory: text('msme_category'),
+    currency: text('currency').notNull().default('INR'),
+    exchangeRate: numeric('exchange_rate', { precision: 18, scale: 6 }).notNull().default('1'),
     taxableValue: money('taxable_value'),
     igst: money('igst'),
     cgst: money('cgst'),
@@ -189,4 +195,122 @@ export const purchaseInvoiceLine = pgTable(
     cess: money('cess'),
   },
   (t) => [index('purchase_invoice_line_invoice_idx').on(t.invoiceId)],
+);
+
+export const landedChargeType = pgEnum('landed_charge_type', ['bcd', 'sws', 'other_duty', 'freight', 'insurance', 'clearing', 'port', 'other']);
+export const allocationBasis = pgEnum('allocation_basis', ['value', 'qty', 'weight']);
+
+/**
+ * Landed cost voucher (decisions 027, 028): Bill of Entry details plus charges spread over one or more receipts.
+ * Submitting raises the FIFO cost of stock still on hand; the share of material already issued is a variance.
+ */
+export const landedCostVoucher = pgTable(
+  'landed_cost_voucher',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    entityId: uuid('entity_id')
+      .notNull()
+      .references(() => legalEntity.id),
+    number: text('number'),
+    status: docStatus('status').notNull().default('draft'),
+    postingDate: date('posting_date').notNull(),
+    boeNo: text('boe_no'),
+    boeDate: date('boe_date'),
+    portCode: text('port_code'),
+    /** Customs (CBIC notified) exchange rate used to assess duty. */
+    customsExchangeRate: numeric('customs_exchange_rate', { precision: 18, scale: 6 }),
+    assessableValue: money('assessable_value'),
+    /** Paid at customs and claimed as input tax credit; never part of cost. */
+    importIgst: money('import_igst'),
+    importCess: money('import_cess'),
+    remarks: text('remarks'),
+    totalCharges: money('total_charges'),
+    /** On submit: what went into stock still on hand, and what fell on material already issued. */
+    onHandValue: money('on_hand_value'),
+    varianceValue: money('variance_value'),
+    ...audit,
+  },
+  (t) => [uniqueIndex('landed_cost_voucher_entity_number_uq').on(t.entityId, t.number)],
+);
+
+export const landedCostReceipt = pgTable(
+  'landed_cost_receipt',
+  {
+    voucherId: uuid('voucher_id')
+      .notNull()
+      .references(() => landedCostVoucher.id, { onDelete: 'cascade' }),
+    receiptId: uuid('receipt_id')
+      .notNull()
+      .references(() => stockEntry.id),
+  },
+  (t) => [uniqueIndex('landed_cost_receipt_uq').on(t.voucherId, t.receiptId), index('landed_cost_receipt_receipt_idx').on(t.receiptId)],
+);
+
+export const landedCostCharge = pgTable(
+  'landed_cost_charge',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    voucherId: uuid('voucher_id')
+      .notNull()
+      .references(() => landedCostVoucher.id, { onDelete: 'cascade' }),
+    lineNo: integer('line_no').notNull(),
+    chargeType: landedChargeType('charge_type').notNull(),
+    description: text('description'),
+    /** Who billed it: customs, freight forwarder, CHA. */
+    partyId: uuid('party_id').references(() => party.id),
+    documentNo: text('document_no'),
+    amount: money('amount').notNull(),
+    basis: allocationBasis('basis').notNull().default('value'),
+  },
+  (t) => [index('landed_cost_charge_voucher_idx').on(t.voucherId)],
+);
+
+/** One row per charge × receipt line, written on submit. Append-only; cancel marks the voucher. */
+export const landedCostAllocation = pgTable(
+  'landed_cost_allocation',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    voucherId: uuid('voucher_id')
+      .notNull()
+      .references(() => landedCostVoucher.id, { onDelete: 'cascade' }),
+    chargeId: uuid('charge_id')
+      .notNull()
+      .references(() => landedCostCharge.id, { onDelete: 'cascade' }),
+    receiptLineId: uuid('receipt_line_id')
+      .notNull()
+      .references(() => stockEntryLine.id),
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => item.id),
+    batchId: uuid('batch_id').references(() => batch.id),
+    amount: money('amount').notNull(),
+  },
+  (t) => [index('landed_cost_allocation_voucher_idx').on(t.voucherId)],
+);
+
+/** Per receipt line on submit: how the FIFO layer was revalued, so a cancel can restore it exactly. */
+export const landedCostLayerChange = pgTable(
+  'landed_cost_layer_change',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    voucherId: uuid('voucher_id')
+      .notNull()
+      .references(() => landedCostVoucher.id, { onDelete: 'cascade' }),
+    receiptLineId: uuid('receipt_line_id')
+      .notNull()
+      .references(() => stockEntryLine.id),
+    layerId: uuid('layer_id').notNull(),
+    qtyRemaining: qty('qty_remaining').notNull(),
+    oldRate: qty('old_rate').notNull(),
+    newRate: qty('new_rate').notNull(),
+    amount: money('amount').notNull(),
+    onHandValue: qty('on_hand_value').notNull(),
+    varianceValue: qty('variance_value').notNull(),
+    /** Ledger row that carried the on-hand value (null when nothing was on hand). */
+    ledgerSeq: bigint('ledger_seq', { mode: 'number' }),
+  },
+  (t) => [index('landed_cost_layer_change_layer_idx').on(t.layerId), index('landed_cost_layer_change_voucher_idx').on(t.voucherId)],
 );

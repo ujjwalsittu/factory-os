@@ -5,6 +5,9 @@ import {
   fifoConsumption,
   fifoLayer,
   item,
+  landedCostLayerChange,
+  landedCostReceipt,
+  landedCostVoucher,
   legalEntity,
   numberSeries,
   party,
@@ -32,6 +35,7 @@ export const DEFAULT_SERIES: Record<string, string> = {
   purchase_order: '{ENTITY}/PO/{FY}/{####}',
   quality_inspection: '{ENTITY}/QI/{FY}/{#####}',
   purchase_invoice: '{ENTITY}/PI/{FY}/{#####}',
+  landed_cost_voucher: '{ENTITY}/LCV/{FY}/{#####}',
 };
 
 /** Waste categories that are hazardous under the Hazardous Waste Rules 2016 (docs/03 §9). */
@@ -72,12 +76,15 @@ export class StockPostingService {
 
       // Goods receipt against a purchase order: same supplier, PO approved and open, no over-receipt.
       const poLines = new Map<string, typeof purchaseOrderLine.$inferSelect>();
+      // INR per unit of the PO currency: receipts are valued in INR at the PO's rate (decision 026).
+      let poExchangeRate = '1';
       if (entry.purchaseOrderId) {
         if (entry.purpose !== 'receipt') throw new BadRequestException('Only receipts can reference a purchase order');
         const [po] = await tx.select().from(purchaseOrder).where(and(eq(purchaseOrder.id, entry.purchaseOrderId), eq(purchaseOrder.entityId, entityId))).for('update');
         if (!po || po.status !== 'submitted') throw new BadRequestException('The purchase order must be submitted (approved) before receiving against it');
         if (po.closedAt) throw new BadRequestException(`Purchase order ${po.number} is closed`);
         if (entry.partyId !== po.supplierId) throw new BadRequestException('The receipt supplier differs from the purchase order supplier');
+        poExchangeRate = po.exchangeRate;
         for (const l of await tx.select().from(purchaseOrderLine).where(eq(purchaseOrderLine.poId, po.id)).for('update')) poLines.set(l.id, l);
       }
       for (const line of lines) {
@@ -89,8 +96,8 @@ export class StockPostingService {
         const pending = Dec.of(pl.qty).sub(pl.receivedQty);
         if (Dec.of(line.qty).gt(pending)) throw new BadRequestException(`Line ${line.lineNo}: only ${pending.toFixed(3)} still due on the purchase order`);
         if (line.rate === null) {
-          line.rate = pl.rate;
-          await tx.update(stockEntryLine).set({ rate: pl.rate }).where(eq(stockEntryLine.id, line.id));
+          line.rate = Dec.of(pl.rate).mul(poExchangeRate).toString();
+          await tx.update(stockEntryLine).set({ rate: line.rate }).where(eq(stockEntryLine.id, line.id));
         }
         await tx.update(purchaseOrderLine).set({ receivedQty: sql`${purchaseOrderLine.receivedQty} + ${line.qty}` }).where(eq(purchaseOrderLine.id, pl.id));
       }
@@ -277,6 +284,14 @@ export class StockPostingService {
     {
       const entry = await this.lockEntry(tx, entityId, entryId);
       if (entry.status !== 'submitted') throw new ConflictException('Only submitted entries can be cancelled');
+      // Decision 028: landed cost sits on top of the receipt's value; it must go first.
+      const [lcv] = await tx
+        .select({ number: landedCostVoucher.number })
+        .from(landedCostReceipt)
+        .innerJoin(landedCostVoucher, eq(landedCostVoucher.id, landedCostReceipt.voucherId))
+        .where(and(eq(landedCostReceipt.receiptId, entryId), eq(landedCostVoucher.status, 'submitted')))
+        .limit(1);
+      if (lcv) throw new ConflictException(`Landed cost voucher ${lcv.number} covers this receipt. Cancel it first.`);
       if (entry.purchaseOrderId) {
         const lines = await tx.select().from(stockEntryLine).where(eq(stockEntryLine.entryId, entryId));
         const inspected = await tx
@@ -312,6 +327,17 @@ export class StockPostingService {
           await this.moveBin(tx, s.tenantId, entityId, s.itemId, s.warehouseId, s.batchId, s.ownerPartyId, q.neg(), 'Cancelling would make stock negative; later movements used it');
         } else {
           const used = await tx.select().from(fifoConsumption).where(eq(fifoConsumption.sleSeq, s.seq));
+          // Decision 028: if landed cost was added to these layers after this issue, putting the quantity back
+          // at today's (higher) rate would create value the ledger never recorded.
+          if (used.length) {
+            const [later] = await tx
+              .select({ number: landedCostVoucher.number })
+              .from(landedCostLayerChange)
+              .innerJoin(landedCostVoucher, eq(landedCostVoucher.id, landedCostLayerChange.voucherId))
+              .where(and(inArray(landedCostLayerChange.layerId, used.map((c) => c.layerId)), eq(landedCostVoucher.status, 'submitted'), gt(landedCostLayerChange.ledgerSeq, s.seq)))
+              .limit(1);
+            if (later) throw new ConflictException(`Landed cost (${later.number}) was added to this stock after it was issued. Return the material with a receipt or adjustment instead.`);
+          }
           for (const c of used) {
             await tx.update(fifoLayer).set({ qtyRemaining: sql`${fifoLayer.qtyRemaining} + ${c.qty}` }).where(eq(fifoLayer.id, c.layerId));
           }

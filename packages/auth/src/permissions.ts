@@ -43,6 +43,7 @@ export const RESOURCES = [
   { module: 'ehs', resource: 'waste', label: 'Waste register (generation & disposal)', actions: ['read', 'create', 'cancel', 'export'] },
   { module: 'buying', resource: 'purchase_order', label: 'Purchase orders', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'buying', resource: 'purchase_invoice', label: 'Purchase invoices', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
+  { module: 'buying', resource: 'landed_cost', label: 'Landed cost & Bill of Entry', actions: ['read', 'create', 'submit', 'cancel'] },
   { module: 'selling', resource: 'sales_invoice', label: 'Sales invoices', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'manufacturing', resource: 'work_order', label: 'Work orders', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'manufacturing', resource: 'job_card', label: 'Job cards', actions: ['read', 'create', 'update', 'submit'] },

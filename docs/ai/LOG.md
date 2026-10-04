@@ -13,3 +13,4 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 - 2026-10-05 · agent · Customer-supplied material: owner on stock rows, return/scrap purposes, waste register with consent rules, printable customer statement (migration 0003). Smoke 36/36 + e2e. Decisions 022 accepted, 024–025 added. Next: user review, then slice 1b (buying).
 - 2026-10-05 · agent · Slice 1b backend: GST engine, purchase orders, receipt against PO, incoming inspection, purchase invoices with 3-way match; smoke-buying 60/60 · next: buying web screens + e2e
 - 2026-10-05 · agent · Slice 1b web: Buying nav, PO and purchase invoice forms with live GST, receive from PO, incoming inspection queue; e2e buying passes · next: user review, then slice 1c selling
+- 2026-10-05 · agent · User confirmed imports; decisions 026–028 recorded. Imports backend: currency on PO/PI, landed cost vouchers with FIFO revaluation; smoke-imports 39/39 · next: imports web screens + e2e
