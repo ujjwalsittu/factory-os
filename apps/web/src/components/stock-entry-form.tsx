@@ -31,6 +31,8 @@ interface DraftLine {
   /** Receipts against a purchase order: the PO line and what is still to come. */
   poLineId: string | null;
   pendingQty: string | null;
+  /** Foreign-currency PO: the cost is filled in rupees at the PO's exchange rate on submit. */
+  poRateHint: string | null;
 }
 
 let keySeq = 0;
@@ -49,6 +51,7 @@ const blankLine = (prev?: DraftLine): DraftLine => ({
   direction: prev?.direction ?? 'in',
   poLineId: null,
   pendingQty: null,
+  poRateHint: null,
 });
 
 /** Create or edit a draft; view a submitted/cancelled entry. Server enforces every rule; the UI explains them. */
@@ -104,6 +107,7 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
           direction: l.toWarehouseId && !l.fromWarehouseId ? 'in' : 'out',
           poLineId: l.poLineId ?? null,
           pendingQty: null,
+          poRateHint: null,
         }))
       : [blankLine()],
   );
@@ -140,7 +144,8 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
         ...blankLine(),
         item: { id: l.itemId, code: l.itemCode, name: l.itemName, tracking: l.tracking, uomCode: l.uomCode },
         qty: String(Number(l.pendingQty)),
-        rate: String(Number(l.rate)),
+        rate: po.data.currency === 'INR' ? String(Number(l.rate)) : '',
+        poRateHint: po.data.currency === 'INR' ? null : `${po.data.currency} ${Number(l.rate)} × ₹${Number(po.data.exchangeRate)}`,
         toWarehouseId: l.requiresInspection ? by('quarantine') || by('stores') : by('stores'),
         poLineId: l.id,
         pendingQty: l.pendingQty,
@@ -430,7 +435,10 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
                       {incoming(l) && customerOwned ? (
                         <p className="pt-2 text-right text-[12px] text-subtle">No cost</p>
                       ) : incoming(l) ? (
-                        <Input className="tabular text-right" inputMode="decimal" placeholder="₹" value={l.rate} onChange={(e) => update(l.key, { rate: e.target.value })} aria-label="Unit cost" />
+                        <>
+                          <Input className="tabular text-right" inputMode="decimal" placeholder={l.poRateHint ? 'From PO' : '₹'} value={l.rate} onChange={(e) => update(l.key, { rate: e.target.value })} aria-label="Unit cost" />
+                          {l.poRateHint && !l.rate && <p className="mt-1 text-right text-[11px] text-subtle">{l.poRateHint}</p>}
+                        </>
                       ) : (
                         <p className="pt-2 text-right text-[12px] text-subtle">FIFO</p>
                       )}

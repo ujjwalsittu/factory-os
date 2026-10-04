@@ -1,7 +1,7 @@
 'use client';
 import { Card, CardHeader } from '@factoryos/ui';
 import { errorText } from '@/lib/buying';
-import { formatMoney } from '@/lib/format';
+import { formatAmount } from '@/lib/format';
 import type { TaxPreview } from '@/lib/types';
 
 const KIND_LABEL: Record<TaxPreview['kind'], string> = {
@@ -14,13 +14,13 @@ const KIND_LABEL: Record<TaxPreview['kind'], string> = {
 type Amounts = { taxableValue: string | null; igst?: string | null; cgst?: string | null; sgst?: string | null; cess?: string | null; totalTax: string | null; grandTotal: string | null; reverseCharge?: boolean };
 
 /** Totals panel. Draft documents show the server's live preview; posted ones show what was stored. */
-export function TaxSummary({ preview, fixed, loading, error }: { preview?: TaxPreview; fixed?: Amounts; loading?: boolean; error?: unknown }) {
+export function TaxSummary({ preview, fixed, loading, error, currency = 'INR' }: { preview?: TaxPreview; fixed?: Amounts; loading?: boolean; error?: unknown; currency?: string }) {
   const a: Amounts | undefined = preview ? { ...preview, grandTotal: preview.invoiceTotal } : fixed;
   const row = (label: string, v: string | null | undefined, strong = false, always = false) =>
     v != null && (strong || always || Number(v) !== 0) ? (
       <div className={`flex justify-between py-1 text-[13px] ${strong ? 'border-t border-line pt-2 text-[15px] font-semibold' : ''}`}>
         <span className={strong ? '' : 'text-muted'}>{label}</span>
-        <span className="tabular">{formatMoney(v)}</span>
+        <span className="tabular">{formatAmount(v, currency)}</span>
       </div>
     ) : null;
   return (

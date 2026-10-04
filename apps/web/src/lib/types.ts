@@ -283,6 +283,7 @@ export interface LedgerRow {
   rate: string;
   value: string;
   isReversal: boolean;
+  voucherType: string;
   voucherId: string;
   voucherNumber: string | null;
   purpose: StockPurpose | null;
@@ -376,6 +377,7 @@ export interface PurchaseOrderRow {
   supplierId: string;
   supplierName: string;
   grandTotal: string | null;
+  currency: string;
   orderedQty: string;
   receivedQty: string;
   billedQty: string;
@@ -414,6 +416,8 @@ export interface PurchaseOrderDetail {
   supplierQuoteRef: string | null;
   paymentTermsDays: number | null;
   remarks: string | null;
+  currency: string;
+  exchangeRate: string;
   taxableValue: string | null;
   totalTax: string | null;
   grandTotal: string | null;
@@ -480,6 +484,7 @@ export interface PurchaseInvoiceRow {
   taxableValue: string | null;
   totalTax: string | null;
   grandTotal: string | null;
+  currency: string;
   poNumber: string | null;
 }
 
@@ -521,6 +526,8 @@ export interface PurchaseInvoiceDetail {
   itcEligible: boolean;
   dueDate: string | null;
   msmeCategory: string | null;
+  currency: string;
+  exchangeRate: string;
   taxableValue: string | null;
   igst: string | null;
   cgst: string | null;
@@ -533,4 +540,90 @@ export interface PurchaseInvoiceDetail {
   cancelledAt: string | null;
   cancelReason: string | null;
   lines: PurchaseInvoiceLine[];
+}
+
+// ---- Imports & landed cost (decisions 026–028) ----
+export type LandedChargeType = 'bcd' | 'sws' | 'other_duty' | 'freight' | 'insurance' | 'clearing' | 'port' | 'other';
+export type AllocationBasis = 'value' | 'qty' | 'weight';
+
+export interface LandedCostRow {
+  id: string;
+  number: string | null;
+  status: DocStatus;
+  postingDate: string;
+  boeNo: string | null;
+  boeDate: string | null;
+  totalCharges: string | null;
+  onHandValue: string | null;
+  varianceValue: string | null;
+  importIgst: string | null;
+  receipts: string | null;
+}
+
+export interface LandedCostReceiptOption {
+  id: string;
+  number: string;
+  postingDate: string;
+  reference: string | null;
+  supplierName: string | null;
+  poNumber: string | null;
+  poCurrency: string | null;
+  value: string;
+  landedCostCount: number;
+}
+
+export interface LandedCostAllocationLine {
+  receiptLineId: string;
+  receiptId: string;
+  receiptNumber: string;
+  itemCode: string;
+  itemName: string;
+  uomCode: string;
+  batchNo: string | null;
+  qty: string;
+  value: string;
+  charges: string[];
+  total: string;
+  qtyRemaining: string;
+  oldRate?: string;
+  newRate?: string;
+  onHandValue?: string;
+  varianceValue?: string;
+}
+
+export interface LandedCostCharge {
+  id: string;
+  lineNo: number;
+  chargeType: LandedChargeType;
+  description: string | null;
+  partyId: string | null;
+  partyName: string | null;
+  documentNo: string | null;
+  amount: string;
+  basis: AllocationBasis;
+}
+
+export interface LandedCostDetail {
+  id: string;
+  number: string | null;
+  status: DocStatus;
+  postingDate: string;
+  boeNo: string | null;
+  boeDate: string | null;
+  portCode: string | null;
+  customsExchangeRate: string | null;
+  assessableValue: string | null;
+  importIgst: string | null;
+  importCess: string | null;
+  remarks: string | null;
+  totalCharges: string | null;
+  onHandValue: string | null;
+  varianceValue: string | null;
+  submittedAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  receiptIds: string[];
+  charges: LandedCostCharge[];
+  allocation: LandedCostAllocationLine[];
+  allocationError: string | null;
 }

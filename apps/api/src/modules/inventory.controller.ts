@@ -383,7 +383,7 @@ export class InventoryController {
         isReversal: stockLedgerEntry.isReversal,
         voucherType: stockLedgerEntry.voucherType,
         voucherId: stockLedgerEntry.voucherId,
-        voucherNumber: stockEntry.number,
+        voucherNumber: sql<string | null>`coalesce(${stockEntry.number}, (select v.number from landed_cost_voucher v where v.id = "stock_ledger_entry"."voucher_id"))`,
         purpose: stockEntry.purpose,
         balanceQty: sql<string>`sum(${stockLedgerEntry.qty}) over (order by ${stockLedgerEntry.postingDate}, ${stockLedgerEntry.seq})`,
         balanceValue: sql<string>`sum(${stockLedgerEntry.value}) over (order by ${stockLedgerEntry.postingDate}, ${stockLedgerEntry.seq})`,

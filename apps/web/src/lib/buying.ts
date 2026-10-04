@@ -9,6 +9,21 @@ import type { PurchaseOrderDetail, PurchaseOrderRow, TaxPreview } from './types'
 /** GST slabs the server accepts (packages/compliance-in GST_RATES). */
 export const GST_RATE_OPTIONS = ['0', '0.1', '0.25', '1.5', '3', '5', '6', '7.5', '12', '18', '28', '40'];
 
+/** Currencies offered for import documents; anything ISO 4217 is accepted by the server. */
+export const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'JPY', 'CNY', 'CHF', 'SGD', 'AED', 'CAD', 'AUD'];
+
+export const CHARGE_TYPE_LABELS: Record<string, string> = {
+  bcd: 'Basic customs duty',
+  sws: 'Social welfare surcharge',
+  other_duty: 'Other duty (ADD / safeguard)',
+  freight: 'Freight',
+  insurance: 'Insurance',
+  clearing: 'Clearing / CHA',
+  port: 'Port / CFS charges',
+  other: 'Other',
+};
+export const BASIS_LABELS: Record<string, string> = { value: 'By value', qty: 'By quantity', weight: 'By weight' };
+
 export const MSME_LABELS: Record<string, string> = { micro: 'Micro', small: 'Small', medium: 'Medium' };
 
 /** A PO's state as people talk about it: draft, open, received, closed, cancelled. */
@@ -62,7 +77,11 @@ export function useTaxPreview(input: {
   return useQuery({
     queryKey: ['tax-preview', ws.entityId, body],
     queryFn: () => api<TaxPreview>('/buying/tax-preview', { method: 'POST', body: JSON.parse(body), scope: ws.scope }),
-    enabled: !!input.supplierId && !!input.date && lines.length > 0,
+    // Decide from the debounced body actually sent, not the live inputs, or a stale empty body goes out.
+    enabled: (() => {
+      const b = JSON.parse(body) as { supplierId: string; date: string; lines: unknown[] };
+      return !!b.supplierId && !!b.date && b.lines.length > 0;
+    })(),
     placeholderData: (prev) => prev,
     retry: false,
   });

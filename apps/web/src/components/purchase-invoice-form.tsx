@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
-import { errorText, GST_RATE_OPTIONS, MSME_LABELS, useTaxPreview } from '@/lib/buying';
-import { formatDate, formatDateTime, formatMoney, formatQty, today } from '@/lib/format';
+import { CURRENCIES, errorText, GST_RATE_OPTIONS, MSME_LABELS, useTaxPreview } from '@/lib/buying';
+import { formatAmount, formatDate, formatDateTime, formatQty, today } from '@/lib/format';
 import { STATUS_TONE } from '@/lib/stock';
 import type { Item, Party, PurchaseInvoiceDetail, PurchaseOrderDetail, PurchaseOrderRow } from '@/lib/types';
 import { fieldErrors, FormDialog } from './form-dialog';
@@ -80,6 +80,8 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
     reverseCharge: invoice?.reverseCharge ?? false,
     itcEligible: invoice?.itcEligible ?? true,
     remarks: invoice?.remarks ?? '',
+    currency: invoice?.currency ?? 'INR',
+    exchangeRate: invoice && invoice.currency !== 'INR' ? String(Number(invoice.exchangeRate)) : '',
   });
   const [lines, setLines] = useState<DraftLine[]>(() =>
     invoice?.lines.length
@@ -124,7 +126,8 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
   useEffect(() => {
     if (prefilled || !linkedPo.data) return;
     setPrefilled(true);
-    setHeader((h) => ({ ...h, supplierId: linkedPo.data.supplierId }));
+    // The invoice is in the PO's currency; its exchange rate starts at the PO's and is edited to the invoice's.
+    setHeader((h) => ({ ...h, supplierId: linkedPo.data.supplierId, currency: linkedPo.data.currency, exchangeRate: linkedPo.data.currency !== 'INR' ? String(Number(linkedPo.data.exchangeRate)) : '' }));
     const ls = fromPo(linkedPo.data);
     setLines(ls.length ? ls : [blank()]);
   }, [linkedPo.data, prefilled]);
@@ -176,6 +179,8 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
     reverseCharge: header.reverseCharge,
     itcEligible: header.itcEligible,
     remarks: header.remarks || null,
+    currency: header.currency,
+    exchangeRate: header.currency !== 'INR' ? header.exchangeRate || null : null,
     lines: lines
       .filter((l) => l.item)
       .map((l) => ({
@@ -403,6 +408,22 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
           <Field label="Posting date">
             {(p) => <Input {...p} type="date" value={header.postingDate} onChange={(e) => setHeader({ ...header, postingDate: e.target.value })} disabled={!editable} />}
           </Field>
+          <Field label="Currency">
+            {(p) => (
+              <Select {...p} value={header.currency} onChange={(e) => setHeader({ ...header, currency: e.target.value })} disabled={!editable || !!header.purchaseOrderId}>
+                {CURRENCIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          {header.currency !== 'INR' && (
+            <Field label={`Exchange rate (₹ per 1 ${header.currency})`} hint="Rate on the invoice date; a difference from the PO rate is forex, not stock value">
+              {(p) => <Input {...p} className="tabular" inputMode="decimal" value={header.exchangeRate} onChange={(e) => setHeader({ ...header, exchangeRate: e.target.value })} disabled={!editable} />}
+            </Field>
+          )}
           <Field label="Remarks">{(p) => <Input {...p} value={header.remarks} onChange={(e) => setHeader({ ...header, remarks: e.target.value })} disabled={!editable} />}</Field>
         </div>
         <div className="mt-4 flex flex-wrap gap-6 text-[13px]">
@@ -437,7 +458,7 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
               <Th className="w-8">#</Th>
               <Th className="min-w-56">Item</Th>
               <Th className="w-32 text-right">Qty</Th>
-              <Th className="w-32 text-right">Rate (₹)</Th>
+              <Th className="w-32 text-right">Rate ({header.currency === 'INR' ? '₹' : header.currency})</Th>
               <Th className="w-28">GST %</Th>
               <Th className="text-right">Amount</Th>
               {!editable && <Th className="text-right">Tax</Th>}
@@ -490,7 +511,7 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
                       </Td>
                       <Td>
                         <Input className="tabular text-right" inputMode="decimal" value={l.rate} onChange={(e) => update(l.key, { rate: e.target.value })} aria-label="Rate" />
-                        {l.poRate !== null && <p className={`mt-1 text-right text-[11px] ${differs ? 'text-warning' : 'text-subtle'}`}>PO {formatMoney(l.poRate)}</p>}
+                        {l.poRate !== null && <p className={`mt-1 text-right text-[11px] ${differs ? 'text-warning' : 'text-subtle'}`}>PO {formatAmount(l.poRate, header.currency)}</p>}
                       </Td>
                       <Td>
                         <Select value={l.gstRate} onChange={(e) => update(l.key, { gstRate: e.target.value })} aria-label="GST rate">
@@ -502,7 +523,7 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
                           ))}
                         </Select>
                       </Td>
-                      <Td className="tabular pt-4 text-right text-[13px]">{Number(l.qty) && Number(l.rate) ? formatMoney(String(Number(l.qty) * Number(l.rate))) : '—'}</Td>
+                      <Td className="tabular pt-4 text-right text-[13px]">{Number(l.qty) && Number(l.rate) ? formatAmount(String(Number(l.qty) * Number(l.rate)), header.currency) : '—'}</Td>
                       <Td>
                         <Button
                           variant="ghost"
@@ -528,12 +549,12 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
                       {formatQty(l.qty)} <span className="text-[11px] text-subtle">{l.uomCode}</span>
                     </Td>
                     <Td className="tabular text-right text-[13px]">
-                      {formatMoney(l.rate)}
-                      {l.poRate && Number(l.poRate) !== Number(l.rate) && <p className="text-[11px] text-warning">PO {formatMoney(l.poRate)}</p>}
+                      {formatAmount(l.rate, header.currency)}
+                      {l.poRate && Number(l.poRate) !== Number(l.rate) && <p className="text-[11px] text-warning">PO {formatAmount(l.poRate, header.currency)}</p>}
                     </Td>
                     <Td className="tabular text-[13px]">{Number(l.gstRate)}%</Td>
-                    <Td className="tabular text-right text-[13px]">{formatMoney(l.taxableValue)}</Td>
-                    <Td className="tabular text-right text-[13px]">{formatMoney(String(Number(l.igst ?? 0) + Number(l.cgst ?? 0) + Number(l.sgst ?? 0) + Number(l.cess ?? 0)))}</Td>
+                    <Td className="tabular text-right text-[13px]">{formatAmount(l.taxableValue, header.currency)}</Td>
+                    <Td className="tabular text-right text-[13px]">{formatAmount(String(Number(l.igst ?? 0) + Number(l.cgst ?? 0) + Number(l.sgst ?? 0) + Number(l.cess ?? 0)))}</Td>
                   </tr>
                 ))}
           </tbody>
@@ -548,7 +569,7 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
       </Card>
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div />
-        <TaxSummary preview={editable ? preview.data : undefined} fixed={!editable ? invoice : undefined} loading={editable && preview.isFetching} error={editable ? preview.error : null} />
+        <TaxSummary preview={editable ? preview.data : undefined} fixed={!editable ? invoice : undefined} loading={editable && preview.isFetching} error={editable ? preview.error : null} currency={header.currency} />
       </div>
 
       {invoice && invoice.status !== 'draft' && (

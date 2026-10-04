@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-05 · Slice 1b (buying) built, verified, deployed to dev_
+_Last updated: 2026-10-05 · Slice 1b (buying) + 1b-2 (imports & landed cost) built, verified, deployed to dev_
 
 ## Done
 - [x] Plan docs 01–16, decision register (001–016 accepted), open questions (docs/10)
@@ -44,16 +44,18 @@ _Last updated: 2026-10-05 · Slice 1b (buying) built, verified, deployed to dev_
   - Purchase invoices: GST computed server-side, 3-way match (qty ≤ received − billed), rate variance needs explicit confirmation, same supplier invoice no. blocked within a FY, MSME micro/small due date capped at 45 days (Sec 43B(h)), RCM and ITC-eligibility flags; cancel returns billed qty to the PO
   - Web: Buying nav (Purchase orders, Incoming inspection, Purchase invoices), PO and invoice forms with live totals, "Receive goods" and "Record invoice" from a PO, ⌘K actions
   - Verified: `smoke-buying.sh` 60/60, `smoke.sh`, `smoke-inventory.sh`, `smoke-customer-material.sh`; e2e `buying`, `inventory`, `customer-material`, base walkthrough all pass
+- [x] **Slice 1b-2: imports & landed cost** (decisions 026–028, migration 0005)
+  - Foreign-currency purchase orders and invoices (overseas suppliers only; currency + exchange rate per document; invoice must match the PO currency); receipts valued in INR at the PO rate
+  - Landed cost vouchers (`/app/buying/landed-costs`): Bill of Entry no./date/port, customs rate, assessable value, import IGST + cess (ITC, not cost); charges (BCD, SWS, other duty, freight, insurance, CHA, port, other) by value / quantity / weight with live allocation preview
+  - Submit raises the FIFO layer rate for stock on hand (value-only `landed_cost` ledger row) and keeps the issued share as variance; guarded cancels keep ledger value = layer value
+  - Verified: `smoke-imports.sh` 39/39; e2e `imports` plus all earlier suites pass
 - [x] Dockerfiles for api and web; `pnpm deploy` bundle and Next standalone output verified to boot. (A full `docker build` could not run in the dev sandbox: its TLS proxy blocks npm inside containers.)
 
 ## In progress
-- **Slice 1b-2: imports & landed cost** (decisions 026–028, migration 0005). Backend done and verified (`smoke-imports.sh` 39/39):
-  foreign-currency PO/invoice (overseas suppliers only, receipts valued at the PO exchange rate), landed cost vouchers with Bill of Entry,
-  charges split by value / quantity / weight, FIFO revaluation of stock on hand + variance for issued stock, guarded cancels.
-  **Stopping point:** web screens (currency on PO/invoice forms, Landed cost list/form with allocation preview) + e2e not started.
+- Nothing. Stopping point is clean.
 
 ## Next (in order; confirm with the user before starting)
-1. Finish slice 1b-2 web screens, then user review of buying + imports on dev.
+1. User review of buying + imports on dev.
 2. **Slice 1c: selling** — quotation → sales order → delivery → sales invoice using the existing GST engine (outward supply types); tax invoice PDF.
 3. **Slice 1d: GL core** — chart of accounts (Tally group names), journal posting from stock and invoices.
 4. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.

@@ -11,10 +11,10 @@ and assume a small team; we will re-plan after Phase 0.
 - Document engine (lifecycle, numbering, attachments, comments, approvals).
 - **Exit**: create entities Azeonics + EarthNow, users with scoped roles, a generic doc end-to-end.
 
-## Phase 1 — Masters, Inventory, Buying, Selling, GST core (in progress: 1a inventory core done 2026-10-04; 1b buying done 2026-10-05)
+## Phase 1 — Masters, Inventory, Buying, Selling, GST core (in progress: 1a inventory core done 2026-10-04; 1b buying + imports done 2026-10-05)
 - Items (types, tracking, revisions), UoM, parties (GSTIN lookup), HSN/SAC.
 - Warehouses/locations, stock ledger, batches/serials/heat numbers, transfers, counts, gate pass.
-- ✅ PO → GRN (quarantine) → incoming QC → purchase invoice (3-way match, MSME due dates). Pending: imports & landed cost.
+- ✅ PO → GRN (quarantine) → incoming QC → purchase invoice (3-way match, MSME due dates); imports in foreign currency with Bill of Entry and landed cost.
 - Quotation → SO → delivery → sales invoice; delivery challans.
 - Tax engine, GL posting core (CoA, journal, AR/AP basics).
 - **E-invoice + e-way bill** via GSP adapter (mock + first live provider).

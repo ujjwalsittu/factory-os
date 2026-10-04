@@ -52,10 +52,10 @@ function Ledger() {
                   <Tr key={r.seq}>
                     <Td className="text-[13px] whitespace-nowrap">{formatDate(r.postingDate)}</Td>
                     <Td className="text-[13px]">
-                      <Link href={`/app/inventory/entries/${r.voucherId}`} className="font-mono hover:text-accent">
+                      <Link href={r.voucherType === 'landed_cost' ? `/app/buying/landed-costs/${r.voucherId}` : `/app/inventory/entries/${r.voucherId}`} className="font-mono hover:text-accent">
                         {r.voucherNumber}
                       </Link>{' '}
-                      <span className="text-muted">{r.purpose ? PURPOSE_LABELS[r.purpose] : ''}</span>
+                      <span className="text-muted">{r.voucherType === 'landed_cost' ? 'Landed cost' : r.purpose ? PURPOSE_LABELS[r.purpose] : ''}</span>
                       {r.ownerName && (
                         <Badge tone="warning" className="ml-2">
                           {r.ownerName}&apos;s

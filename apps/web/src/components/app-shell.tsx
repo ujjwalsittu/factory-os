@@ -31,6 +31,7 @@ import {
   X,
   ReceiptText,
   ScanSearch,
+  Ship,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -69,6 +70,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
       { href: '/app/buying/orders', label: 'Purchase orders', icon: ShoppingCart, permission: 'buying.purchase_order.read', entityScoped: true },
       { href: '/app/buying/inspections', label: 'Incoming inspection', icon: ScanSearch, permission: 'quality.inspection.read', entityScoped: true },
       { href: '/app/buying/invoices', label: 'Purchase invoices', icon: ReceiptText, permission: 'buying.purchase_invoice.read', entityScoped: true },
+      { href: '/app/buying/landed-costs', label: 'Landed cost', icon: Ship, permission: 'buying.landed_cost.read', entityScoped: true },
     ],
   },
   {

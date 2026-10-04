@@ -9,7 +9,7 @@ import { EntityGate } from '@/components/entity-gate';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { poState } from '@/lib/buying';
-import { formatDate, formatMoney, formatQty } from '@/lib/format';
+import { formatAmount, formatDate, formatQty } from '@/lib/format';
 import type { PurchaseOrderRow } from '@/lib/types';
 
 const TABS = [
@@ -97,7 +97,7 @@ function OrderList() {
                     {o.status === 'submitted' ? pct(o.receivedQty) : '—'}
                   </Td>
                   <Td className="tabular text-right text-[13px]">{o.status === 'submitted' ? pct(o.billedQty) : '—'}</Td>
-                  <Td className="tabular text-right">{formatMoney(o.grandTotal)}</Td>
+                  <Td className="tabular text-right">{formatAmount(o.grandTotal, o.currency)}</Td>
                   <Td>
                     <Badge tone={s.tone} dot>
                       {s.label}

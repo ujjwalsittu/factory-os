@@ -11,7 +11,8 @@
     "e2e": "node e2e/walkthrough.mjs",
     "e2e:inventory": "node e2e/inventory.mjs",
     "e2e:customer-material": "node e2e/customer-material.mjs",
-    "e2e:buying": "node e2e/buying.mjs"
+    "e2e:buying": "node e2e/buying.mjs",
+    "e2e:imports": "node e2e/imports.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",

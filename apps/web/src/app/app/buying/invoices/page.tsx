@@ -9,7 +9,7 @@ import { EntityGate } from '@/components/entity-gate';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { MSME_LABELS } from '@/lib/buying';
-import { formatDate, formatMoney, today } from '@/lib/format';
+import { formatAmount, formatDate, today } from '@/lib/format';
 import { STATUS_TONE } from '@/lib/stock';
 import type { DocStatus, PurchaseInvoiceRow } from '@/lib/types';
 
@@ -95,9 +95,9 @@ function InvoiceList() {
                 </Td>
                 <Td className="tabular text-[13px] whitespace-nowrap">{formatDate(i.supplierInvoiceDate)}</Td>
                 <Td className="font-mono text-[12px]">{i.poNumber ?? '—'}</Td>
-                <Td className="tabular text-right text-[13px]">{formatMoney(i.taxableValue)}</Td>
-                <Td className="tabular text-right text-[13px]">{formatMoney(i.totalTax)}</Td>
-                <Td className="tabular text-right">{formatMoney(i.grandTotal)}</Td>
+                <Td className="tabular text-right text-[13px]">{formatAmount(i.taxableValue, i.currency)}</Td>
+                <Td className="tabular text-right text-[13px]">{formatAmount(i.totalTax, i.currency)}</Td>
+                <Td className="tabular text-right">{formatAmount(i.grandTotal, i.currency)}</Td>
                 <Td className="text-[13px] whitespace-nowrap">
                   {i.dueDate ? <span className={i.status === 'submitted' && i.dueDate < now ? 'text-danger' : ''}>{formatDate(i.dueDate)}</span> : '—'}
                   {i.msmeCategory && i.msmeCategory !== 'medium' && <Badge tone="warning" className="ml-2">MSME {MSME_LABELS[i.msmeCategory]}</Badge>}

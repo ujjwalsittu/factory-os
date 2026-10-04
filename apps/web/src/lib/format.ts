@@ -34,6 +34,16 @@ export function formatMoney(value: string | null | undefined): string {
   return Number(value).toLocaleString('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** Money in a document's currency (₹ for INR, otherwise the ISO code's symbol). */
+export function formatAmount(value: string | null | undefined, currency = 'INR'): string {
+  if (value == null || value === '') return '—';
+  try {
+    return Number(value).toLocaleString('en-IN', { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } catch {
+    return `${currency} ${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+}
+
 export const today = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 
 export const ITEM_TYPE_LABELS: Record<string, string> = {

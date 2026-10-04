@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import { errorText, GST_RATE_OPTIONS, poStateOf, useTaxPreview } from '@/lib/buying';
-import { formatDate, formatDateTime, formatMoney, formatQty, today } from '@/lib/format';
+import { CURRENCIES, errorText, GST_RATE_OPTIONS, poStateOf, useTaxPreview } from '@/lib/buying';
+import { formatAmount, formatDate, formatDateTime, formatQty, today } from '@/lib/format';
 import { STATUS_TONE } from '@/lib/stock';
 import type { Item, LegalEntity, Party, PurchaseOrderDetail } from '@/lib/types';
 import { fieldErrors, FormDialog } from './form-dialog';
@@ -59,7 +59,10 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
     supplierQuoteRef: po?.supplierQuoteRef ?? '',
     paymentTermsDays: po?.paymentTermsDays != null ? String(po.paymentTermsDays) : '',
     remarks: po?.remarks ?? '',
+    currency: po?.currency ?? 'INR',
+    exchangeRate: po && po.currency !== 'INR' ? String(Number(po.exchangeRate)) : '',
   });
+  const foreign = header.currency !== 'INR';
   const [lines, setLines] = useState<DraftLine[]>(() =>
     po?.lines.length
       ? po.lines.map((l) => ({
@@ -93,6 +96,8 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
     supplierQuoteRef: header.supplierQuoteRef || null,
     paymentTermsDays: header.paymentTermsDays ? Number(header.paymentTermsDays) : null,
     remarks: header.remarks || null,
+    currency: header.currency,
+    exchangeRate: foreign ? header.exchangeRate || null : null,
     lines: lines.filter((l) => l.item).map((l) => ({ itemId: l.item!.id, description: l.description || null, qty: l.qty, rate: l.rate, ...(l.gstRate && { gstRate: l.gstRate }) })),
   });
 
@@ -246,6 +251,22 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
               )}
             </Field>
           )}
+          <Field label="Currency" hint={supplier && supplier.gstTreatment !== 'overseas' && foreign ? 'Only overseas suppliers bill in foreign currency' : undefined}>
+            {(p) => (
+              <Select {...p} value={header.currency} onChange={(e) => setHeader({ ...header, currency: e.target.value })} disabled={!editable}>
+                {CURRENCIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          {foreign && (
+            <Field label={`Exchange rate (₹ per 1 ${header.currency})`} hint="Receipts are valued in rupees at this rate">
+              {(p) => <Input {...p} className="tabular" inputMode="decimal" value={header.exchangeRate} onChange={(e) => setHeader({ ...header, exchangeRate: e.target.value })} disabled={!editable} />}
+            </Field>
+          )}
           <Field label="Supplier quotation ref.">{(p) => <Input {...p} value={header.supplierQuoteRef} onChange={(e) => setHeader({ ...header, supplierQuoteRef: e.target.value })} disabled={!editable} />}</Field>
           <Field label="Payment terms (days)" hint={!header.paymentTermsDays && supplier?.creditDays != null ? `Supplier default: ${supplier.creditDays}` : undefined}>
             {(p) => <Input {...p} inputMode="numeric" value={header.paymentTermsDays} onChange={(e) => setHeader({ ...header, paymentTermsDays: e.target.value.replace(/\D/g, '') })} disabled={!editable} />}
@@ -263,7 +284,7 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
               <Th className="w-8">#</Th>
               <Th className="min-w-64">Item</Th>
               <Th className="w-32 text-right">Qty</Th>
-              <Th className="w-32 text-right">Rate (₹)</Th>
+              <Th className="w-32 text-right">Rate ({header.currency === 'INR' ? '₹' : header.currency})</Th>
               <Th className="w-28">GST %</Th>
               <Th className="text-right">Amount</Th>
               {!editable && <Th className="text-right">Received</Th>}
@@ -299,7 +320,7 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
                         ))}
                       </Select>
                     </Td>
-                    <Td className="tabular pt-4 text-right text-[13px]">{Number(l.qty) && Number(l.rate) ? formatMoney(String(Number(l.qty) * Number(l.rate))) : '—'}</Td>
+                    <Td className="tabular pt-4 text-right text-[13px]">{Number(l.qty) && Number(l.rate) ? formatAmount(String(Number(l.qty) * Number(l.rate)), header.currency) : '—'}</Td>
                     <Td>
                       <Button variant="ghost" size="icon" onClick={() => setLines((ls) => (ls.length > 1 ? ls.filter((x) => x.key !== l.key) : ls))} aria-label={`Remove line ${i + 1}`} disabled={lines.length === 1}>
                         <Trash2 className="size-4" />
@@ -317,9 +338,9 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
                     <Td className="tabular text-right whitespace-nowrap">
                       {formatQty(l.qty)} <span className="text-[11px] text-subtle">{l.uomCode}</span>
                     </Td>
-                    <Td className="tabular text-right text-[13px]">{formatMoney(l.rate)}</Td>
+                    <Td className="tabular text-right text-[13px]">{formatAmount(l.rate, header.currency)}</Td>
                     <Td className="tabular text-[13px]">{Number(l.gstRate)}%</Td>
-                    <Td className="tabular text-right text-[13px]">{formatMoney(l.taxableValue)}</Td>
+                    <Td className="tabular text-right text-[13px]">{formatAmount(l.taxableValue, header.currency)}</Td>
                     <Td className={`tabular text-right text-[13px] ${Number(l.pendingQty) > 0 ? '' : 'text-success'}`}>{formatQty(l.receivedQty)}</Td>
                     <Td className="tabular text-right text-[13px]">{formatQty(l.billedQty)}</Td>
                   </tr>
@@ -358,7 +379,7 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
                     <FileText className="size-4 text-muted" />
                     <span className="font-mono">{inv.number ?? 'Draft invoice'}</span>
                     <span className="text-muted">supplier inv. {inv.supplierInvoiceNo}</span>
-                    <span className="tabular ml-auto">{formatMoney(inv.grandTotal)}</span>
+                    <span className="tabular ml-auto">{formatAmount(inv.grandTotal, header.currency)}</span>
                     <Badge tone={STATUS_TONE[inv.status]}>{inv.status}</Badge>
                   </Link>
                 ))}
@@ -371,6 +392,7 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
           fixed={!editable && po ? { taxableValue: po.taxableValue, totalTax: po.totalTax, grandTotal: po.grandTotal } : undefined}
           loading={editable && preview.isFetching}
           error={editable ? preview.error : null}
+          currency={header.currency}
         />
       </div>
 
