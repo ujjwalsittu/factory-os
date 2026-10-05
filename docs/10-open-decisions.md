@@ -8,7 +8,6 @@ in `ai/MEMORY.md`).
 
 | # | Question | Why it matters |
 |---|---|---|
-| B4 | Which products/services will be exported, and which raw materials/powders imported? | LUT, Bill of Entry, landed cost (Phase 1) |
 | B5 | Any defence / SCOMET / export-controlled work expected? | Restricted access flags (Phase 1 data model) |
 | B9 | Payroll/HR in scope, or import cost from an external payroll? | Module scope |
 | B10 | AM build cost apportionment: by volume, weight or build height? | Costing (Phase 6) |

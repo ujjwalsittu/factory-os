@@ -63,9 +63,11 @@ _Last updated: 2026-10-05 · Slice 1c (selling) web and settings implemented; lo
 
 ## Next (in order; confirm with the user before starting)
 1. Review the written GL specification, then its implementation plan and execution method.
-2. Implement **slice 1d: GL core** — controlled cut-over, chart of accounts, journals and reports.
-3. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
-4. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
+2. Implement **slice 1d: GL foundation** — controlled cut-over, chart of accounts, journals from stock/invoices/landed cost, forex variance and reports, as specified in the approved-scope design.
+3. **AR/AP settlements** — customer receipts and supplier payments, bill allocation, credit-warning and MSME balance integration; this completes the wider GL/AR/AP roadmap added on the branch.
+4. **Credit / debit notes** (series `AZ/CN/26-27/0001` already reserved in the backend) and sales returns into stock.
+5. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
+6. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
 
 ## Blockers
 - None. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)
