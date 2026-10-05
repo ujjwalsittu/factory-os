@@ -32,7 +32,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'finance_controller',
     name: 'Finance Controller',
     description: 'All accounts and compliance, including filing GST returns.',
-    permissions: all((p) => inModule('accounts', 'compliance')(p) || p.startsWith('selling.sales_note.') || readOnly(p)),
+    permissions: all((p) => inModule('accounts', 'compliance')(p) || p.startsWith('selling.sales_note.') || /^buying\.(supplier_note|return_claim|return_resolution|return_policy)\./.test(p) || p === 'buying.return_movement.cancel' || readOnly(p)),
   },
   {
     key: 'accountant',
@@ -41,7 +41,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     permissions: all(
       (p) =>
         readOnly(p) ||
-        (inModule('accounts', 'selling', 'buying')(p) && /\.(create|submit|export)$/.test(p)) ||
+        (inModule('accounts', 'selling', 'buying')(p) && /\.(create|submit|export)$/.test(p) && !/^buying\.(return_resolution|return_movement)\./.test(p)) ||
         p === 'selling.sales_note.update' ||
         p === 'compliance.gst_return.create' ||
         p === 'compliance.gst_return.export' ||
@@ -52,7 +52,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'purchase',
     name: 'Purchase',
     description: 'Suppliers, purchase orders and receipts.',
-    permissions: all((p) => p.startsWith('buying.') || p.startsWith('masters.') || p === 'inventory.stock_entry.read'),
+    permissions: all((p) => (p.startsWith('buying.') && (!/^buying\.(supplier_note|return_claim|return_resolution|return_movement|return_policy)\./.test(p) || ['buying.return_claim.read','buying.return_claim.create','buying.return_claim.update','buying.return_claim.submit','buying.return_claim.export','buying.supplier_note.read','buying.supplier_note.create','buying.supplier_note.update','buying.return_policy.read'].includes(p))) || p.startsWith('masters.') || p === 'inventory.stock_entry.read'),
   },
   {
     key: 'sales',
@@ -69,7 +69,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'stores',
     name: 'Stores',
     description: 'Stock receipts, issues, transfers, counts and the waste register.',
-    permissions: all((p) => p.startsWith('inventory.') || p.startsWith('ehs.') || p === 'masters.item.read' || p === 'masters.party.read'),
+    permissions: all((p) => p.startsWith('inventory.') || p.startsWith('ehs.') || p === 'buying.return_claim.read' || p === 'buying.return_movement.read' || p === 'buying.return_movement.create' || p === 'masters.item.read' || p === 'masters.party.read'),
   },
   {
     key: 'production_planner',

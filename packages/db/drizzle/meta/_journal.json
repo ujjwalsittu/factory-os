@@ -99,6 +99,13 @@
       "when": 1791203030606,
       "tag": "0013_sales_note_seller_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791226459504,
+      "tag": "0014_supplier_notes_returns",
+      "breakpoints": true
     }
   ]
 }

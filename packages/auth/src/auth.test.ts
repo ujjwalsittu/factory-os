@@ -48,3 +48,15 @@ describe('scoped evaluation', () => {
     expect(accessibleEntityIds([{ permissions: [], entityIds: ['a', 'b'] }])).toEqual(['a', 'b']);
   });
 });
+
+it('separates supplier-return preparation, approval and dispatch roles', () => {
+  const r = (key: string) => SYSTEM_ROLES.find(x => x.key === key)!.permissions;
+  expect(r('purchase')).toContain('buying.return_claim.create');
+  expect(r('purchase')).not.toContain('buying.return_claim.approve');
+  expect(r('purchase')).not.toContain('buying.return_policy.update');
+  expect(r('accountant')).not.toContain('buying.return_resolution.create');
+  expect(r('stores')).toContain('buying.return_movement.create');
+  expect(r('stores')).not.toContain('buying.supplier_note.submit');
+  expect(r('finance_controller')).toContain('buying.return_claim.approve');
+  expect(r('finance_controller')).toContain('buying.return_resolution.create');
+});

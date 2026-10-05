@@ -166,7 +166,7 @@ export const purchaseInvoice = pgTable(
     remarks: text('remarks'),
     ...audit,
   },
-  (t) => [
+  (t) => [uniqueIndex('purchase_invoice_scope_uq').on(t.id,t.tenantId,t.entityId),
     uniqueIndex('purchase_invoice_entity_number_uq').on(t.entityId, t.number),
     index('purchase_invoice_supplier_idx').on(t.entityId, t.supplierId, t.supplierInvoiceNo),
   ],
@@ -194,7 +194,7 @@ export const purchaseInvoiceLine = pgTable(
     sgst: money('sgst'),
     cess: money('cess'),
   },
-  (t) => [index('purchase_invoice_line_invoice_idx').on(t.invoiceId)],
+  (t) => [uniqueIndex('purchase_invoice_line_identity_uq').on(t.id,t.invoiceId),index('purchase_invoice_line_invoice_idx').on(t.invoiceId)],
 );
 
 export const landedChargeType = pgEnum('landed_charge_type', ['bcd', 'sws', 'other_duty', 'freight', 'insurance', 'clearing', 'port', 'other']);

@@ -3,6 +3,7 @@
 import { sql } from 'drizzle-orm';
 import { check, date, index, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { glAccount } from './accounting.js';
+import { supplierNote } from './supplier-returns.js';
 import { salesNote } from './sales-notes.js';
 import { user } from './auth.js';
 import { docStatus } from './inventory.js';
@@ -149,6 +150,7 @@ export const settlementAllocationDocument = pgTable(
     number: text('number'),
     status: docStatus('status').notNull().default('draft'),
     settlementId: uuid('settlement_id').references(() => partySettlement.id),
+    supplierNoteId: uuid('supplier_note_id').references(() => supplierNote.id),
     creditNoteId: uuid('credit_note_id').references(() => salesNote.id),
     postingDate: date('posting_date').notNull(),
     reason: text('reason').notNull(),
@@ -156,7 +158,7 @@ export const settlementAllocationDocument = pgTable(
     voucherId: uuid('voucher_id'),
     ...lifecycle,
   },
-  (t) => [uniqueIndex('settlement_allocation_number_uq').on(t.entityId, t.number), index('settlement_allocation_source_idx').on(t.settlementId), check('settlement_allocation_source', sql`num_nonnulls(${t.settlementId},${t.creditNoteId})=1`)],
+  (t) => [uniqueIndex('settlement_allocation_number_uq').on(t.entityId, t.number), index('settlement_allocation_source_idx').on(t.settlementId), check('settlement_allocation_source', sql`num_nonnulls(${t.settlementId},${t.creditNoteId},${t.supplierNoteId})=1`)],
 );
 
 /** Marks when an entity's subledger was first built from its posted GL (upgrade initialisation). */
