@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-05 · Slice 1c (selling) web and settings implemented; local verification complete_
+_Last updated: 2026-10-05 · GL foundation implemented; final regression and review in progress_
 
 ## Done
 - [x] Plan docs 01–16, decision register (001–016 accepted), open questions (docs/10)
@@ -59,7 +59,7 @@ _Last updated: 2026-10-05 · Slice 1c (selling) web and settings implemented; lo
   - Verified: production build, typecheck, 36 unit tests, selling API smoke 48/48; production selling, buying and base browser walkthroughs pass. Selling coverage covers delivery/cancel, printed tax columns, LUT exports, settings, credit approval, address reopening and autosave race/error recovery. `pnpm lint` executes zero tasks (no package lint scripts).
 
 ## In progress
-- **Slice 1d: GL core — plan review.** User approved the written specification and controlled cut-over. [GL design](../superpowers/specs/2026-10-05-gl-core-design.md), [implementation plan](../superpowers/plans/2026-10-05-gl-core.md). Exact stopping point: awaiting plan review and execution-method selection; no product code or accounting activation changed.
+- **Slice 1d: GL core — final verification.** Controlled cut-over, immutable operational postings, acquisition-cost allocation, chart, journals and reports implemented. Accounting API suites and unit/type/build checks pass; production browser regressions and whole-branch review remain. [GL design](../superpowers/specs/2026-10-05-gl-core-design.md), [implementation plan](../superpowers/plans/2026-10-05-gl-core.md). No shared entity has been activated.
 
 ## Next (in order; confirm with the user before starting)
 1. Review the GL implementation plan and select execution (recommended: implement sequentially in this session, then independent review).

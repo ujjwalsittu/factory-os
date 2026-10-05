@@ -226,6 +226,7 @@ export const landedCostVoucher = pgTable(
     /** Paid at customs and claimed as input tax credit; never part of cost. */
     importIgst: money('import_igst'),
     importCess: money('import_cess'),
+    customsItcEligible: boolean('customs_itc_eligible'),
     remarks: text('remarks'),
     totalCharges: money('total_charges'),
     /** On submit: what went into stock still on hand, and what fell on material already issued. */

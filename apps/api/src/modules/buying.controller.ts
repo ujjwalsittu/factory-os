@@ -1,3 +1,5 @@
+import { OperationalPostings } from './accounting/operational-postings.js';
+import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
 import { computeGst, GST_RATES, inwardSupplyType, type TaxResult } from '@factoryos/compliance-in';
 import { Dec, fyCode } from '@factoryos/core';
@@ -108,6 +110,8 @@ export class BuyingController {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly accounting: OperationalPostings,
+    private readonly gl: GlPostingService,
     private readonly posting: StockPostingService,
   ) {}
 
@@ -672,6 +676,7 @@ export class BuyingController {
         .set({ status: 'submitted', number, submittedBy: ctx.user.id, submittedAt: new Date(), updatedAt: new Date() })
         .where(eq(purchaseInvoice.id, id))
         .returning();
+      await this.accounting.purchaseIn(tx, ctx, entityId, after!);
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'purchase_invoice.submit', targetType: 'purchase_invoice', targetId: id, after: { number, grandTotal: inv.grandTotal, variances } }, tx);
       return after;
     });
@@ -687,6 +692,7 @@ export class BuyingController {
       const [inv] = await tx.select().from(purchaseInvoice).where(and(eq(purchaseInvoice.id, id), eq(purchaseInvoice.entityId, entityId))).for('update');
       if (!inv) throw new NotFoundException('Purchase invoice not found');
       if (inv.status !== 'submitted') throw new ConflictException('Only submitted invoices can be cancelled');
+      await this.accounting.cancelPurchaseIn(tx, ctx, entityId, id, reason);
       const lines = await tx.select().from(purchaseInvoiceLine).where(eq(purchaseInvoiceLine.invoiceId, id));
       for (const l of lines.filter((x) => x.poLineId)) {
         await tx.update(purchaseOrderLine).set({ billedQty: sql`${purchaseOrderLine.billedQty} - ${l.qty}` }).where(eq(purchaseOrderLine.id, l.poLineId!));

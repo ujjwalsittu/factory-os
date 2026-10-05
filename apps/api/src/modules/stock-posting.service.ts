@@ -1,3 +1,6 @@
+import { acquisitionCostChange } from '@factoryos/db';
+import { OperationalPostings } from './accounting/operational-postings.js';
+import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
 import { consumeFifo, Dec, formatSeries, fyCode, InsufficientStockError } from '@factoryos/core';
 import {
@@ -59,6 +62,8 @@ export class StockPostingService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly accounting: OperationalPostings,
+    private readonly gl: GlPostingService,
   ) {}
 
   submit(ctx: TenantRequestContext, entityId: string, entryId: string) {
@@ -276,6 +281,7 @@ export class StockPostingService {
         .set({ status: 'submitted', number, submittedBy: ctx.user.id, submittedAt: new Date(), updatedAt: new Date() })
         .where(eq(stockEntry.id, entryId))
         .returning();
+      await this.accounting.stockIn(tx, ctx, entityId, after!);
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'stock_entry.submit', targetType: 'stock_entry', targetId: entryId, after: { number, purpose: entry.purpose } }, tx);
       return after!;
     }
@@ -296,6 +302,7 @@ export class StockPostingService {
     {
       const entry = await this.lockEntry(tx, entityId, entryId);
       if (entry.status !== 'submitted') throw new ConflictException('Only submitted entries can be cancelled');
+      await this.gl.reverseIn(tx, ctx, entityId, { type: 'stock_entry', id: entryId, purpose: 'main' }, reason);
       // Decision 028: landed cost sits on top of the receipt's value; it must go first.
       const [lcv] = await tx
         .select({ number: landedCostVoucher.number })
@@ -332,6 +339,10 @@ export class StockPostingService {
         const q = Dec.of(s.qty);
         if (q.gt(Dec.ZERO)) {
           const [layer] = await tx.select().from(fifoLayer).where(eq(fifoLayer.sourceSeq, s.seq)).for('update');
+          if (layer) {
+            const [cost] = await tx.select().from(acquisitionCostChange).where(and(eq(acquisitionCostChange.layerId, layer.id), isNull(acquisitionCostChange.reversedAt))).limit(1);
+            if (cost) throw new ConflictException('Acquisition cost covers this receipt; cancel its invoice first');
+          }
           if (layer && !Dec.of(layer.qtyRemaining).eq(layer.qtyIn)) {
             throw new ConflictException('Stock from this entry has already been issued. Cancel the later issues first.');
           }
@@ -342,6 +353,8 @@ export class StockPostingService {
           // Decision 028: if landed cost was added to these layers after this issue, putting the quantity back
           // at today's (higher) rate would create value the ledger never recorded.
           if (used.length) {
+            const [cost] = await tx.select().from(acquisitionCostChange).where(and(inArray(acquisitionCostChange.layerId, used.map(c => c.layerId)), isNull(acquisitionCostChange.reversedAt), gt(acquisitionCostChange.createdAt, s.postedAt))).limit(1);
+            if (cost) throw new ConflictException('Acquisition cost was added after this issue; use a current receipt or adjustment');
             const [later] = await tx
               .select({ number: landedCostVoucher.number })
               .from(landedCostLayerChange)

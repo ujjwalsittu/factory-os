@@ -20,3 +20,5 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 - 2026-10-05 · agent · Adopted the pushed selling UI (bff599e) after it collided with a parallel local implementation; verified it (selling, base, buying, imports e2e pass); docs: B4 closed, MEMORY facts, Next refined · next: user review, then slice 1d GL
 - 2026-10-05 · agent · User approved GL core scope and controlled cut-over. Wrote the accounting design covering opening reconciliation, transactional posting, tax/FX/FIFO, exact reversals, permissions and reports. No product code or activation changed. Next: written-spec review, then implementation plan.
 - 2026-10-05 · agent · Written GL specification approved; created the eight-task implementation plan covering migration, exact arithmetic, cut-over concurrency, acquisition costs, receipt allocation, postings, reports and browser validation. No product code changed. Next: plan review and execution-method selection.
+
+2026-10-05 · agent · Implement GL operational postings, receipt allocation, non-creditable acquisition costs and reports; accounting checks pass, final UI regression and review next.

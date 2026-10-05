@@ -1,3 +1,6 @@
+import { GlPostingService } from './accounting/gl-posting.service.js';
+import { OperationalPostings } from './accounting/operational-postings.js';
+import { AcquisitionCostService } from './accounting/acquisition-cost.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
 import { Dec } from '@factoryos/core';
 import {
@@ -62,6 +65,7 @@ const voucherInput = z.object({
   assessableValue: optMoney,
   importIgst: optMoney,
   importCess: optMoney,
+  customsItcEligible: z.boolean().nullable().optional(),
   remarks: z.string().trim().max(2000).nullable().optional(),
   receiptIds: z.array(z.string().uuid()).min(1, 'Choose at least one receipt').max(50),
   charges: z.array(chargeInput).min(1, 'Add at least one charge').max(50),
@@ -104,6 +108,9 @@ export class LandedCostController {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly gl: GlPostingService,
+    private readonly accounting: OperationalPostings,
+    private readonly acquisitionCost: AcquisitionCostService,
     private readonly posting: StockPostingService,
   ) {}
 
@@ -269,6 +276,8 @@ export class LandedCostController {
       await lockAccounting(tx, entityId);
       const v = await this.lock(tx, entityId, id);
       if (v.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
+      const customsTax = Dec.of(v.importIgst ?? '0').add(v.importCess ?? '0');
+      if (await this.gl.active(tx, entityId) && customsTax.gt('0') && v.customsItcEligible === null) throw new BadRequestException('Choose customs tax credit eligibility before submitting');
       const receiptIds = (await tx.select({ id: landedCostReceipt.receiptId }).from(landedCostReceipt).where(eq(landedCostReceipt.voucherId, id))).map((r) => r.id);
       const charges = await tx.select().from(landedCostCharge).where(eq(landedCostCharge.voucherId, id)).orderBy(asc(landedCostCharge.lineNo));
 
@@ -357,6 +366,16 @@ export class LandedCostController {
         });
       }
 
+      let taxCost = { inventory: '0', consumed: '0' };
+      if (v.customsItcEligible === false && customsTax.gt('0')) {
+        const valueTotal = lines.reduce((sum, l) => sum.add(l.value), Dec.ZERO);
+        let remainder = customsTax;
+        const taxAllocations = lines.map((l, index) => {
+          const amount = index === lines.length - 1 ? remainder : valueTotal.gt('0') ? customsTax.mul(l.value).div(valueTotal) : customsTax.div(String(lines.length));
+          remainder = remainder.sub(amount); return { receiptLineId: l.receiptLineId, amount: amount.toString() };
+        });
+        taxCost = await this.acquisitionCost.applyIn(tx, ctx, entityId, { type: 'landed_cost', id, purpose: 'main' }, v.postingDate, taxAllocations);
+      }
       const totalCharges = charges.reduce((s, c) => s.add(c.amount), Dec.ZERO);
       const number = await this.posting.allocateNumber(tx, ctx.tenant.tenantId, entityId, 'landed_cost_voucher', v.postingDate);
       const [after] = await tx
@@ -373,6 +392,7 @@ export class LandedCostController {
         })
         .where(eq(landedCostVoucher.id, id))
         .returning();
+      await this.accounting.landedIn(tx, ctx, entityId, after!, onHandTotal.toString(), totalCharges.sub(onHandTotal).toString(), taxCost);
       await this.audit.record(
         ctx,
         { tenantId: ctx.tenant.tenantId, entityId, action: 'landed_cost.submit', targetType: 'landed_cost_voucher', targetId: id, after: { number, totalCharges: after!.totalCharges, onHandValue: after!.onHandValue, varianceValue: after!.varianceValue } },
@@ -392,6 +412,8 @@ export class LandedCostController {
       await lockAccounting(tx, entityId);
       const v = await this.lock(tx, entityId, id);
       if (v.status !== 'submitted') throw new ConflictException('Only submitted vouchers can be cancelled');
+      await this.gl.reverseIn(tx, ctx, entityId, { type: 'landed_cost', id, purpose: 'main' }, reason);
+      await this.acquisitionCost.reverseIn(tx, ctx, entityId, { type: 'landed_cost', id, purpose: 'main' });
       const changes = await tx
         .select({ change: landedCostLayerChange, itemId: stockEntryLine.itemId, itemCode: item.code })
         .from(landedCostLayerChange)
@@ -434,6 +456,7 @@ export class LandedCostController {
       assessableValue: input.assessableValue ?? null,
       importIgst: input.importIgst ?? null,
       importCess: input.importCess ?? null,
+      customsItcEligible: input.customsItcEligible ?? null,
       remarks: input.remarks ?? null,
       totalCharges: input.charges.reduce((s, c) => s.add(c.amount), Dec.ZERO).toFixed(2),
     };

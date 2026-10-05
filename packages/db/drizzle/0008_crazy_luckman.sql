@@ -1,0 +1,2 @@
+ALTER TABLE "landed_cost_voucher" ADD COLUMN "customs_itc_eligible" boolean;--> statement-breakpoint
+ALTER TABLE "acquisition_cost_change" ADD COLUMN "created_at" timestamp with time zone DEFAULT now() NOT NULL;

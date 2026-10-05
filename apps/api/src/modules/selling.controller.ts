@@ -1,3 +1,5 @@
+import { OperationalPostings } from './accounting/operational-postings.js';
+import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
 import { computeGst, GST_RATES, type SupplyType, type TaxResult } from '@factoryos/compliance-in';
 import { Dec } from '@factoryos/core';
@@ -124,6 +126,8 @@ export class SellingController {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly accounting: OperationalPostings,
+    private readonly gl: GlPostingService,
     private readonly posting: StockPostingService,
   ) {}
 
@@ -655,6 +659,7 @@ export class SellingController {
         .set({ status: 'submitted', number, stockEntryId, creditOverride: override, submittedBy: ctx.user.id, submittedAt: new Date(), updatedAt: new Date() })
         .where(eq(salesInvoice.id, id))
         .returning();
+      await this.accounting.salesIn(tx, ctx, entityId, after!);
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'sales_invoice.submit', targetType: 'sales_invoice', targetId: id, after: { number, grandTotal: inv.grandTotal, creditOverride: override } }, tx);
       return after;
     });
@@ -670,6 +675,7 @@ export class SellingController {
       await lockAccounting(tx, entityId);
       const inv = await this.lockInvoice(tx, entityId, id);
       if (inv.status !== 'submitted') throw new ConflictException('Only submitted invoices can be cancelled');
+      await this.gl.reverseIn(tx, ctx, entityId, { type: 'sales_invoice', id, purpose: 'main' }, why);
       if (inv.stockEntryId) await this.posting.cancelIn(tx, ctx, entityId, inv.stockEntryId, `Sales invoice ${inv.number} cancelled: ${why}`);
       const lines = await tx.select().from(salesInvoiceLine).where(eq(salesInvoiceLine.invoiceId, id));
       for (const l of lines.filter((x) => x.soLineId)) {
