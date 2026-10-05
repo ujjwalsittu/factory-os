@@ -2,7 +2,7 @@ import { GlPostingService } from './accounting/gl-posting.service.js';
 import { OperationalPostings } from './accounting/operational-postings.js';
 import { AcquisitionCostService } from './accounting/acquisition-cost.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
-import { Dec } from '@factoryos/core';
+import { Dec, splitAcquisitionCost, allocateProportion } from '@factoryos/core';
 import {
   batch,
   type Database,
@@ -201,6 +201,7 @@ export class LandedCostController {
         const c = byLine.get(a.receiptLineId);
         return c ? { ...a, qtyRemaining: c.qtyRemaining, oldRate: c.oldRate, newRate: c.newRate, onHandValue: c.onHandValue, varianceValue: c.varianceValue } : a;
       }),
+      roundingValue: changes.reduce((sum, c) => sum.add(c.amount).sub(c.onHandValue).sub(c.varianceValue), Dec.ZERO).toString(),
       allocationError: preview,
     };
   }
@@ -314,7 +315,7 @@ export class LandedCostController {
       );
       if (allocRows.length) await tx.insert(landedCostAllocation).values(allocRows);
 
-      let onHandTotal = Dec.ZERO;
+      let onHandTotal = Dec.ZERO, consumedTotal = Dec.ZERO, chargesRounding = Dec.ZERO;
       for (const l of lines) {
         const total = Dec.of(l.total);
         if (total.isZero()) continue;
@@ -327,9 +328,8 @@ export class LandedCostController {
         let ledgerSeq: number | null = null;
         if (remaining.gt(Dec.ZERO)) {
           // Spread over what is still on hand; the rest of the line's share fell on issued material.
-          const share = total.mul(remaining).div(Dec.of(layer!.qtyIn));
-          newRate = oldRate.add(share.div(remaining));
-          onHand = remaining.mul(newRate).sub(remaining.mul(oldRate));
+          const split = splitAcquisitionCost({ amount: total.toString(), quantity: layer!.qtyIn, remaining: remaining.toString(), oldRate: oldRate.toString() });
+          newRate = Dec.of(split.newRate); onHand = Dec.of(split.inventory);
           await tx.update(fifoLayer).set({ rate: newRate.toString() }).where(eq(fifoLayer.id, layer!.id));
           const [sle] = await tx
             .insert(stockLedgerEntry)
@@ -351,6 +351,8 @@ export class LandedCostController {
             .returning();
           ledgerSeq = sle!.seq;
         }
+        const consumed = total.sub(Dec.of(allocateProportion(total.toString(), remaining.toString(), layer!.qtyIn)));
+        consumedTotal = consumedTotal.add(consumed); chargesRounding = chargesRounding.add(total.sub(onHand).sub(consumed));
         onHandTotal = onHandTotal.add(onHand);
         await tx.insert(landedCostLayerChange).values({
           voucherId: id,
@@ -361,17 +363,17 @@ export class LandedCostController {
           newRate: newRate.toString(),
           amount: total.toFixed(2),
           onHandValue: onHand.toString(),
-          varianceValue: total.sub(onHand).toString(),
+          varianceValue: consumed.toString(),
           ledgerSeq,
         });
       }
 
-      let taxCost = { inventory: '0', consumed: '0' };
+      let taxCost = { inventory: '0', consumed: '0', rounding: '0' };
       if (v.customsItcEligible === false && customsTax.gt('0')) {
         const valueTotal = lines.reduce((sum, l) => sum.add(l.value), Dec.ZERO);
         let remainder = customsTax;
         const taxAllocations = lines.map((l, index) => {
-          const amount = index === lines.length - 1 ? remainder : valueTotal.gt('0') ? customsTax.mul(l.value).div(valueTotal) : customsTax.div(String(lines.length));
+          const amount = index === lines.length - 1 ? remainder : valueTotal.gt('0') ? Dec.min(remainder, Dec.of(allocateProportion(customsTax.toString(), l.value, valueTotal.toString()))) : Dec.min(remainder, Dec.of(allocateProportion(customsTax.toString(), '1', String(lines.length))));
           remainder = remainder.sub(amount); return { receiptLineId: l.receiptLineId, amount: amount.toString() };
         });
         taxCost = await this.acquisitionCost.applyIn(tx, ctx, entityId, { type: 'landed_cost', id, purpose: 'main' }, v.postingDate, taxAllocations);
@@ -385,14 +387,14 @@ export class LandedCostController {
           number,
           totalCharges: totalCharges.toFixed(2),
           onHandValue: onHandTotal.toFixed(2),
-          varianceValue: totalCharges.sub(round2(onHandTotal)).toFixed(2),
+          varianceValue: consumedTotal.toFixed(2),
           submittedBy: ctx.user.id,
           submittedAt: new Date(),
           updatedAt: new Date(),
         })
         .where(eq(landedCostVoucher.id, id))
         .returning();
-      await this.accounting.landedIn(tx, ctx, entityId, after!, onHandTotal.toString(), totalCharges.sub(onHandTotal).toString(), taxCost);
+      await this.accounting.landedIn(tx, ctx, entityId, after!, onHandTotal.toString(), consumedTotal.toString(), taxCost, chargesRounding.toString());
       await this.audit.record(
         ctx,
         { tenantId: ctx.tenant.tenantId, entityId, action: 'landed_cost.submit', targetType: 'landed_cost_voucher', targetId: id, after: { number, totalCharges: after!.totalCharges, onHandValue: after!.onHandValue, varianceValue: after!.varianceValue } },
@@ -532,7 +534,7 @@ export class LandedCostController {
       let given = Dec.ZERO;
       const lastIdx = weights.map((w, i) => (w.gt(Dec.ZERO) ? i : -1)).filter((i) => i >= 0).pop()!;
       weights.forEach((w, i) => {
-        const s = i === lastIdx ? amount.sub(given) : w.isZero() ? Dec.ZERO : round2(amount.mul(w).div(sum));
+        const s = i === lastIdx ? amount.sub(given) : w.isZero() ? Dec.ZERO : Dec.min(amount.sub(given), round2(Dec.of(allocateProportion(amount.toString(), w.toString(), sum.toString()))));
         given = given.add(s);
         shares[i]!.push(s);
       });

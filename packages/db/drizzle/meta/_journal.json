@@ -71,6 +71,13 @@
       "when": 1791173314230,
       "tag": "0009_mysterious_shiver_man",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791176047752,
+      "tag": "0010_brainy_emma_frost",
+      "breakpoints": true
     }
   ]
 }

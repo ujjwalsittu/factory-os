@@ -1,3 +1,4 @@
+import { Dec } from './decimal.js';
 import { describe, expect, it } from 'vitest';
 import * as accounting from './index.js';
 // Removing exact validation, immutable reversal, or the FX split breaks these tests.
@@ -93,6 +94,7 @@ describe('acquisition cost', () => {
       newRate: '20.000000',
       inventory: '60.000000',
       consumed: '40.000000',
+      rounding: '0.000000',
     });
     expect(
       accounting.splitAcquisitionCost({
@@ -105,9 +107,10 @@ describe('acquisition cost', () => {
       newRate: '10.000000',
       inventory: '0.000000',
       consumed: '100.000000',
+      rounding: '0.000000',
     });
   });
-  it('preserves rounding residual in expense and refuses impossible allocations', () => {
+  it('separates rounding residual from consumption and refuses impossible allocations', () => {
     expect(accounting.splitAcquisitionCost).toBeTypeOf('function');
     expect(
       accounting.splitAcquisitionCost({
@@ -119,7 +122,8 @@ describe('acquisition cost', () => {
     ).toEqual({
       newRate: '1.003333',
       inventory: '0.009999',
-      consumed: '0.000001',
+      consumed: '0.000000',
+      rounding: '0.000001',
     });
     expect(() =>
       accounting.splitAcquisitionCost({
@@ -138,4 +142,16 @@ describe('acquisition cost', () => {
       }),
     ).toThrow();
   });
+});
+
+it('never disguises rate precision as consumed acquisition cost', () => {
+  const split = accounting.splitAcquisitionCost({
+    amount: '0.01',
+    quantity: '15000',
+    remaining: '15000',
+    oldRate: '0.000004',
+  });
+  expect(Dec.of(split.inventory).gt('0.01')).toBe(false);
+  expect(split.consumed).toBe('0.000000');
+  expect(split).toHaveProperty('rounding');
 });

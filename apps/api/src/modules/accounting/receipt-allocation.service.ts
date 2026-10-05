@@ -1,4 +1,4 @@
-import { Dec } from '@factoryos/core';
+import { Dec, allocateProportion } from '@factoryos/core';
 import {
   accountingSettings,
   item,
@@ -107,12 +107,35 @@ export class ReceiptAllocationService {
           available = totalQty.sub(used);
         if (!available.gt('0')) continue;
         const take = remaining.gt(available) ? available : remaining;
-        const baseRate = Dec.of(r.line.value ?? '0').div(r.line.qty);
+        const totalCost = Dec.of(
+          historical ? (baseline?.baseCost ?? '0') : (r.line.value ?? '0'),
+        );
+        const usedCost = allocations.reduce(
+            (sum, a) => sum.add(a.baseCost),
+            Dec.ZERO,
+          ),
+          availableCost = totalCost.sub(usedCost);
+        if (availableCost.lt('0'))
+          throw new ConflictException(
+            'Receipt allocation cost exceeds its original baseline',
+          );
+        const baseCost = take.eq(available)
+          ? availableCost
+          : Dec.min(
+              availableCost,
+              Dec.of(
+                allocateProportion(
+                  totalCost.toString(),
+                  take.toString(),
+                  totalQty.toString(),
+                ),
+              ),
+            );
         const allocation = {
           invoiceLineId: line.id,
           receiptLineId: r.line.id,
           qty: take.toString(),
-          baseCost: take.mul(baseRate).toString(),
+          baseCost: baseCost.toString(),
           poRate: r.poLine.rate,
           poExchangeRate: r.po.exchangeRate,
         };

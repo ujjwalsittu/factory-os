@@ -16,7 +16,12 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { formatDate, formatMoney } from '@/lib/format';
-import type { Journal, Ledger, TrialBalance } from '@/lib/accounting';
+import type {
+  AccountingStatus,
+  Journal,
+  Ledger,
+  TrialBalance,
+} from '@/lib/accounting';
 import { AccountingPage } from './accounting-shared';
 import { useWorkspace } from './workspace';
 const titles = {
@@ -58,6 +63,11 @@ function Content({ kind }: { kind: keyof typeof titles }) {
       enabled: kind !== 'ledger' || !!accountId,
       retry: false,
     });
+  const status = useQuery({
+    queryKey: ['accounting-report-status', ws.tenantId, ws.entityId],
+    queryFn: () =>
+      api<AccountingStatus>('/accounts/reports/status', { scope: ws.scope }),
+  });
   const choices = useQuery({
     queryKey: ['accounting-report', 'choices', ws.tenantId, ws.entityId],
     queryFn: () =>
@@ -76,6 +86,7 @@ function Content({ kind }: { kind: keyof typeof titles }) {
             JSON.stringify(
               {
                 entity: ws.entityId,
+                accounting: status.data,
                 report: kind,
                 from: from || null,
                 to: to || null,
@@ -109,6 +120,18 @@ function Content({ kind }: { kind: keyof typeof titles }) {
     `${formatMoney(s.startsWith('-') ? s.slice(1) : s)} ${s.startsWith('-') ? 'Cr' : 'Dr'}`;
   return (
     <div className="space-y-4">
+      {status.data && !status.data.active && (
+        <Alert tone="info">
+          Accounting inactive. These books exclude operational transactions and
+          have no reconciled opening balances.
+        </Alert>
+      )}
+      {status.error && <Alert tone="danger">{status.error.message}</Alert>}
+      {status.data?.active && (
+        <p className="text-sm text-muted">
+          Accounting active from {formatDate(status.data.cutoverDate!)}.
+        </p>
+      )}
       <Card>
         <div className="grid gap-4 p-4 sm:grid-cols-3 print:hidden">
           <Field label="From date">
@@ -212,7 +235,9 @@ function Content({ kind }: { kind: keyof typeof titles }) {
                 <Td>{formatMoney(trial.credit)} Cr</Td>
                 <Td>
                   {trial.debit === trial.credit
-                    ? 'Balanced'
+                    ? status.data?.active
+                      ? 'Balanced'
+                      : 'Accounting inactive'
                     : 'Difference — investigate'}
                 </Td>
               </tr>

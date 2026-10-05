@@ -8,6 +8,9 @@ import {
   glDisposition,
   journalVoucher,
   landedCostVoucher,
+  stockEntry,
+  purchaseInvoice,
+  salesInvoice,
   openingWorksheet,
   party,
   type Database,
@@ -16,6 +19,7 @@ import {
   BadRequestException,
   Body,
   ConflictException,
+  ForbiddenException,
   Controller,
   Get,
   HttpCode,
@@ -32,6 +36,7 @@ import { z } from 'zod';
 import {
   Ctx,
   RequirePermission,
+  TenantScoped,
   type TenantRequestContext,
 } from '../../common/access.js';
 import { AuditService } from '../../common/audit.service.js';
@@ -436,6 +441,11 @@ export class AccountingController {
           );
         if (!g)
           throw new BadRequestException('Group belongs to another entity');
+        for (const [role, , , root] of DEFAULT_ACCOUNTS)
+          if (settings?.mappings[role] === id && g.root !== root)
+            throw new ConflictException(
+              `Mapped ${role} must remain a ${root} account`,
+            );
         const [posted] = await tx
           .select()
           .from(glEntry)
@@ -588,6 +598,141 @@ export class AccountingController {
         input.reviewedToken,
       ),
     );
+  }
+  @Get('source-status')
+  @TenantScoped()
+  async sourceStatus(
+    @Ctx() ctx: TenantRequestContext,
+    @Query() query: unknown,
+  ) {
+    const input = parse(
+        z.object({
+          sourceType: z.enum([
+            'stock_entry',
+            'purchase_invoice',
+            'sales_invoice',
+            'landed_cost',
+          ]),
+          sourceId: z.uuid(),
+        }),
+        query,
+      ),
+      entityId = entityOf(ctx);
+    const permissions = {
+      stock_entry: 'inventory.stock_entry.read',
+      purchase_invoice: 'buying.purchase_invoice.read',
+      sales_invoice: 'selling.sales_invoice.read',
+      landed_cost: 'buying.landed_cost.read',
+    };
+    const canVouchers = ctx.tenant.permissions.has('accounts.voucher.read');
+    if (
+      !canVouchers &&
+      !ctx.tenant.permissions.has(permissions[input.sourceType])
+    )
+      throw new ForbiddenException(
+        'Source document read permission is required',
+      );
+    let source: { status: string; submittedAt: Date | null } | undefined;
+    if (input.sourceType === 'stock_entry')
+      [source] = await this.db
+        .select({
+          status: stockEntry.status,
+          submittedAt: stockEntry.submittedAt,
+        })
+        .from(stockEntry)
+        .where(
+          and(
+            eq(stockEntry.id, input.sourceId),
+            eq(stockEntry.entityId, entityId),
+          ),
+        );
+    if (input.sourceType === 'purchase_invoice')
+      [source] = await this.db
+        .select({
+          status: purchaseInvoice.status,
+          submittedAt: purchaseInvoice.submittedAt,
+        })
+        .from(purchaseInvoice)
+        .where(
+          and(
+            eq(purchaseInvoice.id, input.sourceId),
+            eq(purchaseInvoice.entityId, entityId),
+          ),
+        );
+    if (input.sourceType === 'sales_invoice')
+      [source] = await this.db
+        .select({
+          status: salesInvoice.status,
+          submittedAt: salesInvoice.submittedAt,
+        })
+        .from(salesInvoice)
+        .where(
+          and(
+            eq(salesInvoice.id, input.sourceId),
+            eq(salesInvoice.entityId, entityId),
+          ),
+        );
+    if (input.sourceType === 'landed_cost')
+      [source] = await this.db
+        .select({
+          status: landedCostVoucher.status,
+          submittedAt: landedCostVoucher.submittedAt,
+        })
+        .from(landedCostVoucher)
+        .where(
+          and(
+            eq(landedCostVoucher.id, input.sourceId),
+            eq(landedCostVoucher.entityId, entityId),
+          ),
+        );
+    if (!source) throw new NotFoundException('Source document not found');
+    const [settings] = await this.db
+      .select()
+      .from(accountingSettings)
+      .where(eq(accountingSettings.entityId, entityId));
+    const [disposition] = await this.db
+      .select()
+      .from(glDisposition)
+      .where(
+        and(
+          eq(glDisposition.entityId, entityId),
+          eq(glDisposition.sourceType, input.sourceType),
+          eq(glDisposition.sourceId, input.sourceId),
+          eq(glDisposition.purpose, 'main'),
+        ),
+      );
+    const state = !settings?.active
+      ? 'inactive'
+      : source.status === 'draft'
+        ? 'draft'
+        : disposition
+          ? disposition.voucherId
+            ? 'posted'
+            : 'no_value_change'
+          : source.submittedAt && source.submittedAt <= settings.activatedAt!
+            ? 'historical'
+            : 'missing';
+    const vouchers =
+      canVouchers && disposition?.voucherId
+        ? await this.db
+            .select()
+            .from(journalVoucher)
+            .where(
+              and(
+                eq(journalVoucher.entityId, entityId),
+                eq(journalVoucher.sourceType, input.sourceType),
+                eq(journalVoucher.sourceId, input.sourceId),
+              ),
+            )
+            .orderBy(journalVoucher.submittedAt)
+        : [];
+    return {
+      state,
+      active: settings?.active ?? false,
+      cutoverDate: settings?.cutoverDate ?? null,
+      reason: disposition?.reason ?? null,
+      vouchers,
+    };
   }
   @Get('journals')
   @RequirePermission('accounts.voucher.read')

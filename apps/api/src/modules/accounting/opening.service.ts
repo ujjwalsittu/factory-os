@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { Dec } from '@factoryos/core';
+import { Dec, allocateProportion } from '@factoryos/core';
 import {
   accountingSettings,
   fifoLayer,
@@ -98,9 +98,11 @@ export class OpeningService {
         return {
           receiptLineId: r.line.id,
           qty: qty.toString(),
-          baseCost: qty
-            .mul(Dec.of(r.line.value ?? '0').div(r.line.qty))
-            .toString(),
+          baseCost: allocateProportion(
+            r.line.value ?? '0',
+            qty.toString(),
+            r.line.qty,
+          ),
         };
       })
       .filter((r) => Dec.of(r.qty).gt('0'));

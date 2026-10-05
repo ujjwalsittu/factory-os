@@ -1,0 +1,1 @@
+ALTER TABLE "acquisition_cost_change" ADD COLUMN "rounding" numeric(24, 6) DEFAULT '0' NOT NULL;

@@ -38,6 +38,14 @@ try {
   await page
     .getByRole('button', { name: 'Save opening worksheet', exact: true })
     .waitFor();
+  await page.goto(`${B}/app/accounts/trial-balance`);
+  await page
+    .getByText(
+      'Accounting inactive. These books exclude operational transactions and have no reconciled opening balances.',
+      { exact: true },
+    )
+    .waitFor();
+  await page.goto(`${B}/app/accounts/setup`);
   await page
     .getByRole('button', { name: 'Save opening worksheet', exact: true })
     .click();

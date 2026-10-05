@@ -1,5 +1,6 @@
 import {
   Dec,
+  allocateProportion,
   purchaseVariance,
   type AccountingLine,
   type PostingPlan,
@@ -142,7 +143,12 @@ export class OperationalPostings {
             poExchangeRate: a.poExchangeRate,
             invoiceExchangeRate: invoice.exchangeRate,
           });
-          lines.add('price_variance', variance.price);
+          lines.add(
+            'price_variance',
+            Dec.of(variance.price).add(
+              Dec.of(a.qty).mul(a.poRate).mul(a.poExchangeRate).sub(a.baseCost),
+            ),
+          );
           lines.add('forex', variance.forex);
         }
         if (!invoice.itcEligible) {
@@ -156,7 +162,12 @@ export class OperationalPostings {
             const amount =
               index === matched.length - 1
                 ? remainder
-                : total.mul(a.qty).div(line.qty);
+                : Dec.min(
+                    remainder,
+                    Dec.of(
+                      allocateProportion(total.toString(), a.qty, line.qty),
+                    ),
+                  );
             remainder = remainder.sub(amount);
             taxCosts.push({
               receiptLineId: a.receiptLineId,
@@ -188,6 +199,7 @@ export class OperationalPostings {
       );
       lines.add('inventory', cost.inventory);
       lines.add('production', cost.consumed);
+      lines.add('rounding', cost.rounding);
     }
     for (const tax of ['cgst', 'sgst', 'igst', 'cess'] as const) {
       const amount = Dec.of(invoice[tax] ?? '0').mul(rate);
@@ -276,13 +288,15 @@ export class OperationalPostings {
     voucher: typeof landedCostVoucher.$inferSelect,
     chargesInventory: string,
     chargesConsumed: string,
-    taxCost: { inventory: string; consumed: string },
+    taxCost: { inventory: string; consumed: string; rounding: string },
+    chargesRounding: string,
   ) {
     const settings = await this.gl.active(tx, entityId);
     if (!settings) return;
     const lines = new Lines(settings.mappings);
     lines.add('inventory', Dec.of(chargesInventory).add(taxCost.inventory));
     lines.add('production', Dec.of(chargesConsumed).add(taxCost.consumed));
+    lines.add('rounding', Dec.of(chargesRounding).add(taxCost.rounding));
     lines.add('landed_clearing', Dec.of(voucher.totalCharges ?? '0').neg());
     for (const tax of ['igst', 'cess'] as const) {
       const amount = Dec.of(

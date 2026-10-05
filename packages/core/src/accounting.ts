@@ -69,7 +69,7 @@ export function splitAcquisitionCost(input: {
   quantity: string;
   remaining: string;
   oldRate: string;
-}): { newRate: string; inventory: string; consumed: string } {
+}): { newRate: string; inventory: string; consumed: string; rounding: string } {
   const amount = Dec.of(input.amount),
     quantity = Dec.of(input.quantity),
     remaining = Dec.of(input.remaining),
@@ -82,13 +82,48 @@ export function splitAcquisitionCost(input: {
     oldRate.lt('0')
   )
     throw new Error('Invalid acquisition-cost allocation');
-  const newRate = remaining.gt('0')
-    ? oldRate.add(amount.div(quantity))
-    : oldRate;
-  const inventory = remaining.mul(newRate).sub(remaining.mul(oldRate));
+  // A six-place layer rate cannot represent every cost increment. Never
+  // capitalize more than the on-hand share; report the residual separately.
+  const target = Dec.of(
+    allocateProportion(
+      amount.toString(),
+      remaining.toString(),
+      quantity.toString(),
+    ),
+  );
+  let lo = 0n,
+    hi = remaining.gt('0') ? (amount.raw * 1000000n) / quantity.raw : 0n;
+  const inventoryAt = (increment: bigint) =>
+    remaining
+      .mul(Dec.of(scaled(oldRate.raw + increment)))
+      .sub(remaining.mul(oldRate));
+  while (lo < hi) {
+    const mid = (lo + hi + 1n) / 2n;
+    if (inventoryAt(mid).gt(target)) hi = mid - 1n;
+    else lo = mid;
+  }
+  const newRate = Dec.of(scaled(oldRate.raw + lo)),
+    inventory = inventoryAt(lo);
   return {
     newRate: newRate.toString(),
     inventory: inventory.toString(),
-    consumed: amount.sub(inventory).toString(),
+    consumed: amount.sub(target).toString(),
+    rounding: target.sub(inventory).toString(),
   };
+}
+function scaled(raw: bigint): string {
+  return `${raw / 1000000n}.${String(raw % 1000000n).padStart(6, '0')}`;
+}
+/** One exact proportional division, rounded once at the six-place boundary. */
+export function allocateProportion(
+  total: string,
+  part: string,
+  whole: string,
+): string {
+  const t = Dec.of(total),
+    p = Dec.of(part),
+    w = Dec.of(whole);
+  if (t.lt('0') || p.lt('0') || !w.gt('0') || p.gt(w))
+    throw new Error('Invalid proportional allocation');
+  return scaled((t.raw * p.raw + w.raw / 2n) / w.raw);
 }

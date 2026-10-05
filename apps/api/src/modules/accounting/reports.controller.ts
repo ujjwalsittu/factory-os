@@ -1,6 +1,7 @@
 import { Dec } from '@factoryos/core';
 import {
   glAccount as account,
+  accountingSettings,
   glEntry,
   journalVoucher,
   type Database,
@@ -36,6 +37,19 @@ const filters = z
 @Controller('accounts/reports')
 export class AccountingReportsController {
   constructor(@Inject(DB) private readonly db: Database) {}
+  @Get('status')
+  @RequirePermission('accounts.report.read')
+  async status(@Ctx() ctx: TenantRequestContext) {
+    const [settings] = await this.db
+      .select()
+      .from(accountingSettings)
+      .where(eq(accountingSettings.entityId, entityOf(ctx)));
+    return {
+      active: settings?.active ?? false,
+      cutoverDate: settings?.cutoverDate ?? null,
+      activatedAt: settings?.activatedAt ?? null,
+    };
+  }
   async rows(ctx: TenantRequestContext) {
     return this.db
       .select({ entry: glEntry, voucher: journalVoucher })
@@ -88,6 +102,7 @@ export class AccountingReportsController {
       };
     });
     return {
+      accounting: await this.status(ctx),
       accounts: result,
       debit: debit.toString(),
       credit: credit.toString(),
@@ -135,6 +150,7 @@ export class AccountingReportsController {
         };
       });
     return {
+      accounting: await this.status(ctx),
       account: a,
       entries,
       opening: opening.toString(),
@@ -200,7 +216,18 @@ export class AccountingReportsController {
   }
   @Get('day-book/export')
   @RequirePermission('accounts.report.export')
-  exportDayBook(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
-    return this.dayBook(ctx, query);
+  async exportDayBook(
+    @Ctx() ctx: TenantRequestContext,
+    @Query() query: unknown,
+  ) {
+    const q = parse(filters, query);
+    return {
+      accounting: await this.status(ctx),
+      from: q.from ?? null,
+      to: q.to ?? null,
+      currency: 'INR',
+      precision: 6,
+      vouchers: await this.dayBook(ctx, query),
+    };
   }
 }

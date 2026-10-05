@@ -35,7 +35,8 @@ export class AcquisitionCostService {
       );
     }
     let inventory = Dec.ZERO,
-      consumed = Dec.ZERO;
+      consumed = Dec.ZERO,
+      rounding = Dec.ZERO;
     for (const [receiptLineId, amount] of grouped) {
       if (amount.isZero()) continue;
       const [r] = await tx
@@ -119,12 +120,18 @@ export class AcquisitionCostService {
         qtyRemaining: layer.qtyRemaining,
         onHand: split.inventory,
         consumed: split.consumed,
+        rounding: split.rounding,
         stockLedgerSeq: seq,
       });
       inventory = inventory.add(split.inventory);
       consumed = consumed.add(split.consumed);
+      rounding = rounding.add(split.rounding);
     }
-    return { inventory: inventory.toString(), consumed: consumed.toString() };
+    return {
+      inventory: inventory.toString(),
+      consumed: consumed.toString(),
+      rounding: rounding.toString(),
+    };
   }
   async reverseIn(
     tx: Tx,

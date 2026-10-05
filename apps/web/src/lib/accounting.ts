@@ -138,3 +138,22 @@ export const sourceHref = (v: Journal): string | null => {
     return `/app/buying/landed-costs/${v.sourceId}`;
   return null;
 };
+
+export interface AccountingStatus {
+  active: boolean;
+  cutoverDate: string | null;
+  activatedAt: string | null;
+}
+export interface SourceAccountingStatus {
+  state:
+    | 'inactive'
+    | 'draft'
+    | 'historical'
+    | 'posted'
+    | 'no_value_change'
+    | 'missing';
+  active: boolean;
+  cutoverDate: string | null;
+  reason: string | null;
+  vouchers: Journal[];
+}

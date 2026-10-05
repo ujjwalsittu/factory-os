@@ -1,4 +1,4 @@
-import { acquisitionCostChange } from '@factoryos/db';
+import { acquisitionCostChange, receiptInvoiceAllocation } from '@factoryos/db';
 import { OperationalPostings } from './accounting/operational-postings.js';
 import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
@@ -290,6 +290,7 @@ export class StockPostingService {
   /** Exact reversal: restores FIFO layers and balances, appends negating ledger rows. */
   cancel(ctx: TenantRequestContext, entityId: string, entryId: string, reason: string) {
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const entry = await this.lockEntry(tx, entityId, entryId);
       // Postings made by another document (e.g. an inspection) are cancelled through that document.
       if (entry.systemGenerated) throw new ConflictException('This entry was posted by another document; cancel that document instead');
@@ -313,6 +314,8 @@ export class StockPostingService {
       if (lcv) throw new ConflictException(`Landed cost voucher ${lcv.number} covers this receipt. Cancel it first.`);
       if (entry.purchaseOrderId) {
         const lines = await tx.select().from(stockEntryLine).where(eq(stockEntryLine.entryId, entryId));
+        const allocations = await tx.select().from(receiptInvoiceAllocation).where(and(eq(receiptInvoiceAllocation.entityId, entityId), inArray(receiptInvoiceAllocation.receiptLineId, lines.map(l => l.id))));
+        if (lines.some(l => allocations.filter(a => a.receiptLineId === l.id).reduce((sum, a) => sum.add(a.qty), Dec.ZERO).gt('0'))) throw new ConflictException('This receipt is allocated to a purchase invoice. Cancel the invoice first.');
         const inspected = await tx
           .select({ id: qualityInspection.id })
           .from(qualityInspection)

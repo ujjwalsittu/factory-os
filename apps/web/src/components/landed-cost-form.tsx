@@ -480,6 +480,7 @@ export function LandedCostForm({ voucher }: { voucher?: LandedCostDetail }) {
                 </div>
               </>
             )}
+            {voucher && !editable && voucher.roundingValue !== '0.000000' && <div className="flex justify-between"><span className="text-muted">Unit-rate rounding</span><span className="tabular">{formatMoney(voucher.roundingValue)}</span></div>}
             {itc > 0 && (
               <div className="flex justify-between border-t border-line pt-2">
                 <span className="text-muted">{header.customsItcEligible === 'false' ? 'Customs tax (acquisition cost)' : header.customsItcEligible === 'true' ? 'Customs tax (input credit)' : 'Customs tax (choose treatment)'}</span>

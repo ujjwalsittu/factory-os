@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-05 · GL foundation implemented; final regression and review in progress_
+_Last updated: 2026-10-05 · GL foundation implemented, independently reviewed and locally verified_
 
 ## Done
 - [x] Plan docs 01–16, decision register (001–016 accepted), open questions (docs/10)
@@ -58,16 +58,22 @@ _Last updated: 2026-10-05 · GL foundation implemented; final regression and rev
   - Settings: per-GSTIN/FY forward-only number series, LUT ARN/validity, customer credit limits
   - Verified: production build, typecheck, 36 unit tests, selling API smoke 48/48; production selling, buying and base browser walkthroughs pass. Selling coverage covers delivery/cancel, printed tax columns, LUT exports, settings, credit approval, address reopening and autosave race/error recovery. `pnpm lint` executes zero tasks (no package lint scripts).
 
+- [x] **Slice 1d: GL foundation** (migrations 0007–0010)
+  - Deliberate per-entity, current Asia/Kolkata cut-over: reviewed opening trial balance, FIFO inventory, party/bill balances and settlements, frozen unbilled receipt quantity/base-cost baselines; stale previews and competing activations refused. Empty entities record a genuine zero opening.
+  - Tally-style chart and required mappings; immutable six-decimal INR journals from stock, purchase/sales invoices and landed cost, with original-account reversals in the operational transaction. Receipt allocations protect partial billing and cancellation; historical sources cannot be cancelled through active books.
+  - Price/FX variances, eligible input/output GST, pending RCM credit and explicit customs eligibility; non-creditable acquisition costs split between actual remaining FIFO and consumption. Precision residuals are explicit rounding, with evidence and movement guards.
+  - Accounts workspace: setup/reconciliation, chart/group editing, manual journals with exact server previews and keyboard save, day book/ledger/trial balance, source/reversal links and scoped print/export. Inactive books and historical/no-value/missing source postings are disclosed.
+  - Verified: root typecheck (16 tasks), build (11 tasks), 48 uncached unit tests; six accounting API suites (202 checks), six legacy API suites (252 checks), eight review regressions and real PostgreSQL lock-order barrier. Production accounting, selling, buying, imports and base browser walkthroughs pass after final fixes. `pnpm lint` has zero configured tasks; base walkthrough logs its existing HTTP 400 console resource error and exits successfully.
+  - Independent review found seven Important defects, all reproduced and fixed; an additional fractional tax-allocation regression was fixed in the same pass. [Review, rulings and two deferred UI minors](../superpowers/reviews/2026-10-05-gl-core-review.md). No shared entity has been activated. Historical stock/GL date comparisons remain limited by existing stock reversal dating; current cumulative balances reconcile.
+
 ## In progress
-- **Slice 1d: GL core — final verification.** Controlled cut-over, immutable operational postings, acquisition-cost allocation, chart, journals and reports implemented. Accounting API suites and unit/type/build checks pass; production browser regressions and whole-branch review remain. [GL design](../superpowers/specs/2026-10-05-gl-core-design.md), [implementation plan](../superpowers/plans/2026-10-05-gl-core.md). No shared entity has been activated.
+- None.
 
 ## Next (in order; confirm with the user before starting)
-1. Review the GL implementation plan and select execution (recommended: implement sequentially in this session, then independent review).
-2. Implement **slice 1d: GL foundation** — controlled cut-over, chart of accounts, journals from stock/invoices/landed cost, forex variance and reports, as specified in the approved-scope design.
-3. **AR/AP settlements** — customer receipts and supplier payments, bill allocation, credit-warning and MSME balance integration; this completes the wider GL/AR/AP roadmap added on the branch.
-4. **Credit / debit notes** (series `AZ/CN/26-27/0001` already reserved in the backend) and sales returns into stock.
-5. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
-6. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
+1. **AR/AP settlements** — customer receipts and supplier payments, bill allocation, credit-warning and MSME balance integration; complete the wider GL/AR/AP roadmap.
+2. **Credit / debit notes** (series `AZ/CN/26-27/0001` already reserved in the backend) and sales returns into stock.
+3. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
+4. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
 
 ## Blockers
 - None. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)

@@ -635,4 +635,5 @@ export interface LandedCostDetail {
   charges: LandedCostCharge[];
   allocation: LandedCostAllocationLine[];
   allocationError: string | null;
+  roundingValue: string;
 }
