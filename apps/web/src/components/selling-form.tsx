@@ -1,4 +1,5 @@
 'use client';
+import { AccountingSourceLinks } from './accounting-source-links';
 import {
   Alert,
   Badge,
@@ -388,6 +389,8 @@ export function SellingForm({
   const submitted = doc?.status === 'submitted';
   return (
     <div className="space-y-5">
+      {kind === 'invoices' && doc && doc.status !== 'draft' && <AccountingSourceLinks type="sales_invoice" id={doc.id} />}
+      {kind === 'invoices' && doc?.stockEntryId && <AccountingSourceLinks type="stock_entry" id={doc.stockEntryId} />}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link

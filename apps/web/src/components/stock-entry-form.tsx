@@ -1,4 +1,5 @@
 'use client';
+import { AccountingSourceLinks } from './accounting-source-links';
 import { Alert, Badge, Button, Card, Field, Input, Select, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, Plus, Send, Trash2 } from 'lucide-react';
@@ -241,6 +242,7 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
 
   return (
     <div className="space-y-6">
+      {entry && entry.status !== 'draft' && <AccountingSourceLinks type="stock_entry" id={entry.id} />}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[13px] text-muted">

@@ -623,6 +623,7 @@ export interface LandedCostDetail {
   assessableValue: string | null;
   importIgst: string | null;
   importCess: string | null;
+  customsItcEligible: boolean | null;
   remarks: string | null;
   totalCharges: string | null;
   onHandValue: string | null;

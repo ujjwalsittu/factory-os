@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { AccountingSourceLinks } from './accounting-source-links';
 import { BASIS_LABELS, CHARGE_TYPE_LABELS, errorText } from '@/lib/buying';
 import { formatAmount, formatDate, formatDateTime, formatMoney, formatQty, today } from '@/lib/format';
 import { STATUS_TONE } from '@/lib/stock';
@@ -60,6 +61,7 @@ export function LandedCostForm({ voucher }: { voucher?: LandedCostDetail }) {
     assessableValue: voucher?.assessableValue ? String(Number(voucher.assessableValue)) : '',
     importIgst: voucher?.importIgst ? String(Number(voucher.importIgst)) : '',
     importCess: voucher?.importCess ? String(Number(voucher.importCess)) : '',
+    customsItcEligible: voucher?.customsItcEligible == null ? '' : String(voucher.customsItcEligible),
     remarks: voucher?.remarks ?? '',
   });
   const [receiptIds, setReceiptIds] = useState<string[]>(voucher?.receiptIds ?? []);
@@ -91,6 +93,7 @@ export function LandedCostForm({ voucher }: { voucher?: LandedCostDetail }) {
     assessableValue: opt(header.assessableValue),
     importIgst: opt(header.importIgst),
     importCess: opt(header.importCess),
+    customsItcEligible: header.customsItcEligible === '' ? null : header.customsItcEligible === 'true',
     remarks: opt(header.remarks),
     receiptIds,
     charges: charges.filter((c) => c.amount.trim()).map((c) => ({ chargeType: c.chargeType, description: opt(c.description), partyId: c.partyId || null, documentNo: opt(c.documentNo), amount: c.amount.trim(), basis: c.basis })),
@@ -152,6 +155,7 @@ export function LandedCostForm({ voucher }: { voucher?: LandedCostDetail }) {
 
   return (
     <div className="space-y-6">
+      {voucher && voucher.status !== 'draft' && <AccountingSourceLinks type="landed_cost" id={voucher.id} />}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[13px] text-muted">
@@ -211,7 +215,7 @@ export function LandedCostForm({ voucher }: { voucher?: LandedCostDetail }) {
       )}
       {editable && (
         <Alert tone="info">
-          Duty and charges raise the cost of the material still in stock. The share for material already issued is kept as a landed-cost variance and goes to cost of production when accounts arrive. Import IGST is input tax credit, not cost.
+          Duty and charges raise the cost of material still in stock. The share for material already issued goes to consumed cost. Choose whether customs IGST and cess qualify for input tax credit; ineligible tax is added to acquisition cost.
         </Alert>
       )}
 
@@ -229,11 +233,14 @@ export function LandedCostForm({ voucher }: { voucher?: LandedCostDetail }) {
           <Field label="Assessable value (₹)">
             {(p) => <Input {...p} className="tabular" inputMode="decimal" value={header.assessableValue} onChange={(e) => setHeader({ ...header, assessableValue: e.target.value })} disabled={!editable} />}
           </Field>
-          <Field label="Import IGST paid (₹)" hint="Input tax credit">
+          <Field label="Import IGST paid (₹)" hint="Treatment follows customs ITC eligibility">
             {(p) => <Input {...p} className="tabular" inputMode="decimal" value={header.importIgst} onChange={(e) => setHeader({ ...header, importIgst: e.target.value })} disabled={!editable} />}
           </Field>
-          <Field label="Compensation cess (₹)" hint="Input tax credit">
+          <Field label="Compensation cess (₹)" hint="Treatment follows customs ITC eligibility">
             {(p) => <Input {...p} className="tabular" inputMode="decimal" value={header.importCess} onChange={(e) => setHeader({ ...header, importCess: e.target.value })} disabled={!editable} />}
+          </Field>
+          <Field label="Customs ITC eligibility" hint="Required for customs tax after accounting cut-over">
+            {(p) => <Select {...p} value={header.customsItcEligible} onChange={e => setHeader({ ...header, customsItcEligible: e.target.value })} disabled={!editable}><option value="">Choose treatment</option><option value="true">Eligible input tax credit</option><option value="false">Ineligible — acquisition cost</option></Select>}
           </Field>
           <Field label="Remarks" className="lg:col-span-4">
             {(p) => <Input {...p} value={header.remarks} onChange={(e) => setHeader({ ...header, remarks: e.target.value })} disabled={!editable} />}
@@ -475,7 +482,7 @@ export function LandedCostForm({ voucher }: { voucher?: LandedCostDetail }) {
             )}
             {itc > 0 && (
               <div className="flex justify-between border-t border-line pt-2">
-                <span className="text-muted">Import IGST + cess (ITC, not cost)</span>
+                <span className="text-muted">{header.customsItcEligible === 'false' ? 'Customs tax (acquisition cost)' : header.customsItcEligible === 'true' ? 'Customs tax (input credit)' : 'Customs tax (choose treatment)'}</span>
                 <span className="tabular">{formatMoney(String(itc))}</span>
               </div>
             )}

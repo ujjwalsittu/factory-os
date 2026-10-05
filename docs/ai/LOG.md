@@ -21,4 +21,5 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 - 2026-10-05 · agent · User approved GL core scope and controlled cut-over. Wrote the accounting design covering opening reconciliation, transactional posting, tax/FX/FIFO, exact reversals, permissions and reports. No product code or activation changed. Next: written-spec review, then implementation plan.
 - 2026-10-05 · agent · Written GL specification approved; created the eight-task implementation plan covering migration, exact arithmetic, cut-over concurrency, acquisition costs, receipt allocation, postings, reports and browser validation. No product code changed. Next: plan review and execution-method selection.
 
-2026-10-05 · agent · Implement GL operational postings, receipt allocation, non-creditable acquisition costs and reports; accounting checks pass, final UI regression and review next.
+- 2026-10-05 · agent · Implement GL operational postings, receipt allocation, non-creditable acquisition costs and reports; accounting checks pass, final UI regression and review next.
+- 2026-10-05 · agent · Add Accounts setup/chart/journals/reports, exact previews, source links and customs eligibility; production accounting walkthrough and all 202 accounting plus 252 legacy API checks pass. Final whole-branch review and remaining browser regressions next.
