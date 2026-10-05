@@ -1,7 +1,7 @@
 # AR/AP settlements design
 
 Date: 2026-10-05 (Asia/Calcutta)
-Status: Written specification awaiting user review; product implementation has not started.
+Status: Written specification approved by user “continue” on 2026-10-05; implementation plan awaits review and execution-method selection.
 
 ## Purpose and agreed scope
 

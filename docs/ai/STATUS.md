@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-05 · AR/AP core settlement scope approved; written design awaiting review_
+_Last updated: 2026-10-05 · AR/AP written design approved; implementation plan awaiting review_
 
 ## Done
 - [x] Plan docs 01–16, decision register (001–016 accepted), open questions (docs/10)
@@ -67,7 +67,7 @@ _Last updated: 2026-10-05 · AR/AP core settlement scope approved; written desig
   - Independent review found seven Important defects, all reproduced and fixed; an additional fractional tax-allocation regression was fixed in the same pass. [Review, rulings and two deferred UI minors](../superpowers/reviews/2026-10-05-gl-core-review.md). No shared entity has been activated. Historical stock/GL date comparisons remain limited by existing stock reversal dating; current cumulative balances reconcile.
 
 ## In progress
-- **AR/AP settlements design**: core receipts/payments, bill allocation, opening balances, on-account allocation, FX and credit/MSME balance integration; TDS/TCS deferred by user scope approval. Written specification: `docs/superpowers/specs/2026-10-05-ar-ap-settlements-design.md`. Exact stopping point: user review of written spec, then implementation plan and execution-method selection. No product implementation started.
+- **AR/AP settlements design**: core receipts/payments, bill allocation, opening balances, on-account allocation, FX and credit/MSME balance integration; TDS/TCS deferred by user scope approval. Written specification approved. Implementation plan: `docs/superpowers/plans/2026-10-05-ar-ap-settlements.md`. Exact stopping point: user review of written plan and execution-method selection (Native recommended), then implementation. No product implementation started.
 
 ## Next (in order; confirm with the user before starting)
 1. **AR/AP settlements** — customer receipts and supplier payments, bill allocation, credit-warning and MSME balance integration; complete the wider GL/AR/AP roadmap.
