@@ -49,6 +49,7 @@ import {
   type Tx,
 } from './accounting-lock.js';
 import { DEFAULT_ACCOUNTS, seedChart } from './chart.js';
+import { BillService } from './bill.service.js';
 import { GlPostingService } from './gl-posting.service.js';
 import { OpeningService } from './opening.service.js';
 const amount = z
@@ -107,6 +108,7 @@ export class AccountingController {
     private readonly gl: GlPostingService,
     private readonly opening: OpeningService,
     private readonly audit: AuditService,
+    private readonly bills: BillService,
   ) {}
   private async setup(ctx: TenantRequestContext) {
     const entityId = entityOf(ctx);
@@ -1000,6 +1002,9 @@ export class AccountingController {
       if (!v) throw new NotFoundException();
       if (v.status !== 'draft' || v.sourceType !== 'manual')
         throw new ConflictException('Only manual drafts can submit');
+      // Trade lines adjust exact, unambiguous INR bills only (decision 036).
+      await this.bills.syncIn(tx, ctx, entityId);
+      await this.bills.checkJournalLinesIn(tx, entityId, v.draftLines);
       await this.journalCheck(tx, ctx, entityId, {
         postingDate: v.postingDate,
         narration: v.narration,

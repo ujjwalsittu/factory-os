@@ -53,6 +53,7 @@ export const RESOURCES = [
   { module: 'accounts', resource: 'account', label: 'Chart of accounts', actions: ['read', 'create', 'update'] },
   { module: 'accounts', resource: 'setup', label: 'Accounting setup and cut-over', actions: ['read', 'create', 'update', 'approve'] },
   { module: 'accounts', resource: 'report', label: 'Day book, ledger and trial balance', actions: ['read', 'export'] },
+  { module: 'accounts', resource: 'settlement', label: 'Customer receipts, supplier payments and allocations', actions: ['read', 'create', 'submit', 'cancel', 'export'] },
   { module: 'accounts', resource: 'voucher', label: 'Accounting vouchers', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'compliance', resource: 'gst_return', label: 'GST returns', actions: ['read', 'create', 'approve', 'file', 'export'] },
   { module: 'compliance', resource: 'einvoice', label: 'E-invoice & e-way bill', actions: ['read', 'create', 'cancel'] },

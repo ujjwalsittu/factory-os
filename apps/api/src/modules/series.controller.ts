@@ -19,6 +19,9 @@ const LABELS: Record<string, string> = {
   stock_entry: 'Stock entry',
   quality_inspection: 'Incoming inspection',
   landed_cost_voucher: 'Landed cost voucher',
+  customer_receipt: 'Customer receipt',
+  supplier_payment: 'Supplier payment',
+  settlement_allocation: 'On-account allocation',
 };
 
 /** Number series of the active entity for the current FY; the next number can be moved forward (decision 029). */

@@ -7,3 +7,4 @@ export * from './ehs.js';
 export * from './buying.js';
 export * from './selling.js';
 export * from './accounting.js';
+export * from './settlements.js';

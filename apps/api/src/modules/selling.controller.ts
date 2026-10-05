@@ -1,9 +1,11 @@
 import { OperationalPostings } from './accounting/operational-postings.js';
+import { BillService } from './accounting/bill.service.js';
 import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
 import { computeGst, GST_RATES, type SupplyType, type TaxResult } from '@factoryos/compliance-in';
 import { Dec } from '@factoryos/core';
 import {
+  accountingSettings,
   batch,
   type Database,
   gstRegistration,
@@ -129,6 +131,7 @@ export class SellingController {
     private readonly accounting: OperationalPostings,
     private readonly gl: GlPostingService,
     private readonly posting: StockPostingService,
+    private readonly bills: BillService,
   ) {}
 
   // ───────────────────────── Tax preview & credit ─────────────────────────
@@ -153,7 +156,10 @@ export class SellingController {
     const entityId = entityOf(ctx);
     const { customerId } = parse(z.object({ customerId: z.string().uuid() }), query);
     const customer = await this.customer(ctx, customerId);
-    return this.credit(this.db, entityId, customer, '0');
+    return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
+      return this.credit(tx, ctx, entityId, customer, '0');
+    });
   }
 
   // ───────────────────────── Quotations ─────────────────────────
@@ -957,8 +963,19 @@ export class SellingController {
   }
 
   /** Outstanding (INR) and overdue for a customer; `adding` is the document about to be submitted. */
-  private async credit(db: Database | Tx, entityId: string, customer: Party, adding: string) {
-    const [row] = await db
+  /**
+   * With accounting active, exposure is the customer's real outstanding from the receivables subledger (net of
+   * receipts and money on account, floored at zero); overdue counts only bills still open. Before activation,
+   * every submitted invoice counts as unpaid (decision 032). Caller holds the entity accounting lock.
+   */
+  private async credit(tx: Tx, ctx: TenantRequestContext, entityId: string, customer: Party, adding: string) {
+    const [settings] = await tx.select().from(accountingSettings).where(eq(accountingSettings.entityId, entityId));
+    if (settings?.active) {
+      await this.bills.syncIn(tx, ctx, entityId);
+      const p = await this.bills.positionIn(tx, entityId, customer.id, 'receivable');
+      return this.creditResult(customer, Dec.of(p.netInr), adding, p.overdueInr, p.overdueCount, { grossOpen: p.grossOpenInr, onAccount: p.onAccountInr });
+    }
+    const [row] = await tx
       .select({
         outstanding: sql<string>`coalesce(sum(${salesInvoice.grandTotal} * ${salesInvoice.exchangeRate}), 0)`,
         overdue: sql<string>`coalesce(sum(case when ${salesInvoice.dueDate} < ${todayIst()} then ${salesInvoice.grandTotal} * ${salesInvoice.exchangeRate} else 0 end), 0)`,
@@ -966,21 +983,24 @@ export class SellingController {
       })
       .from(salesInvoice)
       .where(and(eq(salesInvoice.entityId, entityId), eq(salesInvoice.customerId, customer.id), eq(salesInvoice.status, 'submitted')));
-    const outstanding = Dec.of(row!.outstanding);
+    return this.creditResult(customer, Dec.of(row!.outstanding), adding, row!.overdue, row!.overdueCount, null);
+  }
+
+  private creditResult(customer: Party, outstanding: Dec, adding: string, overdueInr: string, overdueCount: number, detail: { grossOpen: string; onAccount: string } | null) {
     const limit = customer.creditLimit;
     const after = outstanding.add(adding);
     const warnings: string[] = [];
     if (limit !== null) {
       if (after.gt(limit)) warnings.push(`${customer.name} would be at ₹${after.toFixed(2)} against a credit limit of ₹${Dec.of(limit).toFixed(2)}`);
-      if (row!.overdueCount > 0) warnings.push(`${row!.overdueCount} invoice(s) overdue, ₹${Dec.of(row!.overdue).toFixed(2)}`);
+      if (overdueCount > 0) warnings.push(`${overdueCount} invoice(s) overdue, ₹${Dec.of(overdueInr).toFixed(2)}`);
     }
-    return { creditLimit: limit, outstanding: outstanding.toFixed(2), overdue: Dec.of(row!.overdue).toFixed(2), overdueCount: row!.overdueCount, warnings };
+    return { creditLimit: limit, outstanding: outstanding.toFixed(2), overdue: Dec.of(overdueInr).toFixed(2), overdueCount, warnings, basis: detail ? 'books' : 'submitted_invoices', ...(detail && detail) };
   }
 
   /** Decision 032: warn; an approver may override with acceptCreditWarning. Returns whether it was overridden. */
   private async checkCredit(ctx: TenantRequestContext, tx: Tx, entityId: string, customer: Party, adding: string, accept: boolean, approvePermission: string): Promise<boolean> {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`credit:${entityId}:${customer.id}`}))`);
-    const c = await this.credit(tx, entityId, customer, adding);
+    const c = await this.credit(tx, ctx, entityId, customer, adding);
     if (!c.warnings.length) return false;
     if (!accept) {
       throw new BadRequestException({ message: `Credit check: ${c.warnings.join('; ')}.`, issues: [{ path: 'acceptCreditWarning', message: ctx.tenant.permissions.has(approvePermission) ? 'Confirm to submit anyway' : 'Needs an approver' }] });

@@ -27,6 +27,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import { AuditService } from '../../common/audit.service.js';
 import { businessDate, lockAccounting, type Tx } from './accounting-lock.js';
+import { BillService } from './bill.service.js';
 export interface SourceRef {
   type: string;
   id: string;
@@ -38,7 +39,10 @@ export interface SourceRef {
 }
 @Injectable()
 export class GlPostingService {
-  constructor(private readonly audit: AuditService) {}
+  constructor(
+    private readonly audit: AuditService,
+    private readonly bills: BillService,
+  ) {}
   async active(tx: Tx, entityId: string) {
     const [s] = await tx
       .select()
@@ -268,6 +272,9 @@ export class GlPostingService {
   ) {
     await lockAccounting(tx, entityId);
     if (!(await this.active(tx, entityId))) return;
+    // Bills this source created must not still be settled by receipts, payments or adjustments (decision 036).
+    await this.bills.syncIn(tx, ctx, entityId);
+    await this.bills.assertSourceCancellableIn(tx, entityId, source.type, source.id);
     const [d] = await tx
       .select()
       .from(glDisposition)

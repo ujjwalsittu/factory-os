@@ -45,6 +45,9 @@ export const DEFAULT_SERIES: Record<string, string> = {
   /** Per GSTIN (doc type `sales_invoice:<gst registration id>`), ≤ 16 characters (decision 029). */
   sales_invoice: '{ENTITY}/{FY}/{#####}',
   credit_note: '{ENTITY}/CN/{FY}/{####}',
+  customer_receipt: '{ENTITY}/RCT/{FY}/{#####}',
+  supplier_payment: '{ENTITY}/PAY/{FY}/{#####}',
+  settlement_allocation: '{ENTITY}/ADJ/{FY}/{#####}',
 };
 
 /** Statutory documents whose number goes on a GST return: at most 16 characters. */
