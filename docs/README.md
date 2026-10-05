@@ -4,7 +4,7 @@ A modern, India-compliant ERP for a **single company group with multiple legal e
 **precision manufacturing and services**, shaped around **Azeonics** (aerospace manufacturing,
 testing and integration sold as pay-per-use) and **EarthNow** (satellite analytics services).
 
-> **Status:** plan accepted; Phase 0 (landing, auth, tenancy, RBAC, SuperAdmin) in progress.
+> **Status:** Phase 0 done; Phase 1 in progress (inventory, buying, imports, selling, GL core built).
 > See [ai/STATUS.md](./ai/STATUS.md).
 
 | Doc | Contents |
@@ -26,6 +26,7 @@ testing and integration sold as pay-per-use) and **EarthNow** (satellite analyti
 | [15 · Tenancy, RBAC, auth](./15-tenancy-rbac-auth.md) | Tenant/entity model, Better Auth, roles and permissions, SuperAdmin |
 | [16 · Deployment](./16-deployment.md) | Coolify dev hosting and environment variables |
 | [Decision register](./decisions/DECISIONS.md) | **Binding decisions** |
+| [Slice specs](./superpowers/specs/) · [plans](./superpowers/plans/) · [reviews](./superpowers/reviews/) | Detailed design, task plan and review record per slice (GL core, AR/AP settlements) |
 | [AI/handoff state](./ai/STATUS.md) | Current status, memory and log for any contributor |
 
 ## The plan in one paragraph

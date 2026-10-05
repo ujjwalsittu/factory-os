@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 export class Client {
   constructor() {
-    this.base = `${process.env.API ?? 'http://localhost:4001'}/api`;
-    this.origin = process.env.WEB_ORIGIN ?? 'http://localhost:3001';
+    this.base = `${process.env.API ?? 'http://localhost:4000'}/api`;
+    this.origin = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
     this.cookie = '';
     this.checks = 0;
   }

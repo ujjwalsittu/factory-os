@@ -1,6 +1,6 @@
 # AR/AP Settlements Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For any agent or human:** execute the tasks in order; each step is a checkbox (`- [ ]`). Tools that support sub-agents may run tasks that way, but it is not required (AGENTS.md L12).
 
 **Goal:** Record customer receipts and supplier payments with immutable bill allocations, exact INR/FX postings, and reconciled outstanding balances.
 

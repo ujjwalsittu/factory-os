@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-const B = process.env.WEB_URL ?? 'http://localhost:3001';
+const B = process.env.WEB_URL ?? 'http://localhost:3000';
 const browser = await chromium.launch(
   process.env.CHROMIUM_PATH
     ? { executablePath: process.env.CHROMIUM_PATH }

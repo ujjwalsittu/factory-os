@@ -18,6 +18,8 @@ NestJS API, Drizzle ORM, PostgreSQL, Better Auth, and a Next.js web app. The pla
 3. Read [`docs/ai/MEMORY.md`](docs/ai/MEMORY.md): durable facts and user preferences.
 4. Read the last 3 entries of [`docs/ai/LOG.md`](docs/ai/LOG.md).
 5. Read [`docs/decisions/DECISIONS.md`](docs/decisions/DECISIONS.md) if your task touches architecture.
+6. `git fetch` and fast-forward your branch. Several agents (and humans) push to the same branch;
+   read STATUS from the fetched head, not from your local copy.
 
 Then state in **one line** which task you are taking. Default: the first unchecked item under
 "Next" in STATUS.md, unless the user asked for something else.
@@ -36,10 +38,15 @@ Then state in **one line** which task you are taking. Default: the first uncheck
 | L8 | **Ask before deciding** anything with business, cost, security or data-model impact that is not already in DECISIONS.md. Give options and a recommendation. |
 | L9 | **No speculative work.** Don't build features that aren't in STATUS "Next" or requested by the user. Don't generate long plans that already exist in `docs/`; link to them. |
 | L10 | **Verify before claiming.** "Done" means typecheck + lint + tests pass locally and you saw them pass. Report failures as failures. |
+| L11 | **Claim before you build.** Before writing product code, put the task under "In progress" in STATUS.md with *owner* (who/which session) and *started* time, commit and push that claim alone. If the push is rejected, fetch and re-read STATUS. Never start a task another owner has claimed; if a claim looks abandoned (no commits for 24 h), ask the user. Two agents once built the same screens in parallel because this rule didn't exist. |
+| L12 | **Provider-neutral artifacts.** Specs, plans and reviews (in `docs/superpowers/{specs,plans,reviews}/`) must be executable by any agent or human. Tool-specific hints are optional notes, never requirements. Business choices made in a spec go into DECISIONS.md once the user approves them. |
 
 ## 3. Definition of done (per task)
 
 - [ ] `pnpm typecheck` and `pnpm build` pass; tests for touched packages pass.
+- [ ] Smoke/e2e scripts default to the standard local ports (API `http://localhost:4000`, web `http://localhost:3000`)
+      and accept `API`, `WEB_ORIGIN`, `WEB_URL` overrides.
+- [ ] Migrations are generated with a descriptive name (`pnpm --filter @factoryos/db db:generate --name <slice>`).
 - [ ] New env vars added to `.env.example`. No secrets committed.
 - [ ] DB changes have a migration (`pnpm --filter @factoryos/db db:generate`).
 - [ ] New permissions registered in `packages/auth/src/permissions.ts`.

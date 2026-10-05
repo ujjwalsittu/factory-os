@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-const base = `${process.env.API ?? 'http://localhost:4001'}/api`;
-const origin = process.env.WEB_ORIGIN ?? 'http://localhost:3001';
+const base = `${process.env.API ?? 'http://localhost:4000'}/api`;
+const origin = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
 let cookie = '',
   tenantId,
   entityId,
