@@ -1,6 +1,6 @@
 # GL core: controlled cut-over and operational posting
 
-Status: proposed specification, ready for user review. Scope and the cut-over approach were approved in chat; implementation awaits approval of this written specification.
+Status: approved in chat. Written-spec approval permits the implementation plan; product implementation awaits plan review and selection of its execution method.
 
 ## Purpose and boundaries
 
@@ -23,7 +23,7 @@ Migration creates the accounting schema, but never activates accounting, posts h
 3. Show a live reconciliation against company-owned stock value, unpaid submitted invoices and unbilled goods receipts. Existing payment functionality is absent, so the worksheet must explicitly state any settlements made outside FactoryOS; do not assume every old invoice is still unpaid.
 4. The opening inventory control balance must equal current remaining FIFO value. Each debtor/creditor control balance must equal its opening bill/party details. GRNI must equal the declared unbilled receipt baseline. The accountant supplies the rest of the trial balance from the prior books; debit and credit totals must match without a hidden balancing plug.
 5. Activation uses the current business date in Asia/Kolkata. Opening balances represent the state immediately before activation on that date, not a reconstruction of the previous midnight. Store the exact activation timestamp and a source snapshot. A future or historical date cannot be selected in this slice.
-6. Acquire the same entity accounting lock used by operational submits/cancels, revalidate the reviewed snapshot and reconciliations, append one opening voucher, and activate in a single transaction. Reject a stale worksheet with a fresh reconciliation for review. Never silently replace a reviewed snapshot.
+6. Acquire the same entity accounting lock used by operational submits/cancels, revalidate the reviewed snapshot and reconciliations, append one opening voucher, and activate in a single transaction. A genuinely empty entity records a zero-opening disposition rather than generating invalid zero-value GL rows. Reject a stale worksheet with a fresh reconciliation for review. Never silently replace a reviewed snapshot.
 7. Once active, every new submission must have a posting date on or after the cut-over date. A previously created draft is new activity when submitted. Existing submitted documents remain historical and cannot be booked again merely by viewing or editing settings.
 8. Prevent cancellation of historical submitted documents affecting opening books after activation. Explain that an accountant must record a reviewed current-date adjustment. Do not reverse a journal that does not exist or silently change stock beneath the opening balance. Cancellation before activation remains unchanged.
 

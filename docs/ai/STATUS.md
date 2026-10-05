@@ -59,10 +59,10 @@ _Last updated: 2026-10-05 · Slice 1c (selling) web and settings implemented; lo
   - Verified: production build, typecheck, 36 unit tests, selling API smoke 48/48; production selling, buying and base browser walkthroughs pass. Selling coverage covers delivery/cancel, printed tax columns, LUT exports, settings, credit approval, address reopening and autosave race/error recovery. `pnpm lint` executes zero tasks (no package lint scripts).
 
 ## In progress
-- **Slice 1d: GL core — design review.** User approved the scope and controlled cut-over approach. Written specification: [GL core design](../superpowers/specs/2026-10-05-gl-core-design.md). Exact stopping point: awaiting written-spec review; implementation plan and product code have not started.
+- **Slice 1d: GL core — plan review.** User approved the written specification and controlled cut-over. [GL design](../superpowers/specs/2026-10-05-gl-core-design.md), [implementation plan](../superpowers/plans/2026-10-05-gl-core.md). Exact stopping point: awaiting plan review and execution-method selection; no product code or accounting activation changed.
 
 ## Next (in order; confirm with the user before starting)
-1. Review the written GL specification, then its implementation plan and execution method.
+1. Review the GL implementation plan and select execution (recommended: implement sequentially in this session, then independent review).
 2. Implement **slice 1d: GL foundation** — controlled cut-over, chart of accounts, journals from stock/invoices/landed cost, forex variance and reports, as specified in the approved-scope design.
 3. **AR/AP settlements** — customer receipts and supplier payments, bill allocation, credit-warning and MSME balance integration; this completes the wider GL/AR/AP roadmap added on the branch.
 4. **Credit / debit notes** (series `AZ/CN/26-27/0001` already reserved in the backend) and sales returns into stock.
