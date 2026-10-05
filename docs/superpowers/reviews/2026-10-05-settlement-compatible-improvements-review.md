@@ -56,3 +56,23 @@ pending synchronization; existing misclassifications, if found, require Finance-
 adjustments. No deployed-data audit or shared-entity activation was performed.
 A separate local database protects both migration histories; the ignored root environment now
 uses the shared database, with the original local configuration securely preserved outside Git.
+
+## PR #1 integration
+
+The user requested conflict resolution and merge of PR #1, whose head is the retained
+alternate implementation at `21c285d`, targeting the shared branch. Merge `da8a0eb`
+records that history with the `ours` strategy: its complete tree is identical to
+`17a594c`. This intentionally retains the user's chosen shared implementation and
+already-ported compatible improvements; it does not install the alternate migration
+or accidentally resurrect replaced controllers, permissions or UI contracts.
+The original Native backup branch remains unchanged at `21c285d`.
+
+GitHub GraphQL and REST PR APIs returned Forbidden in this environment. PR identity,
+OPEN state, source and target were confirmed through the public PR page and Git refs.
+The merge is performed through a normal push to the target, without bypassing hooks
+or branch protections. Final PR state must be confirmed after that push.
+
+Merged-tree verification passed: build (11 cached tasks), typecheck (16 cached tasks),
+55 freshly run unit tests, 93 settlement checks, 16 duplicate-reference checks,
+32 historical-control checks and production invoice-balance browser regression.
+Lint still has zero configured tasks. API and web health endpoints returned OK.
