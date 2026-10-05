@@ -71,7 +71,7 @@ _Last updated: 2026-10-05 · Supplier notes/returns approved design; plan awaiti
   - Independent review found seven Important defects, all reproduced and fixed; an additional fractional tax-allocation regression was fixed in the same pass. [Review, rulings and two deferred UI minors](../superpowers/reviews/2026-10-05-gl-core-review.md). No shared entity has been activated. Historical stock/GL date comparisons remain limited by existing stock reversal dating; current cumulative balances reconcile.
 
 ## In progress
-- **Supplier notes, return claims and purchase returns design** · owner: agent, Native default-branch session · started: 2026-10-05. Conversational sections approved, including four entity policies. Written spec approved; decision038 accepted. Seven-task plan `docs/superpowers/plans/2026-10-05-supplier-notes-returns.md` written and self-reviewed; awaiting plan review before Native execution. No product code or shared books changed.
+- **Supplier notes, return claims and purchase returns implementation** · owner: agent, Native default-branch session · started: 2026-10-06 (Asia/Kolkata). User approved decision038 spec and seven-task plan. Task1 schema/compatibility checks starting; all seven tasks and final review authorized. Preserve shared inactive books and old migrations.
 
 ## Next (in order; confirm with the user before starting)
 1. User review of accounts, receipts/payments, outstanding and customer notes/returns on dev. Books stay inactive until a Finance user activates an entity (decision 034); customer notes/returns received one independent review with all Important findings fixed.
