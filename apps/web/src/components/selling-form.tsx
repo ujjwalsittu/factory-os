@@ -478,6 +478,9 @@ export function SellingForm({
                 Short-close
               </Button>
             )}
+          {submitted && kind === 'invoices' && ws.can('selling.sales_note.create') && (
+            <><Link className={buttonClass('secondary','md')} href={`/app/selling/notes/new?invoiceId=${doc.id}&kind=credit`}>Create credit note</Link><Link className={buttonClass('secondary','md')} href={`/app/selling/notes/new?invoiceId=${doc.id}&kind=debit`}>Create debit note</Link></>
+          )}
           {submitted && kind === 'invoices' && ws.can(`${resource}.export`) && (
             <Link
               className={buttonClass('secondary', 'md')}

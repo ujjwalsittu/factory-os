@@ -8,6 +8,7 @@ export const PURPOSE_LABELS = {
   adjustment: 'Adjustment',
   return: 'Return to customer',
   scrap: 'Scrap',
+  sales_return: 'Sales return (credit note)',
   delivery: 'Delivery (sales invoice)',
 } as const;
 export const STATUS_TONE: Record<DocStatus, BadgeTone> = { draft: 'neutral', submitted: 'success', cancelled: 'danger' };

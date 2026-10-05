@@ -70,6 +70,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     items: [
       { href: '/app/selling/quotations', label: 'Quotations', icon: FileSpreadsheet, permission: 'selling.quotation.read', entityScoped: true },
       { href: '/app/selling/orders', label: 'Sales orders', icon: Truck, permission: 'selling.sales_order.read', entityScoped: true },
+      { href: '/app/selling/notes', label: 'Credit/debit notes', icon: ReceiptText, permission: 'selling.sales_note.read', entityScoped: true },
       { href: '/app/selling/invoices', label: 'Sales invoices', icon: ReceiptText, permission: 'selling.sales_invoice.read', entityScoped: true },
     ],
   },
