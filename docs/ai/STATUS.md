@@ -3,6 +3,7 @@
 _Last updated: 2026-10-05 · AR/AP written design approved; implementation plan awaiting review_
 
 ## Done
+- [x] **AR/AP settlements** (decision 036, migration 0011): bill-wise subledger derived from GL, customer receipts and supplier payments with FX and on-account money, later allocation, cancellation dependencies, outstanding/ageing/reconciliation reports, selling credit from real outstanding, Accounts → Receipts & payments / Outstanding screens. Verified: `smoke-settlements.mjs` 91 checks, `e2e:settlements`, all accounting + operational suites and walkthroughs. Review: `docs/superpowers/reviews/2026-10-05-ar-ap-settlements-review.md`.
 - [x] Plan docs 01–16, decision register (001–016 accepted), open questions (docs/10)
 - [x] Commit-message guard (git hooks + CI) and handoff guard (CI)
 - [x] Agent contract (AGENTS.md) and handoff files (docs/ai/)
@@ -67,15 +68,14 @@ _Last updated: 2026-10-05 · AR/AP written design approved; implementation plan 
   - Independent review found seven Important defects, all reproduced and fixed; an additional fractional tax-allocation regression was fixed in the same pass. [Review, rulings and two deferred UI minors](../superpowers/reviews/2026-10-05-gl-core-review.md). No shared entity has been activated. Historical stock/GL date comparisons remain limited by existing stock reversal dating; current cumulative balances reconcile.
 
 ## In progress
-- **AR/AP settlements** — implementing `docs/superpowers/plans/2026-10-05-ar-ap-settlements.md` (decision 036).
-  *Owner:* Claude Code cloud session on branch `claude/zealous-allen-35g1vm` · *started:* 2026-10-05.
-  User said "keep going" after the audit; other agents must not start this task (AGENTS.md L11).
+- Nothing. Stopping point is clean.
 
 ## Next (in order; confirm with the user before starting)
-1. **AR/AP settlements** — customer receipts and supplier payments, bill allocation, credit-warning and MSME balance integration; complete the wider GL/AR/AP roadmap.
-2. **Credit / debit notes** (series `AZ/CN/26-27/0001` already reserved in the backend) and sales returns into stock.
+1. User review of accounts, receipts/payments and outstanding on dev. Books stay inactive until a Finance user activates an entity (decision 034); a review of the AR/AP slice by a fresh agent is recommended (see the review file's deviations).
+2. **Credit / debit notes** (series `AZ/CN/26-27/0001` reserved) and sales returns into stock; they settle bills through the same subledger.
 3. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
-4. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
+4. TDS/TCS and bank charges on receipts/payments; bank reconciliation.
+5. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
 
 ## Blockers
 - None. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)
