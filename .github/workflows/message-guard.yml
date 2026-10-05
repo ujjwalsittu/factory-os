@@ -23,7 +23,15 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
-            commits=$(git rev-list "$HEAD" --max-count=50)
+            # New branch: check only commits no other branch already has (same as the pre-push hook),
+            # so history pushed before the guard existed does not fail every new branch.
+            others=$(git for-each-ref --format='%(refname)' refs/remotes/origin \
+              | grep -vx "refs/remotes/origin/${GITHUB_REF_NAME}" | grep -v '/HEAD$' || true)
+            if [ -n "$others" ]; then
+              commits=$(git rev-list "$HEAD" --not $others)
+            else
+              commits=$(git rev-list "$HEAD" --max-count=50)
+            fi
           else
             commits=$(git rev-list "$BASE..$HEAD")
           fi

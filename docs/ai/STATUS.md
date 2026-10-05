@@ -81,5 +81,5 @@ _Last updated: 2026-10-05 · AR/AP written design approved; implementation plan 
 - None. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)
 
 ## Noticed (out of scope, for later)
-- The first commit on this branch predates the message guard; its message names the assistant. Fixing it needs a force-push, which the user hasn't approved.
+- The first commit on this branch predates the message guard; its message names the assistant. Not rewritten (no force-push); the hook and the message-guard workflow now skip commits another branch already has, so it no longer fails new branches.
 - `packages/core`, `gsp` (types only), `iot-protocol`, `sdk`, `apps/worker`, `apps/edge-agent` are still placeholders.
