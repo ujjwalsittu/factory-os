@@ -1,6 +1,6 @@
 # Customer credit/debit notes and sales returns
 
-Status: proposed written design; awaiting user review before implementation planning.
+Status: approved by the user on 2026-10-05. Implementation plan is awaiting review.
 
 ## Goal and sequence
 

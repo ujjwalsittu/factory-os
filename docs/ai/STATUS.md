@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-05 · Customer notes/returns written design ready for review_
+_Last updated: 2026-10-05 · Customer notes/returns design approved; plan ready for review_
 
 ## Done
 - [x] **PR #1 conflict resolution**: merged alternate settlement history while retaining the chosen shared implementation and migration; source tree unchanged from `17a594c`. Native backup remains `21c285d`. Fresh verification: build/typecheck, 55 unit tests, 93 settlement + 16 duplicate-reference + 32 historical-control checks, invoice-balance production browser all pass. Lint has zero tasks. Normal target push succeeded; GitHub confirms PR #1 MERGED at 2026-10-05T10:45:45Z.
@@ -70,7 +70,7 @@ _Last updated: 2026-10-05 · Customer notes/returns written design ready for rev
   - Independent review found seven Important defects, all reproduced and fixed; an additional fractional tax-allocation regression was fixed in the same pass. [Review, rulings and two deferred UI minors](../superpowers/reviews/2026-10-05-gl-core-review.md). No shared entity has been activated. Historical stock/GL date comparisons remain limited by existing stock reversal dating; current cumulative balances reconcile.
 
 ## In progress
-- **Credit/debit notes and sales returns design** — owner: default-branch session; started: 2026-10-05T10:49:31+00:00. User requested continuation on the repository default branch. User requested the next phases; proceeding customer-first in roadmap order. Written design is ready at `docs/superpowers/specs/2026-10-05-sales-notes-returns-design.md`, covering notes, partial original-cost returns, tax treatment, paid-invoice credits, foreign carrying values and cancellation dependencies. Exact stopping point: written-spec review before implementation planning. No product code or data activation changed.
+- **Credit/debit notes and sales returns design** — owner: default-branch session; started: 2026-10-05T10:49:31+00:00. User requested continuation on the repository default branch. User requested the next phases; proceeding customer-first in roadmap order. Approved written design is at `docs/superpowers/specs/2026-10-05-sales-notes-returns-design.md`, covering notes, partial original-cost returns, tax treatment, paid-invoice credits, foreign carrying values and cancellation dependencies. Written implementation plan is at `docs/superpowers/plans/2026-10-05-sales-notes-returns.md`. Exact stopping point: plan review before product code; Native execution preference retained. No product code or data activation changed.
 
 ## Next (in order; confirm with the user before starting)
 1. User review of accounts, receipts/payments and outstanding on dev. Books stay inactive until a Finance user activates an entity (decision 034); a review of the AR/AP slice by a fresh agent is recommended (see the review file's deviations).

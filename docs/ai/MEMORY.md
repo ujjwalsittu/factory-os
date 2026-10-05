@@ -108,3 +108,5 @@ at the end of the relevant section, with a date.
 - Invoice balance queries use scoped operational read permissions, six-place amounts, `staleTime: 0` and always refetch on mount; settlement submission and invoice cancellation invalidate them. Pending legacy journal matching must seed all invoice identities first. Never rewrite already-initialized append-only bill effects to repair historical matching.
 
 - 2026-10-05: User requested ongoing phases on the repository default branch, currently `claude/zealous-allen-35g1vm`. Customer credit/debit notes and sales returns draft design: `docs/superpowers/specs/2026-10-05-sales-notes-returns-design.md`; proposed subsequent slices are supplier returns, then NIC sandbox e-invoicing/e-way bills. Business rules in the new design await written-spec approval; Native remains the execution preference.
+
+- 2026-10-05: Customer credit/debit notes and sales returns written spec approved; decision037 accepted. Implementation plan `docs/superpowers/plans/2026-10-05-sales-notes-returns.md` awaits review; execution method Native is already selected and should not be asked again. No shared-entity activation is authorized.
