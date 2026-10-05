@@ -8,6 +8,8 @@
 
 **Tech Stack:** Existing TypeScript, NestJS, Zod, Drizzle/PostgreSQL 16, `Dec`, Next.js, TanStack Query, `@factoryos/ui`, Vitest and Playwright; no new production dependencies.
 
+**Status:** implemented 2026-10-05; see `docs/superpowers/reviews/2026-10-05-ar-ap-settlements-review.md` for deviations and verification.
+
 **Spec:** `docs/superpowers/specs/2026-10-05-ar-ap-settlements-design.md` (written-spec approval: user “continue”).
 
 ## Global Constraints
@@ -24,7 +26,7 @@
 - Acquire the existing entity accounting lock before document/item/PO locks. Use the existing isolated checkout; do not create a worktree.
 - Preserve stock, acquisition-cost and historical-source cancellation guards. Preserve decision 032's approver override.
 - Keep product commits local until the complete slice passes validation: every push to the shared branch redeploys both applications.
-- Use Node 24 and pinned pnpm 10.28.0; prepend `/workspace/.factoryos-tools/node_modules/.bin` to PATH. Local API/web use 4001/3001 and ignored `.env`.
+- Use the pinned pnpm from package.json. Local API/web default to ports 4000/3000 (override with `API`, `WEB_ORIGIN`, `WEB_URL`) and the ignored `.env`.
 
 ## Review Focus
 

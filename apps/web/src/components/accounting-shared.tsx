@@ -50,6 +50,8 @@ export function AccountingPage({
           ['setup', 'Accounting setup', 'accounts.setup.read'],
           ['chart', 'Chart of accounts', 'accounts.account.read'],
           ['journals', 'Journals', 'accounts.voucher.read'],
+          ['settlements', 'Receipts & payments', 'accounts.settlement.read'],
+          ['outstanding', 'Outstanding', 'accounts.report.read'],
           ['day-book', 'Day book', 'accounts.report.read'],
           ['ledger', 'Account ledger', 'accounts.report.read'],
           ['trial-balance', 'Trial balance', 'accounts.report.read'],

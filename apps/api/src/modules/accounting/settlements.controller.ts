@@ -117,6 +117,7 @@ export class SettlementsController {
       ...r.s,
       partyName: r.partyName,
       accountName: r.accountName,
+      allocated: r.s.allocations.reduce((x, a) => x.add(a.amount), Dec.ZERO).toFixed(2),
       allocations: r.s.allocations.map((a) => ({ ...a, reference: bills.find((b) => b.id === a.billId)?.reference ?? null })),
       advance: bills.find((b) => b.id === r.s.advanceBillId) ?? null,
       laterAllocations: later,

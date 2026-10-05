@@ -31,6 +31,8 @@ import {
   X,
   ReceiptText,
   ScanSearch,
+  Banknote,
+  Clock,
   Ship,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -103,6 +105,8 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
       { href: '/app/accounts/setup', label: 'Accounting setup', icon: Landmark, permission: 'accounts.setup.read', entityScoped: true },
       { href: '/app/accounts/chart', label: 'Chart of accounts', icon: ScrollText, permission: 'accounts.account.read', entityScoped: true },
       { href: '/app/accounts/journals', label: 'Journals', icon: ReceiptText, permission: 'accounts.voucher.read', entityScoped: true },
+      { href: '/app/accounts/settlements', label: 'Receipts & payments', icon: Banknote, permission: 'accounts.settlement.read', entityScoped: true },
+      { href: '/app/accounts/outstanding', label: 'Outstanding', icon: Clock, permission: 'accounts.report.read', entityScoped: true },
       { href: '/app/accounts/day-book', label: 'Day book', icon: FileSpreadsheet, permission: 'accounts.report.read', entityScoped: true },
       { href: '/app/accounts/trial-balance', label: 'Trial balance', icon: FileSpreadsheet, permission: 'accounts.report.read', entityScoped: true },
       { href: '/app/compliance', label: 'Compliance', icon: FileSpreadsheet, phase: 1 },
