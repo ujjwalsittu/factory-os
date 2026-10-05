@@ -1,3 +1,4 @@
+import {assertReturnActivityDateIn} from './activity-date.js';
 import {pendingSegmentsIn} from './pending-segments.js';
 import {returnAccountsIn} from './return-accounts.js';
 import {Dec,splitAcquisitionCost,type AccountingLine} from '@factoryos/core';
@@ -23,6 +24,7 @@ export class SupplierReturnResolutionService {
  if(!effect)throw new NotFoundException('Original return evidence not found');
  const [entry]=await tx.select().from(stockEntry).where(eq(stockEntry.id,effect.stockEntryId));if(!entry||entry.status!=='submitted')throw new ConflictException('Original dispatch is not live');
  if(input.postingDate<entry.postingDate||input.postingDate>businessDate())throw new BadRequestException('Resolution date must be from dispatch through today');
+ await assertReturnActivityDateIn(tx,e,cl.id,input.postingDate);
  const segments=await pendingSegmentsIn(tx,e,cl.id),segment=segments.find(x=>x.returnEffectId===effect.id);const qty=Dec.of(input.qty);if(!segment||!segment.qty.gt('0')||qty.gt(segment.qty))throw new ConflictException('Resolution exceeds this dispatch unresolved quantity');const value=qty.eq(segment.qty)?segment.value:segment.value.mul(qty).div(segment.qty);
  let stockEntryId:string|null=null,represented=value;
  if(input.kind==='receive_back'){

@@ -5,8 +5,10 @@ import {useEffect,useRef,useState} from 'react';
 import {api} from '@/lib/api';
 import type {SupplierNote} from '@/lib/supplier-returns';
 import {useWorkspace} from './workspace';
+const amountText=(value:string)=>value.replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1');
 export function SupplierCreditApplication({note,onChange}:{note:SupplierNote;onChange:()=>Promise<void>}){
- const ws=useWorkspace(),[billId,setBill]=useState(''),[amount,setAmount]=useState(note.creditBalance?.openAmount??''),[date,setDate]=useState(()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata'}).format(new Date())),[reason,setReason]=useState('Apply remaining supplier credit'),[preview,setPreview]=useState<{carryingInr:string;forexInr:string}|null>(null),[error,setError]=useState(''),approved=useRef('');
+ const ws=useWorkspace(),[billId,setBill]=useState(''),[amount,setAmount]=useState(amountText(note.creditBalance?.openAmount??'')),[date,setDate]=useState(()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata'}).format(new Date())),[reason,setReason]=useState('Apply remaining supplier credit'),[preview,setPreview]=useState<{carryingInr:string;forexInr:string}|null>(null),[error,setError]=useState(''),approved=useRef('');
+ useEffect(()=>{setAmount(amountText(note.creditBalance?.openAmount??''))},[note.creditBalance?.openAmount]);
  const q=useQuery({queryKey:['supplier-credit-bills',ws.tenantId,ws.entityId,note.id,note.creditBalance?.openAmount],queryFn:()=>api<{id:string;reference:string;openAmount:string}[]>(`/accounts/bills?partyId=${note.supplierId}&side=payable&currency=${note.currency}`,{scope:ws.scope}),staleTime:0});
  const body={supplierNoteId:note.id,postingDate:date,reason,allocations:[{billId,amount}]},snapshot=JSON.stringify(body);useEffect(()=>{setPreview(null);approved.current=''},[snapshot]);
  const action=useMutation({mutationFn:async(submit:boolean)=>{if(submit&&approved.current!==snapshot)throw new Error('Preview the current application first');return {...await api<{carryingInr:string;forexInr:string}>(`/accounts/settlement-allocations${submit?'':'/preview'}`,{method:'POST',body,scope:ws.scope}),inputSnapshot:snapshot}},onSuccess:async(data,submit)=>{setError('');if(submit){approved.current='';setPreview(null);await onChange()}else{approved.current=data.inputSnapshot;setPreview(data)}},onError:e=>setError(e.message)});

@@ -99,5 +99,8 @@ export async function seedChart(
     .insert(accountingSettings)
     .values({ ...scope, mappings })
     .onConflictDoNothing();
+  const [settings] = await tx.select().from(accountingSettings).where(eq(accountingSettings.entityId, entityId));
+  if (settings && Object.keys(mappings).some(role => !settings.mappings[role]))
+    await tx.update(accountingSettings).set({ mappings: { ...mappings, ...settings.mappings } }).where(eq(accountingSettings.entityId, entityId));
   return rows;
 }

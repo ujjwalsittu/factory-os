@@ -1,3 +1,4 @@
+import {seedChart} from '../accounting/chart.js';
 import {SupplierReturnResolutionService} from './resolution.service.js';
 import {SupplierNoteService} from './note.service.js';
 import {SupplierNotePreviewService} from './preview.service.js';
@@ -15,7 +16,7 @@ import {SupplierReturnClaimService} from './claim.service.js';
 @Controller('buying')
 export class SupplierReturnsController {
  constructor(@Inject(DB)private readonly db:Database,private readonly policy:SupplierReturnPolicyService,private readonly claims:SupplierReturnClaimService,private readonly movement:SupplierReturnMovementService,private readonly notes:SupplierNoteService,private readonly preview:SupplierNotePreviewService,private readonly resolutions:SupplierReturnResolutionService){}
- private run<T>(ctx:TenantRequestContext,f:(tx:Tx,e:string)=>Promise<T>){const e=entityOf(ctx);return this.db.transaction(async tx=>{await lockAccounting(tx,e);return f(tx,e);});}
+ private run<T>(ctx:TenantRequestContext,f:(tx:Tx,e:string)=>Promise<T>){const e=entityOf(ctx);return this.db.transaction(async tx=>{await lockAccounting(tx,e);await seedChart(tx,ctx,e);return f(tx,e);});}
  @Get('return-policy') @RequirePermission('buying.return_policy.read') getPolicy(@Ctx()ctx:TenantRequestContext){return this.run(ctx,(tx,e)=>this.policy.getIn(tx,ctx,e));}
  @Put('return-policy') @RequirePermission('buying.return_policy.update') updatePolicy(@Ctx()ctx:TenantRequestContext,@Body()b:unknown){const input=parse(policySchema,b);return this.run(ctx,(tx,e)=>this.policy.updateIn(tx,ctx,e,input));}
  @Get('return-claims') @RequirePermission('buying.return_claim.read') list(@Ctx()ctx:TenantRequestContext){return this.run(ctx,(tx,e)=>this.claims.listIn(tx,ctx,e));}

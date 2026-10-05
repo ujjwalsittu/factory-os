@@ -1,3 +1,4 @@
+import {assertReturnActivityDateIn} from './activity-date.js';
 import {returnAccountsIn} from './return-accounts.js';
 import {consumeFifo,Dec,type AccountingLine} from '@factoryos/core';
 import {fifoLayer,fifoConsumption,glAccount,item,receiptInvoiceAllocation,stockBin,stockEntry,stockEntryLine,stockLedgerEntry,supplierReturnClaimLine,supplierReturnEffect,supplierAcceptanceEffect,supplierResolutionEffect,warehouse} from '@factoryos/db';
@@ -17,9 +18,10 @@ export class SupplierReturnMovementService {
  await lockAccounting(tx,e);const claim=await this.claims.getIn(tx,ctx,e,id);const source=await this.claims.sourceIn(tx,ctx,e,claim.originalInvoiceId);
  if(claim.status!=='submitted'||!claim.approvedBy)throw new ConflictException('An approved submitted claim is required');
  if(input.postingDate<claim.postingDate||input.postingDate>businessDate())throw new BadRequestException('Return date must be from claim through today');
- const seen=new Set<string>(),staged=new Map<string,Dec>();const results=[];
+ const seen=new Set<string>(),staged=new Map<string,Dec>(),stagedAllocations=new Map<string,Dec>();const results=[];
  for(const l of input.lines){if(seen.has(l.claimLineId))throw new BadRequestException('Dispatch each claim line once');seen.add(l.claimLineId);
  const cl=claim.lines.find(x=>x.id===l.claimLineId);if(!cl)throw new NotFoundException('Claim line not found');
+ await assertReturnActivityDateIn(tx,e,cl.id,input.postingDate);
  const il=source.lines.find(x=>x.id===cl.invoiceLineId)!;
  const [allocation]=await tx.select().from(receiptInvoiceAllocation).where(and(eq(receiptInvoiceAllocation.id,l.receiptAllocationId),eq(receiptInvoiceAllocation.entityId,e),eq(receiptInvoiceAllocation.tenantId,ctx.tenant.tenantId),eq(receiptInvoiceAllocation.invoiceId,source.invoice.id),eq(receiptInvoiceAllocation.receiptLineId,l.receiptLineId),isNull(receiptInvoiceAllocation.reversalOf)));
  const [receipt]=await tx.select({l:stockEntryLine,s:stockEntry}).from(stockEntryLine).innerJoin(stockEntry,eq(stockEntry.id,stockEntryLine.entryId)).where(and(eq(stockEntryLine.id,l.receiptLineId),eq(stockEntry.entityId,e),eq(stockEntry.tenantId,ctx.tenant.tenantId)));
@@ -29,8 +31,9 @@ export class SupplierReturnMovementService {
  const returns=await tx.select().from(supplierReturnEffect).where(and(eq(supplierReturnEffect.entityId,e),eq(supplierReturnEffect.tenantId,ctx.tenant.tenantId)));
  const claimUsed=returns.filter(x=>x.claimLineId===cl.id).reduce((s,x)=>s.add(x.qty),Dec.ZERO);
  const invoiceUsed=returns.filter(x=>x.invoiceLineId===il.id).reduce((s,x)=>s.add(x.qty),Dec.ZERO);
- const allocationUsed=returns.filter(x=>x.receiptAllocationId===allocation.id).reduce((s,x)=>s.add(x.qty),Dec.ZERO);
+ const allocationUsed=returns.filter(x=>x.receiptAllocationId===allocation.id).reduce((s,x)=>s.add(x.qty),Dec.ZERO).add(stagedAllocations.get(allocation.id)??Dec.ZERO);
  const q=Dec.of(l.qty);if(q.gt(Dec.of(cl.qty).sub(claimUsed))||q.gt(Dec.of(il.qty).sub(invoiceUsed))||q.gt(Dec.of(allocation.qty).sub(allocationUsed)))throw new ConflictException('Return exceeds remaining claim, invoice or receipt quantity');
+ stagedAllocations.set(allocation.id,(stagedAllocations.get(allocation.id)??Dec.ZERO).add(q));
  const acceptance=await tx.select().from(supplierAcceptanceEffect).where(and(eq(supplierAcceptanceEffect.entityId,e),eq(supplierAcceptanceEffect.claimLineId,cl.id)));
  const accepted=acceptance.reduce((s,x)=>s.add(x.qty),Dec.ZERO);
  if(claim.policySnapshot?.dispatchApproval==='acceptance_required'&&q.gt(accepted.sub(claimUsed)))throw new ConflictException('Supplier acceptance is required before dispatch');

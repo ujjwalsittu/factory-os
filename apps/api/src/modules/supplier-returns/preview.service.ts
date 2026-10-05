@@ -1,8 +1,9 @@
+import {assertReturnActivityDateIn} from './activity-date.js';
 import {pendingSegmentsIn} from './pending-segments.js';
 import {Dec,allocateNoteComponents,type TaxComponents} from '@factoryos/core';
 import {supplierNote,supplierNoteLine,supplierReturnClaimLine,supplierReturnClaim,supplierReturnEffect,supplierAcceptanceEffect,supplierResolutionEffect} from '@factoryos/db';
 import {BadRequestException,ConflictException,Injectable,NotFoundException} from '@nestjs/common';
-import {and,eq,ne} from 'drizzle-orm';
+import {and,eq,ne,sql} from 'drizzle-orm';
 import type {TenantRequestContext} from '../../common/access.js';
 import {businessDate,type Tx} from '../accounting/accounting-lock.js';
 import {BillService} from '../accounting/bill.service.js';
@@ -19,7 +20,9 @@ export class SupplierNotePreviewService {
  if(!input.taxEligibilityConfirmed)throw new BadRequestException('Finance must confirm documented GST eligibility');
  if(invoice.reverseCharge||invoice.supplyType.startsWith('import'))throw new ConflictException('Customs ITC and RCM adjustment require separate workflows; use commercial treatment');
  }
+ const [activity]=await tx.select({day:sql<string|null>`max(case when ${supplierNote.status}='cancelled' then timezone('Asia/Kolkata',${supplierNote.cancelledAt})::date else ${supplierNote.postingDate} end)`}).from(supplierNote).where(and(eq(supplierNote.tenantId,ctx.tenant.tenantId),eq(supplierNote.entityId,e),eq(supplierNote.originalInvoiceId,invoice.id),ne(supplierNote.status,'draft')));if(activity?.day&&activity.day>input.postingDate)throw new ConflictException('Posting date precedes recorded supplier-note activity or reversal');
  const existing=await tx.select({n:supplierNote,l:supplierNoteLine}).from(supplierNoteLine).innerJoin(supplierNote,eq(supplierNote.id,supplierNoteLine.noteId)).where(and(eq(supplierNote.tenantId,ctx.tenant.tenantId),eq(supplierNote.entityId,e),eq(supplierNote.originalInvoiceId,invoice.id),eq(supplierNote.status,'submitted'),excludeId?ne(supplierNote.id,excludeId):undefined));
+ if(existing.some(x=>x.n.postingDate>input.postingDate))throw new ConflictException('Posting date precedes recorded supplier-note activity');
  const seen=new Set<string>(),output:SupplierNotePreview['lines']=[];
  for(const l of input.lines){const original=lines.find(x=>x.id===l.invoiceLineId);if(!original||seen.has(l.invoiceLineId))throw new BadRequestException('Choose unique original invoice lines');seen.add(l.invoiceLineId);
  const prior=existing.filter(x=>x.l.invoiceLineId===l.invoiceLineId);
@@ -40,7 +43,7 @@ export class SupplierNotePreviewService {
  if(input.kind==='credit'){const allocated=allocateNoteComponents(total,residual,taxable.toString(),base.toString(),taxable.eq(remaining));Object.assign(components,allocated,{taxableValue:taxable.toFixed(2)});}else{if(!originalValue.gt('0'))throw new ConflictException('Original tax base is unavailable');for(const k of ['cgst','sgst','igst','cess'] as const)components[k]=Dec.of(original[k]??'0').mul(taxable).div(originalValue).toFixed(2);}
  }
  let pending=Dec.ZERO;const pendingReturns:{returnEffectId:string;qty:string;valueInr:string}[]=[];
- if(l.claimLineId){const [claimLine]=await tx.select({l:supplierReturnClaimLine,c:supplierReturnClaim}).from(supplierReturnClaimLine).innerJoin(supplierReturnClaim,eq(supplierReturnClaim.id,supplierReturnClaimLine.claimId)).where(and(eq(supplierReturnClaimLine.id,l.claimLineId),eq(supplierReturnClaimLine.entityId,e),eq(supplierReturnClaimLine.tenantId,ctx.tenant.tenantId)));
+ if(l.claimLineId){await assertReturnActivityDateIn(tx,e,l.claimLineId,input.postingDate);const [claimLine]=await tx.select({l:supplierReturnClaimLine,c:supplierReturnClaim}).from(supplierReturnClaimLine).innerJoin(supplierReturnClaim,eq(supplierReturnClaim.id,supplierReturnClaimLine.claimId)).where(and(eq(supplierReturnClaimLine.id,l.claimLineId),eq(supplierReturnClaimLine.entityId,e),eq(supplierReturnClaimLine.tenantId,ctx.tenant.tenantId)));
  if(!claimLine||claimLine.l.invoiceLineId!==l.invoiceLineId||claimLine.c.originalInvoiceId!==invoice.id)throw new NotFoundException('Matching claim line not found');
  if(claimLine.c.status!=='submitted'||!claimLine.c.approvedBy||input.kind!=='credit')throw new ConflictException('Acceptance requires an approved submitted claim and credit note');
  const accept=await tx.select().from(supplierAcceptanceEffect).where(and(eq(supplierAcceptanceEffect.entityId,e),eq(supplierAcceptanceEffect.claimLineId,l.claimLineId)));

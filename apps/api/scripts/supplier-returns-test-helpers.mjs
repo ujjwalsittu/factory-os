@@ -1,6 +1,7 @@
+import {createDb} from '../../../packages/db/dist/index.js';
 import {Dec} from '../../../packages/core/dist/index.js';
 import { Client, gstin } from './accounting-test-helpers.mjs';
-export async function fixture(name='Supplier returns') {
+export async function fixture(name='Supplier returns',daysAgo=0) {
  const c=await new Client().init(name);
  const supplier=await c.req('POST','/parties',{code:'SUP',name:'Return supplier',isSupplier:true,gstTreatment:'registered',gstin:gstin('27AAACB1234C1Z'),stateCode:'27'},201);
  const reg=await c.req('POST',`/entities/${c.entityId}/gst-registrations`,{gstin:gstin('27AAACA1234B1Z')},201);
@@ -8,15 +9,15 @@ export async function fixture(name='Supplier returns') {
  await c.req('POST','/hsn-codes',{code:'9983',kind:'sac',description:'Supplier service',gstRate:'18',effectiveFrom:'2025-04-01'},201);
  const item=await c.req('POST','/items',{code:'SVC',name:'Supplier service',type:'service',stockUomId:uom.id,hsnCode:'9983'},201);
  await c.activate();
- const date=c.settings.cutoverDate;
+ let date=c.settings.cutoverDate;if(daysAgo){date=new Date(Date.parse(`${date}T00:00:00Z`)-daysAgo*86400000).toISOString().slice(0,10);const db=createDb(process.env.DATABASE_URL);try{await db.$client.query('update accounting_settings set cutover_date=$1 where entity_id=$2',[date,c.entityId]);c.settings.cutoverDate=date;}finally{await db.$client.end()}} // Isolated fixture representing books activated on an earlier day.
  const d=await c.req('POST','/purchase-invoices',{supplierId:supplier.id,gstRegistrationId:reg.id,supplierInvoiceNo:'SRC-001',supplierInvoiceDate:date,postingDate:date,lines:[{itemId:item.id,qty:'1',rate:'100',gstRate:'18'}]},201);
  await c.req('POST',`/purchase-invoices/${d.id}/submit`,{acceptRateVariance:true},201);
  const inv=await c.req('GET',`/purchase-invoices/${d.id}`);
  const claimInput={invoiceId:inv.id,postingDate:date,reason:'Supplier adjustment claim',lines:[{invoiceLineId:inv.lines[0].id,qty:'0',taxableAmount:'40'}]};
  return {c,supplier,reg,item,inv,date,claimInput};
 }
-export async function stockFixture(name='Supplier stock returns', rate='60') {
- const f=await fixture(name),{c,supplier,reg,date}=f;
+export async function stockFixture(name='Supplier stock returns', rate='60',daysAgo=0) {
+ const f=await fixture(name,daysAgo),{c,supplier,reg,date}=f;
  const uom=(await c.req('GET','/uoms')).find(x=>x.code==='NOS');
  await c.req('POST','/hsn-codes',{code:'7601',kind:'hsn',description:'Purchased metal',gstRate:'0',effectiveFrom:'2025-04-01'},201);
  const good=await c.req('POST','/items',{code:'GOOD',name:'Purchased return goods',type:'raw_material',tracking:'batch',stockUomId:uom.id,hsnCode:'7601'},201);
