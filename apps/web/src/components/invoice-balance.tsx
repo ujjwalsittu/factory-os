@@ -21,6 +21,8 @@ export function InvoiceBalance({
         carryingInr: string;
       }>(`/${type}-invoices/${id}/balance`, { scope: ws.scope }),
     retry: false,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
   if (q.error) return <Alert tone="danger">{q.error.message}</Alert>;
   return (

@@ -144,6 +144,7 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
       void qc.invalidateQueries({ queryKey: ['settlement', id] });
       void qc.invalidateQueries({ queryKey: ['open-bills'] });
       void qc.invalidateQueries({ queryKey: ['outstanding'] });
+      void qc.invalidateQueries({ queryKey: ['invoice-balance'] });
       if (!settlement && andSubmit) router.replace(`/app/accounts/settlements/${id}`);
     },
     onError: (e) => {
