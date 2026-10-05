@@ -116,13 +116,13 @@ type PartyPosition = {
 
 **Interfaces:** `SettlementService.previewIn(tx, ctx, entityId, input: SettlementInput): Promise<SettlementPreview>`; `saveIn(tx, ctx, entityId, id: string | null, input): Promise<{ id: string }>`; `submitIn(tx, ctx, entityId, id: string): Promise<{ voucherId: string | null }>`; `cancelIn(tx, ctx, entityId, id: string, reason: string): Promise<void>`. Receipt/payment side is derived from direction. APIs: `/accounts/settlements` GET/POST, `/accounts/settlements/preview` POST, `/accounts/settlements/:id` GET/PUT, and `/:id/submit`, `/:id/cancel` POST. Read-only lookup `/accounts/bills` filters party/side/currency.
 
-- [ ] Write failing API cases for receipt/payment full/partial/multiple bills; USD FX example; overpayment 120 against 100 creates 20 on account; wrong currency/party/entity/account; missing/inactive cash/bank or FX controls; INR rate other than 1; duplicate bill IDs; future/pre-cut-over/bill-recognition dates; zero amount; and permission denial.
-- [ ] Run new suite and observe missing settlement lifecycle failures.
-- [ ] Register `accounts.settlement` read/create/update/submit/cancel/export and scoped role grants. Implement Zod boundaries, scoped lookup, explicit draft updates, server preview and numbered submission using separate `customer_receipt`/`supplier_payment` entity/FY number-series types.
-- [ ] Build exact lines from carrying-value shares, source control accounts and current advance control mapping. Cash/bank uses gross document amount converted once; FX uses signed pure helper; any precision residual uses explicit rounding evidence. Store immutable allocation/share evidence and GL/source relationships, post/audit atomically. Do not touch inventory, GST or pending RCM.
-- [ ] Add real PostgreSQL races: two drafts competing for a USD 100 bill with 70 each; exactly one commits and the other receives insufficient-open validation. Retry submit/cancel creates no duplicate GL/effects. Fail submission inside writer and assert complete rollback.
-- [ ] Cancel using recorded lines/accounts/shares and current business date; inline allocations reverse with settlement. Assert unchanged results after altering rate/mapping masters and retention of historical as-of balances.
-- [ ] Verify suites and typecheck/build touched packages; commit locally: `Post customer receipts and supplier payments atomically`.
+- [x] Write failing API cases for receipt/payment full/partial/multiple bills; USD FX example; overpayment 120 against 100 creates 20 on account; wrong currency/party/entity/account; missing/inactive cash/bank or FX controls; INR rate other than 1; duplicate bill IDs; future/pre-cut-over/bill-recognition dates; zero amount; and permission denial.
+- [x] Run new suite and observe missing settlement lifecycle failures.
+- [x] Register `accounts.settlement` read/create/update/submit/cancel/export and scoped role grants. Implement Zod boundaries, scoped lookup, explicit draft updates, server preview and numbered submission using separate `customer_receipt`/`supplier_payment` entity/FY number-series types.
+- [x] Build exact lines from carrying-value shares, source control accounts and current advance control mapping. Cash/bank uses gross document amount converted once; FX uses signed pure helper; any precision residual uses explicit rounding evidence. Store immutable allocation/share evidence and GL/source relationships, post/audit atomically. Do not touch inventory, GST or pending RCM.
+- [x] Add real PostgreSQL races: two drafts competing for a USD 100 bill with 70 each; exactly one commits and the other receives insufficient-open validation. Retry submit/cancel creates no duplicate GL/effects. Fail submission inside writer and assert complete rollback.
+- [x] Cancel using recorded lines/accounts/shares and current business date; inline allocations reverse with settlement. Assert unchanged results after altering rate/mapping masters and retention of historical as-of balances.
+- [x] Verify suites and typecheck/build touched packages; commit locally: `Post customer receipts and supplier payments atomically`.
 
 ## Task 5: Later allocation and dependency reversals
 

@@ -138,9 +138,10 @@ export class GlPostingService {
     ctx: TenantRequestContext,
     entityId: string,
     date: string,
+    docType = 'journal_voucher',
+    code = 'JV',
   ) {
-    const fy = fyCode(new Date(`${date}T00:00:00Z`)),
-      docType = 'journal_voucher';
+    const fy = fyCode(new Date(`${date}T00:00:00Z`));
     await tx
       .insert(numberSeries)
       .values({
@@ -148,7 +149,7 @@ export class GlPostingService {
         entityId,
         docType,
         fy,
-        pattern: '{ENTITY}/JV/{FY}/{#####}',
+        pattern: `{ENTITY}/${code}/{FY}/{#####}`,
       })
       .onConflictDoNothing();
     const [n] = await tx

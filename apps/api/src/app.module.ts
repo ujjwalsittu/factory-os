@@ -1,3 +1,5 @@
+import { SettlementsController } from './modules/accounting/settlements.controller.js';
+import { SettlementService } from './modules/accounting/settlement.service.js';
 import { OutstandingReportsController } from './modules/accounting/outstanding-reports.controller.js';
 import { BillService } from './modules/accounting/bill.service.js';
 import { BillInitializationService } from './modules/accounting/bill-initialization.service.js';
@@ -33,7 +35,7 @@ import { SeriesController } from './modules/series.controller.js';
 import { WasteController } from './modules/waste.controller.js';
 
 @Module({
-  controllers: [OutstandingReportsController, AccountingReportsController, AccountingController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
+  controllers: [SettlementsController, OutstandingReportsController, AccountingReportsController, AccountingController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
   providers: [
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: DB, inject: [CONFIG], useFactory: (c: AppConfig) => createDb(c.DATABASE_URL) },
@@ -44,6 +46,7 @@ import { WasteController } from './modules/waste.controller.js';
     StockPostingService,
     GlPostingService,
     BillService,
+    SettlementService,
     BillInitializationService,
     OpeningService,
     OperationalPostings,
