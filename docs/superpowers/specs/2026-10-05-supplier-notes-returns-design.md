@@ -1,7 +1,7 @@
 # Supplier notes, return claims and purchase returns
 
 Date: 2026-10-05 (Asia/Kolkata)
-Status: Written spec awaiting user review; conversational design approved.
+Status: Approved by the user on 2026-10-05; implementation plan awaiting review.
 Execution preference: Native, on the default branch, as previously selected.
 
 ## Intent and approved scope

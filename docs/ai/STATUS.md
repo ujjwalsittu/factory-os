@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-05 · Supplier notes/returns written design awaiting review_
+_Last updated: 2026-10-05 · Supplier notes/returns approved design; plan awaiting review_
 
 ## Done
 - [x] **Customer credit/debit notes and sales returns** (decision037, additive0012/0013): original invoice/tax/accounts/currency snapshots, exact partial original-cost and zero-cost tracked-batch returns, automatic source application, remaining customer credit and typed later applications, scoped editor/list/print, immutable reversals and dependency/race guards. Build11/typecheck16/unit60, thirteen focused API fixtures530 reported checks, existing accounting/settlement/operational regressions and eight production browsers pass; lint has zero tasks. Independent review's two Important defects were reproduced/fixed; all four PostgreSQL race scenarios pass. Shared0011 and inactive shared books preserved. [Review/rulings](../superpowers/reviews/2026-10-05-sales-notes-returns-review.md).
@@ -71,7 +71,7 @@ _Last updated: 2026-10-05 · Supplier notes/returns written design awaiting revi
   - Independent review found seven Important defects, all reproduced and fixed; an additional fractional tax-allocation regression was fixed in the same pass. [Review, rulings and two deferred UI minors](../superpowers/reviews/2026-10-05-gl-core-review.md). No shared entity has been activated. Historical stock/GL date comparisons remain limited by existing stock reversal dating; current cumulative balances reconcile.
 
 ## In progress
-- **Supplier notes, return claims and purchase returns design** · owner: agent, Native default-branch session · started: 2026-10-05. Conversational sections approved, including four entity policies. Written spec self-reviewed: `docs/superpowers/specs/2026-10-05-supplier-notes-returns-design.md`; awaiting user review before decision acceptance and implementation planning. No product code or shared books changed.
+- **Supplier notes, return claims and purchase returns design** · owner: agent, Native default-branch session · started: 2026-10-05. Conversational sections approved, including four entity policies. Written spec approved; decision038 accepted. Seven-task plan `docs/superpowers/plans/2026-10-05-supplier-notes-returns.md` written and self-reviewed; awaiting plan review before Native execution. No product code or shared books changed.
 
 ## Next (in order; confirm with the user before starting)
 1. User review of accounts, receipts/payments, outstanding and customer notes/returns on dev. Books stay inactive until a Finance user activates an entity (decision 034); customer notes/returns received one independent review with all Important findings fixed.
