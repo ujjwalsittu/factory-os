@@ -1,7 +1,7 @@
 import { Dec, allocateNoteComponents, calculateReturnCost, gstCreditDeadline, type TaxComponents } from '@factoryos/core';
 import { accountingSettings, gstRegistration, item, journalVoucher, salesInvoice, salesInvoiceLine, salesNote, salesNoteLine, salesReturnEffect, stockLedgerEntry, stockEntryLine, warehouse } from '@factoryos/db';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import { businessDate, type Tx } from '../accounting/accounting-lock.js';
 import { BillService } from '../accounting/bill.service.js';
@@ -22,6 +22,21 @@ export class SalesNotePreviewService {
   if(!voucher)throw new ConflictException('Original invoice posting evidence is missing');
   const lines=await tx.select({line:salesInvoiceLine,stock:item.isStockItem}).from(salesInvoiceLine).innerJoin(item,eq(item.id,salesInvoiceLine.itemId)).where(eq(salesInvoiceLine.invoiceId,invoice.id));
   return {invoice,settings,voucher,lines};
+ }
+ async assertDebitCancellableIn(tx:Tx,ctx:TenantRequestContext,entityId:string,noteId:string,invoiceId:string){
+  const {lines}=await this.sourceIn(tx,ctx,entityId,invoiceId);
+  const siblings=await tx.select({n:salesNote,l:salesNoteLine}).from(salesNoteLine)
+   .innerJoin(salesNote,eq(salesNote.id,salesNoteLine.noteId))
+   .where(and(eq(salesNote.originalInvoiceId,invoiceId),eq(salesNote.entityId,entityId),eq(salesNote.tenantId,ctx.tenant.tenantId),eq(salesNote.status,'submitted'),ne(salesNote.id,noteId)));
+  for(const {line} of lines){
+   const rows=siblings.filter(x=>x.l.invoiceLineId===line.id);
+   const sum=(kind:'credit'|'debit',key:typeof keys[number],gstOnly=false)=>rows.filter(x=>x.n.kind===kind&&(!gstOnly||x.n.taxTreatment==='gst')).reduce((total,x)=>total.add(x.l[key]),Dec.ZERO);
+   const financial=Dec.of(line.taxableValue??'0').add(sum('debit','taxableValue'));
+   const gstBase=Dec.of(line.taxableValue??'0').add(sum('debit','taxableValue',true));
+   const invalid=sum('credit','taxableValue').gt(financial)||sum('credit','taxableValue',true).gt(gstBase)
+    ||keys.filter(k=>k!=='taxableValue').some(k=>sum('credit',k,true).gt(Dec.of(line[k]??'0').add(sum('debit',k,true))));
+   if(invalid)throw new ConflictException('Submitted credit notes depend on this debit value or GST ceiling; cancel those credits first');
+  }
  }
  async previewIn(tx:Tx,ctx:TenantRequestContext,entityId:string,input:NoteDraftInput):Promise<NotePreview>{
   const {invoice,lines,settings}=await this.sourceIn(tx,ctx,entityId,input.invoiceId);

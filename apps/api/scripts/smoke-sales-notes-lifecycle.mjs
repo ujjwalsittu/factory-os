@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
+import {gstin} from './accounting-test-helpers.mjs';
 import { fixture } from './sales-notes-test-helpers.mjs';
-const {c,inv,input,customer,invoice}=await fixture('Customer note lifecycle');
+const {c,inv,input,customer,item,invoice}=await fixture('Customer note lifecycle');
 const bill=(await c.req('GET',`/accounts/bills?partyId=${customer.id}&side=receivable`)).find(b=>b.sourceId===inv.id);
 const receipt=await c.req('POST','/accounts/settlements',{direction:'receipt',partyId:customer.id,postingDate:c.settings.cutoverDate,currency:'INR',exchangeRate:'1',accountId:c.account('bank'),amount:'70',allocations:[{billId:bill.id,amount:'70'}]},201);
 await c.req('POST',`/accounts/settlements/${receipt.id}/submit`,{});
@@ -16,7 +17,19 @@ await c.req('POST',`/sales-notes/${note.id}/submit`,{},409);
 await c.req('POST',`/sales-invoices/${inv.id}/cancel`,{reason:'Live note must block source cancellation'},409);
 const target=await invoice('20');
 const targetBill=(await c.req('GET',`/accounts/bills?partyId=${customer.id}&side=receivable`)).find(b=>b.sourceId===target.id);
+const otherRegistration=await c.req('POST',`/entities/${c.entityId}/gst-registrations`,{gstin:gstin('27AAACA1234B2Z')},201);
+let duplicate;
+for(let i=0;i<2;i++){
+ const draft=await c.req('POST','/sales-invoices',{customerId:customer.id,gstRegistrationId:otherRegistration.id,invoiceDate:c.settings.cutoverDate,placeOfSupplyStateCode:'27',lines:[{itemId:item.id,qty:'1',rate:'20',gstRate:'0'}]},201);
+ await c.req('POST',`/sales-invoices/${draft.id}/submit`,{},201);
+ duplicate=await c.req('GET',`/sales-invoices/${draft.id}`);
+}
+assert.equal(duplicate.number,target.number,'Distinct GST registrations can have the same printed invoice number');
+const duplicateBill=(await c.req('GET',`/accounts/bills?partyId=${customer.id}&side=receivable`)).find(b=>b.sourceId===duplicate.id);
+assert.equal(duplicateBill.reference,targetBill.reference);
 const application=await c.req('POST','/accounts/settlement-allocations',{creditNoteId:note.id,postingDate:c.settings.cutoverDate,reason:'Use remaining customer credit',allocations:[{billId:targetBill.id,amount:'10'}]},201);
+assert.equal((await c.req('GET',`/sales-invoices/${target.id}/balance`)).openAmount,'10.000000');
+assert.equal((await c.req('GET',`/sales-invoices/${duplicate.id}/balance`)).openAmount,'20.000000','Duplicate display references do not choose the applied bill');
 await c.req('POST',`/sales-notes/${note.id}/cancel`,{reason:'Live application prevents credit reversal'},409);
 await c.req('POST',`/accounts/settlement-allocations/${application.id}/cancel`,{reason:'Release note credit before cancellation'},200);
 await c.req('POST',`/sales-notes/${note.id}/cancel`,{reason:'Restore original invoice balance'},201);

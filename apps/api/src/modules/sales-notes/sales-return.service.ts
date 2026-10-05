@@ -1,5 +1,5 @@
 import {Dec,splitAcquisitionCost,type AccountingLine} from '@factoryos/core';
-import {accountingSettings,fifoLayer,glEntry,journalVoucher,salesInvoice,salesInvoiceLine,salesNote,salesNoteLine,salesReturnEffect,stockEntry,stockEntryLine,stockLedgerEntry} from '@factoryos/db';
+import {accountingSettings,fifoLayer,glDisposition,glEntry,journalVoucher,salesInvoice,salesInvoiceLine,salesNote,salesNoteLine,salesReturnEffect,stockEntry,stockEntryLine,stockLedgerEntry} from '@factoryos/db';
 import {ConflictException,Injectable} from '@nestjs/common';
 import {and,eq,sql} from 'drizzle-orm';
 import type {TenantRequestContext} from '../../common/access.js';
@@ -27,10 +27,17 @@ export class SalesReturnService {
    const p=lines[row.sl.lineNo-1]!,[noteLine]=await tx.select().from(salesNoteLine).where(and(eq(salesNoteLine.noteId,noteId),eq(salesNoteLine.invoiceLineId,p.invoiceLineId)));
    await tx.insert(salesReturnEffect).values({tenantId:ctx.tenant.tenantId,entityId,noteId,noteLineId:noteLine!.id,originalLedgerSeq:p.originalLedgerSeq!,originalQty:p.originalQty!,originalValue:p.originalValue!,qty:p.returnQty,value:p.returnValueInr,inboundLedgerSeq:row.s.seq,layerId:row.l.id});
   }
+  const exact=lines.reduce((s,x)=>s.add(x.returnValueInr),Dec.ZERO),represented=posted.reduce((s,x)=>s.add(x.s.value),Dec.ZERO),residual=exact.sub(represented);
+  if(exact.isZero()&&represented.isZero()){
+   const [sourceDisposition]=await tx.select().from(glDisposition).where(and(eq(glDisposition.tenantId,ctx.tenant.tenantId),eq(glDisposition.entityId,entityId),eq(glDisposition.sourceType,'stock_entry'),eq(glDisposition.sourceId,invoice!.stockEntryId!),eq(glDisposition.purpose,'main')));
+   if(!sourceDisposition||!['posted','no_value_change'].includes(sourceDisposition.reason))throw new ConflictException('Original dispatch posting evidence missing');
+   await this.gl.postIn(tx,ctx,entityId,{type:'sales_return',id:entry!.id,purpose:'main',number:note.number},note.postingDate,{lines:[],disposition:'no_value_change'});
+   return {stockEntryId:entry!.id,valueInr:'0.000000'};
+  }
   const originals=await tx.select({e:glEntry,v:journalVoucher.id}).from(glEntry).innerJoin(journalVoucher,eq(journalVoucher.id,glEntry.voucherId)).where(and(eq(glEntry.tenantId,ctx.tenant.tenantId),eq(glEntry.entityId,entityId),eq(journalVoucher.sourceType,'stock_entry'),eq(journalVoucher.sourceId,invoice!.stockEntryId!),sql`${journalVoucher.reversalOf} is null`));
   const inventory=originals.find(x=>Dec.of(x.e.credit).gt('0')),expense=originals.find(x=>Dec.of(x.e.debit).gt('0'));
   if(!inventory||!expense)throw new ConflictException('Original dispatch account evidence missing');
-  const exact=lines.reduce((s,x)=>s.add(x.returnValueInr),Dec.ZERO),represented=posted.reduce((s,x)=>s.add(x.s.value),Dec.ZERO),residual=exact.sub(represented);
+
   const plan:AccountingLine[]=[];
   if(!represented.isZero())plan.push({accountId:inventory.e.accountId,debit:represented.toFixed(6),credit:'0'});
   if(!exact.isZero())plan.push({accountId:expense.e.accountId,debit:'0',credit:exact.toFixed(6)});

@@ -75,6 +75,7 @@ export class SalesNoteService {
  async cancelIn(tx:Tx,ctx:TenantRequestContext,entityId:string,id:string,reason:string){
   await lockAccounting(tx,entityId);const note=await this.noteIn(tx,ctx,entityId,id,true);
   if(note.status!=='submitted')throw new ConflictException('Only submitted notes can be cancelled');
+  if(note.kind==='debit')await this.preview.assertDebitCancellableIn(tx,ctx,entityId,id,note.originalInvoiceId);
   const dependencies=await tx.select().from(settlementAllocationDocument).where(and(eq(settlementAllocationDocument.entityId,entityId),eq(settlementAllocationDocument.creditNoteId,id),eq(settlementAllocationDocument.status,'submitted')));
   if(dependencies.length)throw new ConflictException(`Reverse applications ${dependencies.map(d=>d.number).join(', ')} first`);
   await this.credits.reverseIn(tx,ctx,entityId,id,reason);
