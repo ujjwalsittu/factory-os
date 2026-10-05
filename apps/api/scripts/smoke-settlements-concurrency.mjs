@@ -8,7 +8,7 @@ const db = createDb(process.env.DATABASE_URL);
 try {
   await c.init('Settlement concurrency');
   const p = await c.req('POST', '/parties', { code: 'CUS', name: 'Concurrent customer', isCustomer: true, gstTreatment: 'unregistered' }, 201);
-  await c.activate([{ ...c.line('debtors', '8000'), partyId: p.id, billReference: 'RACE' }, c.line('equity', '0', '8000')], [], [{ partyId: p.id, reference: 'RACE', side: 'debit', amount: '8000', currency: 'USD', exchangeRate: '80', originalAmount: '100' }]);
+  await c.activate([{ ...c.line('debtors', '16000'), partyId: p.id, billReference: 'RACE' }, c.line('equity', '0', '16000')], [], [{ partyId: p.id, reference: 'RACE', side: 'debit', amount: '8000', currency: 'USD', exchangeRate: '80', originalAmount: '100' }, { partyId: p.id, reference: 'RACE2', side: 'debit', amount: '8000', currency: 'USD', exchangeRate: '80', originalAmount: '100' }]);
   const bill = (await c.req('GET', '/accounts/bills'))[0];
   const input = { direction: 'receipt', partyId: p.id, postingDate: c.settings.cutoverDate, currency: 'USD', exchangeRate: '83', accountId: c.account('bank'), amount: '70', bankReference: '', narration: 'Competing receipt allocation', allocations: [{ billId: bill.id, amount: '70' }] };
   const a = await c.req('POST', '/accounts/settlements', input, 201), b = await c.req('POST', '/accounts/settlements', input, 201);
@@ -34,6 +34,18 @@ try {
     await db.$client.query(`DROP TRIGGER IF EXISTS ${name} ON gl_entry`);
     await db.$client.query(`DROP FUNCTION ${name}()`);
   }
+  assert.deepEqual((await c.req('GET', '/accounts/trade-reconciliation')).differences, []);
+  await c.req('POST', `/accounts/settlements/${winner.id}/cancel`, { reason: 'Release initial concurrent receipt' });
+  const otherBill = (await c.req('GET', '/accounts/bills')).find(b => b.id !== bill.id);
+  const advance = await c.req('POST', '/accounts/settlements', { ...input, amount: '100', allocations: [] }, 201);
+  await c.req('POST', `/accounts/settlements/${advance.id}/submit`, {});
+  const allocationInput = { settlementId: advance.id, postingDate: c.settings.cutoverDate, reason: 'Concurrent advance allocation', allocations: [{ billId: bill.id, amount: '70' }] };
+  const aa = await c.req('POST', '/accounts/settlement-allocations', allocationInput, 201);
+  const bb = await c.req('POST', '/accounts/settlement-allocations', { ...allocationInput, allocations: [{ billId: otherBill.id, amount: '70' }] }, 201);
+  const advanceRace = await Promise.all([c.raw('POST', `/accounts/settlement-allocations/${aa.id}/submit`, {}), c.raw('POST', `/accounts/settlement-allocations/${bb.id}/submit`, {})]);
+  assert.deepEqual(advanceRace.map(r => r.status).sort(), [200, 400]);
+  const sourceAdvance = (await c.req('GET', '/accounts/bills')).find(b => b.sourceType === 'settlement');
+  assert.equal(sourceAdvance.openAmount, '-30.000000');
   assert.deepEqual((await c.req('GET', '/accounts/trade-reconciliation')).differences, []);
   console.log('PASS concurrent bill consumption, duplicate rejection and transactional posting rollback', c.checks);
 } finally { await db.$client.end(); }

@@ -130,12 +130,12 @@ type PartyPosition = {
 
 **Interfaces:** `SettlementAllocationService.previewIn(tx, ctx, entityId, input: LaterAllocationInput): Promise<SettlementPreview>`; `createIn(tx, ctx, entityId, input): Promise<{ id: string }>`; `submitIn(tx, ctx, entityId, id: string): Promise<{ voucherId: string | null }>`; `cancelIn(tx, ctx, entityId, id: string, reason: string): Promise<void>`. APIs `/accounts/settlement-allocations` GET/POST, `/preview` POST, `/:id` GET, `/:id/submit` and `/:id/cancel` POST; no draft update needed initially, rejected drafts may be recreated. Number-series type `settlement_allocation`.
 
-- [ ] Add failing tests: apply 40 then final 60 from a USD 100 advance carried at INR 8,300 against a USD 100 bill carried at INR 8,000; total advance consumption 8,300, bill consumption 8,000, FX difference 300 with no repeated bank movement. Same-rate/same-account allocation records no-value disposition and still settles bill.
-- [ ] Add date/party/currency/source-status and over-consumption denials; concurrent 70/70 claims against a 100 advance; settlement and invoice cancellation blocked by surviving allocation IDs; reversal reopens both bill and advance exactly after mappings change.
-- [ ] Run settlement/concurrency suites and confirm new cases fail.
-- [ ] Implement later allocation with inherited source metadata, current balance reload, original source/bill carrying shares, cross-control reclassification, unique no-value disposition where applicable, immutable evidence, same-Tx audit, and separate lifecycle permissions via accounts.settlement.
-- [ ] Implement cancellation dependency checks and exact reversing effects. Add tests proving later allocation cancellation leaves original bank GL untouched, permits subsequent source cancellation, and cannot double-release funds on retries.
-- [ ] Verify settlement/concurrency suites and commit locally: `Allocate on-account settlements with exact reversals`.
+- [x] Add failing tests: apply 40 then final 60 from a USD 100 advance carried at INR 8,300 against a USD 100 bill carried at INR 8,000; total advance consumption 8,300, bill consumption 8,000, FX difference 300 with no repeated bank movement. Same-rate/same-account allocation records no-value disposition and still settles bill.
+- [x] Add date/party/currency/source-status and over-consumption denials; concurrent 70/70 claims against a 100 advance; settlement and invoice cancellation blocked by surviving allocation IDs; reversal reopens both bill and advance exactly after mappings change.
+- [x] Run settlement/concurrency suites and confirm new cases fail.
+- [x] Implement later allocation with inherited source metadata, current balance reload, original source/bill carrying shares, cross-control reclassification, unique no-value disposition where applicable, immutable evidence, same-Tx audit, and separate lifecycle permissions via accounts.settlement.
+- [x] Implement cancellation dependency checks and exact reversing effects. Add tests proving later allocation cancellation leaves original bank GL untouched, permits subsequent source cancellation, and cannot double-release funds on retries.
+- [x] Verify settlement/concurrency suites and commit locally: `Allocate on-account settlements with exact reversals`.
 
 ## Task 6: Outstanding, ageing, credit and MSME integration
 
