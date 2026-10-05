@@ -67,7 +67,9 @@ _Last updated: 2026-10-05 · AR/AP written design approved; implementation plan 
   - Independent review found seven Important defects, all reproduced and fixed; an additional fractional tax-allocation regression was fixed in the same pass. [Review, rulings and two deferred UI minors](../superpowers/reviews/2026-10-05-gl-core-review.md). No shared entity has been activated. Historical stock/GL date comparisons remain limited by existing stock reversal dating; current cumulative balances reconcile.
 
 ## In progress
-- **AR/AP settlements design**: core receipts/payments, bill allocation, opening balances, on-account allocation, FX and credit/MSME balance integration; TDS/TCS deferred by user scope approval. Written specification approved. Implementation plan: `docs/superpowers/plans/2026-10-05-ar-ap-settlements.md`. Exact stopping point: user review of written plan and execution-method selection (Native recommended), then implementation. No product implementation started.
+- **AR/AP settlements** — implementing `docs/superpowers/plans/2026-10-05-ar-ap-settlements.md` (decision 036).
+  *Owner:* Claude Code cloud session on branch `claude/zealous-allen-35g1vm` · *started:* 2026-10-05.
+  User said "keep going" after the audit; other agents must not start this task (AGENTS.md L11).
 
 ## Next (in order; confirm with the user before starting)
 1. **AR/AP settlements** — customer receipts and supplier payments, bill allocation, credit-warning and MSME balance integration; complete the wider GL/AR/AP roadmap.
