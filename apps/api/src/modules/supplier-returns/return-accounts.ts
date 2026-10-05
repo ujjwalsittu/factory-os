@@ -1,0 +1,14 @@
+import {accountingSettings,glAccount,glEntry,journalVoucher,supplierReturnEffect} from '@factoryos/db';
+import {and,eq,inArray,isNull} from 'drizzle-orm';
+import {ConflictException} from '@nestjs/common';
+import type {TenantRequestContext} from '../../common/access.js';
+import type {Tx} from '../accounting/accounting-lock.js';
+/** Recover the pending control from actual dispatch evidence; never clear a remapped control. */
+export async function returnAccountsIn(tx:Tx,ctx:TenantRequestContext,e:string,claimLineId?:string){
+ const [settings]=await tx.select().from(accountingSettings).where(and(eq(accountingSettings.entityId,e),eq(accountingSettings.tenantId,ctx.tenant.tenantId)));
+ const accounts=await tx.select().from(glAccount).where(and(eq(glAccount.entityId,e),eq(glAccount.tenantId,ctx.tenant.tenantId)));
+ const selected=(role:string)=>{const id=settings?.mappings[role]??accounts.find(x=>x.role===role)?.id;if(!id)throw new ConflictException(`Configure ${role} account`);return id};
+ const evidenceVoucherIds:string[]=[];let pending=selected('pending_returns');
+ if(claimLineId){const returns=await tx.select().from(supplierReturnEffect).where(and(eq(supplierReturnEffect.entityId,e),eq(supplierReturnEffect.tenantId,ctx.tenant.tenantId),eq(supplierReturnEffect.claimLineId,claimLineId),isNull(supplierReturnEffect.reversalOf)));if(returns.length){const vouchers=await tx.select().from(journalVoucher).where(and(eq(journalVoucher.entityId,e),eq(journalVoucher.tenantId,ctx.tenant.tenantId),eq(journalVoucher.sourceType,'purchase_return'),inArray(journalVoucher.sourceId,returns.map(r=>r.stockEntryId)),isNull(journalVoucher.reversalOf)));evidenceVoucherIds.push(...vouchers.map(v=>v.id));if(vouchers.length){const lines=await tx.select().from(glEntry).where(and(eq(glEntry.entityId,e),inArray(glEntry.voucherId,evidenceVoucherIds)));const controls=new Set([selected('pending_returns'),...(settings?.controlHistory.pending_returns??[]),...accounts.filter(a=>a.role==='pending_returns').map(a=>a.id)]);const used=[...new Set(lines.filter(l=>controls.has(l.accountId)).map(l=>l.accountId))];if(used.length>1)throw new ConflictException('Multiple historical pending-return controls require Finance review');if(used[0])pending=used[0];}}}
+ return {pending,inventory:selected('inventory'),variance:selected('return_variance'),rounding:selected('rounding'),evidenceVoucherIds};
+}

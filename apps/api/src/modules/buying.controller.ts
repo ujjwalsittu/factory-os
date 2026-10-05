@@ -1,3 +1,4 @@
+import {supplierReturnClaim,supplierNote} from '@factoryos/db';
 import { OperationalPostings } from './accounting/operational-postings.js';
 import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
@@ -692,6 +693,9 @@ export class BuyingController {
       const [inv] = await tx.select().from(purchaseInvoice).where(and(eq(purchaseInvoice.id, id), eq(purchaseInvoice.entityId, entityId))).for('update');
       if (!inv) throw new NotFoundException('Purchase invoice not found');
       if (inv.status !== 'submitted') throw new ConflictException('Only submitted invoices can be cancelled');
+      const [claimDependency]=await tx.select().from(supplierReturnClaim).where(and(eq(supplierReturnClaim.entityId,entityId),eq(supplierReturnClaim.originalInvoiceId,id),eq(supplierReturnClaim.status,'submitted')));
+      const [noteDependency]=await tx.select().from(supplierNote).where(and(eq(supplierNote.entityId,entityId),eq(supplierNote.originalInvoiceId,id),eq(supplierNote.status,'submitted')));
+      if(claimDependency||noteDependency)throw new ConflictException('Resolve and cancel dependent supplier claims/notes first');
       await this.accounting.cancelPurchaseIn(tx, ctx, entityId, id, reason);
       const lines = await tx.select().from(purchaseInvoiceLine).where(eq(purchaseInvoiceLine.invoiceId, id));
       for (const l of lines.filter((x) => x.poLineId)) {

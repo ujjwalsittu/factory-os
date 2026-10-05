@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {stockFixture} from './supplier-returns-test-helpers.mjs';
+const {c,claim}=await stockFixture('Supplier rejected response');
+const body={reason:'Supplier rejects the remaining return',lines:[{claimLineId:claim.lines[0].id,qty:'2',taxableAmount:'120'}]};
+await c.req('POST',`/buying/return-claims/${claim.id}/reject`,body,201);
+const result=await c.req('GET',`/buying/return-claims/${claim.id}`);
+assert.equal(result.responses.length,1);assert.equal(result.responses[0].after.suggestedAction,'keep_open');assert.equal(result.lines[0].pendingValueInr,'0.000000');
+assert.equal(result.snapshots.supplierName,'Return supplier');assert.equal(result.snapshots.originalInvoiceNumber,'GOODS-001');
+await c.req('POST',`/buying/return-claims/${claim.id}/reject`,{...body,lines:[{...body.lines[0],qty:'11'}]},409);
+console.log(`PASS rejection response, snapshots and no automatic financial effect ${c.checks} request checks`);

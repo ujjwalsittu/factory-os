@@ -211,9 +211,9 @@ export class GlPostingService {
       throw new ConflictException('This source has already been accounted for');
     let voucherId: string | null = null;
     if (plan.disposition === 'posted') {
-      const evidence = ['sales_note','sales_note_application','sales_return'].includes(source.type) && source.evidenceVoucherIds?.length
+      const evidence = ['sales_note','sales_note_application','sales_return','supplier_note','supplier_note_application','purchase_return','purchase_return_receipt','supplier_return_resolution'].includes(source.type) && source.evidenceVoucherIds?.length
         ? await tx.select({id:glEntry.accountId}).from(glEntry).where(and(eq(glEntry.tenantId,ctx.tenant.tenantId),eq(glEntry.entityId,entityId),inArray(glEntry.voucherId,source.evidenceVoucherIds))) : [];
-      await this.validateLines(tx, ctx, entityId, plan.lines, false, ['settlement', 'settlement_allocation', 'sales_note_application'].includes(source.type),new Set(evidence.map(x=>x.id)));
+      await this.validateLines(tx, ctx, entityId, plan.lines, false, ['settlement', 'settlement_allocation', 'sales_note_application','supplier_note_application'].includes(source.type),new Set(evidence.map(x=>x.id)));
       const number = await this.number(tx, ctx, entityId, postingDate);
       const [v] = await tx
         .insert(journalVoucher)

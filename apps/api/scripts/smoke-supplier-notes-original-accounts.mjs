@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {createDb} from '../../../packages/db/dist/index.js';
+import {fixture} from './supplier-returns-test-helpers.mjs';
+const {c,inv,supplier,date}=await fixture('Supplier original inactive accounts');const db=createDb(process.env.DATABASE_URL);
+try{const roles=['creditors','purchases','input_cgst','input_sgst'];const old=Object.fromEntries(roles.map(r=>[r,c.accounts.find(a=>a.role===r)]));const mappings={...c.settings.mappings};for(const r of roles){const a=await c.req('POST','/accounts/accounts',{code:`NEW_${r}`,name:`Replacement ${r}`,groupId:old[r].groupId},201);mappings[r]=a.id}await c.req('PUT','/accounts/settings',{mappings});for(const r of roles)await c.req('PUT',`/accounts/accounts/${old[r].id}`,{isActive:false});
+ const input={invoiceId:inv.id,kind:'credit',taxTreatment:'gst',supplierNoteNo:'OLD-CN',supplierNoteDate:date,postingDate:date,reason:'Correct original inactive purchase accounts',taxEligibilityConfirmed:true,lines:[{invoiceLineId:inv.lines[0].id,mode:'value',taxableAmount:'40'}]};const d=await c.req('POST','/buying/supplier-notes',input,201);const n=await c.req('POST',`/buying/supplier-notes/${d.id}/submit`,{},201);const rows=(await db.$client.query('select distinct account_id from gl_entry where voucher_id=$1',[n.voucherId])).rows.map(x=>x.account_id);assert.deepEqual(new Set(rows),new Set(roles.map(r=>old[r].id)));
+ await c.req('POST','/buying/supplier-notes/preview',{...input,accountId:old.creditors.id},400);
+ await c.req('POST','/accounts/journals',{postingDate:date,narration:'Manual inactive account forbidden',lines:[{accountId:old.creditors.id,debit:'1',credit:'0',partyId:supplier.id,billReference:'OLD'},{accountId:old.purchases.id,debit:'0',credit:'1'}]},400);
+ await c.req('POST',`/buying/supplier-notes/${n.id}/cancel`,{reason:'Reverse original account evidence'},201);assert.ok((await c.req('GET','/accounts/trade-reconciliation')).every(x=>x.difference==='0.000000'));console.log(`PASS original inactive supplier accounts and narrow guards ${c.checks} request checks`)
+}finally{await db.$client.end()}

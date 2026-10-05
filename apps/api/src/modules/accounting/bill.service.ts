@@ -56,7 +56,7 @@ export interface NewEffect {
 }
 
 /** Vouchers whose trade-control lines are written as bill effects by their own service, not by GL sync. */
-const SELF_RECORDED = ['settlement', 'settlement_allocation', 'opening', 'sales_note', 'sales_note_application', 'sales_return'];
+const SELF_RECORDED = ['settlement', 'settlement_allocation', 'opening', 'sales_note', 'sales_note_application', 'sales_return', 'supplier_note', 'supplier_note_application', 'purchase_return', 'supplier_return_resolution'];
 const INVOICE_SOURCES: Record<string, TradeSide> = { sales_invoice: 'receivable', purchase_invoice: 'payable' };
 
 /**

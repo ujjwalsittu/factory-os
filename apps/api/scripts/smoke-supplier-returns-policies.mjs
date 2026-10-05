@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import { createDb } from '../../../packages/db/dist/index.js';
+import { Client } from './accounting-test-helpers.mjs';
+import { fixture } from './supplier-returns-test-helpers.mjs';
+const {c,claimInput}=await fixture('Supplier policy');
+const db=createDb(process.env.DATABASE_URL);
+try {
+ const p=await c.req('GET','/buying/return-policy');
+ assert.equal(p.dispatchApproval,'pending_allowed');assert.equal(p.claimApproval,'every');assert.equal(p.creditApplication,'automatic');assert.equal(p.rejectedAction,'keep_open');
+ const count=async()=> (await db.$client.query('select (select count(*) from gl_entry where entity_id=$1)::int gl,(select count(*) from trade_bill_effect where entity_id=$1)::int bills,(select count(*) from stock_ledger_entry where entity_id=$1)::int stock',[c.entityId])).rows[0];
+ const before=await count();
+ const claim=await c.req('POST','/buying/return-claims',claimInput,201);
+ await c.req('POST',`/buying/return-claims/${claim.id}/submit`,{},201);
+ const submitted=await c.req('GET',`/buying/return-claims/${claim.id}`);
+ assert.equal(submitted.approvedBy,null);assert.equal(submitted.policySnapshot.claimApproval,'every');
+ await c.req('PUT',`/buying/return-claims/${claim.id}`,claimInput,409);
+ await c.req('POST',`/buying/return-claims/${claim.id}/approve`,{reason:'Approve supplier claim'},201);
+ assert.ok((await c.req('GET',`/buying/return-claims/${claim.id}`)).approvedBy);
+ assert.deepEqual(await count(),before,'Claims do not create financial or stock entries');
+ const custom={...p,claimApproval:'above_threshold',approvalThresholdInr:'100',creditApplication:'manual'};
+ await c.req('PUT','/buying/return-policy',custom);
+ const second=await c.req('POST','/buying/return-claims',claimInput,201);
+ await c.req('POST',`/buying/return-claims/${second.id}/submit`,{},201);
+ assert.ok((await c.req('GET',`/buying/return-claims/${second.id}`)).approvedBy);
+ const role=await c.req('POST','/roles',{name:'Claim preparer',permissions:['buying.return_claim.read','buying.return_claim.create','buying.return_claim.update','buying.return_claim.submit','buying.return_policy.read']},201);
+ const viewer=new Client(), email=`supplier-viewer${Date.now()}@example.com`;
+ const invite=await c.req('POST','/invitations',{email,roles:[{roleId:role.id,entityIds:[c.entityId]}]},201);
+ await viewer.req('POST','/auth/sign-up/email',{name:'Claim preparer',email,password:'Sup3r-secret-pw'});
+ await viewer.req('POST','/invitations/accept',{token:invite.inviteUrl.split('/').at(-1)},201);viewer.tenantId=c.tenantId;viewer.entityId=c.entityId;
+ await viewer.req('GET',`/buying/return-claims/${claim.id}`);
+ await viewer.req('PUT','/buying/return-policy',custom,403);
+ await viewer.req('POST',`/buying/return-claims/${claim.id}/approve`,{reason:'No approval permission'},403);
+ await c.req('PUT','/buying/return-policy',{...p,approvalThresholdInr:'-1'},400);
+ const audits=await db.$client.query("select before,after from audit_event where entity_id=$1 and action='supplier_return_policy.update'",[c.entityId]);
+ assert.ok(audits.rowCount);assert.equal(audits.rows[0].after.creditApplication,'manual');
+ console.log(`PASS supplier claim policies ${c.checks} request checks`);
+}finally {await db.$client.end();}

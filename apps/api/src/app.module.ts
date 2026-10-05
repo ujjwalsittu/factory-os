@@ -1,3 +1,12 @@
+import {SupplierReturnResolutionService} from './modules/supplier-returns/resolution.service.js';
+import {SupplierCreditApplicationService} from './modules/supplier-returns/credit-application.service.js';
+import {SupplierNotePostingService} from './modules/supplier-returns/note-posting.service.js';
+import {SupplierNotePreviewService} from './modules/supplier-returns/preview.service.js';
+import {SupplierNoteService} from './modules/supplier-returns/note.service.js';
+import {SupplierReturnMovementService} from './modules/supplier-returns/movement.service.js';
+import { SupplierReturnPolicyService } from './modules/supplier-returns/policy.service.js';
+import { SupplierReturnClaimService } from './modules/supplier-returns/claim.service.js';
+import { SupplierReturnsController } from './modules/supplier-returns/supplier-returns.controller.js';
 import { SalesNoteService } from './modules/sales-notes/sales-note.service.js';
 import { SalesReturnService } from './modules/sales-notes/sales-return.service.js';
 import { CreditApplicationService } from './modules/sales-notes/credit-application.service.js';
@@ -40,8 +49,8 @@ import { SeriesController } from './modules/series.controller.js';
 import { WasteController } from './modules/waste.controller.js';
 
 @Module({
-  controllers: [SalesNotesController,InvoiceBalancesController, AccountingReportsController, AccountingController, SettlementsController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
-  providers: [SalesNoteService, SalesReturnService, CreditApplicationService, SalesNotePostingService, SalesNotePreviewService,
+  controllers: [SupplierReturnsController,SalesNotesController,InvoiceBalancesController, AccountingReportsController, AccountingController, SettlementsController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
+  providers: [SupplierReturnResolutionService,SupplierNoteService,SupplierNotePreviewService,SupplierNotePostingService,SupplierCreditApplicationService,SupplierReturnMovementService,SupplierReturnPolicyService,SupplierReturnClaimService,SalesNoteService, SalesReturnService, CreditApplicationService, SalesNotePostingService, SalesNotePreviewService,
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: DB, inject: [CONFIG], useFactory: (c: AppConfig) => createDb(c.DATABASE_URL) },
     { provide: AUTH, inject: [DB, CONFIG], useFactory: (db: Database, c: AppConfig) => createAuth(db, c) },

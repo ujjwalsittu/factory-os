@@ -48,6 +48,8 @@ export const DEFAULT_SERIES: Record<string, string> = {
   debit_note: '{ENTITY}/DN/{FY}/{####}',
   customer_receipt: '{ENTITY}/RCT/{FY}/{#####}',
   supplier_payment: '{ENTITY}/PAY/{FY}/{#####}',
+  supplier_return_claim: '{ENTITY}/PRC/{FY}/{#####}',
+  supplier_note: '{ENTITY}/PN/{FY}/{#####}',
   settlement_allocation: '{ENTITY}/ADJ/{FY}/{#####}',
 };
 
@@ -285,7 +287,7 @@ export class StockPostingService {
         .set({ status: 'submitted', number, submittedBy: ctx.user.id, submittedAt: new Date(), updatedAt: new Date() })
         .where(eq(stockEntry.id, entryId))
         .returning();
-      if(entry.purpose!=='sales_return')await this.accounting.stockIn(tx, ctx, entityId, after!);
+      if(!['sales_return','purchase_return','purchase_return_receipt'].includes(entry.purpose))await this.accounting.stockIn(tx, ctx, entityId, after!);
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'stock_entry.submit', targetType: 'stock_entry', targetId: entryId, after: { number, purpose: entry.purpose } }, tx);
       return after!;
     }
@@ -307,7 +309,7 @@ export class StockPostingService {
     {
       const entry = await this.lockEntry(tx, entityId, entryId);
       if (entry.status !== 'submitted') throw new ConflictException('Only submitted entries can be cancelled');
-      await this.gl.reverseIn(tx, ctx, entityId, { type: entry.purpose==='sales_return'?'sales_return':'stock_entry', id: entryId, purpose: 'main' }, reason);
+      await this.gl.reverseIn(tx, ctx, entityId, { type: ['sales_return','purchase_return','purchase_return_receipt'].includes(entry.purpose)?entry.purpose:'stock_entry', id: entryId, purpose: 'main' }, reason);
       // Decision 028: landed cost sits on top of the receipt's value; it must go first.
       const [lcv] = await tx
         .select({ number: landedCostVoucher.number })
@@ -472,8 +474,8 @@ export class StockPostingService {
 
 /** receipt → in; issue → out; transfer → transfer; adjustment → in or out depending on which warehouse is set. */
 function lineDirection(purpose: string, line: Line): 'in' | 'out' | 'transfer' {
-  if (purpose === 'receipt') return 'in';
-  if (purpose === 'issue' || purpose === 'return' || purpose === 'scrap' || purpose === 'delivery') return 'out';
+  if (purpose === 'receipt' || purpose === 'purchase_return_receipt') return 'in';
+  if (purpose === 'issue' || purpose === 'return' || purpose === 'scrap' || purpose === 'delivery' || purpose === 'purchase_return') return 'out';
   if (purpose === 'transfer') return 'transfer';
   if (line.toWarehouseId && !line.fromWarehouseId) return 'in';
   if (line.fromWarehouseId && !line.toWarehouseId) return 'out';

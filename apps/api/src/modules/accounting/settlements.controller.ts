@@ -35,10 +35,11 @@ const settlementInput = z.object({
 const allocationInput = z.object({
   settlementId: z.string().uuid().optional(),
   creditNoteId: z.string().uuid().optional(),
+  supplierNoteId: z.string().uuid().optional(),
   postingDate: z.string().date(),
   reason: z.string().trim().min(3).max(500),
   allocations: z.array(allocation).min(1).max(200),
-}).refine(x=>!!x.settlementId!==!!x.creditNoteId,'Choose exactly one receipt or credit-note source');
+}).strict().refine(x=>[x.settlementId,x.creditNoteId,x.supplierNoteId].filter(Boolean).length===1,'Choose exactly one settlement or credit-note source');
 const reasonInput = z.object({ reason: z.string().trim().min(5).max(500) });
 const BUCKETS = [
   { key: 'not_due', label: 'Not due', max: 0 },

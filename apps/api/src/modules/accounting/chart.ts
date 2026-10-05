@@ -9,6 +9,8 @@ import type { Tx } from './accounting-lock.js';
 export const DEFAULT_ACCOUNTS = [
   ['cash', 'Cash', 'Cash-in-Hand', 'asset'],
   ['bank', 'Bank', 'Bank Accounts', 'asset'],
+  ['pending_returns', 'Pending supplier returns', 'Current Assets', 'asset'],
+  ['return_variance', 'Purchase return variance', 'Direct Expenses', 'expense'],
   ['inventory', 'Inventory', 'Stock-in-Hand', 'asset'],
   ['debtors', 'Trade receivables', 'Sundry Debtors', 'asset'],
   ['creditors', 'Trade payables', 'Sundry Creditors', 'liability'],
