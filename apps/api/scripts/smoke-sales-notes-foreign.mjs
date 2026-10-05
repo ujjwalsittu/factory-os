@@ -3,7 +3,7 @@ import {fixture} from './sales-notes-test-helpers.mjs';
 const {c,item,reg}=await fixture('Foreign customer credits');
 const customer=await c.req('POST','/parties',{code:'EXP',name:'LUT overseas customer',isCustomer:true,gstTreatment:'overseas'},201);
 await c.req('PATCH',`/gst-registrations/${reg.id}`,{lutArn:'AD270326001234X',lutValidFrom:'2026-04-01',lutValidTo:'2027-03-31'});
-async function invoice(amount,rate){let n=await c.req('POST','/sales-invoices',{customerId:customer.id,gstRegistrationId:reg.id,invoiceDate:c.settings.cutoverDate,supplyType:'export_under_lut',currency:'USD',exchangeRate:rate,placeOfSupplyStateCode:'96',lines:[{itemId:item.id,qty:'1',rate:amount,gstRate:'0'}]},201);await c.req('POST',`/sales-invoices/${n.id}/submit`,{},201);return c.req('GET',`/sales-invoices/${n.id}`);}
+async function invoice(amount,rate,currency='USD'){let n=await c.req('POST','/sales-invoices',{customerId:customer.id,gstRegistrationId:reg.id,invoiceDate:c.settings.cutoverDate,supplyType:'export_under_lut',currency,exchangeRate:rate,placeOfSupplyStateCode:'96',lines:[{itemId:item.id,qty:'1',rate:amount,gstRate:'0'}]},201);await c.req('POST',`/sales-invoices/${n.id}/submit`,{},201);return c.req('GET',`/sales-invoices/${n.id}`);}
 const inv=await invoice('100','80');
 const bill=(await c.req('GET',`/accounts/bills?partyId=${customer.id}&side=receivable&currency=USD`)).find(b=>b.sourceId===inv.id);
 const receipt=await c.req('POST','/accounts/settlements',{direction:'receipt',partyId:customer.id,postingDate:c.settings.cutoverDate,currency:'USD',exchangeRate:'82',accountId:c.account('bank'),amount:'70',allocations:[{billId:bill.id,amount:'70'}]},201);await c.req('POST',`/accounts/settlements/${receipt.id}/submit`,{});
@@ -13,9 +13,17 @@ const read=await c.req('GET',`/sales-notes/${n.id}`);assert.equal(read.creditBal
 const target=await invoice('10','83');const targetBill=(await c.req('GET',`/accounts/bills?partyId=${customer.id}&side=receivable&currency=USD`)).find(b=>b.sourceId===target.id);
 const application={creditNoteId:n.id,postingDate:c.settings.cutoverDate,reason:'Apply exact foreign customer credit',allocations:[{billId:targetBill.id,amount:'10'}]};
 const p=await c.req('POST','/accounts/settlement-allocations/preview',application);assert.equal(p.forexInr,'30.000000');assert.equal(p.carryingInr,'830.000000');
-const a=await c.req('POST','/accounts/settlement-allocations',application,201);
+const wrongCurrency=await invoice('10','1','INR');
+const wrongCurrencyBill=(await c.req('GET',`/accounts/bills?partyId=${customer.id}&side=receivable&currency=INR`)).find(b=>b.sourceId===wrongCurrency.id);
+await c.req('POST','/accounts/settlement-allocations',{...application,allocations:[{billId:wrongCurrencyBill.id,amount:'1'}]},400);
+const partial=await c.req('POST','/accounts/settlement-allocations',{...application,allocations:[{billId:targetBill.id,amount:'4'}]},201);
+const remainder=await c.req('GET',`/sales-notes/${n.id}`);assert.equal(remainder.creditBalance.openAmount,'6.000000');assert.equal(remainder.creditBalance.carryingInr,'480.000000');
+const finalApplication={...application,allocations:[{billId:targetBill.id,amount:'6'}]};
+assert.equal((await c.req('POST','/accounts/settlement-allocations/preview',finalApplication)).forexInr,'18.000000');
+const a=await c.req('POST','/accounts/settlement-allocations',finalApplication,201);
 assert.equal((await c.req('GET',`/sales-invoices/${target.id}/balance`)).openAmount,'0.000000');
 await c.req('POST',`/accounts/settlement-allocations/${a.id}/cancel`,{reason:'Reverse foreign note application'},200);
+await c.req('POST',`/accounts/settlement-allocations/${partial.id}/cancel`,{reason:'Reverse the partial original-rate application'},200);
 await c.req('POST',`/sales-notes/${n.id}/cancel`,{reason:'Reverse original carrying value exactly'},201);
 assert.equal((await c.req('GET',`/sales-invoices/${inv.id}/balance`)).carryingInr,'2400.000000');
 await c.req('PATCH',`/gst-registrations/${reg.id}`,{einvoiceApplicableFrom:c.settings.cutoverDate});

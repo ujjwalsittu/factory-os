@@ -10,4 +10,5 @@ assert.equal((await viewer.req('GET',`/sales-notes/${n.id}`)).id,n.id);
 await viewer.req('GET','/accounts/trade-reconciliation',undefined,403);
 await viewer.req('POST',`/sales-notes/${n.id}/cancel`,{reason:'Read role must not reverse'},403);
 await viewer.req('POST','/sales-notes',input(),403);
+await viewer.req('POST','/accounts/settlement-allocations',{creditNoteId:n.id,postingDate:c.settings.cutoverDate,reason:'Read-only role cannot apply credit',allocations:[{billId:n.billId,amount:'1'}]},403);
 console.log('PASS operational note read and mutation/report isolation',c.checks,viewer.checks);

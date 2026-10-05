@@ -11,6 +11,7 @@ if(process.env.PREVIEW_ONLY){console.log('PASS note preview',c.checks);process.e
 const note=await c.req('POST','/sales-notes',input(),201);
 await c.req('POST',`/sales-notes/${note.id}/submit`,{},201);
 const read=await c.req('GET',`/sales-notes/${note.id}`);
+assert.equal(read.stockEntryId,null,'Service credits do not create stock');
 assert.match(read.number,/\/CN\//); assert.equal(read.creditBalance.openAmount,'10.000000');
 assert.equal((await c.req('GET',`/sales-invoices/${inv.id}/balance`)).openAmount,'0.000000');
 await c.req('POST',`/sales-notes/${note.id}/submit`,{},409);
@@ -35,7 +36,7 @@ await c.req('POST',`/accounts/settlement-allocations/${application.id}/cancel`,{
 await c.req('POST',`/sales-notes/${note.id}/cancel`,{reason:'Restore original invoice balance'},201);
 assert.equal((await c.req('GET',`/sales-invoices/${inv.id}/balance`)).openAmount,'30.000000');
 const debit=await c.req('POST','/sales-notes',input('25','debit'),201);
-await c.req('POST',`/sales-notes/${debit.id}/submit`,{},201);
+assert.equal((await c.req('POST',`/sales-notes/${debit.id}/submit`,{},201)).stockEntryId,null,'Debit notes do not ship stock');
 assert.match((await c.req('GET',`/sales-notes/${debit.id}`)).number,/\/DN\//);
 await c.req('POST',`/sales-notes/${debit.id}/cancel`,{reason:'Reverse additional amount'},201);
 assert.ok((await c.req('GET','/accounts/trade-reconciliation')).every(r=>r.difference==='0.000000'));
