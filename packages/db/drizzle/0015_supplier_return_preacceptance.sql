@@ -1,0 +1,2 @@
+ALTER TABLE "supplier_return_effect" ADD COLUMN "pre_accepted_qty" numeric(24, 6) DEFAULT '0' NOT NULL;--> statement-breakpoint
+ALTER TABLE "supplier_return_effect" ADD COLUMN "pre_accepted_value_inr" numeric(24, 6) DEFAULT '0' NOT NULL;

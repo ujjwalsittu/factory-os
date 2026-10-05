@@ -106,6 +106,27 @@
       "when": 1791226459504,
       "tag": "0014_supplier_notes_returns",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1791227468519,
+      "tag": "0015_supplier_return_preacceptance",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791228006757,
+      "tag": "0016_supplier_return_acceptance_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791229722258,
+      "tag": "0017_supplier_acceptance_dispatch_links",
+      "breakpoints": true
     }
   ]
 }

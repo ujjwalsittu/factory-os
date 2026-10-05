@@ -10,3 +10,4 @@ export * from './accounting.js';
 export * from './settlements.js';
 
 export * from "./sales-notes.js";
+export * from './supplier-returns.js';

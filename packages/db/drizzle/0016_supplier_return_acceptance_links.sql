@@ -1,0 +1,1 @@
+ALTER TABLE "supplier_return_effect" ADD COLUMN "pre_acceptances" jsonb DEFAULT '[]'::jsonb NOT NULL;

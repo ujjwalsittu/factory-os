@@ -55,6 +55,8 @@ it('separates supplier-return preparation, approval and dispatch roles', () => {
   expect(r('purchase')).not.toContain('buying.return_claim.approve');
   expect(r('purchase')).not.toContain('buying.return_policy.update');
   expect(r('accountant')).not.toContain('buying.return_resolution.create');
+  expect(r('accountant')).not.toContain('buying.supplier_note.submit');
+  expect(r('accountant')).toContain('buying.supplier_note.update');
   expect(r('stores')).toContain('buying.return_movement.create');
   expect(r('stores')).not.toContain('buying.supplier_note.submit');
   expect(r('finance_controller')).toContain('buying.return_claim.approve');
