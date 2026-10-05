@@ -87,3 +87,4 @@ at the end of the relevant section, with a date.
 - Current cloud setup uses Docker Compose PostgreSQL (`docker compose up -d db`), Node 24, and pnpm 10.28.0; use the version pinned in package.json. API migrations apply at startup.
 - Selling invoice creation uses company-owned in-stock batches (`owner=company`); invoice submission generates delivery and cancellation reverses it. Tax previews remain server-calculated.
 - Draft autosave must compare saved payload snapshots, reschedule after pending requests, and suppress retries only for unchanged rejected payloads. Read/submit reviewers can submit without draft-update permission.
+- 2026-10-05: User selected a controlled per-entity GL cut-over with reconciled opening balances and new-activity posting, rather than reconstruction of historical journals. Detailed specification is pending review in docs/superpowers/specs/2026-10-05-gl-core-design.md.

@@ -59,11 +59,11 @@ _Last updated: 2026-10-05 · Slice 1c (selling) web and settings implemented; lo
   - Verified: production build, typecheck, 36 unit tests, selling API smoke 48/48; production selling, buying and base browser walkthroughs pass. Selling coverage covers delivery/cancel, printed tax columns, LUT exports, settings, credit approval, address reopening and autosave race/error recovery. `pnpm lint` executes zero tasks (no package lint scripts).
 
 ## In progress
-- None. Selling UI is ready for user review on dev after branch deployment.
+- **Slice 1d: GL core — design review.** User approved the scope and controlled cut-over approach. Written specification: [GL core design](../superpowers/specs/2026-10-05-gl-core-design.md). Exact stopping point: awaiting written-spec review; implementation plan and product code have not started.
 
 ## Next (in order; confirm with the user before starting)
-1. User review of slice 1c on dev.
-2. **Slice 1d: GL core** — chart of accounts (Tally group names), journal posting from stock and invoices.
+1. Review the written GL specification, then its implementation plan and execution method.
+2. Implement **slice 1d: GL core** — controlled cut-over, chart of accounts, journals and reports.
 3. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
 4. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
 
