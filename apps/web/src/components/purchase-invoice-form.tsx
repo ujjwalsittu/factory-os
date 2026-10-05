@@ -600,6 +600,7 @@ function CancelDialog({ invoice, onClose }: { invoice: PurchaseInvoiceDetail; on
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['purchase-invoice', invoice.id] });
+      void qc.invalidateQueries({ queryKey: ['invoice-balance', ws.tenantId, ws.entityId, 'purchase', invoice.id] });
       void qc.invalidateQueries({ queryKey: ['purchase-invoices'] });
       void qc.invalidateQueries({ queryKey: ['purchase-order'] });
       onClose();

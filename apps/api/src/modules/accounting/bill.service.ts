@@ -397,7 +397,9 @@ export class BillService {
       throw new ConflictException({
         message:
           'Trade subledger does not reconcile; review the identified party/control accounts',
-        differences: r.differences,
+        ...(ctx.tenant.permissions.has('accounts.report.read') && {
+          differences: r.differences,
+        }),
       });
   }
   async assertSourceCancellableIn(

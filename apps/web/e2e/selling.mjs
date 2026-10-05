@@ -221,6 +221,8 @@ try {
   assert.equal(await L('Shipping address').inputValue(), 'Billing');
   await page.getByRole('button', { name: 'Submit', exact: true }).click();
   await page.getByRole('link', { name: 'Print / PDF', exact: true }).waitFor();
+  await page.getByText(/Remaining bill balance:.*INR/).waitFor();
+  await page.getByText(/Accounting inactive; this shows the submitted invoice total/).waitFor();
   const invoiceId = page.url().split('/').pop();
   const inv = await req('GET', `/sales-invoices/${invoiceId}`);
   assert.equal(inv.status, 'submitted');

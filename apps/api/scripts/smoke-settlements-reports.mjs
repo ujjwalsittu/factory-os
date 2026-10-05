@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createDb } from '../../../packages/db/dist/index.js';
 import { Client, gstin } from './accounting-test-helpers.mjs';
 const c = await new Client().init('Trade balance reports');
 const date = (await c.req('GET', '/accounts/opening/reconciliation')).cutoverDate;
@@ -79,4 +80,22 @@ viewer.tenantId = c.tenantId; viewer.entityId = c.entityId;
 await viewer.req('GET', '/accounts/outstanding');
 await viewer.req('GET', '/accounts/outstanding/export', undefined, 403);
 await viewer.req('GET', '/accounts/settlements', undefined, 403);
+const operationalRole = await c.req('POST', '/roles', { name: 'Scoped sales balances', permissions: ['selling.sales_invoice.read', 'selling.sales_order.read'] }, 201);
+const operational = new Client(), operationalEmail = `sales-balances${Date.now()}@example.com`;
+const operationalInvite = await c.req('POST', '/invitations', { email: operationalEmail, roles: [{ roleId: operationalRole.id, entityIds: [c.entityId] }] }, 201);
+await operational.req('POST', '/auth/sign-up/email', { email: operationalEmail, password: 'Sup3r-secret-pw', name: 'Scoped sales balances' });
+await operational.req('POST', '/invitations/accept', { token: operationalInvite.inviteUrl.split('/').at(-1) }, 201);
+operational.tenantId = c.tenantId; operational.entityId = c.entityId;
+process.loadEnvFile(new URL('../../../.env', import.meta.url));
+const db = createDb(process.env.DATABASE_URL);
+try {
+  await db.$client.query(`insert into trade_bill_effect (tenant_id,entity_id,bill_id,source_type,source_id,origin_key,posting_date,amount,carrying_inr) values ($1,$2,$3,'privacy_fixture',gen_random_uuid(),'mismatch',$4,1,1)`, [c.tenantId,c.entityId,rcmBill.id,date]);
+  for (const path of [`/sales-invoices/${sales.id}/balance`, `/selling/credit-status?customerId=${customer.id}`]) {
+    const response = await operational.req('GET', path, undefined, 409);
+    assert.equal(response.differences, undefined, 'Sales-only users must not receive unrelated supplier reconciliation balances');
+    assert.ok(!JSON.stringify(response).includes(supplier.id));
+  }
+  const finance = await viewer.req('GET', '/accounts/trade-reconciliation', undefined, 409);
+  assert.ok(finance.differences.some(d => d.partyId === supplier.id), 'Finance diagnostics remain actionable');
+} finally { await db.$client.end(); }
 console.log('PASS outstanding ageing, net credit vs gross overdue, MSME residual, summary and export', c.checks);

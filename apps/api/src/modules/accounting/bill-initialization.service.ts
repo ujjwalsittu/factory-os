@@ -148,7 +148,13 @@ export class BillInitializationService {
         ),
       )
       .orderBy(asc(journalVoucher.submittedAt));
-    for (const v of vouchers) {
+    // Seed the complete invoice identity set before matching legacy journals.
+    // Submission order alone can hide a duplicate reference encountered later.
+    const ordered = [
+      ...vouchers.filter((v) => v.sourceType !== 'manual'),
+      ...vouchers.filter((v) => v.sourceType === 'manual'),
+    ];
+    for (const v of ordered) {
       if (
         v.sourceType === 'opening' ||
         ['settlement', 'settlement_allocation'].includes(v.sourceType) ||

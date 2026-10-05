@@ -100,6 +100,8 @@ await page.click('button:has-text("Accept variance and submit")');
 await page.waitForSelector('text=AZ/PI/26-27/00001');
 await page.waitForSelector('text=TMI/26/0457');
 await page.waitForSelector('text=MSME Small');
+await page.getByText(/Remaining bill balance:.*INR/).waitFor();
+await page.getByText(/Accounting inactive; this shows the submitted invoice total/).waitFor();
 await shot('11-invoice-submitted');
 
 step('lists');

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { createDb } from '../../../packages/db/dist/index.js';
 import { Client, gstin } from './accounting-test-helpers.mjs';
 const c = await new Client().init('Trade upgrade');
@@ -47,6 +48,19 @@ assert.deepEqual(reconciliation.differences, []);
 process.loadEnvFile(new URL('../../../.env', import.meta.url));
 const db = createDb(process.env.DATABASE_URL);
 try {
+  // Simulate active-era records written before the bill subledger existed.
+  const user = (await db.$client.query('select created_by from purchase_invoice where id=$1', [historical.id])).rows[0].created_by;
+  for (const [i, type] of ['purchase_invoice', 'manual', 'purchase_invoice'].entries()) {
+    const sourceId = randomUUID(), voucherId = randomUUID(), value = type === 'manual' ? '50' : '100';
+    if (type === 'purchase_invoice') await db.$client.query(`insert into purchase_invoice select (jsonb_populate_record(null::purchase_invoice, to_jsonb(p) || $2::jsonb)).* from purchase_invoice p where id=$1`, [historical.id, JSON.stringify({ id: sourceId, number: `UPGRADE-DUP-${i}`, currency: 'INR', exchange_rate: '1', grand_total: '100', supplier_invoice_no: 'DUP-LEGACY' })]);
+    await db.$client.query(`insert into journal_voucher (id,tenant_id,entity_id,status,posting_date,narration,source_type,source_id,created_by,submitted_at) values ($1,$2,$3,'submitted',$4,'Legacy duplicate reference',$5,$6,$7,$8)`, [voucherId,c.tenantId,c.entityId,date,type,sourceId,user,`${date}T00:00:0${i+1}Z`]);
+    await db.$client.query(`insert into gl_entry (tenant_id,entity_id,voucher_id,account_id,posting_date,debit,credit,party_id,bill_reference) values ($1,$2,$3,$4,$5,$6,$7,$8,'DUP-LEGACY'),($1,$2,$3,$9,$5,$7,$6,null,null)`, [c.tenantId,c.entityId,voucherId,c.account('creditors'),date,type === 'manual' ? value : '0',type === 'manual' ? '0' : value,supplier.id,c.account('equity')]);
+  }
+  const duplicates = (await c.req('GET', `/accounts/bills?partyId=${supplier.id}&side=payable&currency=INR`)).filter(b => b.reference === 'DUP-LEGACY');
+  assert.equal(duplicates.length, 3, 'Ambiguous legacy reduction must remain a separate journal credit');
+  assert.deepEqual(duplicates.filter(b => b.sourceType === 'purchase_invoice').map(b => b.openAmount).sort(), ['100.000000','100.000000']);
+  assert.equal(duplicates.find(b => b.sourceType === 'manual').openAmount, '-50.000000');
+  assert.deepEqual((await c.req('GET', '/accounts/trade-reconciliation')).differences, []);
   const own = await db.$client.query('select id from trade_bill where id=$1 and entity_id=$2', [bills[0].id, c.entityId]);
   assert.equal(own.rowCount, 1, 'DB connection must match this API fixture');
   await assert.rejects(db.$client.query('update trade_bill set reference=reference where id=$1', [bills[0].id]), /append-only/);

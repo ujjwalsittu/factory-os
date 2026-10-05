@@ -1067,6 +1067,7 @@ function SellingAction({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['selling'] });
       void qc.invalidateQueries({ queryKey: ['balance'] });
+      if (kind === 'invoices') void qc.invalidateQueries({ queryKey: ['invoice-balance', ws.tenantId, ws.entityId, 'sales', id] });
       onClose();
       if (action === 'delete') router.replace(`/app/selling/${kind}`);
     },

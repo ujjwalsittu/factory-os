@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { Client } from '../../api/scripts/accounting-test-helpers.mjs';
+import { Client, gstin } from '../../api/scripts/accounting-test-helpers.mjs';
 const B = process.env.WEB_URL ?? 'http://localhost:3001';
 const c = await new Client().init('Settlement browser');
 const customer = await c.req('POST', '/parties', { code: 'CUS', name: 'Browser customer', isCustomer: true, gstTreatment: 'unregistered' }, 201);
@@ -113,6 +113,22 @@ try {
   assert.equal(await vp.getByLabel('Amount', { exact: true }).isDisabled(), true);
   for (const name of ['Save draft', 'Submit settlement', 'Cancel settlement', 'Export settlement']) assert.equal(await vp.getByRole('button', { name, exact: true }).count(), 0);
   await readonly.close();
+  const reg = await c.req('POST', `/entities/${c.entityId}/gst-registrations`, { gstin: gstin('27AAACA1234B1Z') }, 201);
+  const uom = (await c.req('GET', '/uoms')).find(u => u.code === 'NOS');
+  await c.req('POST', '/hsn-codes', { code: '9983', kind: 'sac', description: 'Browser services', gstRate: '0', effectiveFrom: '2025-04-01' }, 201);
+  const item = await c.req('POST', '/items', { code: 'SVC', name: 'Browser service', type: 'service', stockUomId: uom.id, hsnCode: '9983' }, 201);
+  for (const type of ['purchase', 'sales']) {
+    const input = type === 'purchase' ? { supplierId: supplier.id, gstRegistrationId: reg.id, supplierInvoiceNo: 'BROWSER-SERVICE', supplierInvoiceDate: c.settings.cutoverDate, postingDate: c.settings.cutoverDate } : { customerId: customer.id, gstRegistrationId: reg.id, invoiceDate: c.settings.cutoverDate, placeOfSupplyStateCode: '27' };
+    const invoice = await c.req('POST', `/${type}-invoices`, { ...input, lines: [{ itemId: item.id, qty: '1', rate: '100', gstRate: '0' }] }, 201);
+    await c.req('POST', `/${type}-invoices/${invoice.id}/submit`, {}, 201);
+    await page.goto(`${B}/app/${type === 'purchase' ? 'buying' : 'selling'}/invoices/${invoice.id}`);
+    await page.getByText(/Remaining bill balance:.*INR 100\.000000/).waitFor();
+    await page.getByRole('button', { name: 'Cancel invoice', exact: true }).click();
+    await page.getByRole('dialog').getByRole('textbox').fill('Reverse browser service invoice');
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel invoice', exact: true }).click();
+    await page.getByText(/Remaining bill balance:.*INR 0\.000000/).waitFor();
+  }
+  await page.goto(paymentUrl);
   await c.req('POST', '/entities', { legalName: 'Other browser entity', shortName: 'Other browser', code: 'OTHER' }, 201);
   await page.reload();
   await page.getByText('Submitted', { exact: true }).waitFor();
