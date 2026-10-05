@@ -32,7 +32,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'finance_controller',
     name: 'Finance Controller',
     description: 'All accounts and compliance, including filing GST returns.',
-    permissions: all((p) => inModule('accounts', 'compliance')(p) || readOnly(p)),
+    permissions: all((p) => inModule('accounts', 'compliance')(p) || p.startsWith('selling.sales_note.') || readOnly(p)),
   },
   {
     key: 'accountant',
@@ -61,7 +61,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
       (p) =>
         p.startsWith('masters.party.') ||
         p.startsWith('selling.quotation.') ||
-        ['selling.sales_order.read', 'selling.sales_order.create', 'selling.sales_order.submit', 'selling.sales_invoice.read', 'selling.sales_invoice.create'].includes(p),
+        ['selling.sales_note.read', 'selling.sales_note.create', 'selling.sales_note.update', 'selling.sales_order.read', 'selling.sales_order.create', 'selling.sales_order.submit', 'selling.sales_invoice.read', 'selling.sales_invoice.create'].includes(p),
     ),
   },
   {

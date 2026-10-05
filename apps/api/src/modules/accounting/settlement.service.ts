@@ -321,6 +321,7 @@ export class SettlementService {
     if (d.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
     await this.bills.syncIn(tx, ctx, entityId);
     await this.bills.assertReconciledIn(tx, entityId);
+    if (!d.settlementId) throw new BadRequestException('Credit-note application requires its typed source handler');
     const p = await this.allocationPreviewIn(tx, ctx, entityId, { settlementId: d.settlementId, postingDate: d.postingDate, reason: d.reason, allocations: d.allocations });
     const number = await this.posting.allocateNumber(tx, ctx.tenant.tenantId, entityId, 'settlement_allocation', d.postingDate);
     const { voucherId } = await this.gl.postIn(tx, ctx, entityId, { type: 'settlement_allocation', id, purpose: 'main', number, narration: `Allocation ${number}: ${d.reason}` }, d.postingDate, { lines: p.lines, disposition: p.disposition });

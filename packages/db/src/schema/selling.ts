@@ -146,6 +146,7 @@ export const salesInvoice = pgTable(
   },
   (t) => [
     // GST: unique per GSTIN per FY; the FY is part of the number.
+    uniqueIndex('sales_invoice_identity_scope_uq').on(t.id,t.tenantId,t.entityId),
     uniqueIndex('sales_invoice_gstin_number_uq').on(t.gstRegistrationId, t.number),
     index('sales_invoice_customer_idx').on(t.entityId, t.customerId),
   ],
@@ -163,5 +164,5 @@ export const salesInvoiceLine = pgTable(
     warehouseId: uuid('warehouse_id').references(() => warehouse.id),
     batchId: uuid('batch_id').references(() => batch.id),
   },
-  (t) => [index('sales_invoice_line_inv_idx').on(t.invoiceId)],
+  (t) => [uniqueIndex('sales_invoice_line_identity_uq').on(t.id,t.invoiceId), index('sales_invoice_line_inv_idx').on(t.invoiceId)],
 );

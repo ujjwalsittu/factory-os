@@ -46,6 +46,7 @@ export const RESOURCES = [
   { module: 'buying', resource: 'landed_cost', label: 'Landed cost & Bill of Entry', actions: ['read', 'create', 'submit', 'cancel'] },
   { module: 'selling', resource: 'quotation', label: 'Quotations', actions: ['read', 'create', 'submit', 'cancel', 'export'] },
   { module: 'selling', resource: 'sales_order', label: 'Sales orders', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
+  { module: 'selling', resource: 'sales_note', label: 'Customer credit/debit notes', actions: ['read', 'create', 'update', 'submit', 'cancel'] },
   { module: 'selling', resource: 'sales_invoice', label: 'Sales invoices', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'manufacturing', resource: 'work_order', label: 'Work orders', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'manufacturing', resource: 'job_card', label: 'Job cards', actions: ['read', 'create', 'update', 'submit'] },
