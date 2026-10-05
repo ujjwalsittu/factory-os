@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {fixture} from './sales-notes-test-helpers.mjs';
+const {c,customer,reg,item}=await fixture('Fractional quantity credit');
+const draft=await c.req('POST','/sales-invoices',{customerId:customer.id,gstRegistrationId:reg.id,invoiceDate:c.settings.cutoverDate,placeOfSupplyStateCode:'27',lines:[{itemId:item.id,qty:'3',rate:'0.333333',gstRate:'0'}]},201);
+await c.req('POST',`/sales-invoices/${draft.id}/submit`,{},201);
+const inv=await c.req('GET',`/sales-invoices/${draft.id}`);
+assert.equal(inv.taxableValue,'1.00');
+const input={invoiceId:inv.id,kind:'credit',taxTreatment:'gst',postingDate:c.settings.cutoverDate,reason:'Return one third of the supply',taxEligibilityConfirmed:true,lines:[{invoiceLineId:inv.lines[0].id,mode:'quantity',qty:'1'}]};
+const preview=await c.req('POST','/sales-notes/preview',input,201);
+assert.equal(preview.taxableValue,'0.33');
+const first=await c.req('POST','/sales-notes',input,201);
+await c.req('POST',`/sales-notes/${first.id}/submit`,{},201);
+const rest=await c.req('POST','/sales-notes/preview',{...input,lines:[{...input.lines[0],qty:'2'}]},201);
+assert.equal(rest.taxableValue,'0.67','Final quantity takes the exact remaining rounded value');
+console.log('PASS fractional quantity credits and final rounded residual',c.checks);

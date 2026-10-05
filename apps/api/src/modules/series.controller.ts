@@ -42,7 +42,7 @@ export class SeriesController {
     const regs = await this.db.select().from(gstRegistration).where(eq(gstRegistration.entityId, entityId)).orderBy(asc(gstRegistration.gstin));
     const rows = await this.db.select().from(numberSeries).where(and(eq(numberSeries.entityId, entityId), eq(numberSeries.fy, fy)));
     const docTypes = Object.keys(DEFAULT_SERIES).flatMap((base) =>
-      base === 'sales_invoice' || base === 'credit_note' ? regs.map((r) => ({ docType: `${base}:${r.id}`, base, gstin: r.gstin })) : [{ docType: base, base, gstin: null as string | null }],
+      base === 'sales_invoice' || base === 'credit_note' || base === 'debit_note' ? regs.map((r) => ({ docType: `${base}:${r.id}`, base, gstin: r.gstin })) : [{ docType: base, base, gstin: null as string | null }],
     );
     return docTypes.map((d) => {
       const row = rows.find((r) => r.docType === d.docType);
@@ -66,7 +66,7 @@ export class SeriesController {
     const entityId = this.entityOf(ctx);
     const input = parse(z.object({ docType: z.string().min(1).max(80), fy: z.string().regex(/^\d{2}-\d{2}$/), nextValue: z.number().int().min(1).max(99999999) }), body);
     const base = input.docType.split(':')[0]!;
-    if (base === 'sales_invoice' || base === 'credit_note') {
+    if (base === 'sales_invoice' || base === 'credit_note' || base === 'debit_note') {
       const regId = input.docType.split(':')[1];
       const [reg] = regId ? await this.db.select().from(gstRegistration).where(and(eq(gstRegistration.id, regId), eq(gstRegistration.entityId, entityId))) : [];
       if (!reg) throw new BadRequestException('Unknown GST registration for this series');

@@ -45,13 +45,14 @@ export const DEFAULT_SERIES: Record<string, string> = {
   /** Per GSTIN (doc type `sales_invoice:<gst registration id>`), ≤ 16 characters (decision 029). */
   sales_invoice: '{ENTITY}/{FY}/{#####}',
   credit_note: '{ENTITY}/CN/{FY}/{####}',
+  debit_note: '{ENTITY}/DN/{FY}/{####}',
   customer_receipt: '{ENTITY}/RCT/{FY}/{#####}',
   supplier_payment: '{ENTITY}/PAY/{FY}/{#####}',
   settlement_allocation: '{ENTITY}/ADJ/{FY}/{#####}',
 };
 
 /** Statutory documents whose number goes on a GST return: at most 16 characters. */
-const GST_DOCS = new Set(['sales_invoice', 'credit_note']);
+const GST_DOCS = new Set(['sales_invoice', 'credit_note', 'debit_note']);
 
 /** Waste categories that are hazardous under the Hazardous Waste Rules 2016 (docs/03 §9). */
 const HAZARDOUS = new Set(['metal_powder', 'coolant_oil', 'solvent']);
@@ -284,7 +285,7 @@ export class StockPostingService {
         .set({ status: 'submitted', number, submittedBy: ctx.user.id, submittedAt: new Date(), updatedAt: new Date() })
         .where(eq(stockEntry.id, entryId))
         .returning();
-      await this.accounting.stockIn(tx, ctx, entityId, after!);
+      if(entry.purpose!=='sales_return')await this.accounting.stockIn(tx, ctx, entityId, after!);
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'stock_entry.submit', targetType: 'stock_entry', targetId: entryId, after: { number, purpose: entry.purpose } }, tx);
       return after!;
     }
@@ -306,7 +307,7 @@ export class StockPostingService {
     {
       const entry = await this.lockEntry(tx, entityId, entryId);
       if (entry.status !== 'submitted') throw new ConflictException('Only submitted entries can be cancelled');
-      await this.gl.reverseIn(tx, ctx, entityId, { type: 'stock_entry', id: entryId, purpose: 'main' }, reason);
+      await this.gl.reverseIn(tx, ctx, entityId, { type: entry.purpose==='sales_return'?'sales_return':'stock_entry', id: entryId, purpose: 'main' }, reason);
       // Decision 028: landed cost sits on top of the receipt's value; it must go first.
       const [lcv] = await tx
         .select({ number: landedCostVoucher.number })
@@ -348,6 +349,11 @@ export class StockPostingService {
           if (layer) {
             const [cost] = await tx.select().from(acquisitionCostChange).where(and(eq(acquisitionCostChange.layerId, layer.id), isNull(acquisitionCostChange.reversedAt))).limit(1);
             if (cost) throw new ConflictException('Acquisition cost covers this receipt; cancel its invoice first');
+            const [landed] = await tx.select({ number: landedCostVoucher.number })
+              .from(landedCostLayerChange)
+              .innerJoin(landedCostVoucher, eq(landedCostVoucher.id, landedCostLayerChange.voucherId))
+              .where(and(eq(landedCostLayerChange.layerId, layer.id), eq(landedCostVoucher.status, 'submitted'))).limit(1);
+            if (landed) throw new ConflictException(`Landed cost ${landed.number ?? ''} changed this layer; cancel it first`);
           }
           if (layer && !Dec.of(layer.qtyRemaining).eq(layer.qtyIn)) {
             throw new ConflictException('Stock from this entry has already been issued. Cancel the later issues first.');

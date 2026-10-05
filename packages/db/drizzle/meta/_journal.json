@@ -92,6 +92,13 @@
       "when": 1791200299937,
       "tag": "0012_sales_notes_returns",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791203030606,
+      "tag": "0013_sales_note_seller_snapshots",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {Client} from './accounting-test-helpers.mjs';
+import {fixture} from './sales-notes-test-helpers.mjs';
+const {c,input}=await fixture('Customer note permission isolation');
+const n=await c.req('POST','/sales-notes',input(),201);await c.req('POST',`/sales-notes/${n.id}/submit`,{},201);
+const role=await c.req('POST','/roles',{name:'Customer note observer',permissions:['selling.sales_note.read']},201);
+const viewer=new Client(),email=`notes-viewer${Date.now()}@example.com`,invite=await c.req('POST','/invitations',{email,roles:[{roleId:role.id,entityIds:[c.entityId]}]},201);
+await viewer.req('POST','/auth/sign-up/email',{name:'Notes observer',email,password:'Sup3r-secret-pw'});await viewer.req('POST','/invitations/accept',{token:invite.inviteUrl.split('/').at(-1)},201);viewer.tenantId=c.tenantId;viewer.entityId=c.entityId;
+assert.equal((await viewer.req('GET',`/sales-notes/${n.id}`)).id,n.id);
+await viewer.req('GET','/accounts/trade-reconciliation',undefined,403);
+await viewer.req('POST',`/sales-notes/${n.id}/cancel`,{reason:'Read role must not reverse'},403);
+await viewer.req('POST','/sales-notes',input(),403);
+console.log('PASS operational note read and mutation/report isolation',c.checks,viewer.checks);

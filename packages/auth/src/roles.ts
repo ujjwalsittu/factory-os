@@ -42,6 +42,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
       (p) =>
         readOnly(p) ||
         (inModule('accounts', 'selling', 'buying')(p) && /\.(create|submit|export)$/.test(p)) ||
+        p === 'selling.sales_note.update' ||
         p === 'compliance.gst_return.create' ||
         p === 'compliance.gst_return.export' ||
         p === 'compliance.einvoice.create',

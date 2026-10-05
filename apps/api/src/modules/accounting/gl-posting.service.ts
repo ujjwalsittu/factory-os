@@ -36,6 +36,7 @@ export interface SourceRef {
   currency?: string;
   exchangeRate?: string;
   narration?: string;
+  evidenceVoucherIds?: string[];
 }
 @Injectable()
 export class GlPostingService {
@@ -57,6 +58,7 @@ export class GlPostingService {
     lines: AccountingLine[],
     manual = false,
     allowInactiveHistoricalTrade = false,
+    evidenceAccountIds: ReadonlySet<string> = new Set(),
   ) {
     try {
       assertBalanced(lines);
@@ -90,7 +92,7 @@ export class GlPostingService {
         ...(settings?.controlHistory?.debtors ?? []),
         ...(settings?.controlHistory?.creditors ?? []),
       ].includes(a.id);
-      if (!a.isActive && !(allowInactiveHistoricalTrade && historicalTrade && l.partyId && l.billReference))
+      if (!a.isActive && !((allowInactiveHistoricalTrade && historicalTrade && l.partyId && l.billReference) || evidenceAccountIds.has(a.id)))
         throw new BadRequestException('Choose an active account belonging to this entity');
       const roles = [
         ...Object.entries(settings?.mappings ?? {})
@@ -209,7 +211,9 @@ export class GlPostingService {
       throw new ConflictException('This source has already been accounted for');
     let voucherId: string | null = null;
     if (plan.disposition === 'posted') {
-      await this.validateLines(tx, ctx, entityId, plan.lines, false, ['settlement', 'settlement_allocation'].includes(source.type));
+      const evidence = ['sales_note','sales_note_application','sales_return'].includes(source.type) && source.evidenceVoucherIds?.length
+        ? await tx.select({id:glEntry.accountId}).from(glEntry).where(and(eq(glEntry.tenantId,ctx.tenant.tenantId),eq(glEntry.entityId,entityId),inArray(glEntry.voucherId,source.evidenceVoucherIds))) : [];
+      await this.validateLines(tx, ctx, entityId, plan.lines, false, ['settlement', 'settlement_allocation', 'sales_note_application'].includes(source.type),new Set(evidence.map(x=>x.id)));
       const number = await this.number(tx, ctx, entityId, postingDate);
       const [v] = await tx
         .insert(journalVoucher)

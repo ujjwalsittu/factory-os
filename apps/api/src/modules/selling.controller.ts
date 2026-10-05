@@ -1,3 +1,4 @@
+import { salesNote } from '@factoryos/db';
 import { OperationalPostings } from './accounting/operational-postings.js';
 import { BillService } from './accounting/bill.service.js';
 import { GlPostingService } from './accounting/gl-posting.service.js';
@@ -681,6 +682,8 @@ export class SellingController {
       await lockAccounting(tx, entityId);
       const inv = await this.lockInvoice(tx, entityId, id);
       if (inv.status !== 'submitted') throw new ConflictException('Only submitted invoices can be cancelled');
+      const liveNotes=await tx.select({number:salesNote.number}).from(salesNote).where(and(eq(salesNote.tenantId,ctx.tenant.tenantId),eq(salesNote.entityId,entityId),eq(salesNote.originalInvoiceId,id),eq(salesNote.status,'submitted')));
+      if(liveNotes.length)throw new ConflictException(`Cancel notes ${liveNotes.map(n=>n.number).join(', ')} first`);
       await this.gl.reverseIn(tx, ctx, entityId, { type: 'sales_invoice', id, purpose: 'main' }, why);
       if (inv.stockEntryId) await this.posting.cancelIn(tx, ctx, entityId, inv.stockEntryId, `Sales invoice ${inv.number} cancelled: ${why}`);
       const lines = await tx.select().from(salesInvoiceLine).where(eq(salesInvoiceLine.invoiceId, id));

@@ -1,3 +1,4 @@
+import { CreditApplicationService } from '../sales-notes/credit-application.service.js';
 import { consumeCarryingValue, Dec, settlementDifference, type AccountingLine } from '@factoryos/core';
 import { accountGroup, accountingSettings, glAccount, party, partySettlement, settlementAllocationDocument, tradeBill, type SettlementAllocationDraft } from '@factoryos/db';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
@@ -23,7 +24,8 @@ export interface SettlementInput {
   allocations: SettlementAllocationDraft[];
 }
 export interface LaterAllocationInput {
-  settlementId: string;
+  settlementId?: string;
+  creditNoteId?: string;
   postingDate: string;
   reason: string;
   allocations: SettlementAllocationDraft[];
@@ -48,6 +50,7 @@ const CASH_GROUPS = ['Cash-in-Hand', 'Bank Accounts'];
 @Injectable()
 export class SettlementService {
   constructor(
+    private readonly credits: CreditApplicationService,
     private readonly gl: GlPostingService,
     private readonly bills: BillService,
     private readonly posting: StockPostingService,
@@ -256,6 +259,8 @@ export class SettlementService {
   // ───────────────────────── later allocation of money on account ─────────────────────────
 
   async allocationPreviewIn(tx: Db, ctx: TenantRequestContext, entityId: string, input: LaterAllocationInput): Promise<SettlementPreview & { advance: BillBalance }> {
+    if(input.creditNoteId)return this.credits.previewIn(tx,ctx,entityId,{creditNoteId:input.creditNoteId,postingDate:input.postingDate,allocations:input.allocations});
+    if(!input.settlementId)throw new BadRequestException('Choose one allocation source');
     const settings = await this.settings(tx, entityId);
     this.assertDate(input.postingDate, settings.cutoverDate!);
     const [s] = await tx.select().from(partySettlement).where(and(eq(partySettlement.id, input.settlementId), eq(partySettlement.entityId, entityId)));
@@ -321,7 +326,14 @@ export class SettlementService {
     if (d.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
     await this.bills.syncIn(tx, ctx, entityId);
     await this.bills.assertReconciledIn(tx, entityId);
-    if (!d.settlementId) throw new BadRequestException('Credit-note application requires its typed source handler');
+    if(d.creditNoteId){
+      const number=await this.posting.allocateNumber(tx,ctx.tenant.tenantId,entityId,'settlement_allocation',d.postingDate);
+      const {voucherId}=await this.credits.applyIn(tx,ctx,entityId,{creditNoteId:d.creditNoteId,postingDate:d.postingDate,allocations:d.allocations,sourceId:id,automatic:false});
+      const [after]=await tx.update(settlementAllocationDocument).set({status:'submitted',number,voucherId,submittedBy:ctx.user.id,submittedAt:new Date(),updatedAt:new Date()}).where(eq(settlementAllocationDocument.id,id)).returning();
+      await this.audit.record(ctx,{tenantId:ctx.tenant.tenantId,entityId,action:'settlement_allocation.submit',targetType:'settlement_allocation_document',targetId:id,after:{number,creditNoteId:d.creditNoteId}},tx);
+      await this.bills.assertReconciledIn(tx,entityId);return after!;
+    }
+    if (!d.settlementId) throw new BadRequestException('Choose an allocation source');
     const p = await this.allocationPreviewIn(tx, ctx, entityId, { settlementId: d.settlementId, postingDate: d.postingDate, reason: d.reason, allocations: d.allocations });
     const number = await this.posting.allocateNumber(tx, ctx.tenant.tenantId, entityId, 'settlement_allocation', d.postingDate);
     const { voucherId } = await this.gl.postIn(tx, ctx, entityId, { type: 'settlement_allocation', id, purpose: 'main', number, narration: `Allocation ${number}: ${d.reason}` }, d.postingDate, { lines: p.lines, disposition: p.disposition });
@@ -344,7 +356,8 @@ export class SettlementService {
     const [d] = await tx.select().from(settlementAllocationDocument).where(and(eq(settlementAllocationDocument.id, id), eq(settlementAllocationDocument.entityId, entityId))).for('update');
     if (!d) throw new NotFoundException('Allocation not found');
     if (d.status !== 'submitted') throw new ConflictException('Only submitted allocations can be cancelled');
-    await this.gl.reverseIn(tx, ctx, entityId, { type: 'settlement_allocation', id, purpose: 'main' }, reason);
+    if(d.creditNoteId)await this.credits.reverseIn(tx,ctx,entityId,id,reason);
+    else await this.gl.reverseIn(tx, ctx, entityId, { type: 'settlement_allocation', id, purpose: 'main' }, reason);
     await this.bills.reverseSourceEffects(tx, ctx, entityId, 'settlement_allocation', id, businessDate());
     await tx.update(settlementAllocationDocument).set({ status: 'cancelled', cancelledBy: ctx.user.id, cancelledAt: new Date(), cancelReason: reason, updatedAt: new Date() }).where(eq(settlementAllocationDocument.id, id));
     await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'settlement_allocation.cancel', targetType: 'settlement_allocation_document', targetId: id, reason }, tx);

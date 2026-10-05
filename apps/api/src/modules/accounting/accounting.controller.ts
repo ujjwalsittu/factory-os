@@ -179,7 +179,7 @@ export class AccountingController {
           throw new BadRequestException(`Map ${role} to a ${root} account`);
       }
       const controlHistory = { ...prior!.controlHistory };
-      for (const role of ['inventory', 'grni', 'debtors', 'creditors'])
+      for (const role of Object.keys(input.mappings))
         controlHistory[role] = [
           ...new Set([
             ...(controlHistory[role] ?? []),

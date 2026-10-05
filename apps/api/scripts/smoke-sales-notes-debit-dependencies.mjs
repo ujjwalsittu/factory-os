@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {fixture} from './sales-notes-test-helpers.mjs';
+const {c,input,customer}=await fixture('Settled debit note cancellation');
+const draft=await c.req('POST','/sales-notes',input('25','debit'),201);
+const note=await c.req('POST',`/sales-notes/${draft.id}/submit`,{},201);
+const receipt=await c.req('POST','/accounts/settlements',{direction:'receipt',partyId:customer.id,postingDate:c.settings.cutoverDate,currency:'INR',exchangeRate:'1',accountId:c.account('bank'),amount:'25',allocations:[{billId:note.billId,amount:'25'}]},201);
+await c.req('POST',`/accounts/settlements/${receipt.id}/submit`,{});
+const before=await c.req('GET',`/sales-notes/${note.id}`);
+await c.req('POST',`/sales-notes/${note.id}/cancel`,{reason:'Settled note must keep its receipt dependency'},409);
+assert.deepEqual(await c.req('GET',`/sales-notes/${note.id}`),before);
+await c.req('POST',`/accounts/settlements/${receipt.id}/cancel`,{reason:'Release debit note receipt dependency'});
+await c.req('POST',`/sales-notes/${note.id}/cancel`,{reason:'Cancel note after releasing receipt'},201);
+assert.ok((await c.req('GET','/accounts/trade-reconciliation')).every(r=>r.difference==='0.000000'));
+console.log('PASS debit receipt dependency and exact release',c.checks);

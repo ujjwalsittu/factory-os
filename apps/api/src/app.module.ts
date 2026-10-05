@@ -1,3 +1,9 @@
+import { SalesNoteService } from './modules/sales-notes/sales-note.service.js';
+import { SalesReturnService } from './modules/sales-notes/sales-return.service.js';
+import { CreditApplicationService } from './modules/sales-notes/credit-application.service.js';
+import { SalesNotePostingService } from './modules/sales-notes/sales-note-posting.service.js';
+import { SalesNotePreviewService } from './modules/sales-notes/sales-note-preview.service.js';
+import { SalesNotesController } from './modules/sales-notes/sales-notes.controller.js';
 import { AccountingReportsController } from './modules/accounting/reports.controller.js';
 import { OperationalPostings } from './modules/accounting/operational-postings.js';
 import { ReceiptAllocationService } from './modules/accounting/receipt-allocation.service.js';
@@ -34,8 +40,8 @@ import { SeriesController } from './modules/series.controller.js';
 import { WasteController } from './modules/waste.controller.js';
 
 @Module({
-  controllers: [InvoiceBalancesController, AccountingReportsController, AccountingController, SettlementsController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
-  providers: [
+  controllers: [SalesNotesController,InvoiceBalancesController, AccountingReportsController, AccountingController, SettlementsController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
+  providers: [SalesNoteService, SalesReturnService, CreditApplicationService, SalesNotePostingService, SalesNotePreviewService,
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: DB, inject: [CONFIG], useFactory: (c: AppConfig) => createDb(c.DATABASE_URL) },
     { provide: AUTH, inject: [DB, CONFIG], useFactory: (db: Database, c: AppConfig) => createAuth(db, c) },
