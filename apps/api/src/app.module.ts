@@ -1,3 +1,6 @@
+import { OutstandingReportsController } from './modules/accounting/outstanding-reports.controller.js';
+import { BillService } from './modules/accounting/bill.service.js';
+import { BillInitializationService } from './modules/accounting/bill-initialization.service.js';
 import { AccountingReportsController } from './modules/accounting/reports.controller.js';
 import { OperationalPostings } from './modules/accounting/operational-postings.js';
 import { ReceiptAllocationService } from './modules/accounting/receipt-allocation.service.js';
@@ -30,7 +33,7 @@ import { SeriesController } from './modules/series.controller.js';
 import { WasteController } from './modules/waste.controller.js';
 
 @Module({
-  controllers: [AccountingReportsController, AccountingController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
+  controllers: [OutstandingReportsController, AccountingReportsController, AccountingController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
   providers: [
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: DB, inject: [CONFIG], useFactory: (c: AppConfig) => createDb(c.DATABASE_URL) },
@@ -40,6 +43,8 @@ import { WasteController } from './modules/waste.controller.js';
     TenancyService,
     StockPostingService,
     GlPostingService,
+    BillService,
+    BillInitializationService,
     OpeningService,
     OperationalPostings,
     ReceiptAllocationService,
