@@ -1,4 +1,5 @@
 'use client';
+import { InvoiceBalance } from './invoice-balance';
 import { AccountingSourceLinks } from './accounting-source-links';
 import { Alert, Badge, Button, Card, Field, Input, Select, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -266,6 +267,7 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
   return (
     <div className="space-y-6">
       {invoice && invoice.status !== 'draft' && <AccountingSourceLinks type="purchase_invoice" id={invoice.id} />}
+      {invoice && invoice.status !== 'draft' && <InvoiceBalance type="purchase" id={invoice.id} />}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[13px] text-muted">
@@ -598,6 +600,7 @@ function CancelDialog({ invoice, onClose }: { invoice: PurchaseInvoiceDetail; on
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['purchase-invoice', invoice.id] });
+      void qc.invalidateQueries({ queryKey: ['invoice-balance', ws.tenantId, ws.entityId, 'purchase', invoice.id] });
       void qc.invalidateQueries({ queryKey: ['purchase-invoices'] });
       void qc.invalidateQueries({ queryKey: ['purchase-order'] });
       onClose();

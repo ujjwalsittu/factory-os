@@ -56,6 +56,7 @@ export class GlPostingService {
     entityId: string,
     lines: AccountingLine[],
     manual = false,
+    allowInactiveHistoricalTrade = false,
   ) {
     try {
       assertBalanced(lines);
@@ -77,7 +78,7 @@ export class GlPostingService {
       );
     for (const l of lines) {
       const a = accounts.find((a) => a.id === l.accountId);
-      if (!a?.isActive)
+      if (!a)
         throw new BadRequestException(
           'Choose an active account belonging to this entity',
         );
@@ -85,6 +86,12 @@ export class GlPostingService {
         .select()
         .from(accountingSettings)
         .where(eq(accountingSettings.entityId, entityId));
+      const historicalTrade = [
+        ...(settings?.controlHistory?.debtors ?? []),
+        ...(settings?.controlHistory?.creditors ?? []),
+      ].includes(a.id);
+      if (!a.isActive && !(allowInactiveHistoricalTrade && historicalTrade && l.partyId && l.billReference))
+        throw new BadRequestException('Choose an active account belonging to this entity');
       const roles = [
         ...Object.entries(settings?.mappings ?? {})
           .filter(([, id]) => id === a.id)
@@ -202,7 +209,7 @@ export class GlPostingService {
       throw new ConflictException('This source has already been accounted for');
     let voucherId: string | null = null;
     if (plan.disposition === 'posted') {
-      await this.validateLines(tx, ctx, entityId, plan.lines);
+      await this.validateLines(tx, ctx, entityId, plan.lines, false, ['settlement', 'settlement_allocation'].includes(source.type));
       const number = await this.number(tx, ctx, entityId, postingDate);
       const [v] = await tx
         .insert(journalVoucher)

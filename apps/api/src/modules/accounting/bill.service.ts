@@ -117,6 +117,12 @@ export class BillService {
         ),
       )
       .orderBy(asc(glEntry.createdAt), asc(glEntry.id));
+    // Match legacy references against all invoice identities, not just invoices
+    // whose entries happen to sort before a journal adjustment.
+    for (const { e, v } of pending) {
+      if (INVOICE_SOURCES[v.sourceType] && !v.reversalOf && e.partyId)
+        await this.invoiceBill(tx, tenantId, entityId, v.sourceType, v.sourceId, e.accountId, e.partyId, e.postingDate);
+    }
     for (const { e, v } of pending) {
       const side = controls.get(e.accountId)!;
       const inr = side === 'receivable' ? Dec.of(e.debit).sub(e.credit) : Dec.of(e.credit).sub(e.debit);

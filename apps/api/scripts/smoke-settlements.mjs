@@ -56,6 +56,7 @@ ok('opening bill from the worksheet');
 const [usd] = await bills(exp.id);
 assert.deepEqual([usd.currency, usd.openAmount, usd.carryingInr, usd.originalAmount], ['USD', '60.000000', '4800.000000', '100.000000']);
 ok('partly settled foreign opening bill: USD 60 open of 100, carried at ₹4,800');
+assert.deepEqual(await c.req('GET', `/sales-invoices/${exInv.id}/balance`), { active: true, currency: 'USD', openAmount: '60.000000', carryingInr: '4800.000000' });
 const opn = b[0].id;
 
 // ── Receipts ──
@@ -82,6 +83,7 @@ await submit(fx);
 const [usdAfter] = await bills(exp.id);
 assert.deepEqual([usdAfter.openAmount, usdAfter.carryingInr], ['20.000000', '1600.000000']);
 ok('USD 20 left, carried at ₹1,600');
+assert.deepEqual(await c.req('GET', `/sales-invoices/${exInv.id}/balance`), { active: true, currency: 'USD', openAmount: '20.000000', carryingInr: '1600.000000' });
 
 // ── Validation ──
 await fail('POST', '/accounts/settlements/preview', P({ partyId: exp.id, postingDate: date, amount: '10', allocations: [{ billId: usd.id, amount: '10' }] }), 400, 'INR receipt cannot settle a USD bill');

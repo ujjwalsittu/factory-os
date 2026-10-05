@@ -1,4 +1,5 @@
 'use client';
+import { InvoiceBalance } from './invoice-balance';
 import { AccountingSourceLinks } from './accounting-source-links';
 import {
   Alert,
@@ -390,6 +391,7 @@ export function SellingForm({
   return (
     <div className="space-y-5">
       {kind === 'invoices' && doc && doc.status !== 'draft' && <AccountingSourceLinks type="sales_invoice" id={doc.id} />}
+      {kind === 'invoices' && doc && doc.status !== 'draft' && <InvoiceBalance type="sales" id={doc.id} />}
       {kind === 'invoices' && doc?.stockEntryId && <AccountingSourceLinks type="stock_entry" id={doc.stockEntryId} />}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -1065,6 +1067,7 @@ function SellingAction({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['selling'] });
       void qc.invalidateQueries({ queryKey: ['balance'] });
+      if (kind === 'invoices') void qc.invalidateQueries({ queryKey: ['invoice-balance', ws.tenantId, ws.entityId, 'sales', id] });
       onClose();
       if (action === 'delete') router.replace(`/app/selling/${kind}`);
     },
