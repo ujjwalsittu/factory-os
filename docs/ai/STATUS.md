@@ -1,8 +1,9 @@
 # Status
 
-_Last updated: 2026-10-05 · AR/AP written design approved; implementation plan awaiting review_
+_Last updated: 2026-10-05 · Compatible AR/AP improvements verified; shared migration preserved_
 
 ## Done
+- [x] **Compatible AR/AP improvements**: retain the shared implementation/schema; seed pending invoice identities before legacy reference matching, show scoped exact invoice balances, allow validated historical trade-control clearing, and refresh balances after settlement/cancellation/navigation. Build/typecheck and 55 unit tests pass; focused/settlement/accounting/review/buying/selling/import API suites report 526 checks plus the lock-order barrier; five production browser suites pass. Lint has zero configured tasks. Independent review's one Important cache finding fixed and browser-regressed. Review: `docs/superpowers/reviews/2026-10-05-settlement-compatible-improvements-review.md`. Native backup and original local database preserved.
 - [x] **AR/AP settlements** (decision 036, migration 0011): bill-wise subledger derived from GL, customer receipts and supplier payments with FX and on-account money, later allocation, cancellation dependencies, outstanding/ageing/reconciliation reports, selling credit from real outstanding, Accounts → Receipts & payments / Outstanding screens. Verified: `smoke-settlements.mjs` 91 checks, `e2e:settlements`, all accounting + operational suites and walkthroughs. Review: `docs/superpowers/reviews/2026-10-05-ar-ap-settlements-review.md`.
 - [x] Plan docs 01–16, decision register (001–016 accepted), open questions (docs/10)
 - [x] Commit-message guard (git hooks + CI) and handoff guard (CI)
@@ -68,7 +69,7 @@ _Last updated: 2026-10-05 · AR/AP written design approved; implementation plan 
   - Independent review found seven Important defects, all reproduced and fixed; an additional fractional tax-allocation regression was fixed in the same pass. [Review, rulings and two deferred UI minors](../superpowers/reviews/2026-10-05-gl-core-review.md). No shared entity has been activated. Historical stock/GL date comparisons remain limited by existing stock reversal dating; current cumulative balances reconcile.
 
 ## In progress
-- **Compatible AR/AP improvements** — owner: Native integration session; started: 2026-10-05 UTC. User chose the shared implementation as the base. Preserve published migration0011 and existing data; port compatible reviewed improvements and verify against this implementation. Native backup remains `native-ar-ap-settlements-20261005`.
+- None.
 
 ## Next (in order; confirm with the user before starting)
 1. User review of accounts, receipts/payments and outstanding on dev. Books stay inactive until a Finance user activates an entity (decision 034); a review of the AR/AP slice by a fresh agent is recommended (see the review file's deviations).
