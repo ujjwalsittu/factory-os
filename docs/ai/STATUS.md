@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-05 · AR/AP written design approved; implementation plan awaiting review_
+_Last updated: 2026-10-05 · Native AR/AP review fixes verified; shared integration blocked by competing schema_
 
 ## Done
 - [x] Plan docs 01–16, decision register (001–016 accepted), open questions (docs/10)
@@ -67,16 +67,17 @@ _Last updated: 2026-10-05 · AR/AP written design approved; implementation plan 
   - Independent review found seven Important defects, all reproduced and fixed; an additional fractional tax-allocation regression was fixed in the same pass. [Review, rulings and two deferred UI minors](../superpowers/reviews/2026-10-05-gl-core-review.md). No shared entity has been activated. Historical stock/GL date comparisons remain limited by existing stock reversal dating; current cumulative balances reconcile.
 
 ## In progress
-- **AR/AP settlements design**: core receipts/payments, bill allocation, opening balances, on-account allocation, FX and credit/MSME balance integration; TDS/TCS deferred by user scope approval. Written specification approved. Implementation plan: `docs/superpowers/plans/2026-10-05-ar-ap-settlements.md`. Exact stopping point: user review of written plan and execution-method selection (Native recommended), then implementation. No product implementation started.
+- **Native AR/AP settlements**: user approved Native execution. Tasks 1–7 implemented on `native-ar-ap-settlements-20261005`; exact receipts/payments, structured journal choices, immutable bill/allocation evidence, on-account allocation, FX, gross/net/overdue reports, credit/MSME and invoice balances, accountant UI. Independent review completed; duplicate-reference upgrade, restricted-role diagnostic disclosure and stale cancelled-invoice balances reproduced and fixed. Final verification passed: typecheck16/build11, unit63, settlement247 + accounting202 + legacy147 API checks, eight accounting review regressions and real lock-order barrier; production settlements/accounting/selling/buying browsers all pass. Lint runs zero tasks. Review: `docs/superpowers/reviews/2026-10-05-ar-ap-settlements-native-review.md`.
+- **Exact stopping point:** shared branch independently advanced from `7ecd6e2` to `de88801` with another AR/AP implementation and incompatible migration `0011_settlements.sql`. Native uses `0011_jittery_katie_power.sql`. User integration choice is pending: keep remote and port compatible improvements (recommended), or integrate Native with a tested data migration. Do not merge/deploy the schemas interchangeably. No shared entity was activated.
 
 ## Next (in order; confirm with the user before starting)
-1. **AR/AP settlements** — customer receipts and supplier payments, bill allocation, credit-warning and MSME balance integration; complete the wider GL/AR/AP roadmap.
+1. **Reconcile AR/AP implementations after user choice** — preserve remote `de88801` and Native branch; either port compatible improvements or design/test a data-preserving migration. Complete shared integration before advancing the roadmap.
 2. **Credit / debit notes** (series `AZ/CN/26-27/0001` already reserved in the backend) and sales returns into stock.
 3. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
 4. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
 
 ## Blockers
-- None. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)
+- **Shared AR/AP integration:** two independently implemented migration 0011 schemas overlap. Tests validate the Native branch alone; deployed compatibility is not established. Waiting for the required user data-model choice. Preserve both implementations; do not force-push or overwrite the shared schema.
 
 ## Noticed (out of scope, for later)
 - The first commit on this branch predates the message guard; its message names the assistant. Fixing it needs a force-push, which the user hasn't approved.

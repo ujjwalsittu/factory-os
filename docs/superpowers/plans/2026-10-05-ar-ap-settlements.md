@@ -167,15 +167,16 @@ type PartyPosition = {
 
 **Files:** all touched slice files; docs/ai/STATUS.md, MEMORY.md, LOG.md; create docs/superpowers/reviews/2026-10-05-ar-ap-settlements-review.md.
 
-- [ ] Run root `pnpm typecheck`, `pnpm build --concurrency=2`, `pnpm test --force` and `pnpm lint`; record exact outcomes including zero-task lint limitation.
-- [ ] Restart built API/web with existing local configuration and copied standalone assets; check readiness. Run three settlement API suites plus existing six accounting suites and buying/selling/imports regressions; allow existing auth bucket to reset between fixture suites rather than weakening authentication limits.
-- [ ] Run production settlement browser walkthrough plus existing accounting, selling and buying walkthroughs; retain process exit status and failure evidence. Fix only regressions caused by this slice, add defect tests, and rerun affected checks.
-- [ ] Execute the selected method's required whole-branch independent review against spec/plan, focusing on migration/upgrade, carrying values, cross-control remaps, journal compatibility, real concurrency and permissions. Resolve material findings; document any accepted minor limitations without claiming unimplemented behavior.
-- [ ] Update handoff with completed tasks, migration numbers, exact test results and remaining compliance exclusions. Verify no secrets or accidental files are staged; mark only completed plan checkboxes.
+- [x] Run root `pnpm typecheck`, `pnpm build --concurrency=2`, `pnpm test --force` and `pnpm lint`; record exact outcomes including zero-task lint limitation.
+- [x] Restart built API/web with existing local configuration and copied standalone assets; check readiness. Run three settlement API suites plus existing six accounting suites and buying/selling/imports regressions; allow existing auth bucket to reset between fixture suites rather than weakening authentication limits.
+- [x] Run production settlement browser walkthrough plus existing accounting, selling and buying walkthroughs; retain process exit status and failure evidence. Fix only regressions caused by this slice, add defect tests, and rerun affected checks.
+- [x] Execute the selected method's required whole-branch independent review against spec/plan, focusing on migration/upgrade, carrying values, cross-control remaps, journal compatibility, real concurrency and permissions. Resolve material findings; document any accepted minor limitations without claiming unimplemented behavior.
+- [x] Update handoff with completed tasks, migration numbers, exact test results and remaining compliance exclusions. Verify no secrets or accidental files are staged; mark only completed plan checkboxes.
 - [ ] Commit final fixes/handoff locally; fetch remote, preserve any new remote work and resolve conflicts with relevant verification. Push the complete verified slice normally to `claude/zealous-allen-35g1vm`, confirm remote head and clean tracked tree. Do not activate a shared entity.
+
 
 ## Plan review and execution handoff
 
-All spec sections map to Tasks 1–8; the five Review Focus conditions have explicit tests in their owning tasks. No implementation has started.
+Native execution approved. Tasks 1–7 and Task 8 verification/review/handoff are complete on `native-ar-ap-settlements-20261005`. Shared delivery is blocked: remote `de88801` independently shipped an incompatible migration0011. User integration choice is pending; see the Native review and STATUS. Both implementations must be preserved; do not interchange their migrations.
 
 Recommended execution: **Native**. These tasks share transaction and balance interfaces; keeping implementation in one session avoids repeated context transfer, followed by a fresh whole-branch reviewer for accounting integrity. The alternative is **Subagent-driven**, with a fresh implementer and independent reviewer for each task before proceeding, plus final branch review. User review of this plan and selection of execution method precede implementation.
