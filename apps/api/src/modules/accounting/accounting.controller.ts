@@ -1,3 +1,5 @@
+import { BillService } from './bill.service.js';
+import { BillInitializationService } from './bill-initialization.service.js';
 import { Dec } from '@factoryos/core';
 import { randomUUID } from 'node:crypto';
 import {
@@ -61,6 +63,7 @@ const line = z.object({
   credit: amount,
   partyId: z.uuid().optional(),
   billReference: z.string().trim().min(1).max(120).optional(),
+  tradeReference: z.object({ mode: z.enum(['against','new','on_account']), billId: z.uuid().optional(), reference: z.string().trim().min(1).max(120).optional() }).optional(),
 });
 const journalInput = z.object({
   postingDate: date,
@@ -106,6 +109,8 @@ export class AccountingController {
     @Inject(DB) private readonly db: Database,
     private readonly gl: GlPostingService,
     private readonly opening: OpeningService,
+    private readonly bills: BillService,
+    private readonly billInitialization: BillInitializationService,
     private readonly audit: AuditService,
   ) {}
   private async setup(ctx: TenantRequestContext) {
@@ -846,6 +851,8 @@ export class AccountingController {
         'Journal date must be within the active accounting period',
       );
     await this.gl.validateLines(tx, ctx, entityId, input.lines, true);
+    await this.billInitialization.ensureIn(tx, ctx, entityId);
+    await this.bills.validateJournalIn(tx, ctx, entityId, input.lines, input.postingDate);
     if (input.clearingSourceId) {
       const sourceRows = await tx
         .select({ entry: glEntry })
@@ -1042,6 +1049,7 @@ export class AccountingController {
         },
         tx,
       );
+      await this.billInitialization.ensureIn(tx, ctx, entityId);
       return after;
     });
   }

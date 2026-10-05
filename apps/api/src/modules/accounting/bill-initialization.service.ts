@@ -55,8 +55,12 @@ export class BillInitializationService {
         }
         let billId: string | undefined;
         if (v.sourceType === 'manual') {
-          const candidates = await tx.select().from(tradeBill).where(and(eq(tradeBill.entityId, entityId), eq(tradeBill.partyId, e.partyId), eq(tradeBill.side, side), eq(tradeBill.accountId, e.accountId), eq(tradeBill.reference, e.billReference ?? ''), eq(tradeBill.currency, 'INR')));
-          if (candidates.length === 1) billId = candidates[0]!.id;
+          const choice = v.draftLines.find(l => l.accountId === e.accountId && l.partyId === e.partyId && l.billReference === e.billReference)?.tradeReference;
+          if (choice?.mode === 'against') billId = choice.billId;
+          else if (!choice) {
+            const candidates = await tx.select().from(tradeBill).where(and(eq(tradeBill.entityId, entityId), eq(tradeBill.partyId, e.partyId), eq(tradeBill.side, side), eq(tradeBill.accountId, e.accountId), eq(tradeBill.reference, e.billReference ?? ''), eq(tradeBill.currency, 'INR')));
+            if (candidates.length === 1) billId = candidates[0]!.id;
+          }
         }
         const effect: BillSourceEffect = { ...(billId && { billId }), partyId: e.partyId, side, accountId: e.accountId, reference: e.billReference ?? v.number ?? v.id, currency, amount: amount.toString(), carryingInr: carrying.toString(), recognitionDate: v.postingDate, postingDate: v.postingDate, dueDate, msmeCategory, originKey: e.id };
         await this.bills.recordSourceIn(tx, ctx, entityId, { type: v.sourceType, id: v.sourceId, purpose: v.purpose }, [effect]);

@@ -103,12 +103,12 @@ type PartyPosition = {
 
 **Interfaces:** `BillService.assertSourceCancellableIn(tx, ctx, entityId, sourceType: string, sourceId: string): Promise<void>`; `reverseSourceIn(tx, ctx, entityId, source: SourceRef, postingDate: string): Promise<void>`. New manual trade choice `TradeReference = { mode: 'against' | 'new' | 'on_account'; billId?: string; reference?: string }` belongs on a draft journal line only. Posted GL keeps the recorded billReference plus immutable bill effects.
 
-- [ ] Add failing API cases for invoice submission/cancellation synchronizing bill effects; cancelled invoice as-of history; new/against/on-account INR journal choices; over-reducing a bill; duplicate reference ambiguity; unsupported foreign adjustment; accounting-inactive operational compatibility; and mapping changes preserving original bill account.
-- [ ] Run upgrade/integration suite and confirm newly added cases fail before lifecycle integration.
-- [ ] Integrate invoice/opening/journal events inside existing entity-first transactions. Ensure initialization precedes applying a new active source effect; first submission must not be double-counted by initialization. Reject invoice cancellation with surviving reductions/dependencies before stock/GL mutation. Preserve existing inactive behavior and historical-source guards.
-- [ ] Enforce structured choices for new manual trade journal submissions. For against-ref require same party/side/recorded account and INR currency; on-account and new-ref use explicit identities. Reversal negates source effects at current business date. Keep existing non-trade journals unchanged.
-- [ ] Assert a forced GL failure leaves document, bills and audit unchanged; assert changed mappings affect new bills only. Rerun accounting, buying and selling API regressions relevant to touched lifecycles.
-- [ ] Commit locally: `Synchronize operational and journal trade balances`.
+- [x] Add failing API cases for invoice submission/cancellation synchronizing bill effects; cancelled invoice as-of history; new/against/on-account INR journal choices; over-reducing a bill; duplicate reference ambiguity; unsupported foreign adjustment; accounting-inactive operational compatibility; and mapping changes preserving original bill account.
+- [x] Run upgrade/integration suite and confirm newly added cases fail before lifecycle integration.
+- [x] Integrate invoice/opening/journal events inside existing entity-first transactions. Ensure initialization precedes applying a new active source effect; first submission must not be double-counted by initialization. Reject invoice cancellation with surviving reductions/dependencies before stock/GL mutation. Preserve existing inactive behavior and historical-source guards.
+- [x] Enforce structured choices for new manual trade journal submissions. For against-ref require same party/side/recorded account and INR currency; on-account and new-ref use explicit identities. Reversal negates source effects at current business date. Keep existing non-trade journals unchanged.
+- [x] Assert a forced GL failure leaves document, bills and audit unchanged; assert changed mappings affect new bills only. Rerun accounting, buying and selling API regressions relevant to touched lifecycles.
+- [x] Commit locally: `Synchronize operational and journal trade balances`.
 
 ## Task 4: Receipt/payment lifecycle and GL posting
 

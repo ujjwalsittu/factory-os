@@ -31,7 +31,7 @@ assert.equal(bills[0].openAmount, '60.000000');
 assert.equal(bills[0].carryingInr, '4800.000000');
 const again = await c.req('GET', `/accounts/bills?partyId=${customer.id}&side=receivable&currency=USD`);
 assert.equal(again[0].id, bills[0].id);
-const journal = await c.req('POST', '/accounts/journals', { postingDate: date, narration: 'Prior journal compatibility', lines: [{ ...c.line('debtors', '20'), partyId: customer.id, billReference: 'USD-OPEN' }, c.line('equity', '0', '20')] }, 201);
+const journal = await c.req('POST', '/accounts/journals', { postingDate: date, narration: 'Prior journal compatibility', lines: [{ ...c.line('debtors', '20'), partyId: customer.id, billReference: 'USD-OPEN', tradeReference: { mode: 'new', reference: 'USD-OPEN' } }, c.line('equity', '0', '20')] }, 201);
 await c.req('POST', `/accounts/journals/${journal.id}/submit`, {}, 200);
 const journalBills = await c.req('GET', `/accounts/bills?partyId=${customer.id}&side=receivable&currency=INR`);
 assert.equal(journalBills.length, 1);

@@ -1,6 +1,6 @@
 import { Dec } from '@factoryos/core';
-import { accountingSettings, glAccount, glEntry, tradeBill, tradeBillEffect } from '@factoryos/db';
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { accountingSettings, glAccount, glEntry, tradeBill, tradeBillEffect, type OpeningLine } from '@factoryos/db';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { and, eq, inArray, lte } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import type { Tx } from './accounting-lock.js';
@@ -19,6 +19,26 @@ export interface BillSourceEffect {
 export interface PartyPosition { grossOpenInr: string; onAccountInr: string; netInr: string; overdueInr: string; overdueCount: number }
 @Injectable()
 export class BillService {
+  async validateJournalIn(tx: Tx, ctx: TenantRequestContext, entityId: string, lines: OpeningLine[], postingDate: string) {
+    const controls = await this.controlAccountsIn(tx, ctx, entityId), seen = new Set<string>();
+    for (const l of lines) {
+      const side = controls.get(l.accountId);
+      if (!side) continue;
+      const ref = l.tradeReference;
+      if (!ref || !l.partyId) throw new BadRequestException('Choose against bill, new reference or on account for trade journal lines');
+      const key = `${l.accountId}:${l.partyId}:${l.billReference}`;
+      if (seen.has(key)) throw new BadRequestException('Use separate journals for repeated trade references');
+      seen.add(key);
+      if (ref.mode === 'against') {
+        if (!ref.billId) throw new BadRequestException('Choose the existing bill');
+        const bill = await this.balanceIn(tx, ctx, entityId, ref.billId);
+        if (bill.partyId !== l.partyId || bill.side !== side || bill.accountId !== l.accountId || bill.currency !== 'INR' || bill.reference !== l.billReference || bill.recognitionDate > postingDate)
+          throw new BadRequestException('Choose a matching INR bill, party, recorded account and date');
+        const change = side === 'receivable' ? Dec.of(l.debit).sub(l.credit) : Dec.of(l.credit).sub(l.debit);
+        if (Dec.of(bill.openAmount).add(change).lt('0')) throw new BadRequestException('Adjustment exceeds the open bill amount');
+      } else if (ref.billId || (ref.mode === 'new' && ref.reference !== l.billReference)) throw new BadRequestException('Use an explicit new reference or on-account choice');
+    }
+  }
   async recordSourceIn(tx: Tx, ctx: TenantRequestContext, entityId: string, source: SourceRef, effects: BillSourceEffect[]) {
     const scope = { tenantId: ctx.tenant.tenantId, entityId };
     for (const e of effects) {
@@ -80,6 +100,13 @@ export class BillService {
     if (r.differences.length) throw new ConflictException({ message: 'Trade subledger does not reconcile; review the identified party/control accounts', differences: r.differences });
   }
   async assertSourceCancellableIn(tx: Tx, ctx: TenantRequestContext, entityId: string, sourceType: string, sourceId: string) {
+    const sourceEffects = await tx.select().from(tradeBillEffect).where(and(eq(tradeBillEffect.tenantId, ctx.tenant.tenantId), eq(tradeBillEffect.entityId, entityId), eq(tradeBillEffect.sourceType, sourceType), eq(tradeBillEffect.sourceId, sourceId)));
+    const increases = new Map<string, Dec>();
+    for (const e of sourceEffects) increases.set(e.billId, (increases.get(e.billId) ?? Dec.ZERO).add(e.amount));
+    for (const [id, increase] of increases) if (increase.gt('0')) {
+      const bill = await this.balanceIn(tx, ctx, entityId, id);
+      if (Dec.of(bill.openAmount).sub(increase).lt('0')) throw new ConflictException(`Reverse dependent bill reductions before cancelling ${sourceType}:${sourceId}`);
+    }
     const bills = await tx.select().from(tradeBill).where(and(eq(tradeBill.tenantId, ctx.tenant.tenantId), eq(tradeBill.entityId, entityId), eq(tradeBill.sourceType, sourceType), eq(tradeBill.sourceId, sourceId)));
     for (const b of bills) {
       const effects = await tx.select().from(tradeBillEffect).where(and(eq(tradeBillEffect.entityId, entityId), eq(tradeBillEffect.billId, b.id)));

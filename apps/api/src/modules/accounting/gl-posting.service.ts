@@ -1,3 +1,5 @@
+import { BillService } from './bill.service.js';
+import { BillInitializationService } from './bill-initialization.service.js';
 import {
   assertBalanced,
   Dec,
@@ -38,7 +40,7 @@ export interface SourceRef {
 }
 @Injectable()
 export class GlPostingService {
-  constructor(private readonly audit: AuditService) {}
+  constructor(private readonly audit: AuditService, private readonly bills: BillService, private readonly billInitialization: BillInitializationService) {}
   async active(tx: Tx, entityId: string) {
     const [s] = await tx
       .select()
@@ -257,6 +259,7 @@ export class GlPostingService {
       },
       tx,
     );
+    if (!['settlement', 'settlement_allocation'].includes(source.type)) await this.billInitialization.ensureIn(tx, ctx, entityId);
     return { voucherId };
   }
   async reverseIn(
@@ -268,6 +271,10 @@ export class GlPostingService {
   ) {
     await lockAccounting(tx, entityId);
     if (!(await this.active(tx, entityId))) return;
+    if (!['settlement', 'settlement_allocation'].includes(source.type)) {
+      await this.billInitialization.ensureIn(tx, ctx, entityId);
+      await this.bills.assertSourceCancellableIn(tx, ctx, entityId, source.type, source.id);
+    }
     const [d] = await tx
       .select()
       .from(glDisposition)
@@ -401,5 +408,6 @@ export class GlPostingService {
       },
       tx,
     );
+    if (!['settlement', 'settlement_allocation'].includes(source.type)) await this.billInitialization.ensureIn(tx, ctx, entityId);
   }
 }

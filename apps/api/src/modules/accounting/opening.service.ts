@@ -1,3 +1,4 @@
+import { BillInitializationService } from './bill-initialization.service.js';
 import { createHash } from 'node:crypto';
 import { Dec, allocateProportion } from '@factoryos/core';
 import {
@@ -28,6 +29,7 @@ export class OpeningService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly gl: GlPostingService,
+    private readonly billInitialization: BillInitializationService,
     private readonly audit: AuditService,
   ) {}
   async preview(db: Db, entityId: string) {
@@ -394,6 +396,7 @@ export class OpeningService {
       },
       tx,
     );
+    await this.billInitialization.ensureIn(tx, ctx, entityId);
     return { openingVoucherId: result.voucherId };
   }
 }
