@@ -301,6 +301,8 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
           )}
         </div>
         <div className="flex flex-wrap gap-2">
+          {invoice?.status === 'submitted' && ws.can('buying.return_claim.create') && <Link className="text-accent" href={`/app/buying/return-claims/new?invoiceId=${invoice.id}`}>Create return claim</Link>}
+          {invoice?.status === 'submitted' && ws.can('buying.supplier_note.create') && <Link className="text-accent" href={`/app/buying/supplier-notes/new?invoiceId=${invoice.id}`}>Record supplier note</Link>}
           {editable && (invoice || draftId) && ws.can('buying.purchase_invoice.create') && (
             <Button variant="ghost" onClick={() => remove.mutate()} loading={remove.isPending}>
               <Trash2 className="size-4" /> Delete draft

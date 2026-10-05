@@ -79,6 +79,8 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     items: [
       { href: '/app/buying/orders', label: 'Purchase orders', icon: ShoppingCart, permission: 'buying.purchase_order.read', entityScoped: true },
       { href: '/app/buying/inspections', label: 'Incoming inspection', icon: ScanSearch, permission: 'quality.inspection.read', entityScoped: true },
+      { href: '/app/buying/return-claims', label: 'Return claims', icon: ReceiptText, permission: 'buying.return_claim.read', entityScoped: true },
+      { href: '/app/buying/supplier-notes', label: 'Supplier notes', icon: ReceiptText, permission: 'buying.supplier_note.read', entityScoped: true },
       { href: '/app/buying/invoices', label: 'Purchase invoices', icon: ReceiptText, permission: 'buying.purchase_invoice.read', entityScoped: true },
       { href: '/app/buying/landed-costs', label: 'Landed cost', icon: Ship, permission: 'buying.landed_cost.read', entityScoped: true },
     ],
@@ -123,6 +125,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
   {
     section: 'Settings',
     items: [
+      { href: '/app/settings/supplier-returns', label: 'Supplier return policies', icon: ReceiptText, permission: 'buying.return_policy.read', entityScoped: true },
       { href: '/app/settings/entities', label: 'Entities & GST', icon: Building2, permission: 'settings.entity.read' },
       { href: '/app/settings/number-series', label: 'Number series', icon: FileSpreadsheet, permission: 'settings.entity.read', entityScoped: true },
       { href: '/app/settings/users', label: 'Users', icon: Users, permission: 'settings.user.read' },

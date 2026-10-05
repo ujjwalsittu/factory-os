@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import {chromium} from 'playwright';
+import {Client} from '../../api/scripts/accounting-test-helpers.mjs';
+import {fixture} from '../../api/scripts/supplier-returns-test-helpers.mjs';
+const {c,inv}=await fixture('Supplier notes browser');
+const B=process.env.WEB_URL??'http://localhost:3000';
+const browser=await chromium.launch(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{}),context=await browser.newContext();
+await context.addCookies(c.cookie.split('; ').map(cookie=>{const i=cookie.indexOf('=');return {name:cookie.slice(0,i),value:cookie.slice(i+1),url:B};}));
+await context.addInitScript(({tenantId,entityId})=>{localStorage.setItem('fos.tenant',tenantId);localStorage.setItem(`fos.entity.${tenantId}`,entityId);},{tenantId:c.tenantId,entityId:c.entityId});
+const page=await context.newPage(),errors=[];page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
+try {
+ await page.goto(`${B}/app/buying/supplier-notes/new?invoiceId=${inv.id}`);
+ await page.getByRole('heading',{name:'Supplier note',exact:true}).waitFor();
+ await page.getByLabel('Supplier note number').fill('BROWSER-CN');
+ await page.getByLabel('Reason',{exact:true}).fill('Supplier confirms billing correction');
+ await page.getByLabel('Taxable adjustment').first().fill('40');
+ await page.getByLabel('Confirm documented GST eligibility').check();
+ await page.getByRole('button',{name:'Preview note',exact:true}).click();
+ await page.getByText('Total: INR 47.20',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Submit note',exact:true}).click();
+ await page.waitForURL('**/supplier-notes/*');
+ await page.getByText(/Supplier credit remaining: INR 0\.000000/).waitFor();
+ const id=page.url().split('/').at(-1);
+ await page.goto(`${B}/app/buying/supplier-notes/${id}/print`);
+ await page.getByText('Supplier credit note',{exact:true}).waitFor();await page.getByText('BROWSER-CN',{exact:true}).waitFor();
+ await page.goto(`${B}/app/settings/supplier-returns`);
+ await page.getByLabel('Credit application').selectOption('manual');
+ await page.getByRole('button',{name:'Save policies',exact:true}).click();await page.getByText('Policies saved',{exact:true}).waitFor();
+ assert.equal((await c.req('GET','/buying/return-policy')).creditApplication,'manual');
+ const input={invoiceId:inv.id,kind:'credit',taxTreatment:'commercial',supplierNoteNo:'READ-CN',supplierNoteDate:inv.postingDate,postingDate:inv.postingDate,reason:'Read only Finance approval',lines:[{invoiceLineId:inv.lines[0].id,mode:'value',taxableAmount:'10'}]};const draft=await c.req('POST','/buying/supplier-notes',input,201);
+ const role=await c.req('POST','/roles',{name:'Supplier note approver',permissions:['buying.supplier_note.read','buying.supplier_note.submit']},201);const viewer=new Client(),email=`supplier-approver${Date.now()}@example.com`;const invite=await c.req('POST','/invitations',{email,roles:[{roleId:role.id,entityIds:[c.entityId]}]},201);await viewer.req('POST','/auth/sign-up/email',{name:'Supplier approver',email,password:'Sup3r-secret-pw'});await viewer.req('POST','/invitations/accept',{token:invite.inviteUrl.split('/').at(-1)},201);
+ const readContext=await browser.newContext();await readContext.addCookies(viewer.cookie.split('; ').map(cookie=>{const i=cookie.indexOf('=');return {name:cookie.slice(0,i),value:cookie.slice(i+1),url:B}}));await readContext.addInitScript(({tenantId,entityId})=>{localStorage.setItem('fos.tenant',tenantId);localStorage.setItem(`fos.entity.${tenantId}`,entityId)},{tenantId:c.tenantId,entityId:c.entityId});const readPage=await readContext.newPage();await readPage.goto(`${B}/app/buying/supplier-notes/${draft.id}`);await readPage.getByText('Total: INR 10.000000',{exact:true}).waitFor();assert.equal(await readPage.getByRole('button',{name:'Save draft',exact:true}).count(),0);assert.equal(await readPage.getByLabel('Taxable adjustment').isDisabled(),true);await readPage.getByRole('button',{name:'Submit note',exact:true}).click();await readPage.getByText(/Supplier credit remaining: INR 10.000000/).waitFor();await readContext.close();
+ await page.setViewportSize({width:390,height:844});assert.deepEqual(errors,[]);
+ console.log('PASS supplier note editor, server preview, recognition, print, manual policies and read-only Finance approval');
+} catch(e){await page.screenshot({path:'/tmp/supplier-notes-browser-failure.png',fullPage:true});throw e;}finally{await browser.close();}
