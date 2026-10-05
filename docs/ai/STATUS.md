@@ -70,7 +70,7 @@ _Last updated: 2026-10-05 · Compatible AR/AP improvements verified; shared migr
   - Independent review found seven Important defects, all reproduced and fixed; an additional fractional tax-allocation regression was fixed in the same pass. [Review, rulings and two deferred UI minors](../superpowers/reviews/2026-10-05-gl-core-review.md). No shared entity has been activated. Historical stock/GL date comparisons remain limited by existing stock reversal dating; current cumulative balances reconcile.
 
 ## In progress
-- None.
+- **Credit/debit notes and sales returns design** — owner: default-branch session; started: 2026-10-05T10:49:31+00:00. User requested continuation on the repository default branch. Reviewing invoice, stock valuation and settlement interfaces; initial customer-versus-supplier scope question is pending. No product code or data activation changed.
 
 ## Next (in order; confirm with the user before starting)
 1. User review of accounts, receipts/payments and outstanding on dev. Books stay inactive until a Finance user activates an entity (decision 034); a review of the AR/AP slice by a fresh agent is recommended (see the review file's deviations).
