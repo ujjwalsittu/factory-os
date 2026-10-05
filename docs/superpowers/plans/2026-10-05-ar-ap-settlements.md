@@ -77,11 +77,11 @@ type PartyPosition = {
 
 **Interfaces:** `consumeCarryingValue(openAmount: string, carryingInr: string, allocatedAmount: string): string`; `settlementDifference(direction: Direction, cashInr: string, carryingInr: string): string`. The latter returns positive FX expense and negative FX gain. Use existing `allocateProportion` for partial amounts; final exhaustion returns the exact remaining carrying value.
 
-- [ ] Write Vitest assertions: `consumeCarryingValue('100','8000','40') === '3200.000000'`; allocating the last 60 against 4,800 exhausts exactly; fractional six-place residual is consumed on the final allocation; zero/negative/over-allocation rejects. Receipt 3,320 vs 3,200 gives `-120.000000`; payment gives `120.000000`; lower receipt/payment rates invert signs.
-- [ ] Run `pnpm --filter @factoryos/core test` and observe the new test fail from missing exports.
-- [ ] Implement these pure functions and exports, using six-place strings and no floats. Preserve distinction between exchange differences and arithmetic rounding.
-- [ ] Rerun core tests and typecheck; verify all named cases pass.
-- [ ] Commit locally: `Add exact settlement carrying value arithmetic`.
+- [x] Write Vitest assertions: `consumeCarryingValue('100','8000','40') === '3200.000000'`; allocating the last 60 against 4,800 exhausts exactly; fractional six-place residual is consumed on the final allocation; zero/negative/over-allocation rejects. Receipt 3,320 vs 3,200 gives `-120.000000`; payment gives `120.000000`; lower receipt/payment rates invert signs.
+- [x] Run `pnpm --filter @factoryos/core test` and observe the new test fail from missing exports.
+- [x] Implement these pure functions and exports, using six-place strings and no floats. Preserve distinction between exchange differences and arithmetic rounding.
+- [x] Rerun core tests and typecheck; verify all named cases pass.
+- [x] Commit locally: `Add exact settlement carrying value arithmetic`.
 
 ## Task 2: Bill storage, upgrade and opening initialization
 
