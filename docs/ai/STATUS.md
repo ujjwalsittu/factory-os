@@ -68,7 +68,7 @@ _Last updated: 2026-10-05 · AR/AP written design approved; implementation plan 
   - Independent review found seven Important defects, all reproduced and fixed; an additional fractional tax-allocation regression was fixed in the same pass. [Review, rulings and two deferred UI minors](../superpowers/reviews/2026-10-05-gl-core-review.md). No shared entity has been activated. Historical stock/GL date comparisons remain limited by existing stock reversal dating; current cumulative balances reconcile.
 
 ## In progress
-- Nothing. Stopping point is clean.
+- **Compatible AR/AP improvements** — owner: Native integration session; started: 2026-10-05 UTC. User chose the shared implementation as the base. Preserve published migration0011 and existing data; port compatible reviewed improvements and verify against this implementation. Native backup remains `native-ar-ap-settlements-20261005`.
 
 ## Next (in order; confirm with the user before starting)
 1. User review of accounts, receipts/payments and outstanding on dev. Books stay inactive until a Finance user activates an entity (decision 034); a review of the AR/AP slice by a fresh agent is recommended (see the review file's deviations).
