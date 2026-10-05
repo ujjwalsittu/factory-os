@@ -20,6 +20,7 @@ export interface AccountingSettings {
   mappings: Record<string, string>;
 }
 export interface JournalLine {
+  tradeReference?: { mode: 'against' | 'new' | 'on_account'; billId?: string; reference?: string };
   accountId: string;
   debit: string;
   credit: string;

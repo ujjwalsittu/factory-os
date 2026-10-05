@@ -338,6 +338,7 @@ function Form({ doc }: { doc?: Journal }) {
                 </Field>
               </div>
               <JournalLines
+            tradeChoices={editable}
                 lines={lines}
                 onChange={setLines}
                 disabled={!canEdit || save.isPending}

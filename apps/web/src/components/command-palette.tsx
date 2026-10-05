@@ -46,6 +46,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       }
     }
     if (ws.can('buying.purchase_order.create')) actions.push({ id: 'po', label: 'New purchase order', group: 'Actions', run: go('/app/buying/orders/new') });
+    if (ws.can('accounts.settlement.create')) actions.push({ id: 'settlement', label: 'New receipt / payment', group: 'Actions', run: go('/app/accounts/settlements/new') });
     if (ws.can('accounts.voucher.create')) actions.push({ id: 'journal', label: 'New journal', group: 'Actions', run: go('/app/accounts/journals/new') });
     if (ws.can('buying.purchase_invoice.create')) actions.push({ id: 'pi', label: 'New purchase invoice', group: 'Actions', run: go('/app/buying/invoices/new') });
     if (ws.can('buying.landed_cost.create')) actions.push({ id: 'lcv', label: 'New landed cost (Bill of Entry)', group: 'Actions', run: go('/app/buying/landed-costs/new') });

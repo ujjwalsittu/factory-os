@@ -7,7 +7,7 @@ import { legalEntity, tenant } from './platform.js';
 const scope = { tenantId: uuid('tenant_id').notNull().references(() => tenant.id), entityId: uuid('entity_id').notNull().references(() => legalEntity.id) };
 const amount = (name: string) => numeric(name, { precision: 24, scale: 6 });
 export interface TradeReference { mode: 'against' | 'new' | 'on_account'; billId?: string; reference?: string; }
-export interface OpeningLine { tradeReference?: TradeReference; accountId: string; debit: string; credit: string; partyId?: string; billReference?: string; }
+export interface OpeningLine { ledgerEntryId?: string; tradeReference?: TradeReference; accountId: string; debit: string; credit: string; partyId?: string; billReference?: string; }
 export interface OpeningBill { partyId: string; reference: string; side: 'debit' | 'credit'; amount: string; invoiceId?: string; currency?: string; exchangeRate?: string; originalAmount?: string; }
 export interface OpeningReceipt { receiptLineId: string; qty: string; baseCost: string; }
 export interface OpeningSettlement { invoiceId: string; amount: string; reason: string; }

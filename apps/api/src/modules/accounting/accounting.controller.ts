@@ -1014,9 +1014,11 @@ export class AccountingController {
         lines: v.draftLines,
       });
       const number = await this.gl.number(tx, ctx, entityId, v.postingDate);
+      const postedDraft = v.draftLines.map(l => ({ ...l, ledgerEntryId: randomUUID() }));
       await tx.insert(glEntry).values(
-        v.draftLines.map((l) => ({
+        postedDraft.map((l) => ({
           ...l,
+          id: l.ledgerEntryId,
           tenantId: ctx.tenant.tenantId,
           entityId,
           voucherId: id,
@@ -1025,7 +1027,7 @@ export class AccountingController {
       );
       const [after] = await tx
         .update(journalVoucher)
-        .set({ status: 'submitted', number, submittedAt: new Date() })
+        .set({ status: 'submitted', number, submittedAt: new Date(), draftLines: postedDraft })
         .where(eq(journalVoucher.id, id))
         .returning();
       await tx.insert(glDisposition).values({

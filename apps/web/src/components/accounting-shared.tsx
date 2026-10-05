@@ -17,6 +17,7 @@ import { api } from '@/lib/api';
 import type { Account, JournalLine } from '@/lib/accounting';
 import type { Party } from '@/lib/types';
 import { EntityGate } from './entity-gate';
+import { useOpenBills } from './settlement-shared';
 import { useWorkspace } from './workspace';
 export function AccountingPage({
   title,
@@ -49,6 +50,8 @@ export function AccountingPage({
         {[
           ['setup', 'Accounting setup', 'accounts.setup.read'],
           ['chart', 'Chart of accounts', 'accounts.account.read'],
+          ['settlements', 'Receipts & payments', 'accounts.settlement.read'],
+          ['outstanding', 'Outstanding & ageing', 'accounts.report.read'],
           ['journals', 'Journals', 'accounts.voucher.read'],
           ['day-book', 'Day book', 'accounts.report.read'],
           ['ledger', 'Account ledger', 'accounts.report.read'],
@@ -99,13 +102,26 @@ export function JournalLines({
   lines,
   onChange,
   disabled = false,
+  tradeChoices = false,
 }: {
+  tradeChoices?: boolean;
   lines: JournalLine[];
   onChange: (lines: JournalLine[]) => void;
   disabled?: boolean;
 }) {
   const accounts = useAccounts(),
-    parties = useAccountingParties();
+    parties = useAccountingParties(),
+    ws = useWorkspace();
+  const controls = useQuery({
+    queryKey: ['bill-controls', ws.tenantId, ws.entityId],
+    queryFn: () =>
+      api<{ accountId: string; side: 'receivable' | 'payable' }[]>(
+        '/accounts/bill-controls',
+        { scope: ws.scope },
+      ),
+    enabled: tradeChoices,
+    retry: false,
+  });
   const update = (index: number, patch: Partial<JournalLine>) =>
     onChange(lines.map((l, i) => (i === index ? { ...l, ...patch } : l)));
   return (
@@ -129,7 +145,15 @@ export function JournalLines({
                   aria-label={`Account ${i + 1}`}
                   value={l.accountId}
                   disabled={disabled || accounts.isLoading}
-                  onChange={(e) => update(i, { accountId: e.target.value })}
+                  onChange={(e) =>
+                    update(i, {
+                      accountId: e.target.value,
+                      ...(tradeChoices && {
+                        tradeReference: undefined,
+                        billReference: undefined,
+                      }),
+                    })
+                  }
                 >
                   <option value="">Choose ledger</option>
                   {accounts.data
@@ -166,7 +190,13 @@ export function JournalLines({
                     value={l.partyId ?? ''}
                     disabled={disabled}
                     onChange={(e) =>
-                      update(i, { partyId: e.target.value || undefined })
+                      update(i, {
+                        partyId: e.target.value || undefined,
+                        ...(tradeChoices && {
+                          tradeReference: undefined,
+                          billReference: undefined,
+                        }),
+                      })
                     }
                   >
                     <option value="">No party</option>
@@ -176,15 +206,31 @@ export function JournalLines({
                       </option>
                     ))}
                   </Select>
-                  <Input
-                    aria-label={`Bill reference ${i + 1}`}
-                    value={l.billReference ?? ''}
-                    placeholder="Bill / on-account reference"
-                    disabled={disabled}
-                    onChange={(e) =>
-                      update(i, { billReference: e.target.value || undefined })
-                    }
-                  />
+                  {tradeChoices &&
+                  controls.data?.some((c) => c.accountId === l.accountId) ? (
+                    <TradeJournalReference
+                      index={i}
+                      line={l}
+                      side={
+                        controls.data.find((c) => c.accountId === l.accountId)!
+                          .side
+                      }
+                      disabled={disabled}
+                      onChange={(patch) => update(i, patch)}
+                    />
+                  ) : (
+                    <Input
+                      aria-label={`Bill reference ${i + 1}`}
+                      value={l.billReference ?? ''}
+                      placeholder="Bill / on-account reference"
+                      disabled={disabled}
+                      onChange={(e) =>
+                        update(i, {
+                          billReference: e.target.value || undefined,
+                        })
+                      }
+                    />
+                  )}
                 </div>
               </Td>
               <Td>
@@ -203,6 +249,101 @@ export function JournalLines({
           ))}
         </tbody>
       </Table>
+    </>
+  );
+}
+
+function TradeJournalReference({
+  index,
+  line,
+  side,
+  disabled,
+  onChange,
+}: {
+  index: number;
+  line: JournalLine;
+  side: 'receivable' | 'payable';
+  disabled: boolean;
+  onChange: (patch: Partial<JournalLine>) => void;
+}) {
+  const bills = useOpenBills(line.partyId ?? '', side, 'INR', !disabled),
+    mode = line.tradeReference?.mode ?? '';
+  return (
+    <>
+      <Select
+        aria-label={`Bill treatment ${index + 1}`}
+        disabled={disabled}
+        value={mode}
+        onChange={(e) => {
+          const mode = e.target.value as 'against' | 'new' | 'on_account';
+          onChange({
+            tradeReference: mode
+              ? { mode, ...(mode === 'new' && { reference: '' }) }
+              : undefined,
+            billReference: mode === 'on_account' ? 'On account' : undefined,
+          });
+        }}
+      >
+        <option value="">Choose bill treatment</option>
+        <option value="against">Against existing INR bill</option>
+        <option value="new">New INR reference</option>
+        <option value="on_account">On account</option>
+      </Select>
+      {mode === 'against' ? (
+        disabled ? (
+          <Input
+            aria-label={`Against bill ${index + 1}`}
+            value={line.billReference ?? ''}
+            disabled
+          />
+        ) : (
+          <Select
+            aria-label={`Against bill ${index + 1}`}
+            value={line.tradeReference?.billId ?? ''}
+            disabled={disabled || bills.isFetching}
+            onChange={(e) => {
+              const bill = bills.data?.find((b) => b.id === e.target.value);
+              onChange({
+                tradeReference: {
+                  mode: 'against',
+                  billId: e.target.value || undefined,
+                },
+                billReference: bill?.reference,
+              });
+            }}
+          >
+            <option value="">Choose matching bill</option>
+            {bills.data
+              ?.filter(
+                (b) =>
+                  b.accountId === line.accountId &&
+                  !b.openAmount.startsWith('-'),
+              )
+              .map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.reference} · INR {b.openAmount}
+                </option>
+              ))}
+          </Select>
+        )
+      ) : (
+        <Input
+          aria-label={`Bill reference ${index + 1}`}
+          value={line.billReference ?? ''}
+          disabled={disabled || !mode}
+          placeholder="New / on-account reference"
+          onChange={(e) =>
+            onChange({
+              billReference: e.target.value,
+              tradeReference: {
+                mode: mode as 'new' | 'on_account',
+                ...(mode === 'new' && { reference: e.target.value }),
+              },
+            })
+          }
+        />
+      )}
+      {bills.error && <Alert tone="danger">{bills.error.message}</Alert>}
     </>
   );
 }

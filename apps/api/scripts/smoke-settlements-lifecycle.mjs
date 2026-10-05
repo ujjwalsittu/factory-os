@@ -10,6 +10,11 @@ const j = await c.req('POST', '/accounts/journals', { postingDate: date, narrati
 await c.req('POST', `/accounts/journals/${j.id}/submit`, {}, 200);
 const bills = await c.req('GET', `/accounts/bills?partyId=${p.id}&side=receivable`);
 assert.equal(bills[0].openAmount, '100.000000');
+const split = await c.req('POST', '/accounts/journals', { postingDate: date, narration: 'Two ledger lines against same bill', lines: [{ ...c.line('debtors','0','5'), partyId: p.id, billReference: 'NEW-REF', tradeReference: { mode: 'against', billId: bills[0].id } }, { ...c.line('debtors','0','5'), partyId: p.id, billReference: 'NEW-REF', tradeReference: { mode: 'against', billId: bills[0].id } }, c.line('equity','10')] }, 201);
+await c.req('POST', `/accounts/journals/${split.id}/submit`, {});
+assert.equal((await c.req('GET', '/accounts/bills'))[0].openAmount, '90.000000');
+await c.req('POST', `/accounts/journals/${split.id}/cancel`, { reason: 'Reverse split bill adjustment' });
+assert.equal((await c.req('GET', '/accounts/bills'))[0].openAmount, '100.000000');
 await c.req('POST', '/accounts/journals', { postingDate: date, narration: 'Excess bill adjustment', lines: [{ ...c.line('debtors', '0', '101'), partyId: p.id, billReference: 'NEW-REF', tradeReference: { mode: 'against', billId: bills[0].id } }, c.line('equity', '101')] }, 400);
 const reducing = await c.req('POST', '/accounts/journals', { postingDate: date, narration: 'Partial bill adjustment', lines: [{ ...c.line('debtors', '0', '40'), partyId: p.id, billReference: 'NEW-REF', tradeReference: { mode: 'against', billId: bills[0].id } }, c.line('equity', '40')] }, 201);
 await c.req('POST', `/accounts/journals/${reducing.id}/submit`, {}, 200);

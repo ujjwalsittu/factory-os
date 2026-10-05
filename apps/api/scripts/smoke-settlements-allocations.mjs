@@ -6,6 +6,9 @@ await c.activate([{ ...c.line('debtors', '8000'), partyId: p.id, billReference: 
 const bill = (await c.req('GET', '/accounts/bills'))[0], date = c.settings.cutoverDate;
 const advance = await c.req('POST', '/accounts/settlements', { direction: 'receipt', partyId: p.id, postingDate: date, currency: 'USD', exchangeRate: '83', amount: '100', accountId: c.account('bank'), bankReference: '', narration: 'Unapplied foreign receipt', allocations: [] }, 201);
 await c.req('POST', `/accounts/settlements/${advance.id}/submit`, {});
+const replacement = await c.req('POST', '/accounts/accounts', { code: 'REPLACEDEBT', name: 'Replacement debtors', groupId: c.accounts.find(a => a.role === 'debtors').groupId }, 201);
+await c.req('PUT', '/accounts/settings', { mappings: { ...c.settings.mappings, debtors: replacement.id } });
+await c.req('PUT', `/accounts/accounts/${c.account('debtors')}`, { isActive: false });
 const input = { settlementId: advance.id, postingDate: date, reason: 'Apply receipt to opening bill', allocations: [{ billId: bill.id, amount: '40' }] };
 for (const allocations of [[], [{ billId: bill.id, amount: '101' }], [{ billId: bill.id, amount: '0' }], [{ billId: bill.id, amount: '1' }, { billId: bill.id, amount: '1' }]]) await c.req('POST', '/accounts/settlement-allocations/preview', { ...input, allocations }, 400);
 const preview = await c.req('POST', '/accounts/settlement-allocations/preview', input);
@@ -27,6 +30,7 @@ assert.equal((await c.req('GET', '/accounts/bills')).find(b => b.id === bill.id)
 await c.req('POST', `/accounts/settlement-allocations/${a.id}/cancel`, { reason: 'Repeated cancellation refused' }, 409);
 await c.req('POST', `/accounts/settlements/${advance.id}/cancel`, { reason: 'Reverse original bank movement last' });
 assert.deepEqual((await c.req('GET', '/accounts/trade-reconciliation')).differences, []);
+await c.req('PUT', `/accounts/accounts/${c.account('debtors')}`, { isActive: true });
 await c.req('PUT', '/accounts/settings', { mappings: c.settings.mappings });
 const same = await c.req('POST', '/accounts/settlements', { ...advance.draft, exchangeRate: '80' }, 201);
 await c.req('POST', `/accounts/settlements/${same.id}/submit`, {});

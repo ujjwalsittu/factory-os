@@ -102,6 +102,8 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     items: [
       { href: '/app/accounts/setup', label: 'Accounting setup', icon: Landmark, permission: 'accounts.setup.read', entityScoped: true },
       { href: '/app/accounts/chart', label: 'Chart of accounts', icon: ScrollText, permission: 'accounts.account.read', entityScoped: true },
+      { href: '/app/accounts/settlements', label: 'Receipts & payments', icon: ReceiptText, permission: 'accounts.settlement.read', entityScoped: true },
+      { href: '/app/accounts/outstanding', label: 'Outstanding & ageing', icon: FileSpreadsheet, permission: 'accounts.report.read', entityScoped: true },
       { href: '/app/accounts/journals', label: 'Journals', icon: ReceiptText, permission: 'accounts.voucher.read', entityScoped: true },
       { href: '/app/accounts/day-book', label: 'Day book', icon: FileSpreadsheet, permission: 'accounts.report.read', entityScoped: true },
       { href: '/app/accounts/trial-balance', label: 'Trial balance', icon: FileSpreadsheet, permission: 'accounts.report.read', entityScoped: true },

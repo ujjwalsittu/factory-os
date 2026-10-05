@@ -156,12 +156,12 @@ type PartyPosition = {
 
 **Interfaces:** Mirror backend `SettlementInput`, `LaterAllocationInput`, `BillBalance` and `SettlementPreview` in web/lib/settlements.ts. Use existing API client/query/session/entity hooks. Lists filter direction; allocation action lives on submitted settlement detail. Journal draft types include TradeReference.
 
-- [ ] Read relevant installed Next.js guide per apps/web/AGENTS.md before code. Add browser cases for create/save/preview/submit, gross/allocated/unapplied totals, partial allocation, later allocation, FX preview, cancellation dependencies, invoice links, read-only roles, entity switch, print/export, and updated credit warning.
-- [ ] Run `WEB_URL=http://localhost:3001 CHROMIUM_PATH=/usr/bin/chromium node e2e/settlements.mjs` from apps/web and confirm missing-route/control failures.
-- [ ] Implement lists/forms/picker using `@factoryos/ui` and server arithmetic; optional oldest-due suggestion changes draft only. Explicitly save before submit; invalidate stale preview after changes, prevent out-of-order preview overwrites, disable invalid/pending actions, and reload balances after server conflict. Keep submit-only reviewer behavior consistent with existing permissions.
-- [ ] Add structured journal bill selectors only for trade lines, operational remaining-balance summaries, permission-gated voucher/reversal links, outstanding/ageing views with as-of and currency/party filters, gross/unapplied/net labels, exact-precision print/export and MSME limitation disclosure.
-- [ ] Build production web, copy standalone static assets as documented, restart only own API/web processes after build, and use readiness requests before rerunning browser suite. Confirm mobile/read-only/entity-switch states as part of the same walkthrough.
-- [ ] Verify web typecheck and browser suite; commit locally: `Add receipt payment and outstanding balance workflows`.
+- [x] Read relevant installed Next.js guide per apps/web/AGENTS.md before code. Add browser cases for create/save/preview/submit, gross/allocated/unapplied totals, partial allocation, later allocation, FX preview, cancellation dependencies, invoice links, read-only roles, entity switch, print/export, and updated credit warning.
+- [x] Run `WEB_URL=http://localhost:3001 CHROMIUM_PATH=/usr/bin/chromium node e2e/settlements.mjs` from apps/web and confirm missing-route/control failures.
+- [x] Implement lists/forms/picker using `@factoryos/ui` and server arithmetic; optional oldest-due suggestion changes draft only. Explicitly save before submit; invalidate stale preview after changes, prevent out-of-order preview overwrites, disable invalid/pending actions, and reload balances after server conflict. Keep submit-only reviewer behavior consistent with existing permissions.
+- [x] Add structured journal bill selectors only for trade lines, operational remaining-balance summaries, permission-gated voucher/reversal links, outstanding/ageing views with as-of and currency/party filters, gross/unapplied/net labels, exact-precision print/export and MSME limitation disclosure.
+- [x] Build production web, copy standalone static assets as documented, restart only own API/web processes after build, and use readiness requests before rerunning browser suite. Confirm mobile/read-only/entity-switch states as part of the same walkthrough.
+- [x] Verify web typecheck and browser suite; commit locally: `Add receipt payment and outstanding balance workflows`.
 
 ## Task 8: Whole-slice review, regression and delivery
 
