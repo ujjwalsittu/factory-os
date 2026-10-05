@@ -70,7 +70,7 @@ The original Native backup branch remains unchanged at `21c285d`.
 GitHub GraphQL and REST PR APIs returned Forbidden in this environment. PR identity,
 OPEN state, source and target were confirmed through the public PR page and Git refs.
 The merge is performed through a normal push to the target, without bypassing hooks
-or branch protections. Final PR state must be confirmed after that push.
+or branch protections. GitHub public PR state confirms MERGED at 2026-10-05T10:45:45Z after the successful push; the backup ref remains `21c285d`.
 
 Merged-tree verification passed: build (11 cached tasks), typecheck (16 cached tasks),
 55 freshly run unit tests, 93 settlement checks, 16 duplicate-reference checks,
