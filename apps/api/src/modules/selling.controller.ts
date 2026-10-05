@@ -1,3 +1,5 @@
+import { BillService } from './accounting/bill.service.js';
+import { BillInitializationService } from './accounting/bill-initialization.service.js';
 import { OperationalPostings } from './accounting/operational-postings.js';
 import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
@@ -5,6 +7,7 @@ import { computeGst, GST_RATES, type SupplyType, type TaxResult } from '@factory
 import { Dec } from '@factoryos/core';
 import {
   batch,
+  accountingSettings,
   type Database,
   gstRegistration,
   hsnCode,
@@ -128,6 +131,8 @@ export class SellingController {
     private readonly audit: AuditService,
     private readonly accounting: OperationalPostings,
     private readonly gl: GlPostingService,
+    private readonly bills: BillService,
+    private readonly billInitialization: BillInitializationService,
     private readonly posting: StockPostingService,
   ) {}
 
@@ -146,14 +151,14 @@ export class SellingController {
     return { ...this.tax(c, lines), gstRates: lines.map((l) => l.gstRate), supplyType: c.supplyType, placeOfSupplyStateCode: c.pos, lutArn: this.needsLut(c.supplyType) ? c.reg.lutArn : null };
   }
 
-  /** Credit position of a customer (decision 032). Until receipts exist every submitted invoice is outstanding. */
+  /** Credit position of a customer (decision 032). Active accounting uses net bill/on-account balances; inactive accounting uses submitted invoices. */
   @Get('selling/credit-status')
   @RequirePermission('selling.sales_order.read')
   async creditStatus(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
     const entityId = entityOf(ctx);
     const { customerId } = parse(z.object({ customerId: z.string().uuid() }), query);
     const customer = await this.customer(ctx, customerId);
-    return this.credit(this.db, entityId, customer, '0');
+    return this.credit(this.db, ctx, entityId, customer, '0');
   }
 
   // ───────────────────────── Quotations ─────────────────────────
@@ -957,8 +962,17 @@ export class SellingController {
   }
 
   /** Outstanding (INR) and overdue for a customer; `adding` is the document about to be submitted. */
-  private async credit(db: Database | Tx, entityId: string, customer: Party, adding: string) {
-    const [row] = await db
+  private async credit(db: Database | Tx, ctx: TenantRequestContext, entityId: string, customer: Party, adding: string) {
+    const [settings] = await db.select().from(accountingSettings).where(eq(accountingSettings.entityId, entityId));
+    let row: { outstanding: string; overdue: string; overdueCount: number };
+    if (settings?.active) {
+      const position = await db.transaction(async tx => {
+        await this.billInitialization.ensureIn(tx, ctx, entityId);
+        return this.bills.positionIn(tx, ctx, entityId, customer.id, 'receivable', todayIst());
+      });
+      row = { outstanding: Dec.of(position.netInr).lt('0') ? '0' : position.netInr, overdue: position.overdueInr, overdueCount: position.overdueCount };
+    } else {
+    const [legacy] = await db
       .select({
         outstanding: sql<string>`coalesce(sum(${salesInvoice.grandTotal} * ${salesInvoice.exchangeRate}), 0)`,
         overdue: sql<string>`coalesce(sum(case when ${salesInvoice.dueDate} < ${todayIst()} then ${salesInvoice.grandTotal} * ${salesInvoice.exchangeRate} else 0 end), 0)`,
@@ -966,6 +980,8 @@ export class SellingController {
       })
       .from(salesInvoice)
       .where(and(eq(salesInvoice.entityId, entityId), eq(salesInvoice.customerId, customer.id), eq(salesInvoice.status, 'submitted')));
+      row = legacy!;
+    }
     const outstanding = Dec.of(row!.outstanding);
     const limit = customer.creditLimit;
     const after = outstanding.add(adding);
@@ -980,7 +996,7 @@ export class SellingController {
   /** Decision 032: warn; an approver may override with acceptCreditWarning. Returns whether it was overridden. */
   private async checkCredit(ctx: TenantRequestContext, tx: Tx, entityId: string, customer: Party, adding: string, accept: boolean, approvePermission: string): Promise<boolean> {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`credit:${entityId}:${customer.id}`}))`);
-    const c = await this.credit(tx, entityId, customer, adding);
+    const c = await this.credit(tx, ctx, entityId, customer, adding);
     if (!c.warnings.length) return false;
     if (!accept) {
       throw new BadRequestException({ message: `Credit check: ${c.warnings.join('; ')}.`, issues: [{ path: 'acceptCreditWarning', message: ctx.tenant.permissions.has(approvePermission) ? 'Confirm to submit anyway' : 'Needs an approver' }] });

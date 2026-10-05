@@ -143,12 +143,12 @@ type PartyPosition = {
 
 **Interfaces:** `BillService.listIn(tx, ctx, entityId, filters: { side?: TradeSide; partyId?: string; currency?: string; asOf: string; overdue?: boolean; msme?: boolean }): Promise<BillBalance[]>`. Reports `/accounts/outstanding`, `/accounts/outstanding/export`, `/accounts/trade-reconciliation`; use report.read/export. Operational bill summary routes under their existing invoice APIs require corresponding selling/buying read permissions.
 
-- [ ] Add assertions: receipt reduces net customer exposure and decision-032 warning while unapplied receipt leaves an overdue bill overdue; full allocation removes overdue count; reversal restores warnings; net credit limit exposure floors at zero; partial MSME payment reduces residual but retains stored due date/category; unknown opening due/category remains unclassified.
-- [ ] Add as-of tests before/after allocation and current-date reversal, gross/unapplied/net distinction, ageing boundaries 0/1/30/31/60/61/90/91 overdue days, currency filters, journal-origin items, remapped controls, and report-only/export permission separation.
-- [ ] Run new cases and confirm failures before report/credit replacement.
-- [ ] Implement exact aggregation and reconciliation, business-date ageing, separate advance/journal-credit rows, and stored invoice metadata. Replace selling's sum-of-all-submitted-invoices calculation with `positionIn` while preserving override behavior. Inactive entities retain existing operational credit fallback and disclose accounting status; do not initialize them implicitly.
-- [ ] Ensure credit-status and invoice summaries reveal only permitted balances, never bank account movements/voucher details; export checks separate permission. Explain MSME invoice-date limitation in API report metadata/UI copy.
-- [ ] Verify settlement tests and existing selling/buying regressions; commit locally: `Report remaining trade balances and credit exposure`.
+- [x] Add assertions: receipt reduces net customer exposure and decision-032 warning while unapplied receipt leaves an overdue bill overdue; full allocation removes overdue count; reversal restores warnings; net credit limit exposure floors at zero; partial MSME payment reduces residual but retains stored due date/category; unknown opening due/category remains unclassified.
+- [x] Add as-of tests before/after allocation and current-date reversal, gross/unapplied/net distinction, ageing boundaries 0/1/30/31/60/61/90/91 overdue days, currency filters, journal-origin items, remapped controls, and report-only/export permission separation.
+- [x] Run new cases and confirm failures before report/credit replacement.
+- [x] Implement exact aggregation and reconciliation, business-date ageing, separate advance/journal-credit rows, and stored invoice metadata. Replace selling's sum-of-all-submitted-invoices calculation with `positionIn` while preserving override behavior. Inactive entities retain existing operational credit fallback and disclose accounting status; do not initialize them implicitly.
+- [x] Ensure credit-status and invoice summaries reveal only permitted balances, never bank account movements/voucher details; export checks separate permission. Explain MSME invoice-date limitation in API report metadata/UI copy.
+- [x] Verify settlement tests and existing selling/buying regressions; commit locally: `Report remaining trade balances and credit exposure`.
 
 ## Task 7: Accountant UI and operational balance summaries
 

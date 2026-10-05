@@ -1,3 +1,4 @@
+import { OperationalBillBalancesController } from './modules/accounting/operational-bill-balances.controller.js';
 import { SettlementAllocationsController } from './modules/accounting/settlement-allocations.controller.js';
 import { SettlementAllocationService } from './modules/accounting/settlement-allocation.service.js';
 import { SettlementsController } from './modules/accounting/settlements.controller.js';
@@ -37,7 +38,7 @@ import { SeriesController } from './modules/series.controller.js';
 import { WasteController } from './modules/waste.controller.js';
 
 @Module({
-  controllers: [SettlementAllocationsController, SettlementsController, OutstandingReportsController, AccountingReportsController, AccountingController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
+  controllers: [OperationalBillBalancesController, SettlementAllocationsController, SettlementsController, OutstandingReportsController, AccountingReportsController, AccountingController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
   providers: [
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: DB, inject: [CONFIG], useFactory: (c: AppConfig) => createDb(c.DATABASE_URL) },
