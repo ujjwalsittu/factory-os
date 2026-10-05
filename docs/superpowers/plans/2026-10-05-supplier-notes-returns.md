@@ -75,11 +75,11 @@ supplierNoteId to existing source typing, exactly one of settlement/customer
 credit/supplier credit. Original invoice line, receipt allocation and receipt-line
 IDs must be retained together in physical evidence.
 
-- [ ] Write schema test asserting legacy settlement/customer allocations remain valid; zero/two sources fail; cross-entity FKs fail; evidence UPDATE/DELETE fail; duplicate supplier/kind/FY note reference fails; two same-item invoice lines retain distinct ceilings.
-- [ ] Run `node --env-file=.env apps/api/scripts/smoke-supplier-returns-schema.mjs`; observe missing tables/columns before implementation.
-- [ ] Implement tables, composite scoped indexes/FKs, append-only triggers, internal stock purposes `purchase_return`/`purchase_return_receipt`, and `buying.return_claim.*`, `buying.supplier_note.*`, `buying.return_policy.update` permissions with Finance/Stores/Buying role assignments.
-- [ ] Generate with `pnpm --filter @factoryos/db db:generate --name supplier_notes_returns`, apply through supported migration script to isolated/local integration DB; run schema test and db/auth typechecks. Confirm unique indexes precede composite FKs and old rows unchanged.
-- [ ] Commit `Add supplier return and note evidence schema`.
+- [x] Write schema test asserting legacy settlement/customer allocations remain valid; zero/two sources fail; cross-entity FKs fail; evidence UPDATE/DELETE fail; duplicate supplier/kind/FY note reference fails; two same-item invoice lines retain distinct ceilings.
+- [x] Run `node --env-file=.env apps/api/scripts/smoke-supplier-returns-schema.mjs`; observe missing tables/columns before implementation.
+- [x] Implement tables, composite scoped indexes/FKs, append-only triggers, internal stock purposes `purchase_return`/`purchase_return_receipt`, and `buying.return_claim.*`, `buying.supplier_note.*`, `buying.return_policy.update` permissions with Finance/Stores/Buying role assignments.
+- [x] Generate with `pnpm --filter @factoryos/db db:generate --name supplier_notes_returns`, apply through supported migration script to isolated/local integration DB; run schema test and db/auth typechecks. Confirm unique indexes precede composite FKs and old rows unchanged.
+- [x] Commit `Add supplier return and note evidence schema`.
 
 ### Task 2: Implement policy snapshots and approved claims
 
@@ -95,11 +95,11 @@ Core `requiresClaimApproval(policy, requestedAmount, exchangeRate): boolean`.
 Claim CRUD uses strict ClaimInput; GET/PUT `/buying/return-policy`, CRUD
 `/buying/return-claims`, POST `/:id/submit` and `/:id/approve`.
 
-- [ ] Write core assertions: every-claim policy approves zero; threshold100 compares original-rate INR100 equal=false,100.01=true. API asserts defaults, Finance-only edits, draft permission boundaries, immutable submitted amounts, no claim GL/bill/stock rows and audit before/after.
-- [ ] Run `pnpm --filter @factoryos/core test` and policy fixture; observe genuine missing helper/route failures.
-- [ ] Implement default policy, accounting-locked edits, source validation, claim numbering, snapshot policy at submit and reapproval after instruction changes. Add isolated PG barrier assertion that concurrent stricter policy edit/dispatch never mixes snapshots.
-- [ ] Run core and policy fixture, API typecheck; verify failures leave rows unchanged.
-- [ ] Commit `Add configurable supplier return claim approvals`.
+- [x] Write core assertions: every-claim policy approves zero; threshold100 compares original-rate INR100 equal=false,100.01=true. API asserts defaults, Finance-only edits, draft permission boundaries, immutable submitted amounts, no claim GL/bill/stock rows and audit before/after.
+- [x] Run `pnpm --filter @factoryos/core test` and policy fixture; observe genuine missing helper/route failures.
+- [x] Implement default policy, accounting-locked edits, source validation, claim numbering, snapshot policy at submit and reapproval after instruction changes. Add isolated PG barrier assertion that concurrent stricter policy edit/dispatch never mixes snapshots.
+- [x] Run core and policy fixture, API typecheck; verify failures leave rows unchanged.
+- [x] Commit `Add configurable supplier return claim approvals`.
 
 ### Task 3: Post physical returns at actual FIFO carrying value
 
@@ -111,11 +111,11 @@ returns server-computed qty/cost/ceilings;
 `movement.dispatchIn(..., claimId, input): Promise<MovementResult>`.
 POST `/buying/return-claims/:id/dispatch-preview` and `/dispatch`.
 
-- [ ] Write fixture: receipt10@60 plus applicable landed20/unit gives carrying80; return4 posts pending320/inventory-320. A newer receipt does not bypass chronological FIFO; original batch/warehouse/allocated quantity ceiling enforced. Return quarantine/MRB allowed; ordinary issue still refused. Zero-cost return produces quantity evidence/no-value disposition. Two same-item invoice lines cannot spend each other's capacity.
-- [ ] Run stock fixture and observe missing route/evidence failure.
-- [ ] Implement accounting-first scoped locks, approved policy check, existing FIFO consumption with exact layer evidence, dedicated pending-return GL/no-value posting and internal-purpose protection. Keep original PO counters and receiptInvoiceAllocation untouched; expose separate net-retained quantities.
-- [ ] Run stock/schema/policy fixtures plus existing inventory43/import39 scripts using configured port overrides; inspect exact GL/FIFO reconciliation and all-row rollback for unavailable stock/backdates.
-- [ ] Commit `Post purchase returns with pending carrying value`.
+- [x] Write fixture: receipt10@60 plus applicable landed20/unit gives carrying80; return4 posts pending320/inventory-320. A newer receipt does not bypass chronological FIFO; original batch/warehouse/allocated quantity ceiling enforced. Return quarantine/MRB allowed; ordinary issue still refused. Zero-cost return produces quantity evidence/no-value disposition. Two same-item invoice lines cannot spend each other's capacity.
+- [x] Run stock fixture and observe missing route/evidence failure.
+- [x] Implement accounting-first scoped locks, approved policy check, existing FIFO consumption with exact layer evidence, dedicated pending-return GL/no-value posting and internal-purpose protection. Keep original PO counters and receiptInvoiceAllocation untouched; expose separate net-retained quantities.
+- [x] Run stock/schema/policy fixtures plus existing inventory43/import39 scripts using configured port overrides; inspect exact GL/FIFO reconciliation and all-row rollback for unavailable stock/backdates.
+- [x] Commit `Post purchase returns with pending carrying value`.
 
 ### Task 4: Recognize supplier notes and usable AP credit atomically
 
@@ -132,13 +132,13 @@ CRUD `/buying/supplier-notes`, POST `/preview`, `/:id/submit`, and existing
 `/accounts/settlement-allocations` union with supplierNoteId. Recognition and automatic
 source application occur in the same transaction; no intermediate submitted exposure.
 
-- [ ] Write fixture assertions for credit/debit sign, service/value-only/physical distinctions, partial accepted carrying residuals, GST versus commercial components, original inactive accounts, duplicate references and source eligibility. Imported/RCM GST notes refuse; commercial permitted; noncreditable tax never posts input ITC. Paid invoice credit remains available; manual policy leaves full credit; automatic policy consumes only remaining payable.
-- [ ] Write FX assertion: source USD100@80 paid70, supplier credit40 applies30/2400 and leaves10/800; apply remaining10 to USD bill@83 and assert FX gain30 (AP830 cleared against credit800). Partial4/final6 consume exact320/480 carrying, gains12/18; cancellations reverse exact rows.
-- [ ] Run note/FX fixtures before routes; observe missing behavior failures.
-- [ ] Implement bounded original printed components, original-account evidence, linked acceptance without stock reposting, explicit pending/return variance and bill identities. Financial acceptance preceding dispatch posts adjustment; later movement compensates that adjustment while clearing its own pending carrying, without a second AP/ITC effect.
-- [ ] Add real accounting-lock barrier for simultaneous original-bill payment and auto-credit; assert either order leaves exact AP and remaining credit, never overapplication. Test acceptance-before-dispatch net pending zero and exactly one note GL/bill effect.
-- [ ] Run note/FX/policy/stock fixtures and existing settlement/customer-note compatibility tests; API typecheck and reconciliation.
-- [ ] Commit `Recognize supplier notes and allocate residual credit`.
+- [x] Write fixture assertions for credit/debit sign, service/value-only/physical distinctions, partial accepted carrying residuals, GST versus commercial components, original inactive accounts, duplicate references and source eligibility. Imported/RCM GST notes refuse; commercial permitted; noncreditable tax never posts input ITC. Paid invoice credit remains available; manual policy leaves full credit; automatic policy consumes only remaining payable.
+- [x] Write FX assertion: source USD100@80 paid70, supplier credit40 applies30/2400 and leaves10/800; apply remaining10 to USD bill@83 and assert FX gain30 (AP830 cleared against credit800). Partial4/final6 consume exact320/480 carrying, gains12/18; cancellations reverse exact rows.
+- [x] Run note/FX fixtures before routes; observe missing behavior failures.
+- [x] Implement bounded original printed components, original-account evidence, linked acceptance without stock reposting, explicit pending/return variance and bill identities. Financial acceptance preceding dispatch posts adjustment; later movement compensates that adjustment while clearing its own pending carrying, without a second AP/ITC effect.
+- [x] Add real accounting-lock barrier for simultaneous original-bill payment and auto-credit; assert either order leaves exact AP and remaining credit, never overapplication. Test acceptance-before-dispatch net pending zero and exactly one note GL/bill effect.
+- [x] Run note/FX/policy/stock fixtures and existing settlement/customer-note compatibility tests; API typecheck and reconciliation.
+- [x] Commit `Recognize supplier notes and allocate residual credit`.
 
 ### Task 5: Resolve rejections and reverse dependent documents safely
 
@@ -153,12 +153,12 @@ guards in buying.controller.ts and stock-posting.service.ts; create
 POST claim `/:id/resolutions`, resolution `/:id/cancel`, note `/:id/cancel` and
 movement `/:id/cancel`; claim cancel refuses dispatched/resolved dependencies.
 
-- [ ] Write rejection fixture: dispatch4/carrying320, accept2/carrying160, reject2 leaves160 pending; write-off needs Finance and exact160 loss; receive-back instead adds2/160 original-batch FIFO and clears pending. Zero-value receive-back still restores quantity. Default request-back never creates stock before receipt confirmation.
-- [ ] Write cancellation assertions for later applications, paid debit, debit-supported ceiling, source receipt/invoice guards, write-off reversal and received-back consumed/landed-cost guards. Snapshot all GL/bill/stock/claim effects on failure. Acceptance reversal restores pending while retaining real dispatch.
-- [ ] Run fixtures before implementing resolution; observe explicit missing route/incorrect-state failures.
-- [ ] Implement signed immutable reversals, exact recorded account/cost recovery, partial/final resolution residuals and safe mistaken-movement cancellation. Preserve existing lock order and backdating guards; errors leave document and ledgers unchanged.
-- [ ] Run resolution/race fixtures with PG barriers for last return, last acceptance, last credit spend and cancellation; assert single incompatible winner. Run accounting lock-order regression and all earlier supplier fixtures.
-- [ ] Commit `Resolve supplier returns and guard exact reversals`.
+- [x] Write rejection fixture: dispatch4/carrying320, accept2/carrying160, reject2 leaves160 pending; write-off needs Finance and exact160 loss; receive-back instead adds2/160 original-batch FIFO and clears pending. Zero-value receive-back still restores quantity. Default request-back never creates stock before receipt confirmation.
+- [x] Write cancellation assertions for later applications, paid debit, debit-supported ceiling, source receipt/invoice guards, write-off reversal and received-back consumed/landed-cost guards. Snapshot all GL/bill/stock/claim effects on failure. Acceptance reversal restores pending while retaining real dispatch.
+- [x] Run fixtures before implementing resolution; observe explicit missing route/incorrect-state failures.
+- [x] Implement signed immutable reversals, exact recorded account/cost recovery, partial/final resolution residuals and safe mistaken-movement cancellation. Preserve existing lock order and backdating guards; errors leave document and ledgers unchanged.
+- [x] Run resolution/race fixtures with PG barriers for last return, last acceptance, last credit spend and cancellation; assert single incompatible winner. Run accounting lock-order regression and all earlier supplier fixtures.
+- [x] Commit `Resolve supplier returns and guard exact reversals`.
 
 ### Task 6: Deliver Buying workspace, policies and print
 
@@ -178,22 +178,22 @@ create `apps/web/e2e/supplier-returns.mjs` and `supplier-notes.mjs`.
 never compute payable/tax/carrying client-side. Preview response snapshot must
 match form input before mutation. Role-specific actions call Tasks2–5 endpoints.
 
-- [ ] Write browser assertions: Buying prepares claim, Finance approves/configures, Stores dispatches/receives; read-only sees persisted totals without edit; manual/auto credit setting changes real allocation; partial acceptance/rejection timeline displays unresolved160; acceptance-first then dispatch shows zero pending. Print says claim, includes supplier note reference when applicable, mobile actions remain usable.
-- [ ] Run against production web and observe absent route/action failures.
-- [ ] Implement token-based UI components, scoped invoice shortcuts, serial mutations, server preview, rejection-safe drafts, role gates and A4 browser print/PDF. Policy page explains fixed valuation/tax constraints and audited changes. Refresh affected stock/invoice/AP/claim queries after mutation and navigation.
-- [ ] Build web, copy standalone static assets and restart only this session's web process; probe `/api/health`, then run both browsers with documented overrides. Verify seller/supplier snapshots survive master edits and no supplier notification is sent automatically.
-- [ ] Commit `Add supplier notes and purchase return workspace`.
+- [x] Write browser assertions: Buying prepares claim, Finance approves/configures, Stores dispatches/receives; read-only sees persisted totals without edit; manual/auto credit setting changes real allocation; partial acceptance/rejection timeline displays unresolved160; acceptance-first then dispatch shows zero pending. Print says claim, includes supplier note reference when applicable, mobile actions remain usable.
+- [x] Run against production web and observe absent route/action failures.
+- [x] Implement token-based UI components, scoped invoice shortcuts, serial mutations, server preview, rejection-safe drafts, role gates and A4 browser print/PDF. Policy page explains fixed valuation/tax constraints and audited changes. Refresh affected stock/invoice/AP/claim queries after mutation and navigation.
+- [x] Build web, copy standalone static assets and restart only this session's web process; probe `/api/health`, then run both browsers with documented overrides. Verify seller/supplier snapshots survive master edits and no supplier notification is sent automatically.
+- [x] Commit `Add supplier notes and purchase return workspace`.
 
 ### Task 7: Review, verification and durable delivery
 
 **Files:** create `docs/superpowers/reviews/2026-10-05-supplier-notes-returns-review.md`;
 update this plan, spec delivery status, README artifact references and docs/ai handoff files.
 
-- [ ] Run root `pnpm build`, `pnpm typecheck`, `pnpm test`, `pnpm lint`; preserve exits and actual executed counts. Run all supplier fixtures serially with isolated tenants and all relevant existing accounting/settlement/buying/imports/inventory/customer-note API regressions. Use auth pacing as needed, not overlapping shared-IP suites.
-- [ ] Refresh own API/web after builds and run production supplier browsers plus existing buying/imports/accounting/settlements/customer-note browsers. Verify no shared activation, old migration byte changes or altered allocation rows.
-- [ ] Request one fresh independent final review under requesting-code-review, supplying approved spec/plan, base-to-head range, five Review Focus cases and prior rulings; no implementer agents under Native. Reproduce actionable findings before fixing, retain RED/GREEN evidence and rulings; rerun affected checks after fixes.
-- [ ] Run `git diff --check`, verify no secrets, update Done/Next/MEMORY/LOG and review artifact with actual coverage/limitations. Next separate phase: NIC sandbox design.
-- [ ] Commit verified delivery, push normally to the default branch, confirm clean status and remote HEAD. Do not force-push, bypass hooks or claim lint coverage from zero tasks.
+- [x] Run root `pnpm build`, `pnpm typecheck`, `pnpm test`, `pnpm lint`; preserve exits and actual executed counts. Run all supplier fixtures serially with isolated tenants and all relevant existing accounting/settlement/buying/imports/inventory/customer-note API regressions. Use auth pacing as needed, not overlapping shared-IP suites.
+- [x] Refresh own API/web after builds and run production supplier browsers plus existing buying/imports/accounting/settlements/customer-note browsers. Verify no shared activation, old migration byte changes or altered allocation rows.
+- [x] Request one fresh independent final review under requesting-code-review, supplying approved spec/plan, base-to-head range, five Review Focus cases and prior rulings; no implementer agents under Native. Reproduce actionable findings before fixing, retain RED/GREEN evidence and rulings; rerun affected checks after fixes.
+- [x] Run `git diff --check`, verify no secrets, update Done/Next/MEMORY/LOG and review artifact with actual coverage/limitations. Next separate phase: NIC sandbox design.
+- [x] Commit verified delivery, push normally to the default branch, confirm clean status and remote HEAD. Do not force-push, bypass hooks or claim lint coverage from zero tasks.
 
 ## Plan self-review
 
@@ -206,3 +206,7 @@ requires changing shared books, rewriting history or contacting suppliers.
 
 Status: Written plan awaits user review. Preserve Native execution; approval of
 the spec does not authorize starting product implementation before plan review.
+
+## Delivery evidence
+
+Completed on 2026-10-06 (Asia/Kolkata). Root build11/typecheck16, 63 uncached unit tests, 52 API/schema scenarios and 11 production browsers pass. Lint runs zero tasks. Tasks2–5 share backend integration commits as recorded in the review; original lifecycle TDD limitations are disclosed there. One independent review and one reproduced-defect fix pass; [review and all rulings](../reviews/2026-10-05-supplier-notes-returns-review.md). Normal default-branch delivery follows the completed verification.

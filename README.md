@@ -55,6 +55,8 @@ apps/api/scripts/smoke.sh                       # 26 API end-to-end checks (API 
 pnpm --filter @factoryos/web e2e                # browser walkthrough (web + API running)
 ```
 
+Supplier notes and purchase returns: [approved scope](docs/superpowers/specs/2026-10-05-supplier-notes-returns-design.md), [implementation plan](docs/superpowers/plans/2026-10-05-supplier-notes-returns.md), and [review/verification](docs/superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Focused API fixtures live in `apps/api/scripts/smoke-supplier-*.mjs`; production browsers in `apps/web/e2e/supplier-*.mjs` accept the standard API/web port overrides.
+
 ## Deploy
 
 Dockerfiles: `apps/api/Dockerfile`, `apps/web/Dockerfile` (build from the repo root).

@@ -212,3 +212,7 @@ reviewable implementation plan. Execute Native only after plan approval, claim
 before product code, review once and fix verified findings, then update handoff
 files and normally push the complete verified slice to the default branch.
 NIC sandbox remains the following separate phase.
+
+## Delivery status
+
+Implementation, one independent review and final verification completed. Additive migrations0014–0017 preserve shared matching and inactive books. The [review artifact](../reviews/2026-10-05-supplier-notes-returns-review.md) records findings, actual verification and rulings.

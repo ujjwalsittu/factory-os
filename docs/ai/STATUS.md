@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-05 · Supplier notes/returns approved design; plan awaiting review_
+_Last updated: 2026-10-06 (Asia/Kolkata) · Supplier notes/returns final verification_
 
 ## Done
 - [x] **Customer credit/debit notes and sales returns** (decision037, additive0012/0013): original invoice/tax/accounts/currency snapshots, exact partial original-cost and zero-cost tracked-batch returns, automatic source application, remaining customer credit and typed later applications, scoped editor/list/print, immutable reversals and dependency/race guards. Build11/typecheck16/unit60, thirteen focused API fixtures530 reported checks, existing accounting/settlement/operational regressions and eight production browsers pass; lint has zero tasks. Independent review's two Important defects were reproduced/fixed; all four PostgreSQL race scenarios pass. Shared0011 and inactive shared books preserved. [Review/rulings](../superpowers/reviews/2026-10-05-sales-notes-returns-review.md).
@@ -70,15 +70,19 @@ _Last updated: 2026-10-05 · Supplier notes/returns approved design; plan awaiti
   - Verified: root typecheck (16 tasks), build (11 tasks), 48 uncached unit tests; six accounting API suites (202 checks), six legacy API suites (252 checks), eight review regressions and real PostgreSQL lock-order barrier. Production accounting, selling, buying, imports and base browser walkthroughs pass after final fixes. `pnpm lint` has zero configured tasks; base walkthrough logs its existing HTTP 400 console resource error and exits successfully.
   - Independent review found seven Important defects, all reproduced and fixed; an additional fractional tax-allocation regression was fixed in the same pass. [Review, rulings and two deferred UI minors](../superpowers/reviews/2026-10-05-gl-core-review.md). No shared entity has been activated. Historical stock/GL date comparisons remain limited by existing stock reversal dating; current cumulative balances reconcile.
 
+- [x] **Supplier notes, return claims and purchase returns** (decision038; additive0014–0017)
+  - Supplier-issued credit/debit notes, claim approvals, pre-acceptance FIFO dispatch, partial acceptance/rejection, exact received-back/write-off and immutable reversals. Claims alone have no AP/ITC effect; gross purchase matching stays unchanged.
+  - Four audited entity policies, original-account/tax/FX evidence, automatic/later supplier credit application, scoped role gates, claim/note histories and A4 print snapshots.
+  - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
+
 ## In progress
-- **Supplier notes, return claims and purchase returns implementation** · owner: agent, Native default-branch session · started: 2026-10-06 (Asia/Kolkata). User approved decision038 spec and seven-task plan. Task1 schema/compatibility checks starting; all seven tasks and final review authorized. Preserve shared inactive books and old migrations.
+- None.
 
 ## Next (in order; confirm with the user before starting)
-1. User review of accounts, receipts/payments, outstanding and customer notes/returns on dev. Books stay inactive until a Finance user activates an entity (decision 034); customer notes/returns received one independent review with all Important findings fixed.
-2. **Supplier credit/debit notes and purchase returns**: write the separate design before implementation, preserving original receipt/invoice costs, ITC and supplier payments.
-3. **Slice 1e: e-invoice + e-way bill** — NIC direct adapter (sandbox) behind `packages/gsp`, effective-dated per GSTIN.
-4. TDS/TCS and bank charges on receipts/payments; bank reconciliation.
-5. Phase 0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
+1. User review of accounting, settlements, customer and supplier notes/returns on dev. Books stay inactive until deliberate per-entity Finance activation (decision034).
+2. **Slice1e: e-invoice + e-way bill** — separate NIC direct-adapter sandbox design behind `packages/gsp`, effective-dated per GSTIN.
+3. TDS/TCS and bank charges on receipts/payments; bank reconciliation.
+4. Phase0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
 
 ## Blockers
 - None. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)
