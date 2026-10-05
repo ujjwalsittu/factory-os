@@ -1,3 +1,4 @@
+import { lockAccounting } from './accounting/accounting-lock.js';
 import { computeGst, GST_RATES, inwardSupplyType, type TaxResult } from '@factoryos/compliance-in';
 import { Dec, fyCode } from '@factoryos/core';
 import {
@@ -222,6 +223,7 @@ export class BuyingController {
     const input = parse(poInput, body);
     const { header, lines } = await this.preparePO(ctx, entityId, input);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [po] = await tx.insert(purchaseOrder).values({ ...header, tenantId: ctx.tenant.tenantId, entityId, createdBy: ctx.user.id }).returning();
       await tx.insert(purchaseOrderLine).values(lines.map((l, i) => ({ ...l, poId: po!.id, lineNo: i + 1 })));
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'purchase_order.create', targetType: 'purchase_order', targetId: po!.id, after: input }, tx);
@@ -236,6 +238,7 @@ export class BuyingController {
     const input = parse(poInput, body);
     const { header, lines } = await this.preparePO(ctx, entityId, input);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const po = await this.lockPO(tx, entityId, id);
       if (po.status !== 'draft') throw new ConflictException('Only draft purchase orders can be edited');
       await tx.update(purchaseOrder).set({ ...header, updatedAt: new Date() }).where(eq(purchaseOrder.id, id));
@@ -251,6 +254,7 @@ export class BuyingController {
   async deletePO(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
     const entityId = entityOf(ctx);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [po] = await tx.delete(purchaseOrder).where(and(eq(purchaseOrder.id, id), eq(purchaseOrder.entityId, entityId), eq(purchaseOrder.status, 'draft'))).returning();
       if (!po) throw new ConflictException('Only drafts can be deleted');
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'purchase_order.delete_draft', targetType: 'purchase_order', targetId: id }, tx);
@@ -263,6 +267,7 @@ export class BuyingController {
   async submitPO(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
     const entityId = entityOf(ctx);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const po = await this.lockPO(tx, entityId, id);
       if (po.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
       const supplier = await this.supplier(ctx, po.supplierId);
@@ -280,6 +285,7 @@ export class BuyingController {
     const entityId = entityOf(ctx);
     const { reason } = parse(z.object({ reason: z.string().trim().min(5).max(500) }), body);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const po = await this.lockPO(tx, entityId, id);
       if (po.status !== 'submitted') throw new ConflictException('Only submitted purchase orders can be cancelled');
       const [used] = await tx.select({ n: sql<string>`coalesce(sum(${purchaseOrderLine.receivedQty} + ${purchaseOrderLine.billedQty}), 0)` }).from(purchaseOrderLine).where(eq(purchaseOrderLine.poId, id));
@@ -297,6 +303,7 @@ export class BuyingController {
     const entityId = entityOf(ctx);
     const { reason } = parse(z.object({ reason: z.string().trim().min(5).max(500) }), body);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const po = await this.lockPO(tx, entityId, id);
       if (po.status !== 'submitted' || po.closedAt) throw new ConflictException('Only open purchase orders can be closed');
       await tx.update(purchaseOrder).set({ closedAt: new Date(), updatedAt: new Date() }).where(eq(purchaseOrder.id, id));
@@ -397,6 +404,7 @@ export class BuyingController {
     if (!inspected.gt('0')) throw new BadRequestException({ message: 'Enter the accepted and/or rejected quantity', issues: [{ path: 'qtyAccepted', message: 'Required' }] });
 
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [rl] = await tx
         .select({ line: stockEntryLine, entry: stockEntry, wh: warehouse })
         .from(stockEntryLine)
@@ -493,6 +501,7 @@ export class BuyingController {
     const entityId = entityOf(ctx);
     const { reason } = parse(z.object({ reason: z.string().trim().min(5).max(500) }), body);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [qi] = await tx.select().from(qualityInspection).where(and(eq(qualityInspection.id, id), eq(qualityInspection.entityId, entityId))).for('update');
       if (!qi) throw new NotFoundException('Inspection not found');
       if (qi.status !== 'submitted') throw new ConflictException('Only submitted inspections can be cancelled');
@@ -568,6 +577,7 @@ export class BuyingController {
     const input = parse(piInput, body);
     const { header, lines } = await this.prepareInvoice(ctx, entityId, input);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [inv] = await tx.insert(purchaseInvoice).values({ ...header, tenantId: ctx.tenant.tenantId, entityId, createdBy: ctx.user.id }).returning();
       await tx.insert(purchaseInvoiceLine).values(lines.map((l, i) => ({ ...l, invoiceId: inv!.id, lineNo: i + 1 })));
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'purchase_invoice.create', targetType: 'purchase_invoice', targetId: inv!.id, after: input }, tx);
@@ -582,6 +592,7 @@ export class BuyingController {
     const input = parse(piInput, body);
     const { header, lines } = await this.prepareInvoice(ctx, entityId, input);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [inv] = await tx.select().from(purchaseInvoice).where(and(eq(purchaseInvoice.id, id), eq(purchaseInvoice.entityId, entityId))).for('update');
       if (!inv) throw new NotFoundException('Purchase invoice not found');
       if (inv.status !== 'draft') throw new ConflictException('Only drafts can be edited');
@@ -613,6 +624,7 @@ export class BuyingController {
     const entityId = entityOf(ctx);
     const { acceptRateVariance } = parse(z.object({ acceptRateVariance: z.boolean().default(false) }), body ?? {});
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [inv] = await tx.select().from(purchaseInvoice).where(and(eq(purchaseInvoice.id, id), eq(purchaseInvoice.entityId, entityId))).for('update');
       if (!inv) throw new NotFoundException('Purchase invoice not found');
       if (inv.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
@@ -671,6 +683,7 @@ export class BuyingController {
     const entityId = entityOf(ctx);
     const { reason } = parse(z.object({ reason: z.string().trim().min(5).max(500) }), body);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [inv] = await tx.select().from(purchaseInvoice).where(and(eq(purchaseInvoice.id, id), eq(purchaseInvoice.entityId, entityId))).for('update');
       if (!inv) throw new NotFoundException('Purchase invoice not found');
       if (inv.status !== 'submitted') throw new ConflictException('Only submitted invoices can be cancelled');

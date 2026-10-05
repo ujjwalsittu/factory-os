@@ -1,3 +1,4 @@
+import { lockAccounting } from './accounting/accounting-lock.js';
 import { consumeFifo, Dec, formatSeries, fyCode, InsufficientStockError } from '@factoryos/core';
 import {
   batch,
@@ -66,6 +67,7 @@ export class StockPostingService {
 
   /** Same as submit, inside the caller's transaction (e.g. an inspection posting its transfer). */
   async submitIn(tx: Tx, ctx: TenantRequestContext, entityId: string, entryId: string) {
+    await lockAccounting(tx, entityId);
     {
       const entry = await this.lockEntry(tx, entityId, entryId);
       if (entry.status !== 'draft') throw new ConflictException(`Only drafts can be submitted (this one is ${entry.status})`);
@@ -290,6 +292,7 @@ export class StockPostingService {
   }
 
   async cancelIn(tx: Tx, ctx: TenantRequestContext, entityId: string, entryId: string, reason: string) {
+    await lockAccounting(tx, entityId);
     {
       const entry = await this.lockEntry(tx, entityId, entryId);
       if (entry.status !== 'submitted') throw new ConflictException('Only submitted entries can be cancelled');

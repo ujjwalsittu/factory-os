@@ -1,3 +1,4 @@
+import { lockAccounting } from './accounting/accounting-lock.js';
 import { Dec } from '@factoryos/core';
 import {
   batch,
@@ -213,6 +214,7 @@ export class LandedCostController {
     const input = parse(voucherInput, body);
     await this.validateRefs(ctx, entityId, input);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [v] = await tx
         .insert(landedCostVoucher)
         .values({ ...this.header(input), tenantId: ctx.tenant.tenantId, entityId, createdBy: ctx.user.id })
@@ -230,6 +232,7 @@ export class LandedCostController {
     const input = parse(voucherInput, body);
     await this.validateRefs(ctx, entityId, input);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const v = await this.lock(tx, entityId, id);
       if (v.status !== 'draft') throw new ConflictException('Only drafts can be edited');
       await tx.update(landedCostVoucher).set({ ...this.header(input), updatedAt: new Date() }).where(eq(landedCostVoucher.id, id));
@@ -263,6 +266,7 @@ export class LandedCostController {
   async submit(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
     const entityId = entityOf(ctx);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const v = await this.lock(tx, entityId, id);
       if (v.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
       const receiptIds = (await tx.select({ id: landedCostReceipt.receiptId }).from(landedCostReceipt).where(eq(landedCostReceipt.voucherId, id))).map((r) => r.id);
@@ -385,6 +389,7 @@ export class LandedCostController {
     const entityId = entityOf(ctx);
     const { reason } = parse(z.object({ reason: z.string().trim().min(5).max(500) }), body);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const v = await this.lock(tx, entityId, id);
       if (v.status !== 'submitted') throw new ConflictException('Only submitted vouchers can be cancelled');
       const changes = await tx

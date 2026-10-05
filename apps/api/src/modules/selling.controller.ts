@@ -1,3 +1,4 @@
+import { lockAccounting } from './accounting/accounting-lock.js';
 import { computeGst, GST_RATES, type SupplyType, type TaxResult } from '@factoryos/compliance-in';
 import { Dec } from '@factoryos/core';
 import {
@@ -202,6 +203,7 @@ export class SellingController {
     const input = parse(quotationInput, body);
     const { header, lines } = await this.prepare(ctx, entityId, input, input.quotationDate);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [q] = await tx
         .insert(quotation)
         .values({ ...header, quotationDate: input.quotationDate, validTill: input.validTill ?? null, customerRef: input.customerRef ?? null, tenantId: ctx.tenant.tenantId, entityId, createdBy: ctx.user.id })
@@ -219,6 +221,7 @@ export class SellingController {
     const input = parse(quotationInput, body);
     const { header, lines } = await this.prepare(ctx, entityId, input, input.quotationDate);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [q] = await tx.select().from(quotation).where(and(eq(quotation.id, id), eq(quotation.entityId, entityId))).for('update');
       if (!q) throw new NotFoundException('Quotation not found');
       if (q.status !== 'draft') throw new ConflictException('Only drafts can be edited');
@@ -245,6 +248,7 @@ export class SellingController {
   async submitQuotation(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
     const entityId = entityOf(ctx);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [q] = await tx.select().from(quotation).where(and(eq(quotation.id, id), eq(quotation.entityId, entityId))).for('update');
       if (!q) throw new NotFoundException('Quotation not found');
       if (q.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
@@ -261,6 +265,7 @@ export class SellingController {
     const entityId = entityOf(ctx);
     const { reason: why } = parse(reason, body);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [q] = await tx.select().from(quotation).where(and(eq(quotation.id, id), eq(quotation.entityId, entityId))).for('update');
       if (!q) throw new NotFoundException('Quotation not found');
       if (q.status !== 'submitted') throw new ConflictException('Only submitted quotations can be cancelled');
@@ -365,6 +370,7 @@ export class SellingController {
     const entityId = entityOf(ctx);
     const { header, lines } = await this.prepare(ctx, entityId, input, input.orderDate);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [o] = await tx.insert(salesOrder).values({ ...header, ...this.orderFields(input), tenantId: ctx.tenant.tenantId, entityId, createdBy: ctx.user.id }).returning();
       await tx.insert(salesOrderLine).values(lines.map((l, i) => ({ ...l, soId: o!.id, lineNo: i + 1 })));
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'sales_order.create', targetType: 'sales_order', targetId: o!.id, after: input }, tx);
@@ -379,6 +385,7 @@ export class SellingController {
     const input = parse(orderInput, body);
     const { header, lines } = await this.prepare(ctx, entityId, input, input.orderDate);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const o = await this.lockOrder(tx, entityId, id);
       if (o.status !== 'draft') throw new ConflictException('Only drafts can be edited');
       await tx.update(salesOrder).set({ ...header, ...this.orderFields(input), quotationId: o.quotationId, updatedAt: new Date() }).where(eq(salesOrder.id, id));
@@ -405,6 +412,7 @@ export class SellingController {
     const entityId = entityOf(ctx);
     const { acceptCreditWarning } = parse(submitInput, body ?? {});
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const o = await this.lockOrder(tx, entityId, id);
       if (o.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
       const customer = await this.customer(ctx, o.customerId);
@@ -427,6 +435,7 @@ export class SellingController {
     const entityId = entityOf(ctx);
     const { reason: why } = parse(reason, body);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const o = await this.lockOrder(tx, entityId, id);
       if (o.status !== 'submitted') throw new ConflictException('Only submitted orders can be cancelled');
       const [used] = await tx.select({ n: sql<string>`coalesce(sum(${salesOrderLine.invoicedQty}), 0)` }).from(salesOrderLine).where(eq(salesOrderLine.soId, id));
@@ -443,6 +452,7 @@ export class SellingController {
     const entityId = entityOf(ctx);
     const { reason: why } = parse(reason, body);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const o = await this.lockOrder(tx, entityId, id);
       if (o.status !== 'submitted' || o.closedAt) throw new ConflictException('Only open orders can be closed');
       await tx.update(salesOrder).set({ closedAt: new Date(), updatedAt: new Date() }).where(eq(salesOrder.id, id));
@@ -528,6 +538,7 @@ export class SellingController {
     const input = parse(invoiceInput, body);
     const { header, lines } = await this.prepareInvoice(ctx, entityId, input);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const [inv] = await tx.insert(salesInvoice).values({ ...header, tenantId: ctx.tenant.tenantId, entityId, createdBy: ctx.user.id }).returning();
       await tx.insert(salesInvoiceLine).values(lines.map((l, i) => ({ ...l, invoiceId: inv!.id, lineNo: i + 1 })));
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'sales_invoice.create', targetType: 'sales_invoice', targetId: inv!.id, after: input }, tx);
@@ -542,6 +553,7 @@ export class SellingController {
     const input = parse(invoiceInput, body);
     const { header, lines } = await this.prepareInvoice(ctx, entityId, input);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const inv = await this.lockInvoice(tx, entityId, id);
       if (inv.status !== 'draft') throw new ConflictException('Only drafts can be edited');
       await tx.update(salesInvoice).set({ ...header, updatedAt: new Date() }).where(eq(salesInvoice.id, id));
@@ -572,6 +584,7 @@ export class SellingController {
     const entityId = entityOf(ctx);
     const { acceptCreditWarning } = parse(submitInput, body ?? {});
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const inv = await this.lockInvoice(tx, entityId, id);
       if (inv.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
       const customer = await this.customer(ctx, inv.customerId);
@@ -654,6 +667,7 @@ export class SellingController {
     const entityId = entityOf(ctx);
     const { reason: why } = parse(reason, body);
     return this.db.transaction(async (tx) => {
+      await lockAccounting(tx, entityId);
       const inv = await this.lockInvoice(tx, entityId, id);
       if (inv.status !== 'submitted') throw new ConflictException('Only submitted invoices can be cancelled');
       if (inv.stockEntryId) await this.posting.cancelIn(tx, ctx, entityId, inv.stockEntryId, `Sales invoice ${inv.number} cancelled: ${why}`);
