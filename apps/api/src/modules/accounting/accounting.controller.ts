@@ -1,3 +1,5 @@
+import { BankAdjustmentService } from '../bank-reconciliation/adjustment.service.js';
+import { JournalAdjustmentRef, Reason } from '../bank-reconciliation/types.js';
 import { BankReconciliationGuard } from './bank-reconciliation-guard.service.js';
 import { Dec } from '@factoryos/core';
 import { randomUUID } from 'node:crypto';
@@ -65,6 +67,7 @@ const line = z.object({
   billReference: z.string().trim().min(1).max(120).optional(),
 });
 const journalInput = z.object({
+  reconciliation: JournalAdjustmentRef.optional(),
   postingDate: date,
   narration: z.string().trim().min(5).max(1000),
   clearingSourceId: z.uuid().optional(),
@@ -111,6 +114,7 @@ export class AccountingController {
     private readonly audit: AuditService,
     private readonly bills: BillService,
     private readonly bankGuard: BankReconciliationGuard,
+    private readonly bankAdjustments: BankAdjustmentService,
   ) {}
   private async setup(ctx: TenantRequestContext) {
     const entityId = entityOf(ctx);
@@ -922,6 +926,7 @@ export class AccountingController {
           createdBy: ctx.user.id,
         })
         .returning();
+      if(input.reconciliation)await this.bankAdjustments.reserveJournalIn(tx,ctx,entityId,input.reconciliation.profileId,input.reconciliation,id,input.lines,input.postingDate);
       await this.audit.record(
         ctx,
         {
@@ -969,6 +974,8 @@ export class AccountingController {
         })
         .where(eq(journalVoucher.id, id))
         .returning();
+      if(input.reconciliation)await this.bankAdjustments.reserveJournalIn(tx,ctx,entityId,input.reconciliation.profileId,input.reconciliation,id,input.lines,input.postingDate);
+      await this.bankAdjustments.assertJournalIn(tx,ctx,entityId,id);
       await this.audit.record(
         ctx,
         {
@@ -984,6 +991,9 @@ export class AccountingController {
       return after;
     });
   }
+  @Post('journals/:id/abandon')
+  @RequirePermission('accounts.voucher.create','accounts.bank_reconciliation.cancel')
+  async abandonLinkedJournal(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Body() body:unknown){const {reason}=parse(z.strictObject({reason:Reason}),body),entityId=entityOf(ctx);return this.db.transaction(async tx=>{await lockAccounting(tx,entityId);if(!await this.bankAdjustments.cancelJournalDraftIn(tx,ctx,entityId,id,reason))throw new ConflictException('Only statement-linked drafts support abandonment');await this.audit.record(ctx,{tenantId:ctx.tenant.tenantId,entityId,action:'journal.abandon',targetType:'journal_voucher',targetId:id,reason},tx);return {abandoned:true};});}
   @Post('journals/:id/submit')
   @HttpCode(200)
   @RequirePermission('accounts.voucher.submit')
@@ -1013,6 +1023,7 @@ export class AccountingController {
         ...(v.clearingSourceId && { clearingSourceId: v.clearingSourceId }),
         lines: v.draftLines,
       });
+      await this.bankAdjustments.assertJournalIn(tx,ctx,entityId,id);
       await this.bankGuard.assertPostingAllowedIn(tx, ctx, entityId, v.postingDate, v.draftLines.map(x => x.accountId));
       const number = await this.gl.number(tx, ctx, entityId, v.postingDate);
       await tx.insert(glEntry).values(

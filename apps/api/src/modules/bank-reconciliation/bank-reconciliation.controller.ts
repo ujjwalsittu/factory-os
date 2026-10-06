@@ -1,3 +1,5 @@
+import { BankAdjustmentService } from './adjustment.service.js';
+import { bankChargeInput } from '../accounting/bank-charge.service.js';
 import { BankMatchService } from './match.service.js';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BankImportService } from './import.service.js';
@@ -14,7 +16,7 @@ import { BankRegistryService, evidenceHash } from './registry.service.js';
 import { BankProfileInput, BankProfileSettingsInput, BaselineInput, Reason, ReviewedInput, StatementPeriodInput, ImportSubmitInput, BankMatchInput, MatchSubmitInput } from './types.js';
 @Controller('accounts/bank-reconciliation')
 export class BankReconciliationController {
- constructor(@Inject(DB) private readonly db:Database,private readonly registry:BankRegistryService,private readonly audit:AuditService,private readonly imports:BankImportService,private readonly matches:BankMatchService){}
+ constructor(@Inject(DB) private readonly db:Database,private readonly registry:BankRegistryService,private readonly audit:AuditService,private readonly imports:BankImportService,private readonly matches:BankMatchService,private readonly adjustments:BankAdjustmentService){}
  private transaction<T>(ctx:TenantRequestContext,run:(tx:Tx,entityId:string)=>Promise<T>){const entityId=entityOf(ctx);return this.db.transaction(async tx=>{await lockAccounting(tx,entityId);return run(tx,entityId);});}
  @Get('profiles') @RequirePermission('accounts.bank_reconciliation.read')
  list(@Ctx() ctx:TenantRequestContext){return this.db.select().from(bankReconciliationProfile).where(and(eq(bankReconciliationProfile.tenantId,ctx.tenant.tenantId),eq(bankReconciliationProfile.entityId,entityOf(ctx))));}
@@ -73,5 +75,13 @@ export class BankReconciliationController {
  submitMatch(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Body() body:unknown){const input=parse(MatchSubmitInput,body);return this.transaction(ctx,async(tx,entityId)=>{const group=await this.matches.submitIn(tx,ctx,entityId,id,input);await this.audit.record(ctx,{tenantId:ctx.tenant.tenantId,entityId,action:'accounts.bank_reconciliation.submit',targetType:'bank_match',targetId:group.id,after:{kind:group.kind,previewHash:group.previewHash}},tx);return group;});}
  @Post('profiles/:id/matches/:groupId/reverse') @RequirePermission('accounts.bank_reconciliation.cancel')
  reverseMatch(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Param('groupId',ParseUUIDPipe) groupId:string,@Body() body:unknown){const {reason}=parse(z.strictObject({reason:Reason}),body);return this.transaction(ctx,async(tx,entityId)=>{const result=await this.matches.reverseIn(tx,ctx,entityId,id,groupId,reason);await this.audit.record(ctx,{tenantId:ctx.tenant.tenantId,entityId,action:'accounts.bank_reconciliation.cancel',targetType:'bank_match',targetId:groupId,reason},tx);return result;});}
+
+ @Post('profiles/:id/adjustments/preview') @RequirePermission('accounts.bank_reconciliation.read')
+ previewAdjustment(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Body() body:unknown){const {statementRowId}=parse(z.strictObject({statementRowId:z.uuid()}),body);return this.transaction(ctx,(tx,entityId)=>this.adjustments.previewIn(tx,ctx,entityId,id,statementRowId));}
+ @Post('profiles/:id/adjustments/charge') @RequirePermission('accounts.bank_reconciliation.submit','accounts.bank_charge.create','accounts.bank_charge.submit')
+ submitAdjustmentCharge(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Body() body:unknown){const input=parse(z.strictObject({statementRowId:z.uuid(),reviewedHash:ReviewedInput.shape.reviewedHash,replacementOf:z.uuid().optional(),charge:bankChargeInput}),body);return this.transaction(ctx,async(tx,entityId)=>{const result=await this.adjustments.submitChargeIn(tx,ctx,entityId,id,input);await this.audit.record(ctx,{tenantId:ctx.tenant.tenantId,entityId,action:'accounts.bank_reconciliation.create',targetType:'bank_adjustment',targetId:result.chargeId,after:{statementRowId:input.statementRowId}},tx);return result;});}
+
+ @Post('profiles/:id/adjustments/:linkId/release') @RequirePermission('accounts.bank_reconciliation.cancel')
+ releaseAdjustment(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Param('linkId',ParseUUIDPipe) linkId:string,@Body() body:unknown){const {reason}=parse(z.strictObject({reason:Reason}),body);return this.transaction(ctx,async(tx,entityId)=>{const result=await this.adjustments.releaseCancelledIn(tx,ctx,entityId,id,linkId,reason);await this.audit.record(ctx,{tenantId:ctx.tenant.tenantId,entityId,action:'accounts.bank_reconciliation.cancel',targetType:'bank_adjustment_release',targetId:linkId,reason},tx);return result;});}
 
 }

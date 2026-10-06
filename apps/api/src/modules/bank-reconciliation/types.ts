@@ -35,3 +35,5 @@ export type StatementImport = typeof import('@factoryos/db').bankStatementImport
 export const MatchSubmitInput = z.union([OrdinaryMatchInput.extend(ReviewedInput.shape),NetMatchInput.extend(ReviewedInput.shape)]);
 export type MatchRequest = z.infer<typeof BankMatchInput>;
 export type MatchSubmitInput = z.infer<typeof MatchSubmitInput>;
+export const JournalAdjustmentRef = z.strictObject({profileId:z.uuid(),statementRowId:z.uuid(),reviewedHash:z.string().regex(/^[a-f0-9]{64}$/),replacementOf:z.uuid().optional()});
+export type JournalAdjustmentRef = z.infer<typeof JournalAdjustmentRef>;
