@@ -63,7 +63,7 @@ export class PlatformController {
     );
     return this.db.transaction(async tx=>{
       const {tenant:t,ownerRoleId}=await this.tenancy.createTenantIn(tx,ctx,{name:input.name,slug:input.slug});
-      const {invitation:inv,token}=await this.tenancy.createInvitation(tx,t.id,ctx.user.id,input.ownerEmail,[{roleId:ownerRoleId,entityIds:null}]);
+      const {invitation:inv,token}=await this.tenancy.createInvitation(tx,t.id,ctx.user.id,input.ownerEmail,[{roleId:ownerRoleId,entityIds:null}],'platform_owner');
       const delivery=await this.email.enqueueInvitationIn(tx,ctx,inv,token,'owner_invitation');
       await this.audit.record(ctx,{action:'platform.tenant.create',targetType:'tenant',targetId:t.id,after:{name:t.name,ownerEmail:input.ownerEmail}},tx);
       return {tenant:t,delivery,ownerInviteUrl:`${this.config.WEB_ORIGIN}/invite/${token}`};

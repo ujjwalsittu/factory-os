@@ -107,6 +107,7 @@ export class TenancyService {
     invitedBy: string,
     email: string,
     roles: { roleId: string; entityIds: string[] | null }[],
+    origin: 'member' | 'platform_owner' = 'member',
   ) {
     const token = randomBytes(24).toString('base64url');
     const [inv] = await tx
@@ -115,6 +116,7 @@ export class TenancyService {
         tenantId,
         email: email.toLowerCase(),
         tokenHash: hashToken(token),
+        origin,
         roles,
         invitedBy,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),

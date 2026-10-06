@@ -1,5 +1,6 @@
 // Memberships, roles, scoped role assignments, invitations and the audit log.
-import { bigserial, boolean, index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { bigserial, boolean, check, index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { user } from './auth.js';
 import { tenant } from './platform.js';
 
@@ -74,13 +75,15 @@ export const invitation = pgTable(
     tokenHash: text('token_hash').notNull().unique(),
     roles: jsonb('roles').$type<{ roleId: string; entityIds: string[] | null }[]>().notNull(),
     status: invitationStatus('status').notNull().default('pending'),
+    /** Permanent recovery authority; retained when operational mail is pruned. */
+    origin: text('origin', { enum: ['member', 'platform_owner'] }).notNull().default('member'),
     invitedBy: text('invited_by')
       .notNull()
       .references(() => user.id),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('invitation_tenant_idx').on(t.tenantId), uniqueIndex('invitation_id_tenant_uq').on(t.id, t.tenantId)],
+  (t) => [index('invitation_tenant_idx').on(t.tenantId), uniqueIndex('invitation_id_tenant_uq').on(t.id, t.tenantId), check('invitation_origin_check', sql`${t.origin} in ('member','platform_owner')`)],
 );
 
 /** Append-only, hash-chained per tenant. Never update or delete rows. */

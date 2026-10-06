@@ -141,7 +141,7 @@ export class MembersController {
       if(!inv||!['pending','expired','revoked'].includes(inv.status))throw new NotFoundException('No renewable invitation');
       const [t]=await tx.select().from(tenant).where(eq(tenant.id,inv.tenantId));if(t?.status!=='active')throw new ForbiddenException('Tenant unavailable');
       const prior=await tx.select().from(emailDelivery).where(and(eq(emailDelivery.invitationId,inv.id),eq(emailDelivery.tenantId,inv.tenantId))).for('update');
-      if(prior.some(d=>d.purpose==='owner_invitation'))throw new ForbiddenException('Use platform owner invitation recovery');
+      if(inv.origin==='platform_owner'||prior.some(d=>d.purpose==='owner_invitation'))throw new ForbiddenException('Use platform owner invitation recovery');
       if(prior.some(d=>d.status==='superseded')||await this.email.hasRenewedInvitationIn(tx,inv))throw new BadRequestException('This invitation already has a replacement');
       await this.assertAssignable(ctx,inv.roles,tx);
       await tx.update(invitation).set({status:'revoked'}).where(eq(invitation.id,inv.id));await this.email.cancelInvitationIn(tx,inv,'superseded');

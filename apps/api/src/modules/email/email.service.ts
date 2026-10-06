@@ -17,6 +17,7 @@ export class EmailService{
  constructor(@Inject(DB)private readonly db:Database,@Inject(CONFIG)private readonly config:AppConfig,private readonly audit:AuditService,private readonly tenancy:TenancyService){}
  async hasRenewedInvitationIn(tx:Tx,inv:Invitation){const [event]=await tx.select({id:auditEvent.seq}).from(auditEvent).where(and(eq(auditEvent.tenantId,inv.tenantId),inArray(auditEvent.action,['invitation.renew','platform.owner_invitation.renew']),sql`${auditEvent.before}->>'invitationId'=${inv.id}`)).limit(1);return !!event;}
  async enqueueInvitationIn(tx:Tx,_ctx:RequestContext,inv:Invitation,token:string,purpose:Extract<EmailPurpose,'member_invitation'|'owner_invitation'>){
+  if((purpose==='owner_invitation')!==(inv.origin==='platform_owner'))throw new BadRequestException('Invitation origin mismatch');
   const email=this.config.email;let envelope=null;
   if(email.mode==='smtp'){
    const [t]=await tx.select().from(tenant).where(eq(tenant.id,inv.tenantId));if(!t||t.status!=='active')throw new BadRequestException('Tenant unavailable');
@@ -63,9 +64,9 @@ export class EmailService{
    const [t]=await tx.select().from(tenant).where(eq(tenant.id,identity.tenantId));const [owner]=await tx.select().from(role).where(and(eq(role.tenantId,identity.tenantId),eq(role.systemKey,'owner')));
    const [current]=await tx.select().from(emailDelivery).where(eq(emailDelivery.id,id)).for('update');
    if(current?.status==='superseded'||(inv&&await this.hasRenewedInvitationIn(tx,inv)))throw new BadRequestException('This invitation already has a replacement');
-   if(!inv||inv.status==='accepted'||t?.status!=='active'||!owner||inv.roles.length!==1||inv.roles[0]?.roleId!==owner.id||inv.roles[0].entityIds!==null)throw new BadRequestException('Owner invitation cannot be renewed');
+   if(!inv||inv.origin!=='platform_owner'||inv.status==='accepted'||t?.status!=='active'||!owner||inv.roles.length!==1||inv.roles[0]?.roleId!==owner.id||inv.roles[0].entityIds!==null)throw new BadRequestException('Owner invitation cannot be renewed');
    await tx.update(invitation).set({status:'revoked'}).where(eq(invitation.id,inv.id));await this.cancelInvitationIn(tx,inv,'superseded');
-   const {invitation:replacement,token}=await this.tenancy.createInvitation(tx,inv.tenantId,ctx.user.id,inv.email,[{roleId:owner.id,entityIds:null}]);const delivery=await this.enqueueInvitationIn(tx,ctx,replacement,token,'owner_invitation');await this.audit.record(ctx,{action:'platform.owner_invitation.renew',targetType:'invitation',targetId:replacement.id,before:{invitationId:inv.id},reason},tx);await this.audit.record(ctx,{tenantId:inv.tenantId,action:'platform.owner_invitation.renew',targetType:'invitation',targetId:replacement.id,before:{invitationId:inv.id},reason},tx);return {id:replacement.id,delivery,ownerInviteUrl:`${this.config.WEB_ORIGIN}/invite/${token}`};
+   const {invitation:replacement,token}=await this.tenancy.createInvitation(tx,inv.tenantId,ctx.user.id,inv.email,[{roleId:owner.id,entityIds:null}],'platform_owner');const delivery=await this.enqueueInvitationIn(tx,ctx,replacement,token,'owner_invitation');await this.audit.record(ctx,{action:'platform.owner_invitation.renew',targetType:'invitation',targetId:replacement.id,before:{invitationId:inv.id},reason},tx);await this.audit.record(ctx,{tenantId:inv.tenantId,action:'platform.owner_invitation.renew',targetType:'invitation',targetId:replacement.id,before:{invitationId:inv.id},reason},tx);return {id:replacement.id,delivery,ownerInviteUrl:`${this.config.WEB_ORIGIN}/invite/${token}`};
   });
  }
 }
