@@ -51,6 +51,15 @@ New web components: `withholding-settings.tsx`, `withholding-register.tsx`, `wit
 
 **Task test convention:** each named new API script below uses `accounting-test-helpers.mjs`, asserts HTTP refusals and compares actual DB GL/bill/counter rows. `rebuild-api` below means `pnpm --filter @factoryos/api... build`, then restart the owned local API with existing ignored environment and port/origin overrides; no shared deployment restart. Run each RED script against the current API, then each GREEN script against rebuilt API. Refusal cases must verify unchanged rows, not only response status. Commands run from repository root except explicit package commands. Each task's last step commits only its listed changes with a neutral imperative subject.
 
+## Execution checkpoint — 2026-10-06
+
+- Task1: statutory catalog gate delivered; full individual primary-source bundles remain blocked. Draft templates only; no enabled numerical profile.
+- Tasks2–3: exact engine and additive0019 scoped evidence/auth delivered. Existing0011–0018 untouched.
+- Task4: Finance configuration, PAN identity, opening reconciliation/activation and certificate evidence delivered. Numerical context intentionally refuses until Task1 completes.
+- Task7 and charge-only portions of Tasks6/10: standalone/inline bank fees, evidence, exact combined bank movements, original reversals, register/editor and principal/net settlement UI delivered and finally verified. Full tax settlement test/workflow is pending Task5.
+- Tasks5, remaining6,8–9 and tax portions10: pending verified profiles and source recognition/advice/advance/remittance/correction implementation. No tax automation or filing claim.
+- Task11: available-scope regression and one independent review/fix pass complete; [review/rulings](../reviews/2026-10-06-accounting-tax-bank-charges-review.md).
+
 ### Task1: Verified statutory profile catalog and activation gate
 
 **Files:** Create `docs/compliance/withholding-profile-evidence.md`, `packages/compliance-in/src/withholding-profiles.ts`, `packages/compliance-in/src/withholding-profiles.test.ts`; modify `packages/compliance-in/src/index.ts`.
@@ -69,11 +78,11 @@ New web components: `withholding-settings.tsx`, `withholding-register.tsx`, `wit
 
 **Interfaces:** Consumes Task1 catalog. Produces `calculateWithholding(profile: TaxProfileRevision, source: TaxSourceEvidence, state: TaxCounterState): TaxCalculation`; `calculateSettlementComponents(input: SettlementComponentInput): SettlementComponentResult`. Input has direction, principal, new tax, charge, currency; result has `billSettlement`, `bankMovement`, `cashUnapplied`, never invented FX. Export the shared contracts above. Profile revisions include explicit verified/draft status and source provenance.
 
-- [ ] Write named tests `duplicate_pan_threshold`, `threshold_whole_vs_excess`, `gst_base_exclusion`, `certificate_capacity_and_expiry`, `pan_higher_rate`, `earlier_event_and_transition`, `exact_rounding`, `receipt_and_payment_components`, `new_path_refuses_fx`. In synthetic fixtures, assert receipt90000+tax10000+charge100 yields `{billSettlement:'100000.000000',bankMovement:'89900.000000'}`; payment117000+tax0+charge50 yields bank117050; advance99000+tax1000 yields gross100000. Assert prior consumed base removes only that base, draft profiles throw, and charge>receipt principal throws.
-- [ ] Run `pnpm --filter @factoryos/compliance-in test -- withholding.test.ts`; expect missing exports failure.
-- [ ] Implement the two pure signatures with exact rational base/rate arithmetic, profile-specific rounding and explicit rejected ambiguity/unsupported currency. Counter identity is supplied by scoped API, not recomputed from party ID. Add verified Task1 vectors alongside synthetic branch tests.
-- [ ] Run `pnpm --filter @factoryos/compliance-in test`; expect old GST and all new tests PASS.
-- [ ] Commit `Add exact withholding and settlement calculations`.
+- [x] Write named tests `duplicate_pan_threshold`, `threshold_whole_vs_excess`, `gst_base_exclusion`, `certificate_capacity_and_expiry`, `pan_higher_rate`, `earlier_event_and_transition`, `exact_rounding`, `receipt_and_payment_components`, `new_path_refuses_fx`. In synthetic fixtures, assert receipt90000+tax10000+charge100 yields `{billSettlement:'100000.000000',bankMovement:'89900.000000'}`; payment117000+tax0+charge50 yields bank117050; advance99000+tax1000 yields gross100000. Assert prior consumed base removes only that base, draft profiles throw, and charge>receipt principal throws.
+- [x] Run `pnpm --filter @factoryos/compliance-in test -- withholding.test.ts`; expect missing exports failure.
+- [x] Implement the two pure signatures with exact rational base/rate arithmetic, profile-specific rounding and explicit rejected ambiguity/unsupported currency. Counter identity is supplied by scoped API, not recomputed from party ID. Add verified Task1 vectors alongside synthetic branch tests.
+- [x] Run `pnpm --filter @factoryos/compliance-in test`; expect old GST and all new tests PASS.
+- [x] Commit `Add exact withholding and settlement calculations`.
 
 ### Task3: Additive scoped evidence schema, permissions and upgrade
 
@@ -81,11 +90,11 @@ New web components: `withholding-settings.tsx`, `withholding-register.tsx`, `wit
 
 **Interfaces:** Produces tables for per-entity tax configuration; immutable profile revisions/selectors; reviewed taxpayer/PAN evidence; certificates; opening register/source history; assessments; append-only recognition/base-consumption/certificate-use effects; advice; remittances/allocations; corrections/report/certificate references; bank charges. Settlement stores additive principal/tax/charge snapshots and linked advice/assessment/charge IDs, defaulting to legacy zero components. Source-purpose keys and certificate/advance consumption identities are unique within tenant/entity; scoped composite references protect related rows. API types use Tasks1–2 contracts.
 
-- [ ] Write `legacy_upgrade_and_scope`: assert legacy settlement rows remain readable with amount>0, component defaults zero, foreign settlement unchanged; cross-entity references and duplicate source/purpose fail; submitted evidence cannot be overwritten through normal mutation path. Capture0011–0018 hashes and inactive shared book state before upgrade.
-- [ ] Run `node --env-file=.env apps/api/scripts/smoke-withholding-schema.mjs`; expect missing table failure on isolated test database.
-- [ ] Implement additive schema with numeric amounts, checks and scoped keys; generate with `pnpm --filter @factoryos/db db:generate --name withholding_bank_charges`. Add `accounts.withholding.{read,create,submit,cancel,export,configure,approve,correct}` and `accounts.bank_charge.{read,create,submit,cancel,export}` catalog permissions; Finance all, Accountant routine/read/export/cancel subject to dependencies, Auditor read/export only, Stores none. Map reviewed tax payable/recoverable and charge accounts without activating/configuring existing entities.
-- [ ] Build DB/auth, apply migration only to isolated fixture DB with `pnpm --filter @factoryos/db db:migrate`; rerun schema script, verify hashes and shared activation unchanged. Expect PASS.
-- [ ] Commit `Add scoped withholding and charge evidence schema`.
+- [x] Write `legacy_upgrade_and_scope`: assert legacy settlement rows remain readable with amount>0, component defaults zero, foreign settlement unchanged; cross-entity references and duplicate source/purpose fail; submitted evidence cannot be overwritten through normal mutation path. Capture0011–0018 hashes and inactive shared book state before upgrade.
+- [x] Run `node --env-file=.env apps/api/scripts/smoke-withholding-schema.mjs`; expect missing table failure on isolated test database.
+- [x] Implement additive schema with numeric amounts, checks and scoped keys; generate with `pnpm --filter @factoryos/db db:generate --name withholding_bank_charges`. Add `accounts.withholding.{read,create,submit,cancel,export,configure,approve,correct}` and `accounts.bank_charge.{read,create,submit,cancel,export}` catalog permissions; Finance all, Accountant routine/read/export/cancel subject to dependencies, Auditor read/export only, Stores none. Map reviewed tax payable/recoverable and charge accounts without activating/configuring existing entities.
+- [x] Build DB/auth, apply migration only to isolated fixture DB with `pnpm --filter @factoryos/db db:migrate`; rerun schema script, verify hashes and shared activation unchanged. Expect PASS.
+- [x] Commit `Add scoped withholding and charge evidence schema`.
 
 ### Task4: Finance configuration, opening reconciliation and certificates
 
