@@ -36,6 +36,11 @@ describe('exact withholding engine', () => {
     expect(calculateWithholding(profile(), source({ grossBase: '30000', gst: '0' }), state()).tax).toBe('0.000000');
     expect(calculateWithholding(profile(), source({ grossBase: '30000.01', gst: '0' }), state()).tax).toBe('300.000000');
   });
+  it('single-event threshold leaves earlier small bases untaxed until cumulative crossing', () => {
+    const first=calculateWithholding(profile(),source({grossBase:'35000',gst:'0'}),state({cumulativeEligibleBase:'20000',untaxedEligibleBase:'20000'}));
+    expect(first).toMatchObject({taxableBase:'35000.000000',tax:'350.000000',remainingUntaxedBase:'20000.000000'});
+    expect(calculateWithholding(profile(),source({grossBase:'60000',gst:'0'}),state({cumulativeEligibleBase:first.cumulativeAfter,untaxedEligibleBase:first.remainingUntaxedBase}))).toMatchObject({taxableBase:'80000.000000',tax:'800.000000',remainingUntaxedBase:'0.000000'});
+  });
   it('gst_base_exclusion', () => {
     expect(calculateWithholding(profile({ singleThreshold: null, cumulativeThreshold: null }), source(), state())).toMatchObject({ eligibleBase: '20000.000000', tax: '200.000000' });
     expect(calculateWithholding(profile({ singleThreshold: null, cumulativeThreshold: null, excludeGst: false }), source(), state()).tax).toBe('236.000000');

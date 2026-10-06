@@ -60,7 +60,7 @@ export function calculateWithholding(profile: TaxProfileRevision, source: TaxSou
   if (newlyEligible > 0n && triggered) {
     taxable = profile.thresholdBasis === 'excess'
       ? max(after - cumulative!, 0n) - max(before - cumulative!, 0n)
-      : newlyEligible + backlog;
+      : newlyEligible + (cumulative !== null && after > cumulative ? backlog : 0n);
   }
   let appliedRate = rate(profile.ratePercent);
   if (source.panStatus === 'unknown') throw new Error('Reviewed PAN status is required');
@@ -86,7 +86,7 @@ export function calculateWithholding(profile: TaxProfileRevision, source: TaxSou
     act: profile.act, profileId: profile.id, profileRevision: profile.revision,
     certificateId: certificate?.id ?? null, certificateRevision: certificate?.revision ?? null,
     eligibleBase: fixed(eligible), previouslyConsumedBase: fixed(consumed), newEligibleBase: fixed(newlyEligible), taxableBase: fixed(taxable),
-    cumulativeAfter: fixed(after), remainingUntaxedBase: fixed(newlyEligible === 0n ? backlog : profile.thresholdBasis === 'whole' && triggered ? 0n : backlog + newlyEligible - taxable),
+    cumulativeAfter: fixed(after), remainingUntaxedBase: fixed(backlog + newlyEligible - taxable),
     ratePercent: fixed(appliedRate), tax: fixed(tax), roundingAdjustment: fixed(tax - representedUnrounded),
     explanation: newlyEligible === 0n ? 'already-consumed' : !triggered ? 'below-threshold' : profile.thresholdBasis === 'whole' ? 'whole-base' : 'excess-base',
   };
