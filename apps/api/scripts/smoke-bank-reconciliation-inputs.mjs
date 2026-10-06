@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+const types=await import('../dist/modules/bank-reconciliation/types.js').catch(error=>{if(error.code==='ERR_MODULE_NOT_FOUND')return {};throw error;});
+assert.equal(typeof types.BankProfileInput?.safeParse,'function','strict profile input exists');
+const id='00000000-0000-4000-8000-000000000001';
+const mapping={delimiter:',',skipRows:0,dateFormat:'DD/MM/YYYY',dateColumn:'Date',amount:{mode:'split',debitColumn:'Debit',creditColumn:'Credit'},decimalSeparator:'.',groupSeparator:null,order:'ascending'};
+const profile={accountId:id,maskedIdentifier:'••1234',currency:'INR',mapping};
+assert.ok(types.BankProfileInput.safeParse(profile).success);
+for(const changes of [{currency:'USD'},{dateWindow:31},{unknown:true},{maskedIdentifier:'1234567890'}])assert.ok(!types.BankProfileInput.safeParse({...profile,...changes}).success);
+for(const changes of [{delimiter:'"'},{groupSeparator:'.'},{skipRows:-1},{dateFormat:'guess'}])assert.ok(!types.CsvMappingInput.safeParse({...mapping,...changes}).success);
+assert.ok(!types.BaselineInput.safeParse({date:'2026-02-30',bankBalance:'1e3',reference:'R',evidence:'D',outstanding:[]}).success);
+assert.ok(!types.OrdinaryMatchInput.safeParse({kind:'ordinary',edges:[{statementRowId:id,bookItemKind:'gl',bookItemId:id,amount:'0'}]}).success);
+assert.ok(!types.OrdinaryMatchInput.safeParse({kind:'ordinary',edges:[{statementRowId:id,bookItemKind:'gl',bookItemId:id,amount:'1.0000001'}]}).success);
+assert.ok(!types.NetMatchInput.safeParse({kind:'net',statementRowIds:[id,id],bankEntryId:id,reason:'R',source:{principal:'100',charge:'1'}}).success,'client cannot supply net source proof');
+console.log('PASS strict bank input boundaries, currency, masked identifiers, mapped formats and exact amounts');

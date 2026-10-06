@@ -141,6 +141,13 @@
       "when": 1791287959596,
       "tag": "0019_withholding_bank_charges",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791295865856,
+      "tag": "0020_bank_reconciliation",
+      "breakpoints": true
     }
   ]
 }
