@@ -26,7 +26,7 @@ testing and integration sold as pay-per-use) and **EarthNow** (satellite analyti
 | [15 · Tenancy, RBAC, auth](./15-tenancy-rbac-auth.md) | Tenant/entity model, Better Auth, roles and permissions, SuperAdmin |
 | [16 · Deployment](./16-deployment.md) | Coolify dev hosting and environment variables |
 | [Decision register](./decisions/DECISIONS.md) | **Binding decisions** |
-| [Slice specs](./superpowers/specs/) · [plans](./superpowers/plans/) · [reviews](./superpowers/reviews/) | Detailed design, task plan and review record per slice (GL core, AR/AP settlements, customer notes and sales returns) |
+| [Slice specs](./superpowers/specs/) · [plans](./superpowers/plans/) · [reviews](./superpowers/reviews/) | Detailed design, task plan and review record per slice (GL core, AR/AP settlements, customer/supplier notes and returns, NIC sandbox proposal) |
 | [AI/handoff state](./ai/STATUS.md) | Current status, memory and log for any contributor |
 
 ## The plan in one paragraph

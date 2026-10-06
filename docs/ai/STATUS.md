@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-06 (Asia/Kolkata) · Supplier notes/returns final verification_
+_Last updated: 2026-10-06 (Asia/Kolkata) · NIC sandbox written design_
 
 ## Done
 - [x] **Customer credit/debit notes and sales returns** (decision037, additive0012/0013): original invoice/tax/accounts/currency snapshots, exact partial original-cost and zero-cost tracked-batch returns, automatic source application, remaining customer credit and typed later applications, scoped editor/list/print, immutable reversals and dependency/race guards. Build11/typecheck16/unit60, thirteen focused API fixtures530 reported checks, existing accounting/settlement/operational regressions and eight production browsers pass; lint has zero tasks. Independent review's two Important defects were reproduced/fixed; all four PostgreSQL race scenarios pass. Shared0011 and inactive shared books preserved. [Review/rulings](../superpowers/reviews/2026-10-05-sales-notes-returns-review.md).
@@ -76,13 +76,13 @@ _Last updated: 2026-10-06 (Asia/Kolkata) · Supplier notes/returns final verific
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
-- None.
+- **NIC sandbox e-invoice/e-way bill design** · owner: agent, Native default-branch session · started: 2026-10-06 (Asia/Kolkata). User requested NIC sandbox design/implementation, accounting depth and foundation leftovers in that sequence. [Written NIC proposal](../superpowers/specs/2026-10-06-nic-sandbox-design.md) completed and self-reviewed; awaiting written-spec review before plan/product implementation. Recommended durable mock-first sandbox operations with encrypted connections, frozen payloads, uncertain-outcome lookup, worker leases and separate sandbox print. Access status pending; no NIC/GSP credential configuration found. Shared books and existing product code unchanged.
 
-## Next (in order; confirm with the user before starting)
-1. User review of accounting, settlements, customer and supplier notes/returns on dev. Books stay inactive until deliberate per-entity Finance activation (decision034).
-2. **Slice1e: e-invoice + e-way bill** — separate NIC direct-adapter sandbox design behind `packages/gsp`, effective-dated per GSTIN.
-3. TDS/TCS and bank charges on receipts/payments; bank reconciliation.
-4. Phase0 leftovers: email delivery, SSO, passkeys, impersonation, Postgres RLS.
+## Next (user-authorized sequence; review each written design/plan)
+1. Review NIC sandbox written spec, then write Native implementation plan and implement the approved slice. Verify real NIC calls only when access and IP whitelist are available; deterministic mock checks do not establish provider acceptance.
+2. Accounting depth: TDS/TCS and bank charges, then bank reconciliation; separate written design with current effective-dated statutory rules and exact settlement integration.
+3. Foundation leftovers: email delivery, SSO, passkeys, audited impersonation and PostgreSQL RLS; separate security/provider designs and configuration requirements.
+4. User review of completed accounting/settlement/customer/supplier workflows on dev. Shared books remain inactive until deliberate Finance cut-over.
 
 ## Blockers
 - None. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)
