@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type FormEvent, Suspense, useState } from 'react';
 import { authClient } from '@/lib/auth-client';
+import {safeNextPath} from '@/lib/safe-next';
 
 function SignInForm() {
   const router = useRouter();
@@ -22,7 +23,7 @@ function SignInForm() {
     setBusy(false);
     if (res.error) return setError(res.error.status === 429 ? 'Too many attempts. Wait a minute and try again.' : 'Email or password is incorrect.');
     // When two-factor is on, the client plugin redirects to /sign-in/two-factor instead.
-    if (!(res.data as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect) router.replace(next.startsWith('/') ? next : '/app');
+    if (!(res.data as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect) router.replace(safeNextPath(next));
   };
 
   return (
@@ -43,7 +44,7 @@ function SignInForm() {
           Create an account
         </Link>
       </p>
-      <p className="mt-2 text-center text-[12px] text-subtle">Forgot your password? Ask your administrator to reset it.</p>
+      <p className="mt-2 text-center text-[12px] text-subtle"><Link href="/forgot-password" className="text-accent hover:underline">Forgot your password?</Link></p>
     </>
   );
 }

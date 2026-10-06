@@ -3,6 +3,7 @@ import { Alert, Button, Field, Input } from '@factoryos/ui';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type FormEvent, Suspense, useState } from 'react';
 import { authClient } from '@/lib/auth-client';
+import {safeNextPath} from '@/lib/safe-next';
 
 function TwoFactorForm() {
   const router = useRouter();
@@ -24,7 +25,7 @@ function TwoFactorForm() {
         : await authClient.twoFactor.verifyBackupCode({ code: clean, trustDevice: trust });
     setBusy(false);
     if (res.error) return setError(mode === 'totp' ? 'That code did not match. Codes change every 30 seconds.' : 'That backup code is not valid or was already used.');
-    router.replace(next.startsWith('/') ? next : '/app');
+    router.replace(safeNextPath(next));
   };
 
   return (

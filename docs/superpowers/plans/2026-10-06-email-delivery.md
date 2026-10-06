@@ -137,15 +137,15 @@ assert.equal(oldSessionResponse.status, 401);
 **Files:** Create `(auth)/forgot-password/page.tsx`, `(auth)/reset-password/page.tsx`, `(auth)/verify-email/page.tsx`, focused shared auth-email form; modify sign-in, security settings, web headers and auth-client usage; create `e2e/email-auth.mjs`.
 **Interfaces:** Uses installed authClient requestPasswordReset/resetPassword/sendVerificationEmail APIs and canonical callback paths from Task5. Verification consumes the original Better Auth callback, not a client-declared verified flag.
 
-- [ ] Write production browser fixture `forgot_reset_verify`: generic acknowledgement, real SMTP fixture token consumption, bad/expired/used token screens, old session unusable, verified state refresh, cooldown, current account changed during preview and TOTP preserved. Assert no external navigation for malicious next/callback values, no-referrer headers and token cleared after success.
+- [x] Write production browser fixture `forgot_reset_verify`: generic acknowledgement, real SMTP fixture token consumption, bad/expired/used token screens, old session unusable, verified state refresh, cooldown, current account changed during preview and TOTP preserved. Assert no external navigation for malicious next/callback values, no-referrer headers and token cleared after success.
 ```js
 assert.equal(await page.getByRole("heading", {name:"Reset password"}).count(), 1);
 assert.equal(new URL(page.url()).searchParams.has("token"), false); // after consumption
 ```
 
-- [ ] Run fixture; observe missing forgot/reset routes RED.
-- [ ] Implement accessible forms using shared UI components and existing query/session refresh patterns. Preserve minimum password10 and server error authority. Signup/sign-in remain compatible when delivery disabled; show unavailable email actions without identifying a submitted account. Apply no-referrer policy to invite/reset/verify routes and avoid third-party resources. Never copy raw security URLs into toast/logs/browser storage. Successful reset requires fresh sign-in; pending responses bind current user/scope and cannot revive old-account UI.
-- [ ] Run production browser and base auth/TOTP/invite browser regressions, including390px. Commit `Add account recovery and verification screens`.
+- [x] Run fixture; observe missing forgot/reset routes RED.
+- [x] Implement accessible forms using shared UI components and existing query/session refresh patterns. Preserve minimum password10 and server error authority. Signup/sign-in remain compatible when delivery disabled; show unavailable email actions without identifying a submitted account. Apply no-referrer policy to invite/reset/verify routes and avoid third-party resources. Never copy raw security URLs into toast/logs/browser storage. Successful reset requires fresh sign-in; pending responses bind current user/scope and cannot revive old-account UI.
+- [x] Run production browser and base auth/TOTP/invite browser regressions, including390px. Commit `Add account recovery and verification screens`.
 
 ## Task7: Tenant and platform delivery diagnostics
 

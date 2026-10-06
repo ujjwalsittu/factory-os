@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type FormEvent, Suspense, useState } from 'react';
 import { authClient } from '@/lib/auth-client';
+import {safeNextPath} from '@/lib/safe-next';
 
 function SignUpForm() {
   const router = useRouter();
@@ -20,7 +21,7 @@ function SignUpForm() {
     const res = await authClient.signUp.email(f);
     setBusy(false);
     if (res.error) return setError(res.error.message ?? 'Could not create your account');
-    router.replace(next?.startsWith('/') ? next : '/onboarding');
+    router.replace(safeNextPath(next,'/onboarding'));
   };
 
   return (
