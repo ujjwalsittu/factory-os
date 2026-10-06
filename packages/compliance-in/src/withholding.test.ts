@@ -62,6 +62,9 @@ describe('exact withholding engine', () => {
     expect(() => calculateWithholding(profile(), source({ eventDate: '2026-03-31' }), state({ taxYear: '2025-26' }))).toThrow('effective');
     expect(() => calculateWithholding(profile(), source(), state({ sourceConsumedBase: '20001' }))).toThrow('consumed');
   });
+  it('prior_year_advance_base_is_not_added_to_current_year_counter', () => {
+    expect(calculateWithholding(profile(), source(), state({ sourceConsumedBase:'20000' }))).toMatchObject({ newEligibleBase:'0.000000', tax:'0.000000', cumulativeAfter:'0.000000' });
+  });
   it('exact_rounding does not round intermediate rate multiplication', () => {
     const p = profile({ singleThreshold: null, cumulativeThreshold: null, ratePercent: '0.0001' });
     expect(calculateWithholding(p, source({ grossBase: '4999.999999', gst: '0' }), state())).toMatchObject({ tax: '0.000000', roundingAdjustment: '-0.005000' });

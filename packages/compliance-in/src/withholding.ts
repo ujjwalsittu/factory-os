@@ -49,7 +49,7 @@ export function calculateWithholding(profile: TaxProfileRevision, source: TaxSou
   if (gst > gross) throw new Error('GST exceeds source gross base');
   const eligible = gross - (profile.excludeGst ? gst : 0n);
   const consumed = amount(state.sourceConsumedBase), before = amount(state.cumulativeEligibleBase), backlog = amount(state.untaxedEligibleBase);
-  if (consumed > eligible || consumed > before) throw new Error('Previously consumed base exceeds source/cumulative evidence');
+  if (consumed > eligible) throw new Error('Previously consumed base exceeds source evidence');
   if (backlog > before) throw new Error('Untaxed base exceeds cumulative evidence');
   const newlyEligible = eligible - consumed, after = before + newlyEligible;
   const single = profile.singleThreshold === null ? null : amount(profile.singleThreshold);
