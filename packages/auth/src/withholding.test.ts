@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { SYSTEM_ROLES } from './roles.js';
-import { isPermission } from './permissions.js';
+import { ACTIONS, isPermission } from './permissions.js';
 const role = (key:string) => SYSTEM_ROLES.find(r=>r.key===key)!.permissions as readonly string[];
 describe('withholding and bank charge permissions',()=>{
+ it('new actions are available to role matrix',()=>{expect(ACTIONS).toContain('configure');expect(ACTIONS).toContain('correct');});
  it('registers explicit accounting actions',()=>{
   for(const permission of ['accounts.withholding.read','accounts.withholding.configure','accounts.withholding.correct','accounts.bank_charge.submit'])expect(isPermission(permission)).toBe(true);
  });

@@ -15,6 +15,8 @@ export const ACTIONS = [
   'export',
   'file',
   'manage',
+  'configure',
+  'correct',
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
