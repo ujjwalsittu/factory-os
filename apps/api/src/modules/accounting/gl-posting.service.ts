@@ -1,3 +1,4 @@
+import { BankReconciliationGuard } from './bank-reconciliation-guard.service.js';
 import {
   assertBalanced,
   Dec,
@@ -43,6 +44,7 @@ export class GlPostingService {
   constructor(
     private readonly audit: AuditService,
     private readonly bills: BillService,
+    private readonly bankGuard: BankReconciliationGuard,
   ) {}
   async active(tx: Tx, entityId: string) {
     const [s] = await tx
@@ -214,6 +216,7 @@ export class GlPostingService {
       const evidence = ['sales_note','sales_note_application','sales_return','supplier_note','supplier_note_application','purchase_return','purchase_return_receipt','supplier_return_resolution'].includes(source.type) && source.evidenceVoucherIds?.length
         ? await tx.select({id:glEntry.accountId}).from(glEntry).where(and(eq(glEntry.tenantId,ctx.tenant.tenantId),eq(glEntry.entityId,entityId),inArray(glEntry.voucherId,source.evidenceVoucherIds))) : [];
       await this.validateLines(tx, ctx, entityId, plan.lines, false, ['settlement', 'settlement_allocation', 'sales_note_application','supplier_note_application'].includes(source.type),new Set(evidence.map(x=>x.id)));
+      await this.bankGuard.assertPostingAllowedIn(tx, ctx, entityId, postingDate, plan.lines.map(x => x.accountId));
       const number = await this.number(tx, ctx, entityId, postingDate);
       const [v] = await tx
         .insert(journalVoucher)
@@ -340,6 +343,7 @@ export class GlPostingService {
       });
       return;
     }
+    await this.bankGuard.assertReversalAllowedIn(tx, ctx, entityId, d.voucherId);
     const [original] = await tx
       .select()
       .from(journalVoucher)
@@ -359,8 +363,9 @@ export class GlPostingService {
       })),
     );
     // Historic accounts can be inactive: reversals must use exact original accounts.
-    const date = businessDate(),
-      number = await this.number(tx, ctx, entityId, date);
+    const date = businessDate();
+    await this.bankGuard.assertPostingAllowedIn(tx, ctx, entityId, date, entries.map(x => x.accountId));
+    const number = await this.number(tx, ctx, entityId, date);
     const [v] = await tx
       .insert(journalVoucher)
       .values({

@@ -1,3 +1,4 @@
+import { BankReconciliationGuard } from './bank-reconciliation-guard.service.js';
 import { Dec } from '@factoryos/core';
 import { randomUUID } from 'node:crypto';
 import {
@@ -109,6 +110,7 @@ export class AccountingController {
     private readonly opening: OpeningService,
     private readonly audit: AuditService,
     private readonly bills: BillService,
+    private readonly bankGuard: BankReconciliationGuard,
   ) {}
   private async setup(ctx: TenantRequestContext) {
     const entityId = entityOf(ctx);
@@ -1011,6 +1013,7 @@ export class AccountingController {
         ...(v.clearingSourceId && { clearingSourceId: v.clearingSourceId }),
         lines: v.draftLines,
       });
+      await this.bankGuard.assertPostingAllowedIn(tx, ctx, entityId, v.postingDate, v.draftLines.map(x => x.accountId));
       const number = await this.gl.number(tx, ctx, entityId, v.postingDate);
       await tx.insert(glEntry).values(
         v.draftLines.map((l) => ({

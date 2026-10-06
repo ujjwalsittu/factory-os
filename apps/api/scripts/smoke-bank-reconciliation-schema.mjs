@@ -13,7 +13,7 @@ const legacySettlement = (await p.query('select * from party_settlement order by
 if (process.env.BANK_SCHEMA_BASELINE) {
  const baseline = JSON.parse(JSON.stringify({ hashes, activation }));
  if (process.env.CAPTURE_BANK_BASELINE === '1') await writeFile(process.env.BANK_SCHEMA_BASELINE,JSON.stringify(baseline));
- else assert.deepEqual(baseline, JSON.parse(await readFile(process.env.BANK_SCHEMA_BASELINE,'utf8')), 'prior migration hashes and original book activation states unchanged');
+ else {const original=JSON.parse(await readFile(process.env.BANK_SCHEMA_BASELINE,'utf8'));assert.deepEqual(baseline.hashes,original.hashes,'prior migration hashes unchanged');for(const entity of original.activation)assert.deepEqual(baseline.activation.find(x=>x.entity_id===entity.entity_id),entity,'original book activation unchanged');}
 }
 try {
  await p.query('begin');
