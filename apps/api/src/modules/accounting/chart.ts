@@ -7,6 +7,11 @@ import { and, eq } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import type { Tx } from './accounting-lock.js';
 export const DEFAULT_ACCOUNTS = [
+  ['tds_payable', 'TDS payable', 'Duties & Taxes', 'liability'],
+  ['tds_receivable', 'TDS receivable', 'Current Assets', 'asset'],
+  ['tcs_payable', 'TCS payable', 'Duties & Taxes', 'liability'],
+  ['tcs_recoverable', 'TCS recoverable', 'Current Assets', 'asset'],
+  ['bank_charges', 'Bank charges', 'Indirect Expenses', 'expense'],
   ['cash', 'Cash', 'Cash-in-Hand', 'asset'],
   ['bank', 'Bank', 'Bank Accounts', 'asset'],
   ['pending_returns', 'Pending supplier returns', 'Current Assets', 'asset'],
