@@ -1,3 +1,4 @@
+import {guardSandboxSourceIn} from './gst-sandbox/source-guards.js';
 import { salesNote } from '@factoryos/db';
 import { OperationalPostings } from './accounting/operational-postings.js';
 import { BillService } from './accounting/bill.service.js';
@@ -682,6 +683,7 @@ export class SellingController {
       await lockAccounting(tx, entityId);
       const inv = await this.lockInvoice(tx, entityId, id);
       if (inv.status !== 'submitted') throw new ConflictException('Only submitted invoices can be cancelled');
+      await guardSandboxSourceIn(tx,ctx,entityId,'sales_invoice',id);
       const liveNotes=await tx.select({number:salesNote.number}).from(salesNote).where(and(eq(salesNote.tenantId,ctx.tenant.tenantId),eq(salesNote.entityId,entityId),eq(salesNote.originalInvoiceId,id),eq(salesNote.status,'submitted')));
       if(liveNotes.length)throw new ConflictException(`Cancel notes ${liveNotes.map(n=>n.number).join(', ')} first`);
       await this.gl.reverseIn(tx, ctx, entityId, { type: 'sales_invoice', id, purpose: 'main' }, why);

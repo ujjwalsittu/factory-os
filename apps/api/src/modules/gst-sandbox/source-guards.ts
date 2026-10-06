@@ -1,0 +1,2 @@
+import {ConflictException} from '@nestjs/common';import {assertSandboxSourceCancelableIn} from '@factoryos/db';import type {TenantRequestContext} from '../../common/access.js';import type {Tx} from '../accounting/accounting-lock.js';
+export async function guardSandboxSourceIn(tx:Tx,ctx:TenantRequestContext,entityId:string,kind:string,id:string){try{await assertSandboxSourceCancelableIn(tx,{tenantId:ctx.tenant.tenantId,entityId},kind,id)}catch{throw new ConflictException('Resolve or cancel/detach sandbox exercises before cancelling this source')}}

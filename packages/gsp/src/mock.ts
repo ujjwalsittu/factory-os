@@ -15,10 +15,10 @@ export class MockSandboxProvider implements SandboxProvider{
    if(prior)return {kind:'confirmed',evidence:prior};
    if(family==='ewb'&&!c.transport)return {kind:'rejected',code:'TRANSPORT_REQUIRED'};
    if(c.action==='ewb.from_irn'&&!c.irn)return {kind:'rejected',code:'IRN_REQUIRED'};
-   const evidence:ProviderEvidence={externalId:family==='irn'?key:BigInt('0x'+key.slice(0,12)).toString(),documentHash:hash,gstin:a.scope.gstin,documentNumber:c.snapshot.number,documentType:c.snapshot.documentType,issuedAt:new Date().toISOString(),status:'active',simulated:true,signatureStatus:'simulated',...(c.transport?{transport:c.transport}:{})};await this.store.put(key,evidence);return a.scenario==='timeout_after_success'?{kind:'unknown'}:{kind:'confirmed',evidence};
+   const evidence:ProviderEvidence={externalId:family==='irn'?key:BigInt('0x'+key.slice(0,12)).toString(),documentHash:hash,gstin:a.scope.gstin,documentNumber:c.snapshot.number,documentType:c.snapshot.documentType,issuedAt:new Date().toISOString(),status:'active',simulated:true,signatureStatus:'simulated',...(family==='ewb'?{validUpto:new Date(Date.now()+3600000).toISOString()}:{}),...(c.transport?{transport:c.transport}:{})};await this.store.put(key,evidence);return a.scenario==='timeout_after_success'?{kind:'unknown'}:{kind:'confirmed',evidence};
   }
   if(!prior||!c.externalId||prior.externalId!==c.externalId)return {kind:'rejected',code:'ORIGINAL_REQUIRED'};
   if(prior.status==='cancelled')return c.action.endsWith('cancel')?{kind:'confirmed',evidence:prior}:{kind:'rejected',code:'ALREADY_CANCELLED'};
-  const evidence:ProviderEvidence={...prior,...(c.action.endsWith('cancel')?{status:'cancelled' as const}:{}),...(c.transport?{transport:c.transport}:{})};await this.store.put(key,evidence);return {kind:'confirmed',evidence};
+  const evidence:ProviderEvidence={...prior,...(c.action==='ewb.extend'?{validUpto:new Date(Date.parse(prior.validUpto??prior.issuedAt)+3600000).toISOString()}:{}),...(c.action.endsWith('cancel')?{status:'cancelled' as const}:{}),...(c.transport?{transport:c.transport}:{})};await this.store.put(key,evidence);return {kind:'confirmed',evidence};
  }
 }

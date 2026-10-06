@@ -12,3 +12,4 @@ export function createDb(connectionString: string, max = 10): Database {
   return drizzle(pool, { schema, casing: 'snake_case' }) as Database;
 }
 export * from './gst-sandbox-outbox.js';
+export * from './gst-sandbox-source-guards.js';

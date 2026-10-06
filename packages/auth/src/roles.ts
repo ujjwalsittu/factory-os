@@ -69,7 +69,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'stores',
     name: 'Stores',
     description: 'Stock receipts, issues, transfers, counts and the waste register.',
-    permissions: all((p) => p.startsWith('inventory.') || p.startsWith('ehs.') || ['compliance.sandbox_operation.read','compliance.sandbox_partb.create','compliance.sandbox_partb.update'].includes(p) || p === 'buying.return_claim.read' || p === 'buying.return_movement.read' || p === 'buying.return_movement.create' || p === 'masters.item.read' || p === 'masters.party.read'),
+    permissions: all((p) => p.startsWith('inventory.') || p.startsWith('ehs.') || ['compliance.sandbox_operation.read','compliance.sandbox_connection.read','compliance.sandbox_partb.create','compliance.sandbox_partb.update'].includes(p) || p === 'buying.return_claim.read' || p === 'buying.return_movement.read' || p === 'buying.return_movement.create' || p === 'masters.item.read' || p === 'masters.party.read'),
   },
   {
     key: 'production_planner',

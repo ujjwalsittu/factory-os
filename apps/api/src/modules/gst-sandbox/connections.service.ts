@@ -1,6 +1,7 @@
 import {Inject,Injectable,BadRequestException,NotFoundException,ConflictException} from '@nestjs/common';
 import {gstRegistration,gstSandboxConnection,gstSandboxCredentialRevision,type Database} from '@factoryos/db';
 import {sealCredential} from '@factoryos/gsp';
+import type {AnyPgColumn} from 'drizzle-orm/pg-core';
 import {and,eq,sql} from 'drizzle-orm';
 import {z} from 'zod';
 import {DB,CONFIG} from '../../common/tokens.js';
@@ -10,7 +11,7 @@ import {AuditService} from '../../common/audit.service.js';
 import {lockAccounting,type Tx} from '../accounting/accounting-lock.js';
 export const connectionInput=z.object({registrationId:z.string().uuid(),capability:z.enum(['irn','ewb']),provider:z.enum(['mock','nic_direct']),environment:z.literal('sandbox').default('sandbox'),scenario:z.enum(['normal','timeout_after_success','rejected','unsupported_lookup','mismatched_lookup']).default('normal'),credentials:z.record(z.string().min(1).max(100),z.string().max(10000)).optional()}).strict();
 export function scopeOf(ctx:TenantRequestContext){const entityId=ctx.tenant.activeEntityId;if(!entityId)throw new BadRequestException('Choose an entity');return {tenantId:ctx.tenant.tenantId,entityId}}
-export function scopeWhere(t:{tenantId:typeof gstSandboxConnection.tenantId;entityId:typeof gstSandboxConnection.entityId},scope:{tenantId:string;entityId:string}){return and(eq(t.tenantId,scope.tenantId),eq(t.entityId,scope.entityId))}
+export function scopeWhere(t:{tenantId:AnyPgColumn;entityId:AnyPgColumn},scope:{tenantId:string;entityId:string}){return and(eq(t.tenantId,scope.tenantId),eq(t.entityId,scope.entityId))}
 @Injectable()
 export class SandboxConnectionsService{
  constructor(@Inject(DB)private readonly db:Database,@Inject(CONFIG)private readonly config:AppConfig,private readonly audit:AuditService){}

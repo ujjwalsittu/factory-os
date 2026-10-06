@@ -1,3 +1,4 @@
+import {guardSandboxSourceIn} from '../gst-sandbox/source-guards.js';
 import {Dec} from '@factoryos/core';
 import {gstRegistration,item,legalEntity,salesInvoice,salesInvoiceLine,salesNote,salesNoteLine,settlementAllocationDocument} from '@factoryos/db';
 import {ConflictException,Injectable,NotFoundException} from '@nestjs/common';
@@ -73,6 +74,7 @@ export class SalesNoteService {
   return this.getIn(tx,ctx,entityId,id);
  }
  async cancelIn(tx:Tx,ctx:TenantRequestContext,entityId:string,id:string,reason:string){
+ await lockAccounting(tx,entityId);await guardSandboxSourceIn(tx,ctx,entityId,'sales_note',id);
   await lockAccounting(tx,entityId);const note=await this.noteIn(tx,ctx,entityId,id,true);
   if(note.status!=='submitted')throw new ConflictException('Only submitted notes can be cancelled');
   if(note.kind==='debit')await this.preview.assertDebitCancellableIn(tx,ctx,entityId,id,note.originalInvoiceId);
