@@ -9,7 +9,7 @@ export async function emailFixture(){
  return {db,userId:id,tenantId:tenant,invitationId:invitation,smtp:{messages:[]},async close(){await db.$client.end();}};
 }
 export async function fixtureSourceSnapshot(db,tenantId){
- const tables=['tenant','role','invitation','audit_event','email_delivery'];
+ const tables=['tenant','role','uom','hsn_code','membership','role_assignment','invitation','audit_event','email_delivery'];
  const result={};for(const table of tables)result[table]=(await db.$client.query(`select * from ${table} where ${table==='tenant'?'id':'tenant_id'}=$1 order by ${table==='audit_event'?'seq':'id'}`,[tenantId])).rows;
  return result;
 }

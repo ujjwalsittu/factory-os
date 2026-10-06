@@ -29,6 +29,9 @@ importers:
       '@factoryos/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@factoryos/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@factoryos/gsp':
         specifier: workspace:*
         version: link:../../packages/gsp

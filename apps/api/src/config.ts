@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {loadEmailConfig,type EmailConfig} from '@factoryos/email';
 
 const schema = z.object({
   GSP_CREDENTIAL_KEY_V1: z.preprocess(v=>v===''?undefined:v,z.string().regex(/^[A-Za-z0-9+/]{43}=$/).optional()),
@@ -31,7 +32,7 @@ const schema = z.object({
     .transform((v) => v === 'true'),
 });
 
-export type AppConfig = z.infer<typeof schema>;
+export type AppConfig = z.infer<typeof schema> & {email:EmailConfig};
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = schema.safeParse(env);
@@ -39,5 +40,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     const issues = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
-  return parsed.data;
+  return {...parsed.data,email:loadEmailConfig(env)};
 }

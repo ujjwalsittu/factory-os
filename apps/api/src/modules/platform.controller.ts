@@ -8,6 +8,7 @@ import { CONFIG, DB } from '../common/tokens.js';
 import { parse } from '../common/validation.js';
 import type { AppConfig } from '../config.js';
 import { TenancyService } from './tenancy.service.js';
+import {EmailService} from './email/email.service.js';
 
 /** SuperAdmin console (docs/15 §4). Impersonation is planned, not built yet. */
 @Controller('platform')
@@ -18,6 +19,7 @@ export class PlatformController {
     @Inject(CONFIG) private readonly config: AppConfig,
     private readonly audit: AuditService,
     private readonly tenancy: TenancyService,
+    private readonly email: EmailService,
   ) {}
 
   @Get('overview')
@@ -59,15 +61,13 @@ export class PlatformController {
       }),
       body,
     );
-    const { tenant: t } = await this.tenancy.createTenant(ctx, { name: input.name, slug: input.slug });
-    const [ownerRole] = await this.db.execute<{ id: string }>(
-      sql`select id from role where tenant_id = ${t.id} and system_key = 'owner'`,
-    ).then((r) => r.rows);
-    const { token } = await this.db.transaction((tx) =>
-      this.tenancy.createInvitation(tx, t.id, ctx.user.id, input.ownerEmail, [{ roleId: ownerRole!.id, entityIds: null }]),
-    );
-    await this.audit.record(ctx, { action: 'platform.tenant.create', targetType: 'tenant', targetId: t.id, after: { name: t.name, ownerEmail: input.ownerEmail } });
-    return { tenant: t, ownerInviteUrl: `${this.config.WEB_ORIGIN}/invite/${token}` };
+    return this.db.transaction(async tx=>{
+      const {tenant:t,ownerRoleId}=await this.tenancy.createTenantIn(tx,ctx,{name:input.name,slug:input.slug});
+      const {invitation:inv,token}=await this.tenancy.createInvitation(tx,t.id,ctx.user.id,input.ownerEmail,[{roleId:ownerRoleId,entityIds:null}]);
+      const delivery=await this.email.enqueueInvitationIn(tx,ctx,inv,token,'owner_invitation');
+      await this.audit.record(ctx,{action:'platform.tenant.create',targetType:'tenant',targetId:t.id,after:{name:t.name,ownerEmail:input.ownerEmail}},tx);
+      return {tenant:t,delivery,ownerInviteUrl:`${this.config.WEB_ORIGIN}/invite/${token}`};
+    });
   }
 
   @Patch('tenants/:id')

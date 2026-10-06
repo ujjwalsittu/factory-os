@@ -55,7 +55,10 @@ export class TenancyService {
     ctx: RequestContext,
     input: { name: string; slug?: string | undefined; ownerUserId?: string; entity?: z.infer<typeof entityInput> },
   ) {
-    return this.db.transaction(async (tx) => {
+    return this.db.transaction(tx=>this.createTenantIn(tx,ctx,input));
+  }
+
+  async createTenantIn(tx:Tx,ctx:RequestContext,input:{name:string;slug?:string|undefined;ownerUserId?:string;entity?:z.infer<typeof entityInput>}) {
       const slug = input.slug ?? (await this.uniqueSlug(tx, slugify(input.name)));
       const [existing] = await tx.select({ id: tenant.id }).from(tenant).where(eq(tenant.slug, slug));
       if (existing) throw new ConflictException(`Tenant slug "${slug}" is taken`);
@@ -94,8 +97,7 @@ export class TenancyService {
       }
 
       await this.audit.record(ctx, { tenantId: t!.id, action: 'tenant.create', targetType: 'tenant', targetId: t!.id, after: t }, tx);
-      return { tenant: t!, entity };
-    });
+      return { tenant: t!, entity, ownerRoleId: roles.find(r=>r.systemKey==='owner')!.id };
   }
 
   /** Creates a pending invitation and returns the raw token (only ever shown once, in the link). */

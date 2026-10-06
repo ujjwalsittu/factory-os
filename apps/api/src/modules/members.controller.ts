@@ -1,4 +1,4 @@
-import { type Database, invitation, legalEntity, membership, role, roleAssignment, tenant, user } from '@factoryos/db';
+import { type Database, emailDelivery, invitation, legalEntity, membership, role, roleAssignment, tenant, user } from '@factoryos/db';
 import {
   BadRequestException,
   Body,
@@ -23,6 +23,7 @@ import { CONFIG, DB } from '../common/tokens.js';
 import { parse } from '../common/validation.js';
 import type { AppConfig } from '../config.js';
 import { hashToken, TenancyService } from './tenancy.service.js';
+import {EmailService} from './email/email.service.js';
 
 const assignmentsInput = z
   .array(z.object({ roleId: z.string().uuid(), entityIds: z.array(z.string().uuid()).min(1).nullable() }))
@@ -35,6 +36,7 @@ export class MembersController {
     @Inject(CONFIG) private readonly config: AppConfig,
     private readonly audit: AuditService,
     private readonly tenancy: TenancyService,
+    private readonly email: EmailService,
   ) {}
 
   @Get('members')
@@ -125,8 +127,27 @@ export class MembersController {
     return this.db.transaction(async (tx) => {
       const { invitation: inv, token } = await this.tenancy.createInvitation(tx, tenantId, ctx.user.id, input.email, input.roles);
       await this.audit.record(ctx, { tenantId, action: 'invitation.create', targetType: 'invitation', targetId: inv.id, after: { email: inv.email, roles: inv.roles } }, tx);
-      // TODO(phase-1): email the link. Until the mail service exists the admin copies it from the UI.
-      return { id: inv.id, email: inv.email, inviteUrl: `${this.config.WEB_ORIGIN}/invite/${token}` };
+      const delivery=await this.email.enqueueInvitationIn(tx,ctx,inv,token,'member_invitation');
+      return { id: inv.id, email: inv.email, delivery, inviteUrl: `${this.config.WEB_ORIGIN}/invite/${token}` };
+    });
+  }
+
+  @Post('invitations/:id/renew')
+  @RequirePermission('settings.user.create')
+  async renew(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Body() body:unknown){
+    const {reason}=parse(z.object({reason:z.string().trim().min(3).max(500)}),body);
+    return this.db.transaction(async tx=>{
+      const [inv]=await tx.select().from(invitation).where(and(eq(invitation.id,id),eq(invitation.tenantId,ctx.tenant.tenantId))).for('update');
+      if(!inv||!['pending','expired','revoked'].includes(inv.status))throw new NotFoundException('No renewable invitation');
+      const [t]=await tx.select().from(tenant).where(eq(tenant.id,inv.tenantId));if(t?.status!=='active')throw new ForbiddenException('Tenant unavailable');
+      const prior=await tx.select().from(emailDelivery).where(and(eq(emailDelivery.invitationId,inv.id),eq(emailDelivery.tenantId,inv.tenantId))).for('update');
+      if(prior.some(d=>d.status==='superseded'))throw new BadRequestException('This invitation already has a replacement');
+      await this.assertAssignable(ctx,inv.roles,tx);
+      await tx.update(invitation).set({status:'revoked'}).where(eq(invitation.id,inv.id));await this.email.cancelInvitationIn(tx,inv,'superseded');
+      const {invitation:replacement,token}=await this.tenancy.createInvitation(tx,inv.tenantId,ctx.user.id,inv.email,inv.roles);
+      const delivery=await this.email.enqueueInvitationIn(tx,ctx,replacement,token,'member_invitation');
+      await this.audit.record(ctx,{tenantId:inv.tenantId,action:'invitation.renew',targetType:'invitation',targetId:replacement.id,before:{invitationId:inv.id},after:{email:replacement.email,roles:replacement.roles},reason},tx);
+      return {id:replacement.id,email:replacement.email,delivery,inviteUrl:`${this.config.WEB_ORIGIN}/invite/${token}`};
     });
   }
 
@@ -141,6 +162,7 @@ export class MembersController {
         .where(and(eq(invitation.id, id), eq(invitation.tenantId, tenantId), eq(invitation.status, 'pending')))
         .returning();
       if (!inv) throw new NotFoundException('No pending invitation');
+      await this.email.cancelInvitationIn(tx,inv,'cancelled');
       await this.audit.record(ctx, { tenantId, action: 'invitation.revoke', targetType: 'invitation', targetId: id }, tx);
       return { ok: true };
     });
@@ -158,11 +180,9 @@ export class MembersController {
   @Post('invitations/accept')
   async accept(@Ctx() ctx: RequestContext, @Body() body: unknown) {
     const { token } = parse(z.object({ token: z.string().min(10) }), body);
-    const inv = await this.findPending(token);
-    if (inv.email !== ctx.user.email.toLowerCase()) {
-      throw new ForbiddenException(`This invitation is for ${inv.email}. Sign in with that email to accept it.`);
-    }
     return this.db.transaction(async (tx) => {
+      const inv=await this.findPending(token,tx);
+      if(inv.email!==ctx.user.email.toLowerCase())throw new ForbiddenException('Sign in with the invited email to accept');
       const [m] = await tx
         .insert(membership)
         .values({ tenantId: inv.tenantId, userId: ctx.user.id })
@@ -170,25 +190,27 @@ export class MembersController {
         .returning();
       await tx.insert(roleAssignment).values(inv.roles.map((r) => ({ tenantId: inv.tenantId, membershipId: m!.id, roleId: r.roleId, entityIds: r.entityIds })));
       await tx.update(invitation).set({ status: 'accepted' }).where(eq(invitation.id, inv.id));
+      await this.email.cancelInvitationIn(tx,inv,'cancelled');
       await this.audit.record(ctx, { tenantId: inv.tenantId, action: 'invitation.accept', targetType: 'invitation', targetId: inv.id }, tx);
       return { tenantId: inv.tenantId };
     });
   }
 
-  private async findPending(token: string) {
-    const [inv] = await this.db.select().from(invitation).where(eq(invitation.tokenHash, hashToken(token)));
+  private async findPending(token: string, db: Pick<Database,'select'>=this.db) {
+    const [inv] = await db.select().from(invitation).where(eq(invitation.tokenHash, hashToken(token))).for('update');
     if (!inv || inv.status !== 'pending') throw new NotFoundException('Invitation not found or already used');
-    if (inv.expiresAt.getTime() < Date.now()) throw new GoneException('Invitation has expired');
+    if (inv.expiresAt.getTime() <= Date.now()) throw new GoneException('Invitation has expired');
+    const [t]=await db.select().from(tenant).where(eq(tenant.id,inv.tenantId));if(t?.status!=='active')throw new GoneException('Tenant unavailable');
     return inv;
   }
 
   /** Roles and entities must belong to this tenant; only owners may grant the Owner role. */
-  private async assertAssignable(ctx: TenantRequestContext, assignments: z.infer<typeof assignmentsInput>) {
+  private async assertAssignable(ctx: TenantRequestContext, assignments: z.infer<typeof assignmentsInput>, db: Pick<Database,'select'>=this.db) {
     const tenantId = ctx.tenant.tenantId;
     const roleIds = [...new Set(assignments.map((a) => a.roleId))];
     const entityIds = [...new Set(assignments.flatMap((a) => a.entityIds ?? []))];
     if (roleIds.length) {
-      const roles = await this.db
+      const roles = await db
         .select({ id: role.id, systemKey: role.systemKey, name: role.name, permissions: role.permissions })
         .from(role)
         .where(and(eq(role.tenantId, tenantId), inArray(role.id, roleIds)));
@@ -201,7 +223,7 @@ export class MembersController {
       }
     }
     if (entityIds.length) {
-      const found = await this.db.select({ id: legalEntity.id }).from(legalEntity).where(and(eq(legalEntity.tenantId, tenantId), inArray(legalEntity.id, entityIds)));
+      const found = await db.select({ id: legalEntity.id }).from(legalEntity).where(and(eq(legalEntity.tenantId, tenantId), inArray(legalEntity.id, entityIds)));
       if (found.length !== entityIds.length) throw new BadRequestException('Unknown entity');
     }
   }
