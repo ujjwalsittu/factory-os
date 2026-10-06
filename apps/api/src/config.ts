@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import {loadEmailConfig,type EmailConfig} from '@factoryos/email';
 
+const limit=z.coerce.number().int().min(1).max(1000);
 const schema = z.object({
+  EMAIL_RESET_MAX_PER_HOUR:limit.default(5),
+  EMAIL_ORIGIN_MAX_PER_10_MIN:limit.default(30),
+  EMAIL_VERIFICATION_MAX_PER_HOUR:limit.default(5),
+  EMAIL_VERIFICATION_COOLDOWN_SECONDS:z.coerce.number().int().min(0).max(3600).default(60),
   GSP_CREDENTIAL_KEY_V1: z.preprocess(v=>v===''?undefined:v,z.string().regex(/^[A-Za-z0-9+/]{43}=$/).optional()),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(4000),

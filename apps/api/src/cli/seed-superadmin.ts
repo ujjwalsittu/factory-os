@@ -7,6 +7,9 @@ import { createDb, platformAdmin, user } from '@factoryos/db';
 import { eq } from 'drizzle-orm';
 import { createAuth } from '../auth.js';
 import { loadConfig } from '../config.js';
+import {EmailService} from '../modules/email/email.service.js';
+import {AuditService} from '../common/audit.service.js';
+import {TenancyService} from '../modules/tenancy.service.js';
 
 const { values } = parseArgs({
   options: { email: { type: 'string' }, name: { type: 'string' }, password: { type: 'string' } },
@@ -15,7 +18,8 @@ if (!values.email) throw new Error('--email is required');
 
 const config = loadConfig();
 const db = createDb(config.DATABASE_URL, 2);
-const auth = createAuth(db, config);
+const audit=new AuditService(db);
+const auth = createAuth(db, config,new EmailService(db,config,audit,new TenancyService(db,audit)));
 const email = values.email.toLowerCase();
 
 let [u] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));

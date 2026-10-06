@@ -21,7 +21,10 @@ async function bootstrap() {
   const server = app.getHttpAdapter().getInstance() as express.Express;
   server.set('trust proxy', 1);
   server.disable('x-powered-by');
-  server.all('/api/auth/{*path}', toNodeHandler(app.get<Auth>(AUTH)));
+  server.all('/api/auth/{*path}', (req,_res,next)=>{
+    // Overwrite caller-supplied values with Express authority under the existing one-hop proxy policy.
+    req.headers['x-factoryos-mail-origin']=req.ip??req.socket.remoteAddress??'unknown';next();
+  },toNodeHandler(app.get<Auth>(AUTH)));
   // Reconciliation accepts up to 10,000 explicit decisions with 2,000-character
   // reasons. Worst-case JSON escapes need 120MB; unrelated routes retain 1MiB.
   server.use('/api/accounts/bank-reconciliation/profiles/:profileId/imports/:importId/submit', express.json({ limit: '128mb' }));

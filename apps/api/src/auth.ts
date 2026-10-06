@@ -4,10 +4,14 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { twoFactor as twoFactorPlugin } from 'better-auth/plugins';
 import type { AppConfig } from './config.js';
+import {authEmailCallbacks} from './modules/email/auth-email.js';
+import type {EmailService} from './modules/email/email.service.js';
 
-export function createAuth(db: Database, config: AppConfig) {
+export function createAuth(db: Database, config: AppConfig,email:EmailService) {
+  const callbacks=authEmailCallbacks(db,config,email);
   return betterAuth({
     appName: 'FactoryOS',
+    logger:{disabled:true},
     baseURL: config.BETTER_AUTH_URL,
     basePath: '/api/auth',
     secret: config.BETTER_AUTH_SECRET,
@@ -19,11 +23,12 @@ export function createAuth(db: Database, config: AppConfig) {
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 10,
-      // TODO(phase-1): send through the mail service. Until then links are logged in development.
-      sendResetPassword: async ({ user: u, url }) => {
-        console.info(`[auth] password reset for ${u.email}: ${url}`);
-      },
+      resetPasswordTokenExpiresIn:3600,
+      revokeSessionsOnPasswordReset:true,
+      sendResetPassword:callbacks.sendResetPassword,
     },
+    emailVerification:{sendVerificationEmail:callbacks.sendVerificationEmail,sendOnSignUp:config.email.mode==='smtp',sendOnSignIn:false,expiresIn:3600},
+    hooks:{before:callbacks.before},
     session: { expiresIn: 60 * 60 * 24 * 7, updateAge: 60 * 60 * 24 },
     rateLimit: { enabled: config.NODE_ENV !== 'test', window: 60, max: 100 },
     plugins: [twoFactorPlugin({ issuer: 'FactoryOS' })],

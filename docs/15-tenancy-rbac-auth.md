@@ -36,7 +36,7 @@ platform (FactoryOS installation)
 | Feature | Phase 0 | Later |
 |---|---|---|
 | Email + password (argon2/scrypt hashing) | ✓ | |
-| Email verification & password reset | ✓ (dev: logged to console) | SMTP/Resend in prod |
+| Email verification & password reset | Durable encrypted SMTP queue when configured; reset links never logged | Verification remains optional; disabled mail retains private metadata only. Live sender/service configuration and inbox acceptance remain separate |
 | Sessions (HTTP-only secure cookie, rotation, list & revoke) | ✓ | |
 | MFA: TOTP + backup codes | ✓ | enforce per role/tenant |
 | Passkeys (WebAuthn) | | ✓ |

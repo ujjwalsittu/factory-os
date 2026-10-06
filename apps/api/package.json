@@ -31,7 +31,8 @@
     "rxjs": "^7.8.2",
     "zod": "^4.6.5",
     "@factoryos/gsp": "workspace:*",
-    "@factoryos/email": "workspace:*"
+    "@factoryos/email": "workspace:*",
+    "jose": "6.2.12"
   },
   "files": [
     "dist"

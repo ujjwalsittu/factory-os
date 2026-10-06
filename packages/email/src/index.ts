@@ -7,3 +7,4 @@ export * from './retention.js';
 export * from './smtp.js';
 export * from './source.js';
 export * from './worker.js';
+export * from './rate.js';

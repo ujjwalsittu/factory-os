@@ -11,6 +11,9 @@ type Invitation=typeof invitation.$inferSelect;
 type Delivery=typeof emailDelivery.$inferSelect;
 @Injectable()
 export class EmailService{
+ private authEnqueueFailures=0;
+ noteAuthEnqueueFailure(){this.authEnqueueFailures++;}
+ availability(){return {available:this.config.email.mode==='smtp',verificationCooldownSeconds:this.config.EMAIL_VERIFICATION_COOLDOWN_SECONDS};}
  constructor(@Inject(DB)private readonly db:Database,@Inject(CONFIG)private readonly config:AppConfig,private readonly audit:AuditService,private readonly tenancy:TenancyService){}
  async enqueueInvitationIn(tx:Tx,_ctx:RequestContext,inv:Invitation,token:string,purpose:Extract<EmailPurpose,'member_invitation'|'owner_invitation'>){
   const email=this.config.email;let envelope=null;
@@ -29,7 +32,7 @@ export class EmailService{
  }
  private assertSuperadmin(ctx:RequestContext){if(ctx.platformAdminLevel!=='superadmin')throw new ForbiddenException('Platform administrators only');}
  async listPlatform(ctx:RequestContext){this.assertSuperadmin(ctx);return (await this.db.select().from(emailDelivery).orderBy(desc(emailDelivery.createdAt)).limit(100)).map(r=>({...this.view(r,r.recipientMasked),tenantId:r.tenantId}));}
- async health(ctx:RequestContext){this.assertSuperadmin(ctx);const workers=await this.db.select().from(emailWorkerHeartbeat).orderBy(desc(emailWorkerHeartbeat.lastSeenAt)).limit(20);return {mode:this.config.email.mode,workerEnabled:this.config.email.workerEnabled,workers:workers.map(w=>({id:w.id,lastSeenAt:w.lastSeenAt.toISOString(),configurationState:w.configurationState}))};}
+ async health(ctx:RequestContext){this.assertSuperadmin(ctx);const workers=await this.db.select().from(emailWorkerHeartbeat).orderBy(desc(emailWorkerHeartbeat.lastSeenAt)).limit(20);return {authEnqueueFailures:this.authEnqueueFailures,mode:this.config.email.mode,workerEnabled:this.config.email.workerEnabled,workers:workers.map(w=>({id:w.id,lastSeenAt:w.lastSeenAt.toISOString(),configurationState:w.configurationState}))};}
  async cancelInvitationIn(tx:Tx,inv:Invitation,status:'cancelled'|'superseded'){
   const rows=await tx.select().from(emailDelivery).where(and(eq(emailDelivery.invitationId,inv.id),eq(emailDelivery.tenantId,inv.tenantId))).for('update');
   for(const row of rows){if(['queued','retry_scheduled','failed','unknown','unconfigured'].includes(row.status))await tx.update(emailDelivery).set({status,envelope:null,nextAttemptAt:null,errorCode:status==='cancelled'?'source_cancelled':'source_superseded',updatedAt:new Date()}).where(eq(emailDelivery.id,row.id));await tx.insert(emailEvent).values({deliveryId:row.id,tenantId:row.tenantId,scopeKey:row.scopeKey,kind:'source_'+status});}
