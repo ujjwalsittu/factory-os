@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-06 (Asia/Kolkata) · NIC sandbox written design_
+_Last updated: 2026-10-06 (Asia/Kolkata) · NIC sandbox implementation plan_
 
 ## Done
 - [x] **Customer credit/debit notes and sales returns** (decision037, additive0012/0013): original invoice/tax/accounts/currency snapshots, exact partial original-cost and zero-cost tracked-batch returns, automatic source application, remaining customer credit and typed later applications, scoped editor/list/print, immutable reversals and dependency/race guards. Build11/typecheck16/unit60, thirteen focused API fixtures530 reported checks, existing accounting/settlement/operational regressions and eight production browsers pass; lint has zero tasks. Independent review's two Important defects were reproduced/fixed; all four PostgreSQL race scenarios pass. Shared0011 and inactive shared books preserved. [Review/rulings](../superpowers/reviews/2026-10-05-sales-notes-returns-review.md).
@@ -76,16 +76,16 @@ _Last updated: 2026-10-06 (Asia/Kolkata) · NIC sandbox written design_
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
-- **NIC sandbox e-invoice/e-way bill design** · owner: agent, Native default-branch session · started: 2026-10-06 (Asia/Kolkata). User requested NIC sandbox design/implementation, accounting depth and foundation leftovers in that sequence. [Written NIC proposal](../superpowers/specs/2026-10-06-nic-sandbox-design.md) completed and self-reviewed; awaiting written-spec review before plan/product implementation. Recommended durable mock-first sandbox operations with encrypted connections, frozen payloads, uncertain-outcome lookup, worker leases and separate sandbox print. Access status pending; no NIC/GSP credential configuration found. Shared books and existing product code unchanged.
+- **NIC sandbox e-invoice/e-way bill design** · owner: agent, Native default-branch session · started: 2026-10-06 (Asia/Kolkata). User requested NIC sandbox design/implementation, accounting depth and foundation leftovers in that sequence. [Written NIC design](../superpowers/specs/2026-10-06-nic-sandbox-design.md) approved; decision039 accepted. [Eight-task Native plan](../superpowers/plans/2026-10-06-nic-sandbox.md) written and self-reviewed; awaiting written-plan review before product implementation. Recommended durable mock-first sandbox operations with encrypted connections, frozen payloads, uncertain-outcome lookup, worker leases and separate sandbox print. Access status pending; no NIC/GSP credential configuration found. Shared books and existing product code unchanged.
 
 ## Next (user-authorized sequence; review each written design/plan)
-1. Review NIC sandbox written spec, then write Native implementation plan and implement the approved slice. Verify real NIC calls only when access and IP whitelist are available; deterministic mock checks do not establish provider acceptance.
+1. Review the written NIC Native implementation plan, then claim/implement the approved slice. Verify real NIC calls only when access and IP whitelist are available; deterministic mock checks do not establish provider acceptance.
 2. Accounting depth: TDS/TCS and bank charges, then bank reconciliation; separate written design with current effective-dated statutory rules and exact settlement integration.
 3. Foundation leftovers: email delivery, SSO, passkeys, audited impersonation and PostgreSQL RLS; separate security/provider designs and configuration requirements.
 4. User review of completed accounting/settlement/customer/supplier workflows on dev. Shared books remain inactive until deliberate Finance cut-over.
 
 ## Blockers
-- None. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)
+- NIC provider protocol verification: cloud network proxy returned HTTP403 for official NIC IRP/EWB documentation URLs on 2026-10-06. Need accessible official documentation or authorized exported copies before implementing wire/auth rules. Independent mock/outbox/UI work can proceed after plan approval; real NIC acceptance additionally needs confirmed access, IP whitelist and secure credentials. (Cloudflare record for factoryos.azeonics.com is DNS-only; HTTPS verified 2026-10-04.)
 
 ## Noticed (out of scope, for later)
 - The first commit on this branch predates the message guard; its message names the assistant. Not rewritten (no force-push); the hook and the message-guard workflow now skip commits another branch already has, so it no longer fails new branches.

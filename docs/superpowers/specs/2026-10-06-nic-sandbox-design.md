@@ -1,6 +1,6 @@
 # NIC sandbox e-invoicing and e-way bills
 
-Status: proposed written design for review, not an accepted business decision or implementation plan.
+Status: written design approved by the user on 2026-10-06; decision039 accepted. Implementation awaits written-plan review.
 Date: 2026-10-06 (Asia/Kolkata).
 
 ## Intent and sequence
@@ -30,7 +30,7 @@ sandbox IRNs legal evidence for real invoices.
    release, provider approval and operational cancellation. Too broad for the
    requested sandbox phase; keep it a later explicitly approved slice.
 
-The first approach is proposed. It does not choose a different production provider:
+The first approach is approved. It does not choose a different production provider:
 NIC remains primary and Adaequare the accepted fallback if NIC access is denied.
 
 ## Scope
