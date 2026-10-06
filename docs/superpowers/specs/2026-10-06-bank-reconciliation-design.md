@@ -1,12 +1,12 @@
 # Configurable bank statement reconciliation
 
-Status: Proposed written design for user review. Decision041 Proposed. Native execution on the default branch remains the selected method. Product code and migrations have not started.
+Status: Written specification approved by user Continue2026-10-06; decision041 Accepted. Native execution on the default branch remains selected. The written implementation plan awaits review; product code and migrations have not started.
 
 ## Purpose and assumptions
 
 The user authorized bank reconciliation after bank charges, asked for configurable workflows, and requested continued work on the default branch. Accountant needs to import bank statements and explain each movement; Finance needs a reproducible reconciliation with original evidence and controlled reopening. Success means statements match actual posted bank movements, outstanding items remain visible, and a reconciliation never silently changes GL, customer/supplier bills or inventory.
 
-Proposed first input is UTF-8 CSV with saved per-bank column mappings. CSV is the proposed default; an optional CSV-versus-Excel preference question was presented while the design was prepared. Account profiles represent INR bank accounts explicitly confirmed by Finance. Foreign customer/supplier settlements whose actual bank GL is INR remain matchable; foreign-denominated bank statements require a later currency design. No bank feed, credentials, account connection, PDF/OCR, OFX or Excel dependency is included.
+Approved first input is UTF-8 CSV with saved per-bank column mappings. CSV is the first supported format; the optional format preference did not supersede the written-spec approval. Account profiles represent INR bank accounts explicitly confirmed by Finance. Foreign customer/supplier settlements whose actual bank GL is INR remain matchable; foreign-denominated bank statements require a later currency design. No bank feed, credentials, account connection, PDF/OCR, OFX or Excel dependency is included.
 
 ## Approaches considered
 
@@ -96,4 +96,4 @@ Verification must include parsing/sign/date/precision errors, repeated identical
 
 Self-review checks: signed equation and date boundary examples consistent; initial balances do not replay old GL; duplicate ambiguity never guesses row identity; real net bank movement is authoritative; ordinary and Finance net matching are distinct; approved snapshots protected at the bank GL mutation boundary; import/match alone have no posting effect; permissions and currency/input limits explicit. No placeholder, numerical tax profile or live provider dependency.
 
-Written-spec review precedes the implementation plan. Existing Native/default-branch preference carries forward; do not ask the execution method again. Bank feeds/Excel/foreign bank currencies, global period locks, later GST charge corrections and numerical TDS/TCS remain separate work.
+Written spec approved2026-10-06; written implementation-plan review precedes product work. Existing Native/default-branch preference carries forward; do not ask the execution method again. Bank feeds/Excel/foreign bank currencies, global period locks, later GST charge corrections and numerical TDS/TCS remain separate work.
