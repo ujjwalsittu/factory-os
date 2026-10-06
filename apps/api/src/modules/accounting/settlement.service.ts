@@ -1,8 +1,9 @@
+import { bankChargeInput, BankChargeService, type BankChargeInput } from './bank-charge.service.js';
 import {SupplierCreditApplicationService} from '../supplier-returns/credit-application.service.js';
 import { CreditApplicationService } from '../sales-notes/credit-application.service.js';
 import { consumeCarryingValue, Dec, settlementDifference, type AccountingLine } from '@factoryos/core';
 import { accountGroup, accountingSettings, glAccount, party, partySettlement, settlementAllocationDocument, tradeBill, type SettlementAllocationDraft } from '@factoryos/db';
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import { AuditService } from '../../common/audit.service.js';
@@ -14,6 +15,7 @@ import { GlPostingService } from './gl-posting.service.js';
 export type Direction = 'receipt' | 'payment';
 export interface SettlementInput {
   direction: Direction;
+  charge?: BankChargeInput;
   partyId: string;
   postingDate: string;
   currency: string;
@@ -33,6 +35,8 @@ export interface LaterAllocationInput {
   allocations: SettlementAllocationDraft[];
 }
 export interface SettlementPreview {
+  bankMovement?: string;
+  chargeTotal?: string;
   amount: string;
   allocated: string;
   unapplied: string;
@@ -52,6 +56,7 @@ const CASH_GROUPS = ['Cash-in-Hand', 'Bank Accounts'];
 @Injectable()
 export class SettlementService {
   constructor(
+    private readonly charges: BankChargeService,
     private readonly credits: CreditApplicationService,
     private readonly supplierCredits: SupplierCreditApplicationService,
     private readonly gl: GlPostingService,
@@ -153,7 +158,20 @@ export class SettlementService {
     });
     if (unappliedInr.gt('0')) lines.push(trade(await this.bills.currentControl(tx, entityId, side), unappliedInr, `On account ${number ?? 'draft'}`));
     lines.push(...this.forexLine(settings, diff));
+    let bankMovement=cashInr.toString(),chargeTotal='0.000000';
+    if(input.charge){
+      if(!ctx.tenant.permissions.has('accounts.bank_charge.read'))throw new ForbiddenException('Bank-charge access is required');
+      if(input.currency!=='INR'||input.charge.bankAccountId!==input.accountId||input.charge.postingDate!==input.postingDate)throw new BadRequestException('Inline charge must use the same INR bank and date as settlement');
+      const charge=await this.charges.previewIn(tx,ctx,entityId,input.charge);
+      const fee=Dec.of(charge.totalAmount);
+      if(receipt&&fee.gt(amount))throw new BadRequestException('Receipt charge exceeds principal; use a bank-only charge document');
+      bankMovement=(receipt?cashInr.sub(fee):cashInr.add(fee)).toString();chargeTotal=fee.toString();
+      if(Dec.of(bankMovement).isZero())lines.shift();
+      else lines[0]=(receipt?dr:cr)(input.accountId,Dec.of(bankMovement));
+      lines.push(...charge.lines.slice(0,-1));
+    }
     return {
+      bankMovement,chargeTotal,
       amount: amount.toFixed(2),
       allocated: allocated.toFixed(2),
       unapplied: unapplied.toFixed(2),
@@ -175,6 +193,7 @@ export class SettlementService {
     await this.bills.syncIn(tx, ctx, entityId);
     await this.bills.assertReconciledIn(tx, entityId);
     const input = this.inputOf(s);
+    if(input.charge&&(!ctx.tenant.permissions.has('accounts.bank_charge.create')||!ctx.tenant.permissions.has('accounts.bank_charge.submit')))throw new ForbiddenException('Charge submission permission is required');
     const number = await this.posting.allocateNumber(tx, ctx.tenant.tenantId, entityId, s.direction === 'receipt' ? 'customer_receipt' : 'supplier_payment', s.postingDate);
     const p = await this.previewIn(tx, ctx, entityId, input, number);
     const { voucherId } = await this.gl.postIn(
@@ -185,6 +204,11 @@ export class SettlementService {
       s.postingDate,
       { lines: p.lines, disposition: 'posted' },
     );
+
+    if(input.charge){
+      if(!voucherId)throw new ConflictException('Inline charge requires a posted settlement');
+      await this.charges.submitIn(tx,ctx,entityId,input.charge,{kind:'settlement',settlementId:id,voucherId});
+    }
 
     const effects: NewEffect[] = p.allocations.map((a, i) => ({
       billId: a.billId,
@@ -240,12 +264,17 @@ export class SettlementService {
     if (later.length) throw new ConflictException(`Its on-account money was applied by ${later.map((l) => l.number).join(', ')}. Cancel those allocations first.`);
     await this.gl.reverseIn(tx, ctx, entityId, { type: 'settlement', id, purpose: 'main' }, reason);
     await this.bills.reverseSourceEffects(tx, ctx, entityId, 'settlement', id, businessDate());
+    await this.charges.cancelLinkedIn(tx,ctx,entityId,id,reason);
     await tx.update(partySettlement).set({ status: 'cancelled', cancelledBy: ctx.user.id, cancelledAt: new Date(), cancelReason: reason, updatedAt: new Date() }).where(eq(partySettlement.id, id));
     await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: `${s.direction}.cancel`, targetType: 'party_settlement', targetId: id, reason }, tx);
   }
 
   inputOf(s: typeof partySettlement.$inferSelect): SettlementInput {
+    if(!Dec.of(s.newTax).isZero())throw new ConflictException('Unverified tax settlement components cannot be posted');
+    const charge=s.componentSnapshot?.charge?bankChargeInput.parse(s.componentSnapshot.charge):undefined;
+    if(!charge&&Dec.of(s.bankCharge).gt('0'))throw new ConflictException('Charge evidence is missing');
     return {
+      charge,
       direction: s.direction as Direction,
       partyId: s.partyId,
       postingDate: s.postingDate,

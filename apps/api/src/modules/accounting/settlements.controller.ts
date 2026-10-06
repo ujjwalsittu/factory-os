@@ -1,6 +1,7 @@
+import { bankChargeInput } from './bank-charge.service.js';
 import { Dec } from '@factoryos/core';
 import { type Database, glAccount, journalVoucher, party, partySettlement, settlementAllocationDocument } from '@factoryos/db';
-import { BadRequestException, Body, ConflictException, Controller, Delete, Get, Header, HttpCode, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, ForbiddenException, Controller, Delete, Get, Header, HttpCode, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { and, desc, eq, inArray, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../../common/access.js';
@@ -21,6 +22,8 @@ const rate = z
   .pipe(z.string().regex(/^\d+(\.\d{1,6})?$/, 'Rate with up to 6 decimals'));
 const allocation = z.object({ billId: z.string().uuid(), amount: money });
 const settlementInput = z.object({
+  charge: bankChargeInput.optional(),
+  newTax: money.optional().refine(v=>v===undefined||Dec.of(v).isZero(),'Automatic tax settlement components remain unavailable pending verified profiles'),
   direction: z.enum(['receipt', 'payment']),
   partyId: z.string().uuid(),
   postingDate: z.string().date(),
@@ -117,6 +120,7 @@ export class SettlementsController {
       .where(and(eq(journalVoucher.entityId, entityId), eq(journalVoucher.sourceType, 'settlement'), eq(journalVoucher.sourceId, id)));
     return {
       ...r.s,
+      bankMovement: (r.s.direction==='receipt'?Dec.of(r.s.amount).mul(r.s.currency==='INR'?'1':r.s.exchangeRate).sub(r.s.bankCharge):Dec.of(r.s.amount).mul(r.s.currency==='INR'?'1':r.s.exchangeRate).add(r.s.bankCharge)).toString(),
       partyName: r.partyName,
       accountName: r.accountName,
       allocated: r.s.allocations.reduce((x, a) => x.add(a.amount), Dec.ZERO).toFixed(2),
@@ -145,13 +149,15 @@ export class SettlementsController {
   async create(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
     const entityId = entityOf(ctx);
     const input = parse(settlementInput, body);
+    if(input.charge&&!ctx.tenant.permissions.has('accounts.bank_charge.create'))throw new ForbiddenException('Charge preparation permission is required');
     return this.db.transaction(async (tx) => {
       await lockAccounting(tx, entityId);
       await this.bills.syncIn(tx, ctx, entityId);
-      await this.settlements.previewIn(tx, ctx, entityId, input);
+      const preview=await this.settlements.previewIn(tx, ctx, entityId, input);
+      const {charge,...document}=input;
       const [s] = await tx
         .insert(partySettlement)
-        .values({ ...input, bankReference: input.bankReference ?? null, narration: input.narration ?? null, tenantId: ctx.tenant.tenantId, entityId, createdBy: ctx.user.id })
+        .values({ ...document, bankCharge:preview.chargeTotal??'0', componentSnapshot:charge?{charge}:null, bankReference: input.bankReference ?? null, narration: input.narration ?? null, tenantId: ctx.tenant.tenantId, entityId, createdBy: ctx.user.id })
         .returning();
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: `${input.direction}.create`, targetType: 'party_settlement', targetId: s!.id, after: input }, tx);
       return s;
@@ -163,6 +169,7 @@ export class SettlementsController {
   async update(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
     const entityId = entityOf(ctx);
     const input = parse(settlementInput, body);
+    if(input.charge&&!ctx.tenant.permissions.has('accounts.bank_charge.create'))throw new ForbiddenException('Charge preparation permission is required');
     return this.db.transaction(async (tx) => {
       await lockAccounting(tx, entityId);
       const [s] = await tx.select().from(partySettlement).where(and(eq(partySettlement.id, id), eq(partySettlement.entityId, entityId))).for('update');
@@ -170,8 +177,9 @@ export class SettlementsController {
       if (s.status !== 'draft') throw new ConflictException('Submitted documents are not editable');
       if (s.direction !== input.direction) throw new BadRequestException('A receipt cannot become a payment');
       await this.bills.syncIn(tx, ctx, entityId);
-      await this.settlements.previewIn(tx, ctx, entityId, input);
-      await tx.update(partySettlement).set({ ...input, bankReference: input.bankReference ?? null, narration: input.narration ?? null, updatedAt: new Date() }).where(eq(partySettlement.id, id));
+      const preview=await this.settlements.previewIn(tx, ctx, entityId, input);
+      const {charge,...document}=input;
+      await tx.update(partySettlement).set({ ...document, bankCharge:preview.chargeTotal??'0', componentSnapshot:charge?{charge}:null, bankReference: input.bankReference ?? null, narration: input.narration ?? null, updatedAt: new Date() }).where(eq(partySettlement.id, id));
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: `${input.direction}.update`, targetType: 'party_settlement', targetId: id, after: input }, tx);
       return { ok: true };
     });
