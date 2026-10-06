@@ -107,7 +107,7 @@ export const gstRegistration = pgTable(
     credentialRef: text('credential_ref'),
     ...timestamps,
   },
-  (t) => [uniqueIndex('gst_registration_tenant_gstin_uq').on(t.tenantId, t.gstin), index('gst_registration_entity_idx').on(t.entityId)],
+  (t) => [uniqueIndex('gst_registration_scope_uq').on(t.id,t.tenantId,t.entityId), uniqueIndex('gst_registration_tenant_gstin_uq').on(t.tenantId, t.gstin), index('gst_registration_entity_idx').on(t.entityId)],
 );
 
 export const plant = pgTable(

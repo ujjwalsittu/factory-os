@@ -27,6 +27,14 @@ interface ResourceDef {
 
 /** Resources that exist today (Phase 0) plus the core ones the next phases build on. */
 export const RESOURCES = [
+  {module:'compliance',resource:'sandbox_operation',label:'Sandbox operations',actions:['read','export']},
+  {module:'compliance',resource:'sandbox_connection',label:'Sandbox connections',actions:['read','manage']},
+  {module:'compliance',resource:'sandbox_irn',label:'Sandbox IRN',actions:['create','submit','update','cancel']},
+  {module:'compliance',resource:'sandbox_ewb',label:'Sandbox EWB',actions:['create','submit','update','cancel']},
+  {module:'compliance',resource:'sandbox_partb',label:'Sandbox transport and Part B',actions:['create','update']},
+  {module:'compliance',resource:'sandbox_extension',label:'Sandbox EWB extension',actions:['update']},
+  {module:'compliance',resource:'sandbox_detachment',label:'Detach sandbox exercise',actions:['approve']},
+  {module:'compliance',resource:'sandbox_valuation',label:'Sandbox return valuation',actions:['approve']},
   { module: 'settings', resource: 'entity', label: 'Legal entities & GST registrations', actions: ['read', 'create', 'update', 'delete'] },
   { module: 'settings', resource: 'user', label: 'Users & invitations', actions: ['read', 'create', 'update', 'delete'] },
   { module: 'settings', resource: 'role', label: 'Roles & permissions', actions: ['read', 'create', 'update', 'delete'] },

@@ -1,0 +1,10 @@
+import {createCipheriv,createDecipheriv,randomBytes} from 'node:crypto';
+export interface EncryptedEnvelope{keyVersion:string;wrappedKey:string;wrappedIv:string;wrappedTag:string;ciphertext:string;iv:string;tag:string}
+function master(raw:string){const b=Buffer.from(raw,'base64');if(b.length!==32||b.toString('base64')!==raw)throw new Error('Credential master key must be canonical base64 for 32 bytes');return b}
+function encrypt(data:Buffer,key:Buffer,aad:string){const iv=randomBytes(12),c=createCipheriv('aes-256-gcm',key,iv);c.setAAD(Buffer.from(aad));return {bytes:Buffer.concat([c.update(data),c.final()]).toString('base64'),iv:iv.toString('base64'),tag:c.getAuthTag().toString('base64')}}
+function decrypt(data:string,key:Buffer,iv:string,tag:string,aad:string){const d=createDecipheriv('aes-256-gcm',key,Buffer.from(iv,'base64'));d.setAAD(Buffer.from(aad));d.setAuthTag(Buffer.from(tag,'base64'));return Buffer.concat([d.update(Buffer.from(data,'base64')),d.final()])}
+export function sealCredential(value:Record<string,string>,keyVersion:string,key:string):EncryptedEnvelope{
+ const json=JSON.stringify(value);if(json.length>65536)throw new Error('Credential payload too large');const dataKey=randomBytes(32),payload=encrypt(Buffer.from(json),dataKey,keyVersion),wrapped=encrypt(dataKey,master(key),keyVersion);
+ return {keyVersion,wrappedKey:wrapped.bytes,wrappedIv:wrapped.iv,wrappedTag:wrapped.tag,ciphertext:payload.bytes,iv:payload.iv,tag:payload.tag};
+}
+export function openCredential(envelope:EncryptedEnvelope,keyring:Record<string,string>):Record<string,string>{const raw=keyring[envelope.keyVersion];if(!raw)throw new Error('Credential key version unavailable');const dataKey=decrypt(envelope.wrappedKey,master(raw),envelope.wrappedIv,envelope.wrappedTag,envelope.keyVersion),payload=decrypt(envelope.ciphertext,dataKey,envelope.iv,envelope.tag,envelope.keyVersion);const v:unknown=JSON.parse(payload.toString('utf8'));if(!v||typeof v!=='object'||Array.isArray(v)||Object.values(v).some(x=>typeof x!=='string'))throw new Error('Credential payload invalid');return v as Record<string,string>}

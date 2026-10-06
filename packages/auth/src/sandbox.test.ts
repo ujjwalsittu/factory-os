@@ -1,0 +1,3 @@
+import {it,expect} from 'vitest';
+import {SYSTEM_ROLES} from './roles.js';
+it('sandbox roles separate accountant, finance, stores and auditor',()=>{const roles=Object.fromEntries(SYSTEM_ROLES.map(r=>[r.key,r.permissions]));expect(roles.accountant).toContain('compliance.sandbox_irn.submit');expect(roles.accountant).not.toContain('compliance.sandbox_connection.manage');expect(roles.stores).toContain('compliance.sandbox_partb.update');expect(roles.stores).not.toContain('compliance.sandbox_irn.submit');expect(roles.auditor).toContain('compliance.sandbox_operation.read');expect(roles.auditor).not.toContain('compliance.sandbox_irn.submit');expect(roles.finance_controller).toContain('compliance.sandbox_detachment.approve')});

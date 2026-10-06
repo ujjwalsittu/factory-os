@@ -45,7 +45,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
         p === 'selling.sales_note.update' || p === 'buying.supplier_note.update' || p === 'buying.return_claim.update' ||
         p === 'compliance.gst_return.create' ||
         p === 'compliance.gst_return.export' ||
-        p === 'compliance.einvoice.create',
+        p === 'compliance.einvoice.create' || ['compliance.sandbox_operation.read','compliance.sandbox_operation.export','compliance.sandbox_connection.read','compliance.sandbox_irn.create','compliance.sandbox_irn.submit','compliance.sandbox_irn.update','compliance.sandbox_ewb.create','compliance.sandbox_ewb.submit','compliance.sandbox_ewb.update'].includes(p),
     ),
   },
   {
@@ -69,7 +69,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'stores',
     name: 'Stores',
     description: 'Stock receipts, issues, transfers, counts and the waste register.',
-    permissions: all((p) => p.startsWith('inventory.') || p.startsWith('ehs.') || p === 'buying.return_claim.read' || p === 'buying.return_movement.read' || p === 'buying.return_movement.create' || p === 'masters.item.read' || p === 'masters.party.read'),
+    permissions: all((p) => p.startsWith('inventory.') || p.startsWith('ehs.') || ['compliance.sandbox_operation.read','compliance.sandbox_partb.create','compliance.sandbox_partb.update'].includes(p) || p === 'buying.return_claim.read' || p === 'buying.return_movement.read' || p === 'buying.return_movement.create' || p === 'masters.item.read' || p === 'masters.party.read'),
   },
   {
     key: 'production_planner',

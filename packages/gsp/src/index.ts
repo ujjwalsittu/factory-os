@@ -79,3 +79,4 @@ export * from './contracts.js';
 export * from './canonical.js';
 export * from './redaction.js';
 export * from './mock.js';
+export * from './credential-envelope.js';
