@@ -125,6 +125,9 @@ export const partySettlement = pgTable(
       .notNull()
       .references(() => glAccount.id),
     amount: amount('amount').notNull(),
+    newTax: amount('new_tax').notNull().default('0'),
+    bankCharge: amount('bank_charge').notNull().default('0'),
+    componentSnapshot: jsonb('component_snapshot').$type<Record<string,unknown>>(),
     bankReference: text('bank_reference'),
     narration: text('narration'),
     allocations: jsonb('allocations').$type<SettlementAllocationDraft[]>().notNull().default([]),
@@ -138,6 +141,7 @@ export const partySettlement = pgTable(
     index('party_settlement_party_idx').on(t.entityId, t.partyId),
     check('party_settlement_direction', sql`${t.direction} in ('receipt', 'payment')`),
     check('party_settlement_amount', sql`${t.amount} > 0`),
+    check('party_settlement_components_ck', sql`${t.newTax}>=0 and ${t.bankCharge}>=0 and (${t.currency}='INR' or (${t.newTax}=0 and ${t.bankCharge}=0))`),
   ],
 );
 

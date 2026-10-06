@@ -65,7 +65,7 @@ export const legalEntity = pgTable(
     isActive: boolean('is_active').notNull().default(true),
     ...timestamps,
   },
-  (t) => [uniqueIndex('legal_entity_tenant_code_uq').on(t.tenantId, t.code), index('legal_entity_tenant_idx').on(t.tenantId)],
+  (t) => [uniqueIndex('legal_entity_scope_uq').on(t.id,t.tenantId), uniqueIndex('legal_entity_tenant_code_uq').on(t.tenantId, t.code), index('legal_entity_tenant_idx').on(t.tenantId)],
 );
 
 export const gstRegistrationType = pgEnum('gst_registration_type', [

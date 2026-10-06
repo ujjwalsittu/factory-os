@@ -27,6 +27,8 @@ interface ResourceDef {
 
 /** Resources that exist today (Phase 0) plus the core ones the next phases build on. */
 export const RESOURCES = [
+  { module:'accounts', resource:'withholding', label:'Withholding and TCS accounting', actions:['read','create','submit','cancel','export','configure','approve','correct'] },
+  { module:'accounts', resource:'bank_charge', label:'Bank charges', actions:['read','create','submit','cancel','export'] },
   {module:'compliance',resource:'sandbox_operation',label:'Sandbox operations',actions:['read','export']},
   {module:'compliance',resource:'sandbox_connection',label:'Sandbox connections',actions:['read','manage']},
   {module:'compliance',resource:'sandbox_irn',label:'Sandbox IRN',actions:['create','submit','update','cancel']},

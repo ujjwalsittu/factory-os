@@ -129,5 +129,5 @@ export const party = pgTable(
     isActive: boolean('is_active').notNull().default(true),
     ...timestamps,
   },
-  (t) => [uniqueIndex('party_tenant_code_uq').on(t.tenantId, t.code), index('party_tenant_gstin_idx').on(t.tenantId, t.gstin)],
+  (t) => [uniqueIndex('party_scope_uq').on(t.id,t.tenantId), uniqueIndex('party_tenant_code_uq').on(t.tenantId, t.code), index('party_tenant_gstin_idx').on(t.tenantId, t.gstin)],
 );

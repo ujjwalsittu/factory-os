@@ -15,7 +15,7 @@ export const accountGroup = pgTable('account_group', {
 }, t => [uniqueIndex('account_group_entity_key_uq').on(t.entityId, t.key)]);
 export const glAccount = pgTable('gl_account', {
   id: uuid('id').primaryKey().defaultRandom(), ...scope, code: text('code').notNull(), name: text('name').notNull(), groupId: uuid('group_id').notNull().references(() => accountGroup.id), role: text('role'), isActive: boolean('is_active').notNull().default(true),
-}, t => [uniqueIndex('account_entity_code_uq').on(t.entityId, t.code), uniqueIndex('account_entity_role_uq').on(t.entityId, t.role)]);
+}, t => [uniqueIndex('account_scope_uq').on(t.id,t.tenantId,t.entityId), uniqueIndex('account_entity_code_uq').on(t.entityId, t.code), uniqueIndex('account_entity_role_uq').on(t.entityId, t.role)]);
 export const accountingSettings = pgTable('accounting_settings', {
   entityId: uuid('entity_id').primaryKey().references(() => legalEntity.id), tenantId: uuid('tenant_id').notNull().references(() => tenant.id), active: boolean('active').notNull().default(false), cutoverDate: date('cutover_date'), activatedAt: timestamp('activated_at', { withTimezone: true }), activatedBy: text('activated_by').references(() => user.id), openingVoucherId: uuid('opening_voucher_id'), mappings: jsonb('mappings').$type<Record<string, string>>().notNull().default({}), controlHistory: jsonb('control_history').$type<Record<string, string[]>>().notNull().default({}),
 });

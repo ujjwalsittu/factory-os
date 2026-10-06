@@ -42,6 +42,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
       (p) =>
         readOnly(p) ||
         (inModule('accounts', 'selling', 'buying')(p) && /\.(create|submit|export)$/.test(p) && !/^buying\.(return_resolution|return_movement)\./.test(p) && p !== 'buying.supplier_note.submit') ||
+        p === 'accounts.withholding.cancel' || p === 'accounts.bank_charge.cancel' ||
         p === 'selling.sales_note.update' || p === 'buying.supplier_note.update' || p === 'buying.return_claim.update' ||
         p === 'compliance.gst_return.create' ||
         p === 'compliance.gst_return.export' ||
