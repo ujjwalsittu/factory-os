@@ -1,6 +1,6 @@
 # Configurable bank statement reconciliation
 
-Status: Written specification approved by user Continue2026-10-06; decision041 Accepted. Native execution on the default branch remains selected. The written implementation plan awaits review; product code and migrations have not started.
+Status: Written specification and Native implementation plan approved2026-10-06; decision041 Accepted. Tasks1–6 implemented and verified. Tasks7–9 remain: approved reports/reopening, UI, concurrency/populated invariance and independent final review.
 
 ## Purpose and assumptions
 
@@ -96,4 +96,4 @@ Verification must include parsing/sign/date/precision errors, repeated identical
 
 Self-review checks: signed equation and date boundary examples consistent; initial balances do not replay old GL; duplicate ambiguity never guesses row identity; real net bank movement is authoritative; ordinary and Finance net matching are distinct; approved snapshots protected at the bank GL mutation boundary; import/match alone have no posting effect; permissions and currency/input limits explicit. No placeholder, numerical tax profile or live provider dependency.
 
-Written spec approved2026-10-06; written implementation-plan review precedes product work. Existing Native/default-branch preference carries forward; do not ask the execution method again. Bank feeds/Excel/foreign bank currencies, global period locks, later GST charge corrections and numerical TDS/TCS remain separate work.
+Written spec and implementation plan approved2026-10-06; implementation is underway. Existing Native/default-branch preference carries forward; do not ask the execution method again. Bank feeds/Excel/foreign bank currencies, global period locks, later GST charge corrections and numerical TDS/TCS remain separate work.

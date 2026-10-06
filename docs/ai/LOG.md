@@ -75,3 +75,5 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 2026-10-06 · agent · Bank reconciliation Tasks1–2 committed (65 core/18 auth tests, scoped immutable0020 and strict input fixtures pass); Task3 profiles/baseline/GL guards building, HTTP verification next.
 
 2026-10-06 · agent · Bank reconciliation Tasks3–4 committed65b1453/73adbcd: reviewed profiles/baselines, three GL guards, scoped multipart immutable imports/duplicates/coverage;40+46 focused owner checks and accounting/charge regressions pass, root build11/typecheck17. Task5 matching API builds, HTTP tests next.
+
+2026-10-06 · agent · Bank reconciliation Tasks5–6 committedf4740da/ac6b2c6: exact partial/net matching, source cancellation fences and authorized statement-linked charges/journals with immutable replacement provenance. Fixed reproduced exhausted-candidate/cancellation/duplicate-fee regressions;126 uncached units, build11/typecheck17, focused owner HTTP181 plus restricted checks, legacy charges55/accounting34 and schema evidence pass; lint0. NextTask7 approved reports/reopening/closed guards, Task8 UI, Task9 concurrency/populated invariance/browsers/final review.
