@@ -13,3 +13,9 @@ export async function fixtureSourceSnapshot(db,tenantId){
  const result={};for(const table of tables)result[table]=(await db.$client.query(`select * from ${table} where ${table==='tenant'?'id':'tenant_id'}=$1 order by ${table==='audit_event'?'seq':'id'}`,[tenantId])).rows;
  return result;
 }
+/** Wait for physical backend closure before dropping; never terminate an idle test pool. */
+export async function closeEmailDatabase(admin,databaseName){
+ if(!/^email_[a-z_]+_[a-f0-9]{32}$/.test(databaseName))throw new Error('Invalid fixture database');
+ for(let i=0;i<250;i++){const active=(await admin.$client.query('select count(*)::int n from pg_stat_activity where datname=$1',[databaseName])).rows[0].n;if(active===0){await admin.$client.query(`drop database ${databaseName}`);return;}await new Promise(resolve=>setTimeout(resolve,20));}
+ throw new Error('Fixture database still has active connections');
+}

@@ -1,3 +1,4 @@
+import {closeEmailDatabase} from './email-test-helpers.mjs';
 import assert from 'node:assert/strict';
 import {randomBytes,randomUUID,createHash} from 'node:crypto';
 import {readFile,readdir,writeFile} from 'node:fs/promises';
@@ -45,4 +46,4 @@ try{
  const lastClaim=await claimEmail(f.db,'bounded',retryNow);await startEmailDispatch(f.db,lastClaim,retryNow);await finishEmail(f.db,lastClaim,{kind:'temporary',code:'temporary_refusal'},retryNow);assert.equal((await f.db.$client.query('select status,retry_count from email_delivery where id=$1',[bounded.id])).rows[0].status,'failed');assert.equal(await claimEmail(f.db,'bounded',retryNow),null);
  const nearExpiry=await enqueue({...await fresh(),sourceExpiresAt:new Date(now.getTime()+20000)}),expiringClaim=await claimEmail(f.db,'expiry',now);assert.equal(expiringClaim.deliveryId,nearExpiry.id);await startEmailDispatch(f.db,expiringClaim,now);await finishEmail(f.db,expiringClaim,{kind:'temporary',code:'temporary_refusal'},now);assert.equal((await f.db.$client.query('select status,envelope from email_delivery where id=$1',[nearExpiry.id])).rows[0].status,'expired');
  console.log('Email schema/queue: scope, dedupe, unconfigured, lease, fencing, ambiguity, purge and retention PASS');
-}finally{await f.close();await admin.$client.query(`drop database ${databaseName} with (force)`);await admin.$client.end();}
+}finally{await f.close();await closeEmailDatabase(admin,databaseName);await admin.$client.end();}
