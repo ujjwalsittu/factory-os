@@ -1,4 +1,4 @@
-import { bankReconciliationBaseline, bankReconciliationEvent, bankReconciliationProfile, glEntry } from '@factoryos/db';
+import { bankMatchEdge, bankNetVector, bankReconciliationBaseline, bankReconciliationEvent, bankReconciliationProfile, glEntry } from '@factoryos/db';
 import { ConflictException, Injectable } from '@nestjs/common';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
@@ -16,6 +16,14 @@ export class BankReconciliationGuard {
  }
  async assertReversalAllowedIn(tx:Tx,ctx:TenantRequestContext,entityId:string,voucherId:string) {
   const entries=await tx.select().from(glEntry).where(and(eq(glEntry.voucherId,voucherId),eq(glEntry.tenantId,ctx.tenant.tenantId),eq(glEntry.entityId,entityId)));
+  if(entries.length){
+   const ids=entries.map(x=>x.id);
+   const edges=await tx.select().from(bankMatchEdge).where(and(eq(bankMatchEdge.tenantId,ctx.tenant.tenantId),eq(bankMatchEdge.entityId,entityId),inArray(bankMatchEdge.glEntryId,ids)));
+   const vectors=await tx.select().from(bankNetVector).where(and(eq(bankNetVector.tenantId,ctx.tenant.tenantId),eq(bankNetVector.entityId,entityId),inArray(bankNetVector.glEntryId,ids)));
+   const events=await tx.select().from(bankReconciliationEvent).where(and(eq(bankReconciliationEvent.tenantId,ctx.tenant.tenantId),eq(bankReconciliationEvent.entityId,entityId)));
+   const active=[...edges,...vectors].find(x=>!events.some(e=>e.matchId===x.matchId));
+   if(active)throw new ConflictException(`Reverse bank reconciliation match ${active.matchId} before cancelling this source`);
+  }
   for(const entry of entries)await this.assertPostingAllowedIn(tx,ctx,entityId,entry.postingDate,[entry.accountId]);
  }
 }

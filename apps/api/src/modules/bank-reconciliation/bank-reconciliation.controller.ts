@@ -1,7 +1,8 @@
+import { BankMatchService } from './match.service.js';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BankImportService } from './import.service.js';
 import { bankMappingRevision, bankReconciliationProfile, type Database } from '@factoryos/db';
-import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post, Put, ConflictException, BadRequestException, UseInterceptors, UploadedFile, Header } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post, Put, ConflictException, BadRequestException, UseInterceptors, UploadedFile, Header, Query } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../../common/access.js';
@@ -10,10 +11,10 @@ import { DB } from '../../common/tokens.js';
 import { parse } from '../../common/validation.js';
 import { entityOf, lockAccounting, type Tx } from '../accounting/accounting-lock.js';
 import { BankRegistryService, evidenceHash } from './registry.service.js';
-import { BankProfileInput, BankProfileSettingsInput, BaselineInput, Reason, ReviewedInput, StatementPeriodInput, ImportSubmitInput } from './types.js';
+import { BankProfileInput, BankProfileSettingsInput, BaselineInput, Reason, ReviewedInput, StatementPeriodInput, ImportSubmitInput, BankMatchInput, MatchSubmitInput } from './types.js';
 @Controller('accounts/bank-reconciliation')
 export class BankReconciliationController {
- constructor(@Inject(DB) private readonly db:Database,private readonly registry:BankRegistryService,private readonly audit:AuditService,private readonly imports:BankImportService){}
+ constructor(@Inject(DB) private readonly db:Database,private readonly registry:BankRegistryService,private readonly audit:AuditService,private readonly imports:BankImportService,private readonly matches:BankMatchService){}
  private transaction<T>(ctx:TenantRequestContext,run:(tx:Tx,entityId:string)=>Promise<T>){const entityId=entityOf(ctx);return this.db.transaction(async tx=>{await lockAccounting(tx,entityId);return run(tx,entityId);});}
  @Get('profiles') @RequirePermission('accounts.bank_reconciliation.read')
  list(@Ctx() ctx:TenantRequestContext){return this.db.select().from(bankReconciliationProfile).where(and(eq(bankReconciliationProfile.tenantId,ctx.tenant.tenantId),eq(bankReconciliationProfile.entityId,entityOf(ctx))));}
@@ -61,5 +62,16 @@ export class BankReconciliationController {
  async rawImport(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Param('importId',ParseUUIDPipe) importId:string){const evidence=await this.imports.evidenceIn(this.db,ctx,entityOf(ctx),id),batch=evidence.imports.find(x=>x.id===importId);if(!batch)throw new BadRequestException('Import not found');return batch.rawCsv;}
  @Get('profiles/:id/imports/:importId/export') @RequirePermission('accounts.bank_reconciliation.export') @Header('Content-Type','text/csv; charset=utf-8') @Header('Content-Disposition','attachment; filename="bank-movements.csv"')
  async exportImport(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Param('importId',ParseUUIDPipe) importId:string){const review=await this.imports.reviewIn(this.db,ctx,entityOf(ctx),id,importId);const cell=(value:string)=>'"'+(/^[\s]*[=+\-@]/.test(value)?"'"+value:value).replaceAll('"','""')+'"';return ['Date,Reference,Description,Amount',...review.parsed.rows.map(row=>[row.date,row.reference,row.description,row.signedAmount].map(cell).join(','))].join('\r\n');}
+
+ @Get('profiles/:id/matches') @RequirePermission('accounts.bank_reconciliation.read')
+ async matchState(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string){return this.transaction(ctx,async(tx,entityId)=>{const state=await this.matches.stateIn(tx,ctx,entityId,id);return {context:state.context,book:state.book,statement:state.statement,groups:state.groups.map(g=>({...g,reversed:!state.activeGroups.some(x=>x.id===g.id)})),revision:state.revision};});}
+ @Get('profiles/:id/candidates') @RequirePermission('accounts.bank_reconciliation.read')
+ candidates(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Query('statementRowId',ParseUUIDPipe) statementRowId:string){return this.transaction(ctx,(tx,entityId)=>this.matches.candidatesIn(tx,ctx,entityId,id,statementRowId));}
+ @Post('profiles/:id/matches/preview') @RequirePermission('accounts.bank_reconciliation.read')
+ previewMatch(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Body() body:unknown){const input=parse(BankMatchInput,body);return this.transaction(ctx,(tx,entityId)=>this.matches.previewIn(tx,ctx,entityId,id,input));}
+ @Post('profiles/:id/matches') @RequirePermission('accounts.bank_reconciliation.submit')
+ submitMatch(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Body() body:unknown){const input=parse(MatchSubmitInput,body);return this.transaction(ctx,async(tx,entityId)=>{const group=await this.matches.submitIn(tx,ctx,entityId,id,input);await this.audit.record(ctx,{tenantId:ctx.tenant.tenantId,entityId,action:'accounts.bank_reconciliation.submit',targetType:'bank_match',targetId:group.id,after:{kind:group.kind,previewHash:group.previewHash}},tx);return group;});}
+ @Post('profiles/:id/matches/:groupId/reverse') @RequirePermission('accounts.bank_reconciliation.cancel')
+ reverseMatch(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Param('groupId',ParseUUIDPipe) groupId:string,@Body() body:unknown){const {reason}=parse(z.strictObject({reason:Reason}),body);return this.transaction(ctx,async(tx,entityId)=>{const result=await this.matches.reverseIn(tx,ctx,entityId,id,groupId,reason);await this.audit.record(ctx,{tenantId:ctx.tenant.tenantId,entityId,action:'accounts.bank_reconciliation.cancel',targetType:'bank_match',targetId:groupId,reason},tx);return result;});}
 
 }

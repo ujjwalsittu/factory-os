@@ -32,3 +32,6 @@ export const ImportSubmitInput = z.strictObject({reviewedHash:z.string().regex(/
 export type StatementUploadInput = z.infer<typeof StatementPeriodInput>;
 export type ImportSubmitInput = z.infer<typeof ImportSubmitInput>;
 export type StatementImport = typeof import('@factoryos/db').bankStatementImport.$inferSelect;
+export const MatchSubmitInput = z.union([OrdinaryMatchInput.extend(ReviewedInput.shape),NetMatchInput.extend(ReviewedInput.shape)]);
+export type MatchRequest = z.infer<typeof BankMatchInput>;
+export type MatchSubmitInput = z.infer<typeof MatchSubmitInput>;
