@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-06-bank-reconciliation-design.md` (written spec approved by user Continue2026-10-06; decision041 Accepted).
 
-Implementation checkpoint2026-10-06: Tasks1–6 committed and verified. Continue directly at Task7; Tasks7–9 (approved reports/reopening, UI, concurrency/populated invariance and fresh final review) remain.
+Delivery checkpoint2026-10-06: All nine tasks implemented and verified. One fresh independent review and one test-backed correction pass complete; [final review/evidence/deferred Minor rulings](../reviews/2026-10-06-bank-reconciliation-review.md). Product commits through93c454d are pushed on the authorized default branch.
 
 ## Global Constraints
 
@@ -144,9 +144,9 @@ Pure `bank-reconciliation-types.ts` defines `CsvMapping`(specified columns, sepa
 
 - [x] Write/run `same_residual_two_matches`, `same_file_two_submits`, `same_row_two_adjustments`, `match_wins_source_cancel`, `cancel_wins_match`. Two matches competing for one residual: one wins/one409. Identical import clicks return same source and count rows once; adjustment clicks one voucher. Match first blocks cancel; cancel first makes pre-cancel preview stale, no orphan match, then fresh original/reversal candidates remain visible. Capture actual GL/bills/stock/FIFO and original migrations/activation IDs; matching leaves all values unchanged, adjustment changes exactly one bank source.
 - [x] Run root build/typecheck, `pnpm exec turbo run test --force`, lint (report zero tasks honestly), all new API fixtures plus existing charge/settlement/accounting regressions serially with signup pacing; run production new and old browsers. Inspect exit/results, never continue after a failed required command. Record counted checks and omitted/unrun checks distinctly.
-- [ ] Dispatch one fresh final independent reviewer per preserved Native method, with baseline/spec/plan and actual delivered code/evidence. No implementer agents; use available inherited model. Reproduce and fix Important/Critical findings in one test-backed pass, record all rulings/deferred minor issues, rerun affected checks.
-- [ ] Update handoff and plan stopping point, commit/push normally and verify clean checkout/remote SHA. No deployed/shared books activation or banking connection.
-- [ ] Commit `Record verified bank reconciliation delivery and review`.
+- [x] Dispatch one fresh final independent reviewer per preserved Native method, with baseline/spec/plan and actual delivered code/evidence. No implementer agents; use available inherited model. Reproduce and fix Important/Critical findings in one test-backed pass, record all rulings/deferred minor issues, rerun affected checks.
+- [x] Update handoff and plan stopping point, commit/push normally and verify clean checkout/remote SHA. No deployed/shared books activation or banking connection.
+- [x] Commit `Record verified bank reconciliation delivery and review`.
 
 ## Plan self-review
 
@@ -154,4 +154,6 @@ Spec coverage: parser/limits/signs1/4; immutable scope/identity2; profile/baseli
 
 Contract checks: parser rows become canonical StatementItems before matching; BookItem refs include kind to avoid GL/opening identity ambiguity; API MatchRequest carries no authoritative net source evidence. Core types defined before DB/API; API input/result types named before services; existing Tx/Db/context and charge input reused; guard depends only on DB and is shared by post/reverse; no registry/match/report→GL cycle. Quiet intervals are validated empty statement batches, not missing coverage. Net groups use signed vectors rather than impossible negative ordinary edges; date effectiveness is atomic. Prior baseline items protect linked originals; original/reversal bank entries remain candidates after explicitly undoing protections.
 
-Execution readiness: written spec approved; this written plan still requires user review before a standalone product-code claim. Native/default branch method preserved, no method question. Current runtime/previous feature checks remain available; no product code, dependency installation, migration or book activation performed while writing this plan.
+Execution record: written spec and plan approved; all nine tasks completed inline with the claimed Native/default-branch method. One final independent review and one test-backed correction pass complete. Original shared-book activation states and prior migrations are preserved; no live bank connection or deployment. Two Minor deviations are recorded in the final review with follow-up requirements.
+
+Final delivery2026-10-06: Reviewed a8a41fa..ab55304; four Important fixes be194f8 plus source-refresh browser regression93c454d. Additive0021 refines claim identity without rewriting0020. Final root build/typecheck/126 uncached units/lint0, affected API/schema checks,10,000-row overlap, large escaped reasons, actual barriers/invariance, final production bank/legacy-charge browsers and original baseline/hash comparison PASS. Two Minor parser/print follow-ups explicitly deferred; no second review. Handoff moves to foundation email delivery design.
