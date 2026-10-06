@@ -147,10 +147,23 @@ importers:
         version: 5.9.3
 
   apps/worker:
+    dependencies:
+      '@factoryos/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@factoryos/gsp':
+        specifier: workspace:*
+        version: link:../../packages/gsp
+      drizzle-orm:
+        specifier: ^0.45.3
+        version: 0.45.3(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
     devDependencies:
       '@factoryos/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@types/node':
+        specifier: ^26.6.4
+        version: 26.6.4
       typescript:
         specifier: ^5.9.0
         version: 5.9.3

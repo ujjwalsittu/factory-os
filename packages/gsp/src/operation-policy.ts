@@ -1,0 +1,2 @@
+export function canResend(status:string):boolean{return status==='prepared'}
+export function evidenceMatches(expected:{gstin:string;documentHash:string;documentNumber:string;documentType:string},actual:{gstin:string;documentHash:string;documentNumber:string;documentType:string}):boolean{return expected.gstin===actual.gstin&&expected.documentHash===actual.documentHash&&expected.documentNumber===actual.documentNumber&&expected.documentType===actual.documentType}

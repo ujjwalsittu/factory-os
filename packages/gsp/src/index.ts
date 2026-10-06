@@ -80,3 +80,4 @@ export * from './canonical.js';
 export * from './redaction.js';
 export * from './mock.js';
 export * from './credential-envelope.js';
+export * from './operation-policy.js';

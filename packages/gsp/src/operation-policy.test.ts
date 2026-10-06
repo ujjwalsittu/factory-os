@@ -1,0 +1,2 @@
+import {it,expect} from 'vitest';import * as api from './index.js';
+it('unknown cannot be resent and lookup only trusts matching evidence',()=>{const a=api as unknown as {canResend:(s:string)=>boolean;evidenceMatches:(s:unknown,e:unknown)=>boolean};expect(a.canResend).toBeTypeOf('function');expect(a.canResend('unknown')).toBe(false);expect(a.canResend('rejected')).toBe(false);expect(a.evidenceMatches({gstin:'x',documentHash:'h',documentNumber:'1',documentType:'INV'},{gstin:'x',documentHash:'mismatch',documentNumber:'1',documentType:'INV'})).toBe(false)});
