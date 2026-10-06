@@ -1,6 +1,6 @@
 # Transactional email delivery design
 
-Date: 2026-10-06 (Asia/Kolkata). Status: Proposed; written review required before implementation planning. Next decision: 042. Execution preference already established: Native inline on the default branch.
+Date: 2026-10-06 (Asia/Kolkata). Status: Approved by the user2026-10-06; decision042 Accepted. Implementation-plan review is the next gate. Execution preference already established: Native inline on the default branch.
 
 ## Purpose and scope
 
