@@ -1,10 +1,12 @@
 import {canonicalHash,validateSnapshot} from './canonical.js';
+import {transportIssues} from './contracts.js';
 import type {SandboxProvider,ProviderCommand,ProviderAccess,ProviderOutcome,MockRemoteStore,ProviderEvidence} from './contracts.js';
 export class MockSandboxProvider implements SandboxProvider{
  private readonly store:MockRemoteStore;
  constructor(store?:MockRemoteStore){const map=new Map<string,ProviderEvidence>();this.store=store??{get:async k=>map.get(k)??null,put:async(k,v)=>{map.set(k,v)}}}
  async execute(c:ProviderCommand,a:ProviderAccess):Promise<ProviderOutcome>{
   if(a.scope.environment!=='sandbox'||a.provider!=='mock')throw new Error('Only mock sandbox access is supported');
+  if(c.transport&&transportIssues(c.transport).length)return {kind:'rejected',code:'INCOMPLETE_TRANSPORT'};
   if(validateSnapshot(c.snapshot).length)return {kind:'rejected',code:'INVALID_SNAPSHOT'};
   if(a.scope.gstin!==c.snapshot.seller.gstin)return {kind:'rejected',code:'SELLER_MISMATCH'};
   const family=c.action.startsWith('irn.')?'irn':'ewb',key=canonicalHash({scope:a.scope,family,type:c.snapshot.documentType,number:c.snapshot.number,fy:c.snapshot.fy}),hash=canonicalHash(c.snapshot),prior=await this.store.get(key);
@@ -19,6 +21,6 @@ export class MockSandboxProvider implements SandboxProvider{
   }
   if(!prior||!c.externalId||prior.externalId!==c.externalId)return {kind:'rejected',code:'ORIGINAL_REQUIRED'};
   if(prior.status==='cancelled')return c.action.endsWith('cancel')?{kind:'confirmed',evidence:prior}:{kind:'rejected',code:'ALREADY_CANCELLED'};
-  const evidence:ProviderEvidence={...prior,...(c.action==='ewb.extend'?{validUpto:new Date(Date.parse(prior.validUpto??prior.issuedAt)+3600000).toISOString()}:{}),...(c.action.endsWith('cancel')?{status:'cancelled' as const}:{}),...(c.transport?{transport:c.transport}:{})};await this.store.put(key,evidence);return {kind:'confirmed',evidence};
+  const evidence:ProviderEvidence={...prior,lastMutationHash:canonicalHash(c),...(c.action==='ewb.extend'?{validUpto:new Date(Date.parse(prior.validUpto??prior.issuedAt)+3600000).toISOString()}:{}),...(c.action.endsWith('cancel')?{status:'cancelled' as const}:{}),...(c.transport?{transport:c.transport}:{})};await this.store.put(key,evidence);return a.scenario==='timeout_after_success'?{kind:'unknown'}:{kind:'confirmed',evidence};
  }
 }

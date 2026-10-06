@@ -19,8 +19,15 @@ export async function completeOperation(db:Database,leaseToken:string,outcome:{k
  const status=outcome.kind==='confirmed'?(outcome.evidence?.status==='cancelled'?'cancelled':'succeeded'):outcome.kind==='rejected'?'rejected':'unknown';
  await tx.update(op).set({status,result:{...outcome},leaseToken:null,leaseExpiresAt:null}).where(eq(op.id,r.id));await tx.insert(gstSandboxEvent).values({...scope(r),operationId:r.id,kind:status,evidence:{...outcome}});
  if(r.parentId&&outcome.kind==='confirmed'){
-  const [p]=await tx.select().from(op).where(and(eq(op.id,r.parentId),eq(op.tenantId,r.tenantId),eq(op.entityId,r.entityId),eq(op.registrationId,r.registrationId))).for('update');if(p&&!p.detachedAt){await tx.update(op).set({status:outcome.evidence?.status==='cancelled'?'cancelled':'succeeded',result:{...outcome}}).where(eq(op.id,p.id));await tx.insert(gstSandboxEvent).values({...scope(r),operationId:p.id,kind:'provider_reconciled',evidence:{childId:r.id,...outcome}})}
+  let parentId:string|null=r.parentId;
+  for(let depth=0;parentId&&depth<100;depth++){
+   const [p]=await tx.select().from(op).where(and(eq(op.id,parentId),eq(op.tenantId,r.tenantId),eq(op.entityId,r.entityId),eq(op.registrationId,r.registrationId))).for('update');if(!p||p.detachedAt)break;
+   // Recover uncertain descendants and project the latest proven resource onto the root.
+   if(p.status==='unknown'||!p.parentId){await tx.update(op).set({status:outcome.evidence?.status==='cancelled'?'cancelled':'succeeded',result:{...outcome}}).where(eq(op.id,p.id));await tx.insert(gstSandboxEvent).values({...scope(r),operationId:p.id,kind:'provider_reconciled',evidence:{childId:r.id,...outcome}})}
+   parentId=p.parentId;
+  }
  }
+
  return true;});
 }
 export async function recoverExpiredLease(db:Database,now=new Date()):Promise<number>{return db.transaction(async tx=>{const rows=await tx.select().from(op).where(and(eq(op.status,'sending'),lt(op.leaseExpiresAt,now))).for('update',{skipLocked:true});for(const r of rows){await tx.update(op).set({status:'unknown',leaseToken:null,leaseExpiresAt:null}).where(eq(op.id,r.id));await tx.insert(gstSandboxEvent).values({...scope(r),operationId:r.id,kind:'unknown',evidence:{reason:'sending lease expired',sequence:r.attemptSequence}})}return rows.length})}

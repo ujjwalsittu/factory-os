@@ -22,3 +22,11 @@ export function toInrSnapshot(value:DocumentSnapshot):DocumentSnapshot{
  const total=lines.reduce((t,l)=>t.add(l.taxable).add(l.cgst).add(l.sgst).add(l.igst).add(l.cess),Dec.ZERO).toFixed(2);
  return {...s,currency:'INR',exchangeRate:'1',lines,total};
 }
+
+/** Exact positive rational conversion: round only the final INR component to paise. */
+export function proportionalInrAmount(amount:string,returnedQty:string,invoiceQty:string,rate:string):string{
+ const a=Dec.of(amount).raw,q=Dec.of(returnedQty).raw,n=Dec.of(invoiceQty).raw,r=Dec.of(rate).raw;
+ if(a<0n||q<=0n||n<=0n||q>n||r<=0n)throw new Error('Invalid proportional valuation');
+ const denominator=n*1000000000000n,numerator=a*q*r*100n,cents=(numerator+denominator/2n)/denominator;
+ return `${cents/100n}.${String(cents%100n).padStart(2,'0')}`;
+}

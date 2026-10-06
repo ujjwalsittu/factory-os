@@ -8,10 +8,16 @@ export type TransportDraft=z.infer<typeof transportSchema>;
 export const actionSchema=z.enum(['irn.generate','irn.lookup','irn.cancel','ewb.generate','ewb.from_irn','ewb.lookup','ewb.update_partb','ewb.extend','ewb.cancel']);
 export type OperationAction=z.infer<typeof actionSchema>;
 export interface SandboxScope{tenantId:string;entityId:string;registrationId:string;gstin:string;environment:'sandbox'}
-export interface ProviderCommand{action:OperationAction;snapshot:DocumentSnapshot;transport?:TransportDraft;externalId?:string;irn?:string;reason?:string}
+export interface ProviderCommand{action:OperationAction;snapshot:DocumentSnapshot;transport?:TransportDraft;externalId?:string;irn?:string;reason?:string;mutationId?:string}
 export type MockScenario='normal'|'timeout_after_success'|'rejected'|'unsupported_lookup'|'mismatched_lookup';
 export interface ProviderAccess{scope:SandboxScope;provider:'mock'|'nic_direct';scenario:MockScenario;credentialRevisionId?:string;secrets?:Record<string,string>}
-export interface ProviderEvidence{externalId:string;documentHash:string;gstin:string;documentNumber:string;documentType:string;issuedAt:string;status:'active'|'cancelled';simulated:boolean;signatureStatus:'simulated'|'verified'|'unverified'|'invalid';signedQrCode?:string;validUpto?:string;transport?:TransportDraft}
+export interface ProviderEvidence{externalId:string;documentHash:string;gstin:string;documentNumber:string;documentType:string;issuedAt:string;status:'active'|'cancelled';simulated:boolean;signatureStatus:'simulated'|'verified'|'unverified'|'invalid';signedQrCode?:string;validUpto?:string;transport?:TransportDraft;lastMutationHash?:string}
 export type ProviderOutcome={kind:'confirmed';evidence:ProviderEvidence}|{kind:'rejected';code:string}|{kind:'unknown'}|{kind:'not_found'}|{kind:'unsupported'};
 export interface SandboxProvider{execute(command:ProviderCommand,access:ProviderAccess):Promise<ProviderOutcome>}
 export interface MockRemoteStore{get(key:string):Promise<ProviderEvidence|null>;put(key:string,value:ProviderEvidence):Promise<void>}
+
+/** Shared mode completeness for preparation, generation and lifecycle changes. */
+export function transportIssues(t:TransportDraft):string[]{
+ if(t.mode==='road')return t.vehicleNo?[]:['Road movement needs vehicle number'];
+ return t.transportDocumentNo&&t.transportDocumentDate?[]:['Transport document number and date required'];
+}
