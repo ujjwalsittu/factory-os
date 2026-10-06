@@ -1,6 +1,6 @@
 # Configurable withholding tax and bank charges
 
-Status: Proposed written design for user review; no product implementation authorized by this artifact.
+Status: Written design approved by the user2026-10-06; decision040 Accepted. Product implementation awaits review of the written Native plan.
 Date:2026-10-06 (Asia/Kolkata). Next user-requested slice after verified NIC offline delivery.
 
 ## Intent and success criteria
@@ -17,7 +17,7 @@ Assumption for review: integrate verified resident-business TDS and scrap TCS fi
 2. **Manual tax journals plus charge fields.** Quick initial screens, but generic journals cannot reliably establish earlier-event consumption, certificate capacity, tax-year totals or invoice/payment deduplication. Not recommended as the sole tax mechanism.
 3. **Bank charges first; tax afterward.** Smallest immediate change, but leaves the requested TDS/TCS workflow incomplete. Charges can be an implementation milestone within approach1 without splitting the financial model.
 
-The proposed design selects approach1. These business/data-model choices are Proposed until written approval; decision040 must not be marked Accepted prematurely.
+The approved design selects approach1. The user approved the written specification2026-10-06; its business/data-model choices are recorded as decision040 Accepted. The implementation plan is reviewed separately.
 
 ## Current statutory evidence and activation gates
 
