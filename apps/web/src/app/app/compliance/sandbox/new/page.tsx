@@ -1,0 +1,2 @@
+import {GstSandboxForm} from '@/components/gst-sandbox-form';
+export default async function Page({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){const q=await searchParams;const kind=typeof q.sourceKind==='string'&&['sample','sales_invoice','sales_note','purchase_return'].includes(q.sourceKind)?q.sourceKind:'sample';return <GstSandboxForm initialKind={kind} initialSourceId={typeof q.sourceId==='string'?q.sourceId:''}/>}

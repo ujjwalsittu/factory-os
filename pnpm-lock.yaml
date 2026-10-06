@@ -87,6 +87,9 @@ importers:
       '@factoryos/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@factoryos/gsp':
+        specifier: workspace:*
+        version: link:../../packages/gsp
       '@factoryos/ui':
         specifier: workspace:*
         version: link:../../packages/ui

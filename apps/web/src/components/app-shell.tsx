@@ -105,6 +105,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
   {
     section: 'Finance',
     items: [
+      { href: '/app/compliance/sandbox', label: 'Sandbox operations', icon: ReceiptText, permission: 'compliance.sandbox_operation.read', entityScoped: true },
       { href: '/app/accounts/setup', label: 'Accounting setup', icon: Landmark, permission: 'accounts.setup.read', entityScoped: true },
       { href: '/app/accounts/chart', label: 'Chart of accounts', icon: ScrollText, permission: 'accounts.account.read', entityScoped: true },
       { href: '/app/accounts/journals', label: 'Journals', icon: ReceiptText, permission: 'accounts.voucher.read', entityScoped: true },
@@ -125,6 +126,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
   {
     section: 'Settings',
     items: [
+      { href: '/app/settings/gst-integrations', label: 'GST sandbox connections', icon: ReceiptText, permission: 'compliance.sandbox_connection.read', entityScoped: true },
       { href: '/app/settings/supplier-returns', label: 'Supplier return policies', icon: ReceiptText, permission: 'buying.return_policy.read', entityScoped: true },
       { href: '/app/settings/entities', label: 'Entities & GST', icon: Building2, permission: 'settings.entity.read' },
       { href: '/app/settings/number-series', label: 'Number series', icon: FileSpreadsheet, permission: 'settings.entity.read', entityScoped: true },
