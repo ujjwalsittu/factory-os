@@ -40,6 +40,14 @@ On 2026-10-06 the cloud network proxy returned `Tunnel connection failed: 403 Fo
 - https://docs.ewaybillgst.gov.in/
 - https://einvoice6.gst.gov.in/content/kb/
 
+After the user updated the allowed domains and the cloud restarted on 2026-10-06,
+rechecks reached the public `einvoice6.gst.gov.in/content/kb/` (HTTP200), but NIC
+sandbox home/API help/schema URLs still returned503 with upstream connection
+timeout. `einvoice1.gst.gov.in` and `ewaybillgst.gov.in` also returned503;
+`docs.ewaybillgst.gov.in` returned a CDN-generated403 Access Denied. The former
+tunnel denial changed, but NIC-specific protocol access is still unresolved.
+The reachable public IRP knowledge base is not a verified NIC wire contract.
+
 These are candidate official sources, not retrieved/version-verified contracts.
 Task5 must obtain accessible official documentation or authorized exported copies,
 record final source URLs/version dates/checksums in `packages/gsp/docs/nic-sandbox-contract.md`,
