@@ -10,6 +10,21 @@
 
 **Spec:** [Approved NIC sandbox design](../specs/2026-10-06-nic-sandbox-design.md), approved 2026-10-06. Native and default-branch execution already selected.
 
+## Authorized offline delivery
+
+The user authorized proceeding with available offline capability on2026-10-06. Tasks1–4,6–7 implemented; Task8 offline verification complete; normal delivery recorded in the handoff. Task5 and Task8 real-provider verification remain externally blocked. [Review/rulings](../reviews/2026-10-06-nic-sandbox-review.md) tracks actual coverage, intentional bounded UI/retry deviations and four deferred Minors; the original checklist below remains the full target, not a claim that unavailable NIC/credentialed checks ran.
+
+- [x] Typed contracts, durable deterministic mock, decimal validation and envelope encryption.
+- [x] Additive0018 scoped immutable evidence, masked configuration and role catalog.
+- [x] Fenced leases, original and child uncertain-outcome recovery without blind resend.
+- [x] Source snapshots, authoritative issued identities and source cancellation/enqueue barriers.
+- [x] EWB generation/fromIRN, transport update, extension/cancellation and shared completeness validation.
+- [x] Settings/workspace/separate sandbox print; initial source preparation and uncertain-child controls.
+- [x] One fresh final review; five Important findings reproduced before one correction pass.
+- [x] Final offline API/browser compatibility and durable delivery record.
+- [ ] Verified NIC official contract/adapter/replay vectors — blocked, no guessed implementation.
+- [ ] Whitelisted credentialed NIC acceptance — blocked, no provider traffic.
+
 ## Global Constraints
 
 - No shared entity activation, production statutory submission or taxpayer notification.
@@ -189,4 +204,4 @@ does not depend on API internals. Scope preserves applicable-note refusal,
 separate sandbox evidence, unchanged source books and no production activity.
 Official documentation/network and credentialed provider verification are explicit
 prerequisites with independent offline progress, not invented passing checks.
-Native is preserved; written-plan review remains required before implementation.
+Native is preserved; the user authorized available offline implementation. Remaining provider gates and bounded offline deviations are recorded above.

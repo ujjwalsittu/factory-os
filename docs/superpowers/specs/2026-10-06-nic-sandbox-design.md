@@ -1,6 +1,6 @@
 # NIC sandbox e-invoicing and e-way bills
 
-Status: written design approved by the user on 2026-10-06; decision039 accepted. Implementation awaits written-plan review.
+Status: written design approved by the user on 2026-10-06; decision039 accepted. User authorized available offline implementation; offline implementation and final verification are complete; [review/rulings](../reviews/2026-10-06-nic-sandbox-review.md). Verified NIC adapter/live acceptance remain blocked.
 Date: 2026-10-06 (Asia/Kolkata).
 
 ## Intent and sequence
