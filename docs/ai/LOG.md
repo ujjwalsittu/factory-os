@@ -91,3 +91,5 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 2026-10-06 · agent · Record user selection of existing SMTP delivery in proposed email spec/decision042 and handoff; exact secure configuration remains separate. Next written-spec review, then Native plan; no live send or code changes.
 
 2026-10-06 · agent · Accept approved email written spec/decision042 and prepare eight-task Native implementation plan with exact shared interfaces, scoped queue/source contracts, atomic platform invitations, SMTP uncertainty/fencing, private auth cooldown, compatible UI, real race/ledger tests and one final reviewer. Plan self-review covers all spec sections and five failure classes. No product/runtime changes; next written-plan review, then standalone claim/Task1 on default branch.
+
+2026-10-06 · agent · Claim user-approved eight-task email delivery implementation alone before product code. Native/default branch retained; Task1 secure contracts/config/envelopes/templates begins after normal claim push. No live SMTP send/deployment or shared activation.
