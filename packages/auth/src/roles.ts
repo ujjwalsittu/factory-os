@@ -9,7 +9,7 @@ export interface SystemRoleDef {
 
 const all = (predicate: (p: Permission) => boolean): Permission[] => ALL_PERMISSIONS.filter(predicate);
 const inModule = (...modules: string[]) => (p: Permission) => modules.some((m) => p.startsWith(`${m}.`));
-const readOnly = (p: Permission) => p.endsWith('.read');
+const readOnly = (p: Permission) => p.endsWith('.read') && p !== 'settings.email.read';
 
 /**
  * Seeded into every tenant. System roles can be copied but not edited, so upgrades can extend them.

@@ -155,6 +155,20 @@
       "when": 1791303140794,
       "tag": "0021_bank_statement_interval_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791310172588,
+      "tag": "0022_email_delivery",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791310292037,
+      "tag": "0023_email_source_shape",
+      "breakpoints": true
     }
   ]
 }

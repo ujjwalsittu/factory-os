@@ -169,3 +169,5 @@ at the end of the relevant section, with a date.
 - Email Task1 contracts live in @factoryos/email, server-only; dependency email→db, never db→email. Tx derives shared Database. SMTP defaults disabled; plaintext permitted only literal loopback in dev/test, production URLs HTTPS. Payload key separate canonical32-byte base64; authenticated source/purpose AAD and UTF-8 byte64KiB cap. Task2 source schema/queue next; no auth URL logging behavior changed yet because callback integration is Task5.
 
 - Email Vitest explicitly includes src/**/*.test.ts; TypeScript excludes tests. This prevents stale compiled test outputs duplicating reported coverage.
+
+- Email queue replay identity derives from frozen purpose/source AAD, ignoring alternate caller replay strings. Email schema tests capture original0011–0021/book activation evidence once, then use a disposable database for repeatable global worker claims; no production service fault hooks. Applied0022 remains immutable; source JSON NULL-check gap fixed through additive0023.

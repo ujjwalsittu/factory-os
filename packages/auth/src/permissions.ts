@@ -17,6 +17,7 @@ export const ACTIONS = [
   'manage',
   'configure',
   'correct',
+  'retry',
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -29,6 +30,7 @@ interface ResourceDef {
 
 /** Resources that exist today (Phase 0) plus the core ones the next phases build on. */
 export const RESOURCES = [
+  { module: 'settings', resource: 'email', label: 'Email delivery', actions: ['read', 'retry'] },
   { module:'accounts', resource:'withholding', label:'Withholding and TCS accounting', actions:['read','create','submit','cancel','export','configure','approve','correct'] },
   { module:'accounts', resource:'bank_reconciliation', label:'Bank reconciliation', actions:['read','create','submit','cancel','export','configure','approve'] },
   { module:'accounts', resource:'bank_charge', label:'Bank charges', actions:['read','create','submit','cancel','export'] },

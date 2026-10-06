@@ -18,3 +18,12 @@ describe('bank reconciliation permissions', () => {
     expect(role('stores').filter(p => p.startsWith('accounts.bank_reconciliation.'))).toEqual([]);
   });
 });
+
+describe('email operational permissions',()=>{
+ it('registers read/retry and grants only Owner and Administrator',()=>{
+  for(const action of ['read','retry']){
+   const permission=`settings.email.${action}`;expect(isPermission(permission)).toBe(true);
+   for(const definition of SYSTEM_ROLES)expect((definition.permissions as readonly string[]).includes(permission)).toBe(['owner','administrator'].includes(definition.key));
+  }
+ });
+});

@@ -80,7 +80,7 @@ export const invitation = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('invitation_tenant_idx').on(t.tenantId)],
+  (t) => [index('invitation_tenant_idx').on(t.tenantId), uniqueIndex('invitation_id_tenant_uq').on(t.id, t.tenantId)],
 );
 
 /** Append-only, hash-chained per tenant. Never update or delete rows. */

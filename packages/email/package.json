@@ -19,7 +19,8 @@
   "dependencies": {
     "zod": "^4.6.5",
     "jose": "6.2.12",
-    "@factoryos/db": "workspace:*"
+    "@factoryos/db": "workspace:*",
+    "drizzle-orm": "^0.45.3"
   },
   "exports": {
     ".": {
