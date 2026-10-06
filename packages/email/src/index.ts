@@ -4,3 +4,6 @@ export * from './templates.js';
 export * from './envelope.js';
 export * from './queue.js';
 export * from './retention.js';
+export * from './smtp.js';
+export * from './source.js';
+export * from './worker.js';

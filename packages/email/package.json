@@ -12,15 +12,17 @@
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",
+    "@types/node": "^26.6.4",
+    "@types/nodemailer": "8.0.2",
     "typescript": "^5.9.0",
-    "vitest": "^5.0.3",
-    "@types/node": "^26.6.4"
+    "vitest": "^5.0.3"
   },
   "dependencies": {
-    "zod": "^4.6.5",
-    "jose": "6.2.12",
     "@factoryos/db": "workspace:*",
-    "drizzle-orm": "^0.45.3"
+    "drizzle-orm": "^0.45.3",
+    "jose": "6.2.12",
+    "nodemailer": "10.0.15",
+    "zod": "^4.6.5"
   },
   "exports": {
     ".": {

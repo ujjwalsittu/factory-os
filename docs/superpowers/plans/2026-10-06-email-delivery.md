@@ -105,16 +105,16 @@ assert.equal(disabledResult.delivery.status, "unconfigured");
 **Files:** Create email `smtp/source/worker.ts` and tests; create `apps/worker/src/email-worker.ts`; modify worker entry/package/README; create local SMTP helper and `smoke-email-worker.mjs`.
 **Interfaces:** Produces `createSmtpTransport(config):EmailTransport` and `runEmailOnce`; source validator consumes readonly DB source evidence plus envelope and Better Auth signing secret. Worker entry retains `runSandboxOnce` and `--once` behavior, invokes email work only when explicitly enabled, and stops claims on SIGTERM.
 
-- [ ] Write real local SMTP tests `250_is_accepted`, `450_definite_retry`, `550_permanent_stop`, `disconnect_after_data_unknown`, `accepted_then_db_crash_unknown`, `two_workers_one_send`, `deleted_changed_verified_user_skipped`, `wrong_key_never_sends`. Assertions: capture count1 under two workers; post-DATA unknown is not re-claimed; stale completion returns false; retry delays exactly30/120/600/3600/14400 seconds, sixth retry refused and expiry wins.
+- [x] Write real local SMTP tests `250_is_accepted`, `450_definite_retry`, `550_permanent_stop`, `disconnect_after_data_unknown`, `accepted_then_db_crash_unknown`, `two_workers_one_send`, `deleted_changed_verified_user_skipped`, `wrong_key_never_sends`. Assertions: capture count1 under two workers; post-DATA unknown is not re-claimed; stale completion returns false; retry delays exactly30/120/600/3600/14400 seconds, sixth retry refused and expiry wins.
 ```ts
 assert.equal(afterLostDataAck.status, "unknown");
 assert.equal(capturedMessages.length, 1);
 assert.equal(await finishEmail(db, staleClaim, {kind:"accepted"}, now), false);
 ```
 
-- [ ] Run tests; observe missing transport/worker RED. Synthetic fixture SMTP listens only on loopback; no real service hostname/recipient is used.
-- [ ] Install reviewed pinned Nodemailer/type dependencies in email package and use strict TLS. Classify definite SMTP rejection separately from socket/protocol loss after DATA; default ambiguous outcomes to unknown. Persist dispatch-start before network; source recheck before it; never hold queue transaction during send. Validate reset verification identifier/value/expiry from decrypted URL, verification JWT using JOSE with the actual library signature/algorithm contract pinned by a real Better Auth token test, and scoped invitation/tenant status. Worker lease recovery after dispatch-start never resends. Purge envelopes on terminal safe transitions; configuration/key failure never prints exception content. Heartbeat has no secrets. Keep mock sandbox behavior intact.
-- [ ] Run SMTP/worker/schema fixtures and existing sandbox lease recovery tests. Verify two actual PostgreSQL claim contenders, interruption/fencing and shutdown without duplicate send. Commit `Deliver queued email through fenced SMTP worker`.
+- [x] Run tests; observe missing transport/worker RED. Synthetic fixture SMTP listens only on loopback; no real service hostname/recipient is used.
+- [x] Install reviewed pinned Nodemailer/type dependencies in email package and use strict TLS. Classify definite SMTP rejection separately from socket/protocol loss after DATA; default ambiguous outcomes to unknown. Persist dispatch-start before network; source recheck before it; never hold queue transaction during send. Validate reset verification identifier/value/expiry from decrypted URL, verification JWT using JOSE with the actual library signature/algorithm contract pinned by a real Better Auth token test, and scoped invitation/tenant status. Worker lease recovery after dispatch-start never resends. Purge envelopes on terminal safe transitions; configuration/key failure never prints exception content. Heartbeat has no secrets. Keep mock sandbox behavior intact.
+- [x] Run SMTP/worker/schema fixtures and existing sandbox lease recovery tests. Verify two actual PostgreSQL claim contenders, interruption/fencing and shutdown without duplicate send. Commit `Deliver queued email through fenced SMTP worker`.
 
 ## Task5: Better Auth callbacks, privacy and cooldown
 

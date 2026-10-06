@@ -18,6 +18,7 @@
   "dependencies": {
     "@factoryos/db": "workspace:*",
     "@factoryos/gsp": "workspace:*",
-    "drizzle-orm": "^0.45.3"
+    "drizzle-orm": "^0.45.3",
+    "@factoryos/email": "workspace:*"
   }
 }
