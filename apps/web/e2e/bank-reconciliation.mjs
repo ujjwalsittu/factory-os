@@ -162,7 +162,14 @@ try {
   await page.getByRole('button',{name:'Review dated report',exact:true}).click();await page.getByText('Complete statement coverage',{exact:true}).waitFor();await L('I reviewed the remaining uncleared book items').check();assert.equal(await page.getByRole('button',{name:'Approve period',exact:true}).isDisabled(),true,'Opposite unresolved bank rows cannot silently offset');
   await openException('EX-FEE');await page.getByRole('link',{name:'Record linked bank charge',exact:true}).click();
   assert.equal(await L('Bank account').isDisabled(),true);assert.equal(await L('Posting date').isDisabled(),true);assert.equal(await L('Base charge').inputValue(),'25.000000');
+  let releaseSourceRefresh,sourceRefreshArrived;const sourceRefreshHeld=new Promise(r=>releaseSourceRefresh=r),sourceRefreshReceived=new Promise(r=>sourceRefreshArrived=r);
+  const delaySourceRefresh=async route=>{if(route.request().method()!=='GET')return route.continue();const response=await route.fetch();sourceRefreshArrived();await sourceRefreshHeld;await route.fulfill({response});};
+  await page.route('**/api/accounts/bank-reconciliation/profiles/*/matches',delaySourceRefresh);
   await page.getByRole('button',{name:'Review charge',exact:true}).click();await page.getByText('Bank debit: ₹25.00',{exact:true}).waitFor();await page.getByRole('button',{name:'Post bank charge',exact:true}).click();await page.waitForURL('**/app/accounts/bank-reconciliation');
+  await sourceRefreshReceived;await page.getByRole('row').filter({has:page.getByText('EX-INTEREST',{exact:true})}).getByRole('button',{name:'Review exception',exact:true}).click();
+  const refreshedSource=page.waitForResponse(r=>r.url().endsWith('/matches')&&r.request().method()==='GET');
+  try{assert.equal(await page.getByRole('button',{name:'Review exception source',exact:true}).isDisabled(),true,'Exception review waits for current book revision after returning from a source');}finally{releaseSourceRefresh();}
+  await refreshedSource;await page.unroute('**/api/accounts/bank-reconciliation/profiles/*/matches',delaySourceRefresh);
   await openException('EX-INTEREST');await page.getByRole('link',{name:'Create linked journal',exact:true}).click();
   await L('Narration').fill('Browser linked interest evidence');await L('Account 2').selectOption(equity.id);await L('Credit 2').fill('25');
   await page.getByRole('button',{name:'Save draft',exact:true}).click();await page.waitForURL(url=>/\/app\/accounts\/journals\/[0-9a-f-]{36}$/.test(url.pathname));
