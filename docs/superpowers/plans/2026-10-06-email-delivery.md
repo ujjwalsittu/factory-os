@@ -152,15 +152,15 @@ assert.equal(new URL(page.url()).searchParams.has("token"), false); // after con
 **Files:** Modify users/platform pages; create `components/email/delivery-table.tsx`, `lib/email.ts`, `/platform/email/page.tsx`; add existing platform navigation link; create `e2e/email-delivery.mjs`.
 **Interfaces:** Consumes Task3 DeliveryView APIs and existing workspace scope. UI statuses distinguish accepted from delivered and unknown from definite failure; renewal returns only the existing authorized one-time invitation URL.
 
-- [ ] Write browser tests `tenant_delivery_scope`, `support_cannot_manage_mail`, `renewal_permission_change`, `late_response_after_tenant_switch`, `unconfigured_manual_invite`, `failed_retry_unknown_renew`. Assert a global reset recipient/action URL never appears in tenant diagnostics and lower roles cannot retry by direct API.
+- [x] Write browser tests `tenant_delivery_scope`, `support_cannot_manage_mail`, `renewal_permission_change`, `late_response_after_tenant_switch`, `unconfigured_manual_invite`, `failed_retry_unknown_renew`. Assert a global reset recipient/action URL never appears in tenant diagnostics and lower roles cannot retry by direct API.
 ```js
 assert.equal(tenantDeliveryJson.includes(resetTokenCanary), false);
 assert.equal(restrictedRetryResponse.status(), 403);
 ```
 
-- [ ] Run fixture; observe absent delivery metadata/route RED.
-- [ ] Add scoped status/time/failure and reasoned retry/renew actions. Query keys include tenant and authenticated user identity; late responses cannot restore old-scope actions. Server dictates allowed recovery; unknown never offers blind Retry. Platform view masks auth recipient and shows worker/config health without SMTP server secrets. Preserve existing one-time copy invitation links and platform tenant creation UI; no new credential editor or mass-send action.
-- [ ] Run new production fixture and existing users/platform/auth browsers; verify mobile and inaccessible action boundaries. Commit `Expose scoped email status and safe invitation recovery`.
+- [x] Run fixture; observe absent delivery metadata/route RED.
+- [x] Add scoped status/time/failure and reasoned retry/renew actions. Query keys include tenant and authenticated user identity; late responses cannot restore old-scope actions. Server dictates allowed recovery; unknown never offers blind Retry. Platform view masks auth recipient and shows worker/config health without SMTP server secrets. Preserve existing one-time copy invitation links and platform tenant creation UI; no new credential editor or mass-send action.
+- [x] Run new production fixture and existing users/platform/auth browsers; verify mobile and inaccessible action boundaries. Commit `Expose scoped email status and safe invitation recovery`.
 
 ## Task8: Concurrency, invariance, final review and delivery
 

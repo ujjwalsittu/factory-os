@@ -63,6 +63,7 @@ export default function PlatformPage() {
               <ArrowLeft className="size-3.5" /> Back to app
             </Link>
           )}
+          <Link href="/platform/email" className={buttonClass('ghost','sm')}>Email delivery</Link>
           <ThemeToggle />
         </div>
       </header>

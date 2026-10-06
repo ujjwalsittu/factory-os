@@ -21,7 +21,7 @@ export interface EnqueueEmail{purpose:EmailPurpose;source:EmailSource;sourceExpi
 export type EmailOutcome={kind:'accepted';remoteId?:string}|{kind:'temporary'|'permanent'|'unknown';code:string};
 export interface EmailTransport{send(envelope:EmailEnvelope,messageId:string):Promise<EmailOutcome>}
 export interface EmailClaim{deliveryId:string;leaseToken:string;attemptId:string;input:EnqueueEmail;cipher:CipherEnvelope;retryCount:number}
-export interface DeliveryView{id:string;purpose:EmailPurpose;status:EmailStatus;recipient:string;createdAt:string;lastAttemptAt:string|null;nextAttemptAt:string|null;errorCode:string|null;invitationId:string|null}
+export interface DeliveryView{id:string;purpose:EmailPurpose;status:EmailStatus;recipient:string;createdAt:string;lastAttemptAt:string|null;nextAttemptAt:string|null;errorCode:string|null;invitationId:string|null;canRetry:boolean;canRenew:boolean}
 const codes=new Set(['auth_refused','recipient_refused','temporary_refusal','config_unavailable','key_unavailable','transport_timeout','transport_unknown','source_expired','source_cancelled','source_superseded','lease_expired']);
 /** Never preserve provider response text, objects or recipient-bearing IDs. */
 export function redactEmailOutcome(value:unknown):EmailOutcome{

@@ -7,12 +7,16 @@ import { useState } from 'react';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
+import {authClient} from '@/lib/auth-client';
+import {DeliveryTable} from '@/components/email/delivery-table';
 import { formatDate, initials } from '@/lib/format';
 import type { Invitation, Member, Role } from '@/lib/types';
 
 type Assignment = { roleId: string; entityIds: string[] | null };
 
-export default function UsersPage() {
+export default function UsersPage(){const ws=useWorkspace(),session=authClient.useSession();if(!session.data?.user||session.data.user.id!==ws.me.user.id)return null;return <UsersContent key={`${session.data.user.id}:${ws.tenantId}`}/>;}
+
+function UsersContent() {
   const ws = useWorkspace();
   const qc = useQueryClient();
   const params = useSearchParams();
@@ -21,9 +25,9 @@ export default function UsersPage() {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const scope = ws.tenantScope;
 
-  const members = useQuery({ queryKey: ['members', ws.tenantId], queryFn: () => api<Member[]>('/members', { scope }) });
-  const invites = useQuery({ queryKey: ['invitations', ws.tenantId], queryFn: () => api<Invitation[]>('/invitations', { scope }) });
-  const roles = useQuery({ queryKey: ['roles', ws.tenantId], queryFn: () => api<Role[]>('/roles', { scope }), enabled: ws.canTenant('settings.role.read') });
+  const members = useQuery({ queryKey: ['members', ws.tenantId,ws.me.user.id], queryFn: () => api<Member[]>('/members', { scope }) });
+  const invites = useQuery({ queryKey: ['invitations', ws.tenantId,ws.me.user.id], queryFn: () => api<Invitation[]>('/invitations', { scope }) });
+  const roles = useQuery({ queryKey: ['roles', ws.tenantId,ws.me.user.id], queryFn: () => api<Role[]>('/roles', { scope }), enabled: ws.canTenant('settings.role.read') });
 
   const setStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api(`/members/${id}`, { method: 'PATCH', body: { status }, scope }),
@@ -31,7 +35,7 @@ export default function UsersPage() {
   });
   const revoke = useMutation({
     mutationFn: (id: string) => api(`/invitations/${id}`, { method: 'DELETE', scope }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['invitations'] }),
+    onSuccess: () => {void qc.invalidateQueries({queryKey:['invitations']});void qc.invalidateQueries({queryKey:['email-deliveries']});},
   });
 
   const entityName = (id: string) => ws.tenantCtx.entities.find((e) => e.id === id)?.shortName ?? 'Unknown';
@@ -55,7 +59,7 @@ export default function UsersPage() {
 
       {inviteUrl && (
         <Alert tone="success" title="Invitation created" className="mb-4">
-          Email delivery arrives in Phase 1. Until then, send this link to the person:
+          Delivery status is shown below. You can also copy this one-time invitation link:
           <div className="mt-2 flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded bg-surface px-2 py-1 font-mono text-[12px] text-fg">{inviteUrl}</code>
             <Button size="sm" variant="secondary" onClick={() => navigator.clipboard.writeText(inviteUrl)}>
@@ -156,6 +160,8 @@ export default function UsersPage() {
         </Card>
       )}
 
+      {ws.canTenant('settings.email.read')&&<DeliveryTable userId={ws.me.user.id} tenantId={ws.tenantId}/>}
+
       {inviting && roles.data && (
         <InviteDialog
           roles={roles.data}
@@ -179,7 +185,7 @@ function InviteDialog({ roles, onClose, onCreated }: { roles: Role[]; onClose: (
   const m = useMutation({
     mutationFn: () => api<{ inviteUrl: string }>('/invitations', { method: 'POST', body: { email, roles: assignments }, scope: ws.tenantScope }),
     onSuccess: (r) => {
-      void qc.invalidateQueries({ queryKey: ['invitations'] });
+      void qc.invalidateQueries({ queryKey: ['invitations'] });void qc.invalidateQueries({queryKey:['email-deliveries']});
       onCreated(r.inviteUrl);
     },
   });

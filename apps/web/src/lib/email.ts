@@ -1,0 +1,3 @@
+export interface DeliveryView{id:string;purpose:string;status:string;recipient:string;createdAt:string;lastAttemptAt:string|null;nextAttemptAt:string|null;errorCode:string|null;invitationId:string|null;canRetry:boolean;canRenew:boolean;tenantId?:string|null}
+export const emailStatusLabel:Record<string,string>={unconfigured:'Unconfigured',queued:'Queued',dispatching:'Dispatching',retry_scheduled:'Retry scheduled',accepted:'Accepted by SMTP',failed:'Failed',unknown:'Acceptance unknown',expired:'Expired',cancelled:'Cancelled',superseded:'Superseded'};
+export interface EmailHealth{mode:string;workerEnabled:boolean;authEnqueueFailures:number;workers:{id:string;lastSeenAt:string;configurationState:string}[]}
