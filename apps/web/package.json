@@ -15,7 +15,8 @@
     "e2e:selling": "node e2e/selling.mjs",
     "e2e:imports": "node e2e/imports.mjs",
     "e2e:accounting": "node e2e/accounting.mjs",
-    "e2e:settlements": "node e2e/settlements.mjs"
+    "e2e:settlements": "node e2e/settlements.mjs",
+    "e2e:bank-charges": "node e2e/bank-charges.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",

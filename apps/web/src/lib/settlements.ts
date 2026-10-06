@@ -1,6 +1,13 @@
 // AR/AP settlements (decision 036). Mirrors the API types; all money is decimal strings, arithmetic stays on the server.
 import type { DocStatus } from './types';
 
+export interface BankChargeInput {
+  postingDate: string; bankAccountId: string; expenseAccountId: string; baseAmount: string;
+  gst: {cgst: string; sgst: string; igst: string; cess: string};
+  reference: string; evidence: {document: string; reason: string}; itcEligible: boolean;
+  gstInvoice?: {number: string; date: string; supplierGstin: string; registrationId: string; reason: string};
+}
+
 export type Direction = 'receipt' | 'payment';
 export type TradeSide = 'receivable' | 'payable';
 export const sideOf = (d: Direction): TradeSide => (d === 'receipt' ? 'receivable' : 'payable');
@@ -31,6 +38,7 @@ export interface AllocationDraft {
   amount: string;
 }
 export interface SettlementInput {
+  charge?: BankChargeInput;
   direction: Direction;
   partyId: string;
   postingDate: string;
@@ -43,6 +51,8 @@ export interface SettlementInput {
   allocations: AllocationDraft[];
 }
 export interface SettlementPreview {
+  bankMovement?: string;
+  chargeTotal?: string;
   amount: string;
   allocated: string;
   unapplied: string;
@@ -54,6 +64,9 @@ export interface SettlementPreview {
 }
 export interface Settlement extends Omit<SettlementInput, 'allocations'> {
   id: string;
+  bankCharge?: string;
+  bankMovement?: string;
+  componentSnapshot?: {charge?: BankChargeInput} | null;
   number: string | null;
   status: DocStatus;
   partyName: string;

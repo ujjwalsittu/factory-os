@@ -9,7 +9,7 @@ import { api } from '@/lib/api';
 import type { Account, AccountGroup } from '@/lib/accounting';
 import { CURRENCIES, errorText } from '@/lib/buying';
 import { formatAmount, formatDate, formatDateTime, formatMoney, today } from '@/lib/format';
-import { type BillBalance, type Direction, DIRECTION_LABEL, type Settlement, type SettlementPreview, sideOf } from '@/lib/settlements';
+import { type BankChargeInput, type BillBalance, type Direction, DIRECTION_LABEL, type Settlement, type SettlementPreview, sideOf } from '@/lib/settlements';
 import { STATUS_TONE } from '@/lib/stock';
 import type { Party } from '@/lib/types';
 import { fieldErrors, FormDialog } from './form-dialog';
@@ -51,6 +51,12 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
   const direction = settlement?.direction ?? initialDirection;
   const side = sideOf(direction);
   const cash = useCashAccounts();
+  const expenseAccounts = useQuery({queryKey:['accounts',ws.tenantId,ws.entityId],queryFn:()=>api<Account[]>('/accounts/accounts',{scope:ws.scope}),enabled:ws.can('accounts.bank_charge.read')});
+  const chargeGroups = useQuery({queryKey:['account-groups',ws.tenantId,ws.entityId],queryFn:()=>api<AccountGroup[]>('/accounts/groups',{scope:ws.scope}),enabled:ws.can('accounts.bank_charge.read')});
+  const initialCharge=settlement?.componentSnapshot?.charge;
+  const [withCharge,setWithCharge]=useState(!!initialCharge);
+  const [charge,setCharge]=useState<BankChargeInput>(()=>initialCharge??{postingDate:today(),bankAccountId:'',expenseAccountId:'',baseAmount:'0',gst:{cgst:'0',sgst:'0',igst:'0',cess:'0'},reference:'',evidence:{document:'',reason:''},itcEligible:false});
+  useEffect(()=>{if(expenseAccounts.data)setCharge(old=>({...old,expenseAccountId:old.expenseAccountId||expenseAccounts.data.find(a=>a.role==='bank_charges')?.id||''}));},[expenseAccounts.data]);
   const parties = useQuery({
     queryKey: ['parties', ws.tenantId, '', direction === 'receipt' ? 'customer' : 'supplier'],
     queryFn: () => api<Party[]>(`/parties?role=${direction === 'receipt' ? 'customer' : 'supplier'}&limit=500`, { scope: ws.scope }),
@@ -97,6 +103,7 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
     bankReference: h.bankReference.trim() || null,
     narration: h.narration.trim() || null,
     allocations,
+    ...(withCharge?{charge:{...charge,postingDate:h.postingDate,bankAccountId:h.accountId}}:{}),
   });
   const body = useDebounced(JSON.stringify(payload()));
   const preview = useQuery({
@@ -109,7 +116,7 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
         const b = JSON.parse(body) as ReturnType<typeof payload>;
         return !!b.partyId && !!b.accountId && isMoney(b.amount) && (b.currency === 'INR' || /^\d+(\.\d+)?$/.test(b.exchangeRate)) && b.allocations.every((a) => isMoney(a.amount));
       })(),
-    placeholderData: (prev) => prev,
+
     retry: false,
   });
 
@@ -141,6 +148,7 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
     },
     onSuccess: (id, andSubmit) => {
       void qc.invalidateQueries({ queryKey: ['settlements'] });
+      void qc.invalidateQueries({ queryKey: ['bank-charges',ws.tenantId,ws.entityId] });
       void qc.invalidateQueries({ queryKey: ['settlement', id] });
       void qc.invalidateQueries({ queryKey: ['open-bills'] });
       void qc.invalidateQueries({ queryKey: ['outstanding'] });
@@ -158,7 +166,10 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
     onError: (e) => setError(errorText(e)),
   });
 
-  const p = preview.data;
+  const previewCurrent = body===JSON.stringify(payload());
+  const p = previewCurrent ? preview.data : undefined;
+  const fee=settlement?.bankCharge??'0';
+  const hasPostedCharge=/[1-9]/.test(fee);
   const fx = p ? Number(p.forexInr) : 0;
   const cur = h.currency;
   const label = DIRECTION_LABEL[direction];
@@ -199,11 +210,11 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
             </Button>
           )}
           {editable && ws.can('accounts.settlement.submit') && (
-            <Button onClick={() => save.mutate(true)} loading={save.isPending && save.variables === true} disabled={preview.isFetching}>
+            <Button onClick={() => save.mutate(true)} loading={save.isPending && save.variables === true} disabled={preview.isFetching||!previewCurrent||!preview.data||!!preview.error||(withCharge&&!ws.can('accounts.bank_charge.submit'))}>
               <Send className="size-4" /> Submit
             </Button>
           )}
-          {settlement?.status === 'submitted' && ws.can('accounts.settlement.cancel') && (
+          {settlement?.status === 'submitted' && ws.can('accounts.settlement.cancel') && (!hasPostedCharge||ws.can('accounts.bank_charge.cancel')) && (
             <Button variant="secondary" onClick={() => setCancelling(true)}>
               <Ban className="size-4" /> Cancel
             </Button>
@@ -221,7 +232,7 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
           {settlement.cancelReason} · The bills it settled are open again.
         </Alert>
       )}
-      {editable && <Alert tone="info">The amount is the gross money that moved through the bank or cash account. Bank charges and TDS are recorded separately as journals for now.</Alert>}
+      {editable && <Alert tone="info">Amount is the principal used to settle bills or hold on account. A linked bank charge reduces a receipt’s bank credit or increases a payment’s bank debit. Automatic TDS/TCS remains unavailable pending verified profiles.</Alert>}
 
       <Card className="p-5">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -271,6 +282,21 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
           </Field>
         </div>
       </Card>
+
+      {editable && ws.can('accounts.bank_charge.create') && <Card className="p-5 space-y-4">
+        <Field label="Add bank charge">{f=><Input {...f} type="checkbox" checked={withCharge} onChange={e=>setWithCharge(e.target.checked)}/>}</Field>
+        {withCharge&&<><p className="text-sm text-muted">INR bank fees only. GST stays in expense unless a qualifying invoice has been separately reviewed by Finance.</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Bank charge amount">{f=><Input {...f} inputMode="decimal" value={charge.baseAmount} onChange={e=>setCharge({...charge,baseAmount:e.target.value})}/>}</Field>
+            <Field label="Bank charge expense account">{f=><Select {...f} value={charge.expenseAccountId} onChange={e=>setCharge({...charge,expenseAccountId:e.target.value})}><option value="">Choose expense</option>{expenseAccounts.data?.filter(a=>a.isActive&&chargeGroups.data?.find(g=>g.id===a.groupId)?.root==='expense').map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</Select>}</Field>
+            {(['cgst','sgst','igst','cess'] as const).map(kind=><Field key={kind} label={`Bank charge ${kind.toUpperCase()}`}>{f=><Input {...f} inputMode="decimal" value={charge.gst[kind]} onChange={e=>setCharge({...charge,gst:{...charge.gst,[kind]:e.target.value}})}/>}</Field>)}
+            <Field label="Bank charge reference">{f=><Input {...f} value={charge.reference} onChange={e=>setCharge({...charge,reference:e.target.value})}/>}</Field>
+            <Field label="Bank charge document">{f=><Input {...f} value={charge.evidence.document} onChange={e=>setCharge({...charge,evidence:{...charge.evidence,document:e.target.value}})}/>}</Field>
+            <Field label="Bank charge reason">{f=><Input {...f} value={charge.evidence.reason} onChange={e=>setCharge({...charge,evidence:{...charge.evidence,reason:e.target.value}})}/>}</Field>
+          </div>
+          {charge.gstInvoice&&<Alert tone="info">This draft includes Finance-reviewed GST invoice {charge.gstInvoice.number}. Its invoice evidence is retained.</Alert>}
+        </>}
+      </Card>}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <Card className="self-start">
@@ -345,7 +371,8 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
             {editable && preview.error ? <p className="text-danger">{errorText(preview.error)}</p> : null}
             {p || !editable ? (
               <>
-                <Row label="Amount" v={formatAmount(p?.amount ?? settlement!.amount, cur)} />
+                <Row label="Principal" v={formatAmount(p?.amount ?? settlement!.amount, cur)} />
+                {(withCharge||hasPostedCharge)&&<><Row label="Bank charge" v={formatMoney(p?.chargeTotal??fee)} /><Row label={direction==='receipt'?'Net received into bank':'Total paid from bank'} v={formatMoney(p?.bankMovement??settlement?.bankMovement??'0')} strong /></>}
                 <Row label="Allocated to bills" v={formatAmount(p?.allocated ?? settlement!.allocated ?? '0', cur)} />
                 <Row label="Held on account" v={formatAmount(p?.unapplied ?? settlement?.advance?.originalAmount ?? '0', cur)} />
                 {p && cur !== 'INR' && <Row label="Cash in ₹" v={formatMoney(p.cashInr)} />}
