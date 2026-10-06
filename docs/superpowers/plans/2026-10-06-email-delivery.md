@@ -57,17 +57,17 @@ Shared types (defined Task1):
 **Files:** Create shared package files, `contracts/config/envelope/templates/index.ts`, tests; modify `.env.example` and API/worker package dependencies only where consumed. No network transport installed/invoked yet.
 **Interfaces:** Produces shared types above; `loadEmailConfig(env:NodeJS.ProcessEnv):EmailConfig`, `sealEmail(input, key, aad):CipherEnvelope`, `openEmail(cipher,key,aad):EmailEnvelope`, `renderEmail(purpose,input:{actionUrl,recipient,tenantName?,sender,replyTo?}):EmailEnvelope`.
 
-- [ ] Create only the email package manifest/tsconfig/test harness following the existing package pattern, install its required Zod/JOSE/test dependencies through pinned pnpm, and verify Vitest actually discovers the new tests. This setup is part of Task1 after plan approval, not an unexplained product-code test pass.
-- [ ] Write tests `config_partial_credentials`, `plaintext_only_loopback_test`, `aad_wrong_key_refused`, `unicode_html_header_safety`, `url_origin_path_binding`, `redacted_outcome_codes`. Assertions: wrong key/AAD throws; hostile HTML escaped; CR/LF sender/subject refused; disabled permits absent secrets; production plaintext and foreign action origins refuse.
+- [x] Create only the email package manifest/tsconfig/test harness following the existing package pattern, install its required Zod/JOSE/test dependencies through pinned pnpm, and verify Vitest actually discovers the new tests. This setup is part of Task1 after plan approval, not an unexplained product-code test pass.
+- [x] Write tests `config_partial_credentials`, `plaintext_only_loopback_test`, `aad_wrong_key_refused`, `unicode_html_header_safety`, `url_origin_path_binding`, `redacted_outcome_codes`. Assertions: wrong key/AAD throws; hostile HTML escaped; CR/LF sender/subject refused; disabled permits absent secrets; production plaintext and foreign action origins refuse.
 ```ts
 assert.throws(() => openEmail(cipher, wrongKey, aad));
 assert.throws(() => loadEmailConfig({...productionEnv, SMTP_TLS:"plaintext-loopback-test"}));
 ```
 
-- [ ] Run `pnpm --filter @factoryos/email test`; observe missing contracts/exports RED, not a dependency-install failure.
-- [ ] Implement strict schemas and AES-256-GCM with random IV and canonical AAD. Config names: EMAIL_MODE(default disabled), SMTP_HOST/PORT/TLS/USER/PASSWORD, EMAIL_FROM_ADDRESS/NAME, EMAIL_REPLY_TO, EMAIL_PAYLOAD_KEY_V1, EMAIL_WORKER_ENABLED(default false). Add only a loopback-test plaintext TLS choice, rejected in production. URLs must match configured auth/web origins and exact reset/verification/invite paths. Names/subjects bounded200 characters; envelope bounded64KiB. MIME encoding must preserve Unicode, never strip/replace a recipient or action token. Freeze plain text and escaped HTML at template v1.
-- [ ] Run package tests/build/typecheck; verify all named tests pass. Do not manufacture credentials or sender-domain verification.
-- [ ] Commit `Define secure transactional email contracts and templates`.
+- [x] Run `pnpm --filter @factoryos/email test`; observe missing contracts/exports RED, not a dependency-install failure.
+- [x] Implement strict schemas and AES-256-GCM with random IV and canonical AAD. Config names: EMAIL_MODE(default disabled), SMTP_HOST/PORT/TLS/USER/PASSWORD, EMAIL_FROM_ADDRESS/NAME, EMAIL_REPLY_TO, EMAIL_PAYLOAD_KEY_V1, EMAIL_WORKER_ENABLED(default false). Add only a loopback-test plaintext TLS choice, rejected in production. URLs must match configured auth/web origins and exact reset/verification/invite paths. Names/subjects bounded200 characters; envelope bounded64KiB. MIME encoding must preserve Unicode, never strip/replace a recipient or action token. Freeze plain text and escaped HTML at template v1.
+- [x] Run package tests/build/typecheck; verify all named tests pass. Do not manufacture credentials or sender-domain verification.
+- [x] Commit `Define secure transactional email contracts and templates`.
 
 ## Task2: Scoped queue, state transitions and permissions
 
@@ -180,3 +180,5 @@ Coverage: configuration/encryption/templates1; scoped immutable evidence/auth2; 
 Interfaces: shared source/outcome/envelope types precede schema/consumers; generic email package never imports AUTH or API, so auth injection is acyclic. Framework token evidence does not block Better Auth deletion. Network activity remains outside DB transactions. Disabled envelopes cannot turn into scheduled live sends. Platform helper preserves self-service behavior. Lifecycle/data/model choices are within accepted042; no SSO/passkey/RLS expansion.
 
 This plan is ready for written review. Implementation has not started; no dependencies installed, migration applied, secret created or email sent while writing it. On plan approval, claim product work and execute Task1 inline with the preserved Native/default-branch method.
+
+Task1 checkpoint2026-10-06: shared email contracts/configuration/envelopes/templates implemented,27 pure tests pass after missing-export RED25 failures (two generic negative assertions subsequently tightened). Root build12/typecheck18/153 uncached unit tests PASS; lint0. No transport or auth/invitation integration yet. Continue Task2 under the existing claim.
