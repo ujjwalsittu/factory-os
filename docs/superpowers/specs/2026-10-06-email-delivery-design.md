@@ -6,7 +6,7 @@ Date: 2026-10-06 (Asia/Kolkata). Status: Proposed; written review required befor
 
 The user requested the remaining foundation work after accounting: email delivery, SSO, passkeys, impersonation and PostgreSQL RLS. This first independent slice makes account recovery, optional address verification, tenant invitations and platform-created owner invitations usable through email. Success means these existing workflows produce durable delivery requests, expose appropriate operational status, preserve source permissions and do not publish login tokens in logs.
 
-Confirmed constraints: configurable behavior, existing shared implementation retained, ordinary default-branch commits/pushes, no deployment or shared-book activation. Recommended assumption pending provider reply: configurable SMTP first, locally verified with a synthetic SMTP mailbox; production sender/service selected separately. No SMTP/API credentials are currently present in the process or ignored local configuration; values were not displayed.
+Confirmed constraints: configurable behavior, existing shared implementation retained, ordinary default-branch commits/pushes, no deployment or shared-book activation. User selected an existing SMTP service for the first adapter. Local verification uses a synthetic SMTP mailbox; exact production sender/service configuration follows separately. No SMTP/API credentials are currently present in the process or ignored local configuration; values were not displayed.
 
 Existing code: `apps/api/src/auth.ts` logs reset URLs; `members.controller.ts` returns copyable invitation URLs; `platform.controller.ts` creates a tenant and owner invitation in separate transactions; `tenancy.service.ts` hashes invitation tokens and gives them seven-day expiry. Sign-in has no reset page. `user.emailVerified` exists but verification delivery is not configured. The installed Better Auth 1.7.7 exposes reset and verification callbacks; its reset token is stored before invoking the callback, while verification uses an expiring signed token. Documentation claiming verification is already delivered is ahead of the code.
 
@@ -18,7 +18,7 @@ Included: fixed plain-text/HTML templates, durable queue and leased worker, SMTP
 2. **Direct SMTP from request handlers.** Less infrastructure, but slow/failing mail blocks requests and commit/network ordering can lose messages or send rolled-back invitations.
 3. **Durable outbox plus a managed HTTP email API.** Similar reliability, with provider-specific idempotency/status/webhook opportunities; requires selecting a vendor, credentials and billing. Preserve a transport boundary so this can be added through a separately reviewed adapter.
 
-No provider account or paid service is created by this design. SMTP is a proposed first adapter, not an inferred production-provider approval.
+No provider account or paid service is created by this design. SMTP is the selected first adapter; exact production credentials and sender configuration remain separate.
 
 ## Configuration and ownership
 
@@ -75,4 +75,4 @@ Invitation lists add delivery status/time/redacted failure category. New `settin
 
 ## Review and next stage
 
-This is one architectural slice with a provider reply still welcome. Self-review: source ownership, callback transaction limits, scope, ambiguous SMTP acceptance, encrypted retention, manual compatibility and verification enforcement are explicit; no placeholder provider credentials or guessed acceptance claim. Written-spec approval permits writing the implementation plan only. The existing Native/default-branch preference remains; no execution-method question is needed.
+This is one architectural slice; the user selected existing SMTP delivery. Self-review: source ownership, callback transaction limits, scope, ambiguous SMTP acceptance, encrypted retention, manual compatibility and verification enforcement are explicit; no placeholder provider credentials or guessed acceptance claim. Written-spec approval permits writing the implementation plan only. The existing Native/default-branch preference remains; no execution-method question is needed.
