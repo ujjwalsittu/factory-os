@@ -94,4 +94,6 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 
 2026-10-06 · agent · Claim user-approved eight-task email delivery implementation alone before product code. Native/default branch retained; Task1 secure contracts/config/envelopes/templates begins after normal claim push. No live SMTP send/deployment or shared activation.
 
-2026-10-06 · agent · Email Task1: new server-only package with strict disabled/SMTP validation, canonical scoped AES-GCM envelopes, fixed Unicode-safe templates, source/callback URL binding and redacted outcomes. Missing exports RED25 then27 tests GREEN; root build12/typecheck18/153 uncached units PASS, lint0. Config names documented without values; no SMTP transport/auth integration/live send. Next Task2 scoped schema/queue/permissions.
+2026-10-06 · agent · Email Task1: new server-only package with strict disabled/SMTP validation, canonical scoped AES-GCM envelopes, fixed Unicode-safe templates, source/callback URL binding and redacted outcomes. Missing exports RED25 then27 tests GREEN; root build12/typecheck18/153 unique uncached units PASS, lint0. Config names documented without values; no SMTP transport/auth integration/live send. Next Task2 scoped schema/queue/permissions.
+
+2026-10-06 · agent · Correct email test discovery to source-only and exclude tests from build. Initial post-build root run executed180 cases including27 compiled duplicates; corrected run executes153 unique cases (email27). Email build/typecheck pass. Continue Task2 scoped queue.
