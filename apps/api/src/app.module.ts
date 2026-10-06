@@ -1,3 +1,4 @@
+import { BankImportService } from './modules/bank-reconciliation/import.service.js';
 import { BankReconciliationController } from './modules/bank-reconciliation/bank-reconciliation.controller.js';
 import { BankRegistryService } from './modules/bank-reconciliation/registry.service.js';
 import { BankReconciliationGuard } from './modules/accounting/bank-reconciliation-guard.service.js';
@@ -58,7 +59,7 @@ import { WasteController } from './modules/waste.controller.js';
 
 @Module({
   controllers: [BankReconciliationController,BankChargesController,WithholdingController,GstSandboxController,SupplierReturnsController,SalesNotesController,InvoiceBalancesController, AccountingReportsController, AccountingController, SettlementsController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
-  providers: [BankRegistryService,BankReconciliationGuard,BankChargeService,TaxPolicyService,SandboxConnectionsService,SandboxOperationsService,SandboxSourceService,SupplierReturnResolutionService,SupplierNoteService,SupplierNotePreviewService,SupplierNotePostingService,SupplierCreditApplicationService,SupplierReturnMovementService,SupplierReturnPolicyService,SupplierReturnClaimService,SalesNoteService, SalesReturnService, CreditApplicationService, SalesNotePostingService, SalesNotePreviewService,
+  providers: [BankImportService,BankRegistryService,BankReconciliationGuard,BankChargeService,TaxPolicyService,SandboxConnectionsService,SandboxOperationsService,SandboxSourceService,SupplierReturnResolutionService,SupplierNoteService,SupplierNotePreviewService,SupplierNotePostingService,SupplierCreditApplicationService,SupplierReturnMovementService,SupplierReturnPolicyService,SupplierReturnClaimService,SalesNoteService, SalesReturnService, CreditApplicationService, SalesNotePostingService, SalesNotePreviewService,
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: DB, inject: [CONFIG], useFactory: (c: AppConfig) => createDb(c.DATABASE_URL) },
     { provide: AUTH, inject: [DB, CONFIG], useFactory: (db: Database, c: AppConfig) => createAuth(db, c) },

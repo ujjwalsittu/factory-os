@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import {createDb} from '../../../packages/db/dist/index.js';
+import { Client } from './accounting-test-helpers.mjs';
+const c=await new Client().init('Bank reconciliation CSV imports');
+await c.activate();
+const day=(offset)=>{const d=new Date(`${c.settings.cutoverDate}T00:00:00Z`);d.setUTCDate(d.getUTCDate()+offset);return d.toISOString().slice(0,10);};
+const base='/accounts/bank-reconciliation/profiles';
+const mapping={delimiter:',',skipRows:0,dateFormat:'YYYY-MM-DD',dateColumn:'Date',referenceColumn:'Ref',descriptionColumn:'Description',transactionIdColumn:'Txn',amount:{mode:'signed',column:'Amount',polarity:'credit-positive'},decimalSeparator:'.',groupSeparator:null,order:'ascending'};
+const profile=await c.req('POST',base,{accountId:c.account('bank'),maskedIdentifier:'••1234',currency:'INR',mapping},201);
+const path=`${base}/${profile.id}`;
+const baseline={date:day(0),bankBalance:'0',reference:'Baseline statement',evidence:'Verified zero bank balance',outstanding:[]};
+const bp=await c.req('POST',`${path}/baseline/preview`,baseline,201);await c.req('POST',`${path}/baseline/activate`,{...baseline,reviewedHash:bp.previewHash},201);
+const context=await c.req('GET',path);
+const db=createDb(process.env.DATABASE_URL);
+const ledgerSnapshot=async()=>Object.fromEntries(await Promise.all(['gl_entry','trade_bill','trade_bill_effect','stock_ledger_entry','fifo_layer'].map(async table=>[table,(await db.$client.query(`select * from ${table} where entity_id=$1 order by ${table==='stock_ledger_entry'?'seq':'id'}`,[c.entityId])).rows])));
+try {
+const beforeLedgers=await ledgerSnapshot();
+async function upload(bytes,changes={},expected=201){const form=new FormData();form.set('metadata',JSON.stringify({startDate:day(1),endDate:day(1),openingBalance:'0',closingBalance:'100',mappingId:context.mapping.id,...changes}));form.set('file',new Blob([bytes],{type:'text/csv'}),'statement.csv');const response=await fetch(c.base+`${path}/imports`,{method:'POST',headers:{Origin:c.origin,Cookie:c.cookie,'x-tenant-id':c.tenantId,'x-entity-id':c.entityId},body:form});const body=await response.json();assert.equal(response.status,expected,JSON.stringify(body));c.checks++;return body;}
+const csv='Date,Ref,Description,Txn,Amount\n'+Array.from({length:100},(_,i)=>`${day(1)},R${i},${'Long original description '.repeat(50)},T${i},1`).join('\n');
+assert.ok(Buffer.byteLength(csv)>100*1024);
+const batch=await upload(csv),review=await c.req('GET',`${path}/imports/${batch.id}/review`);
+assert.equal(review.parsed.rows.length,100);assert.equal(review.parsed.errors.length,0);
+await c.req('POST',`${path}/imports/${batch.id}/submit`,{reviewedHash:review.previewHash},201);
+assert.equal((await upload(csv)).id,batch.id,'Same file returns existing submitted batch');
+await upload(new Uint8Array([0xc3,0x28]),{},400);
+await upload(new Uint8Array(5*1024*1024+1),{},413);
+const conflict=await upload(`Date,Ref,Description,Txn,Amount\n${day(1)},R0,Conflicting stable identity,T0,2`,{closingBalance:'2'});
+const cr=await c.req('GET',`${path}/imports/${conflict.id}/review`);assert.ok(cr.conflicts.length);await c.req('POST',`${path}/imports/${conflict.id}/submit`,{reviewedHash:cr.previewHash},409);
+const header='Date,Ref,Description,Txn,Amount\n';
+const quiet=await upload(header,{startDate:day(2),endDate:day(3),openingBalance:'100',closingBalance:'100'});
+const qr=await c.req('GET',`${path}/imports/${quiet.id}/review`);await c.req('POST',`${path}/imports/${quiet.id}/submit`,{reviewedHash:qr.previewHash},201);
+await c.req('PUT',path,{mapping:{...mapping,transactionIdColumn:undefined}});
+const newer=await c.req('GET',path);
+const repeatedCsv=`Date,Ref,Description,Txn,Amount\n${day(4)},SAME,Repeated genuine occurrence,,1\n${day(4)},SAME,Repeated genuine occurrence,,1`;
+const repeated=await upload(repeatedCsv,{startDate:day(4),endDate:day(4),openingBalance:'100',closingBalance:'102',mappingId:newer.mapping.id});
+const rr=await c.req('GET',`${path}/imports/${repeated.id}/review`);assert.equal(rr.parsed.rows.length,2);await c.req('POST',`${path}/imports/${repeated.id}/submit`,{reviewedHash:rr.previewHash},201);
+const overlap=await upload('\uFEFF'+repeatedCsv,{startDate:day(4),endDate:day(4),openingBalance:'100',closingBalance:'102',mappingId:newer.mapping.id});
+const or=await c.req('GET',`${path}/imports/${overlap.id}/review`);assert.equal(or.ambiguities.length,2);assert.equal(or.ambiguities[0].candidateIds.length,2);
+await c.req('POST',`${path}/imports/${overlap.id}/submit`,{reviewedHash:or.previewHash},409);
+const decisions=or.ambiguities.map((a,index)=>({ordinal:a.ordinal,decision:'link',movementId:a.candidateIds[index],reason:'Same complete statement occurrence evidenced by original export'}));
+await c.req('POST',`${path}/imports/${overlap.id}/submit`,{reviewedHash:or.previewHash,decisions},201);
+await c.req('POST',`${path}/imports/${repeated.id}/reverse`,{reason:'Reverse one shared membership; canonical rows remain'},201);
+const after=await c.req('GET',`${path}/imports/${overlap.id}/review`);assert.equal(after.batch.status,'submitted');
+const gap=await upload(`Date,Ref,Description,Txn,Amount\n${day(6)},GAP,After gap,,1`,{startDate:day(6),endDate:day(6),openingBalance:'102',closingBalance:'103',mappingId:newer.mapping.id});
+const gr=await c.req('GET',`${path}/imports/${gap.id}/review`);await c.req('POST',`${path}/imports/${gap.id}/submit`,{reviewedHash:gr.previewHash},201);
+const badAdjacent=await upload(`Date,Ref,Description,Txn,Amount\n${day(7)},BAD,Conflicting adjacent opening,,1`,{startDate:day(7),endDate:day(7),openingBalance:'999',closingBalance:'1000',mappingId:newer.mapping.id});
+const ar=await c.req('GET',`${path}/imports/${badAdjacent.id}/review`);await c.req('POST',`${path}/imports/${badAdjacent.id}/submit`,{reviewedHash:ar.previewHash},409);
+await c.req('POST',`${path}/imports/${batch.id}/reverse`,{reason:'Reverse original statement coverage'},201);
+await upload(csv,{},409);
+const excessive=await upload(header+Array.from({length:10001},()=>`${day(8)},R,Too many rows,,1`).join('\n'),{startDate:day(8),endDate:day(8),openingBalance:'103',closingBalance:'10104',mappingId:newer.mapping.id});
+const er=await c.req('GET',`${path}/imports/${excessive.id}/review`);assert.ok(er.parsed.errors.some(x=>/10000/.test(x.message)));await c.req('POST',`${path}/imports/${excessive.id}/submit`,{reviewedHash:er.previewHash},409);
+assert.deepEqual(await ledgerSnapshot(),beforeLedgers,'Import/duplicate/reversal never changes GL/bills/stock/FIFO');
+console.log(`PASS large multipart CSV, fatal UTF8/size, stable conflicts, quiet periods and reversed file protection (${c.checks} HTTP checks)`);
+
+} finally {await db.$client.end();}

@@ -28,3 +28,7 @@ export type BankBaseline = typeof bankReconciliationBaseline.$inferSelect;
 export interface BankContext { profile:typeof bankReconciliationProfile.$inferSelect; mapping:typeof bankMappingRevision.$inferSelect|null; baseline:BankBaseline|null; revision:string }
 export interface BaselineReview { input:BaselineInput; bookBalance:string; bankBalance:string; outstandingTotal:string; difference:string; ledger:BookItem[]; previewHash:string }
 export interface BankReport extends BankReportArithmetic { profileId:string; baselineId:string; asOf:string; previewHash:string; coverage:unknown; matches:unknown }
+export const ImportSubmitInput = z.strictObject({reviewedHash:z.string().regex(/^[a-f0-9]{64}$/),decisions:z.array(DuplicateDecisionInput).max(10000).default([])});
+export type StatementUploadInput = z.infer<typeof StatementPeriodInput>;
+export type ImportSubmitInput = z.infer<typeof ImportSubmitInput>;
+export type StatementImport = typeof import('@factoryos/db').bankStatementImport.$inferSelect;
