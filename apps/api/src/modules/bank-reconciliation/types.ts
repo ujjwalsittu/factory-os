@@ -37,3 +37,6 @@ export type MatchRequest = z.infer<typeof BankMatchInput>;
 export type MatchSubmitInput = z.infer<typeof MatchSubmitInput>;
 export const JournalAdjustmentRef = z.strictObject({profileId:z.uuid(),statementRowId:z.uuid(),reviewedHash:z.string().regex(/^[a-f0-9]{64}$/),replacementOf:z.uuid().optional()});
 export type JournalAdjustmentRef = z.infer<typeof JournalAdjustmentRef>;
+
+export const PeriodApprovalInput = z.strictObject({asOf:BankDate,reviewedHash:ReviewedInput.shape.reviewedHash,outstandingReviewed:z.literal(true)});
+export type PeriodApprovalInput = z.infer<typeof PeriodApprovalInput>;

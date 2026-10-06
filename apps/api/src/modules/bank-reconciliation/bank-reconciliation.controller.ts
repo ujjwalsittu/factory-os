@@ -1,10 +1,11 @@
+import { BankReportService } from './report.service.js';
 import { BankAdjustmentService } from './adjustment.service.js';
 import { bankChargeInput } from '../accounting/bank-charge.service.js';
 import { BankMatchService } from './match.service.js';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BankImportService } from './import.service.js';
 import { bankMappingRevision, bankReconciliationProfile, type Database } from '@factoryos/db';
-import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post, Put, ConflictException, BadRequestException, UseInterceptors, UploadedFile, Header, Query } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post, Put, ConflictException, NotFoundException, BadRequestException, UseInterceptors, UploadedFile, Header, Query } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../../common/access.js';
@@ -13,10 +14,10 @@ import { DB } from '../../common/tokens.js';
 import { parse } from '../../common/validation.js';
 import { entityOf, lockAccounting, type Tx } from '../accounting/accounting-lock.js';
 import { BankRegistryService, evidenceHash } from './registry.service.js';
-import { BankProfileInput, BankProfileSettingsInput, BaselineInput, Reason, ReviewedInput, StatementPeriodInput, ImportSubmitInput, BankMatchInput, MatchSubmitInput } from './types.js';
+import { BankDate, PeriodApprovalInput, BankProfileInput, BankProfileSettingsInput, BaselineInput, Reason, ReviewedInput, StatementPeriodInput, ImportSubmitInput, BankMatchInput, MatchSubmitInput } from './types.js';
 @Controller('accounts/bank-reconciliation')
 export class BankReconciliationController {
- constructor(@Inject(DB) private readonly db:Database,private readonly registry:BankRegistryService,private readonly audit:AuditService,private readonly imports:BankImportService,private readonly matches:BankMatchService,private readonly adjustments:BankAdjustmentService){}
+ constructor(@Inject(DB) private readonly db:Database,private readonly registry:BankRegistryService,private readonly audit:AuditService,private readonly imports:BankImportService,private readonly matches:BankMatchService,private readonly adjustments:BankAdjustmentService,private readonly reports:BankReportService){}
  private transaction<T>(ctx:TenantRequestContext,run:(tx:Tx,entityId:string)=>Promise<T>){const entityId=entityOf(ctx);return this.db.transaction(async tx=>{await lockAccounting(tx,entityId);return run(tx,entityId);});}
  @Get('profiles') @RequirePermission('accounts.bank_reconciliation.read')
  list(@Ctx() ctx:TenantRequestContext){return this.db.select().from(bankReconciliationProfile).where(and(eq(bankReconciliationProfile.tenantId,ctx.tenant.tenantId),eq(bankReconciliationProfile.entityId,entityOf(ctx))));}
@@ -83,5 +84,19 @@ export class BankReconciliationController {
 
  @Post('profiles/:id/adjustments/:linkId/release') @RequirePermission('accounts.bank_reconciliation.cancel')
  releaseAdjustment(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Param('linkId',ParseUUIDPipe) linkId:string,@Body() body:unknown){const {reason}=parse(z.strictObject({reason:Reason}),body);return this.transaction(ctx,async(tx,entityId)=>{const result=await this.adjustments.releaseCancelledIn(tx,ctx,entityId,id,linkId,reason);await this.audit.record(ctx,{tenantId:ctx.tenant.tenantId,entityId,action:'accounts.bank_reconciliation.cancel',targetType:'bank_adjustment_release',targetId:linkId,reason},tx);return result;});}
+
+ @Get('profiles/:id/report') @RequirePermission('accounts.bank_reconciliation.read')
+ report(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Query('asOf') date:unknown){const asOf=parse(BankDate,date);return this.transaction(ctx,(tx,entityId)=>this.reports.reportIn(tx,ctx,entityId,id,asOf));}
+ @Get('profiles/:id/periods') @RequirePermission('accounts.bank_reconciliation.read')
+ periods(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string){return this.transaction(ctx,(tx,entityId)=>this.reports.periodsIn(tx,ctx,entityId,id));}
+ @Post('profiles/:id/periods/approve') @RequirePermission('accounts.bank_reconciliation.approve')
+ approvePeriod(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Body() body:unknown){const input=parse(PeriodApprovalInput,body);return this.transaction(ctx,async(tx,entityId)=>{const period=await this.reports.approveIn(tx,ctx,entityId,id,input);await this.audit.record(ctx,{tenantId:ctx.tenant.tenantId,entityId,action:'accounts.bank_reconciliation.approve',targetType:'bank_period',targetId:period.id,after:{previewHash:period.previewHash}},tx);return period;});}
+ @Post('profiles/:id/periods/:periodId/reopen') @RequirePermission('accounts.bank_reconciliation.approve')
+ reopenPeriod(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Param('periodId',ParseUUIDPipe) periodId:string,@Body() body:unknown){const {reason}=parse(z.strictObject({reason:Reason}),body);return this.transaction(ctx,async(tx,entityId)=>{const result=await this.reports.reopenIn(tx,ctx,entityId,id,periodId,reason);await this.audit.record(ctx,{tenantId:ctx.tenant.tenantId,entityId,action:'accounts.bank_reconciliation.approve',targetType:'bank_period_reopen',targetId:periodId,reason},tx);return result;});}
+
+ @Get('profiles/:id/periods/:periodId') @RequirePermission('accounts.bank_reconciliation.read')
+ period(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Param('periodId',ParseUUIDPipe) periodId:string){return this.transaction(ctx,async(tx,entityId)=>{const periods=await this.reports.periodsIn(tx,ctx,entityId,id),period=periods.find(x=>x.id===periodId);if(!period)throw new NotFoundException('Bank period not found');return period;});}
+ @Get('profiles/:id/report/export') @RequirePermission('accounts.bank_reconciliation.export') @Header('Content-Type','text/csv; charset=utf-8') @Header('Content-Disposition','attachment; filename="bank-reconciliation.csv"')
+ exportReport(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Query('asOf') date:unknown){const asOf=parse(BankDate,date);return this.transaction(ctx,async(tx,entityId)=>{const report=await this.reports.reportIn(tx,ctx,entityId,id,asOf),cell=(value:string)=>'"'+(/^[\s]*[=+\-@]/.test(value)?"'"+value:value).replaceAll('"','""')+'"';return [['Date',asOf],['Book balance',report.B],['Uncleared books',report.U],['Bank exceptions',report.E],['Statement balance',report.S],['Difference',report.difference],['Coverage complete',String(report.coverageComplete)],['Preview hash',report.previewHash],['Kind','Date','Reference','Amount','Remaining'],...report.bookResiduals.map(x=>[x.kind,x.date,x.reference,x.signedAmount,x.remaining]),...report.statementResiduals.map(x=>['bank',x.date,x.reference,x.signedAmount,x.remaining])].map(row=>row.map(cell).join(',')).join('\r\n');});}
 
 }

@@ -14,8 +14,9 @@ try {
  const receipts=[];
  for(const reference of ['ORDINARY','NET']){const r=await c.req('POST','/accounts/settlements',{direction:'receipt',partyId:customer.id,postingDate:date,currency:'INR',exchangeRate:'1',accountId:c.account('bank'),amount:'90000',allocations:[],bankReference:reference,charge:{...charge,reference:`FEE-${reference}`}},201);await c.req('POST',`/accounts/settlements/${r.id}/submit`,{});receipts.push(await c.req('GET',`/accounts/settlements/${r.id}`));}
  const books=[];for(const amount of ['600','400']){const j=await c.req('POST','/accounts/journals',{postingDate:date,narration:'Bank group matching fixture',lines:[c.line('bank',amount),c.line('equity','0',amount)]},201);await c.req('POST',`/accounts/journals/${j.id}/submit`);const detail=await c.req('GET',`/accounts/journals/${j.id}`);books.push(detail.entries.find(x=>x.accountId===c.account('bank')));}
- const csv=`Date,Ref,Amount\n${date},ORDINARY,89900\n${date},GROUP,1000\n${date},NET,90000\n${date},FEE-NET,-100`,context=await c.req('GET',path);
- const form=new FormData();form.set('metadata',JSON.stringify({startDate:date,endDate:date,openingBalance:'0',closingBalance:'180800',mappingId:context.mapping.id}));form.set('file',new Blob([csv]),'statement.csv');
+ const dayAfter=new Date(`${date}T00:00:00Z`);dayAfter.setUTCDate(dayAfter.getUTCDate()+1);const grossDate=dayAfter.toISOString().slice(0,10);dayAfter.setUTCDate(dayAfter.getUTCDate()+1);const feeDate=dayAfter.toISOString().slice(0,10);
+ const csv=`Date,Ref,Amount\n${date},ORDINARY,89900\n${date},GROUP,1000\n${grossDate},NET,90000\n${feeDate},FEE-NET,-100`,context=await c.req('GET',path);
+ const form=new FormData();form.set('metadata',JSON.stringify({startDate:date,endDate:feeDate,openingBalance:'0',closingBalance:'180800',mappingId:context.mapping.id}));form.set('file',new Blob([csv]),'statement.csv');
  const response=await fetch(c.base+`${path}/imports`,{method:'POST',headers:{Origin:c.origin,Cookie:c.cookie,'x-tenant-id':c.tenantId,'x-entity-id':c.entityId},body:form}),batch=await response.json();assert.equal(response.status,201);
  const review=await c.req('GET',`${path}/imports/${batch.id}/review`);await c.req('POST',`${path}/imports/${batch.id}/submit`,{reviewedHash:review.previewHash},201);
  const state=await c.req('GET',`${path}/matches`);
@@ -34,7 +35,11 @@ try {
  const invitation=await c.req('POST','/invitations',{email,roles:[{roleId:routineRole.id,entityIds:[c.entityId]}]},201);
  await routine.req('POST','/auth/sign-up/email',{name:'Bank matcher',email,password:'Sup3r-secret-pw'});await routine.req('POST','/invitations/accept',{token:invitation.inviteUrl.split('/').at(-1)},201);routine.tenantId=c.tenantId;routine.entityId=c.entityId;
  await routine.req('POST',`${path}/matches`,{...net,reviewedHash:np.previewHash},403);
+ const datedBefore=await Promise.all([date,grossDate,feeDate].map(asOf=>c.req('GET',`${path}/report?asOf=${asOf}`)));
  const netGroup=await c.req('POST',`${path}/matches`,{...net,reviewedHash:np.previewHash},201);
+ const datedAfter=await Promise.all([date,grossDate,feeDate].map(asOf=>c.req('GET',`${path}/report?asOf=${asOf}`)));
+ for(const i of [0,1]){assert.equal(datedAfter[i].U,datedBefore[i].U,'Future/cross-day net remains wholly outstanding');assert.equal(datedAfter[i].E,datedBefore[i].E,'Cross-day bank evidence remains uncleared until last date');}
+ assert.equal(BigInt(datedBefore[2].U.replace('.',''))-BigInt(datedAfter[2].U.replace('.','')),89900000000n);assert.equal(BigInt(datedBefore[2].E.replace('.',''))-BigInt(datedAfter[2].E.replace('.','')),89900000000n);
  await c.req('POST',`/accounts/settlements/${receipts[1].id}/cancel`,{reason:'Net-matched settlement cannot reverse'},409);
  assert.deepEqual(await c.req('GET',`${path}/candidates?statementRowId=${row('NET').id}`),[],'Fully consumed bank row has no remaining candidate');
  await c.req('POST',`${path}/matches/${netGroup.id}/reverse`,{reason:'Reverse complete documented net group'},201);

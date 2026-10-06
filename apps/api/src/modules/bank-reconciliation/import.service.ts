@@ -77,6 +77,8 @@ export class BankImportService {
   const batch=evidence.imports.find(x=>x.id===importId)!;
   if(evidence.events.some(x=>x.importId===importId))throw new ConflictException('Reversed import cannot be resubmitted');
   if(batch.status==='submitted')return batch;
+  const periods=await tx.select().from(bankReconciliationPeriod).where(and(eq(bankReconciliationPeriod.profileId,profileId),eq(bankReconciliationPeriod.tenantId,ctx.tenant.tenantId),eq(bankReconciliationPeriod.entityId,entityId)));
+  if(periods.some(p=>!evidence.events.some(e=>e.periodId===p.id)&&batch.startDate<=p.endDate))throw new ConflictException('Reopen the bank period before adding statement evidence');
   if(!context.baseline||batch.startDate<=context.baseline.baselineDate||review.previewHash!==input.reviewedHash)throw new ConflictException('Bank import preview changed; review again');
   if(review.parsed.errors.length||review.conflicts.length)throw new ConflictException('Resolve all row errors and identity conflicts before submission');
   if(input.decisions.length&&!ctx.tenant.permissions.has('accounts.bank_reconciliation.approve'))throw new ForbiddenException('Finance approval required for duplicate decisions');

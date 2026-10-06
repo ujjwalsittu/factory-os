@@ -1,4 +1,4 @@
-import { bankMatchEdge, bankNetVector, bankReconciliationBaseline, bankReconciliationEvent, bankReconciliationProfile, glEntry } from '@factoryos/db';
+import { bankMatchEdge, bankNetVector, bankReconciliationBaseline, bankReconciliationEvent, bankReconciliationProfile, bankReconciliationPeriod, glEntry } from '@factoryos/db';
 import { ConflictException, Injectable } from '@nestjs/common';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
@@ -12,6 +12,9 @@ export class BankReconciliationGuard {
    const baselines=await tx.select().from(bankReconciliationBaseline).where(and(eq(bankReconciliationBaseline.profileId,profile.id),eq(bankReconciliationBaseline.tenantId,ctx.tenant.tenantId),eq(bankReconciliationBaseline.entityId,entityId)));
    const events=await tx.select().from(bankReconciliationEvent).where(and(eq(bankReconciliationEvent.profileId,profile.id),eq(bankReconciliationEvent.tenantId,ctx.tenant.tenantId),eq(bankReconciliationEvent.entityId,entityId)));
    if(baselines.some(x=>x.baselineDate>=postingDate&&!events.some(e=>e.baselineId===x.id)))throw new ConflictException('Bank posting changes the reviewed baseline; Finance must reset it first');
+   const periods=await tx.select().from(bankReconciliationPeriod).where(and(eq(bankReconciliationPeriod.profileId,profile.id),eq(bankReconciliationPeriod.tenantId,ctx.tenant.tenantId),eq(bankReconciliationPeriod.entityId,entityId)));
+   const protectedPeriod=periods.find(p=>postingDate<=p.endDate&&!events.some(e=>e.periodId===p.id));
+   if(protectedPeriod)throw new ConflictException(`Reopen bank reconciliation period ${protectedPeriod.id} before changing its bank entries`);
   }
  }
  async assertReversalAllowedIn(tx:Tx,ctx:TenantRequestContext,entityId:string,voucherId:string) {
