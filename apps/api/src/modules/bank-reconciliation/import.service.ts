@@ -29,7 +29,7 @@ export class BankImportService {
   let csv:string;try{csv=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw new BadRequestException('File must contain valid UTF-8');}
   if(input.startDate<=context.baseline.baselineDate||input.startDate>input.endDate)throw new BadRequestException('Statement interval must follow baseline');
   const hash=createHash('sha256').update(bytes).digest('hex');
-  const evidence=await this.evidenceIn(tx,ctx,entityId,profileId),prior=evidence.imports.find(x=>x.fileHash===hash);
+  const evidence=await this.evidenceIn(tx,ctx,entityId,profileId),prior=evidence.imports.find(x=>x.fileHash===hash&&x.mappingId===input.mappingId&&x.startDate===input.startDate&&x.endDate===input.endDate&&Dec.of(x.openingBalance).eq(input.openingBalance)&&Dec.of(x.closingBalance).eq(input.closingBalance));
   if(prior){if(evidence.events.some(x=>x.importId===prior.id))throw new ConflictException('This file was reversed; review replacement evidence explicitly');return prior;}
   const [revision]=await tx.select().from(bankMappingRevision).where(and(eq(bankMappingRevision.id,input.mappingId),eq(bankMappingRevision.profileId,profileId),eq(bankMappingRevision.tenantId,ctx.tenant.tenantId),eq(bankMappingRevision.entityId,entityId)));
   if(!revision)throw new NotFoundException('Mapping revision not found');
@@ -44,16 +44,18 @@ export class BankImportService {
   if(!mapping)throw new ConflictException('Original mapping revision missing');
   const parsed=parseBankStatement({csv:batch.rawCsv,startDate:batch.startDate,endDate:batch.endDate,openingBalance:batch.openingBalance,closingBalance:batch.closingBalance},CsvMappingInput.parse(mapping.mapping));
   const decisions=await tx.select().from(bankDuplicateDecision).where(and(eq(bankDuplicateDecision.importId,importId),eq(bankDuplicateDecision.profileId,profileId),eq(bankDuplicateDecision.tenantId,ctx.tenant.tenantId),eq(bankDuplicateDecision.entityId,entityId)));
-  const conflicts:{ordinal:number;message:string}[]=[],ambiguities:{ordinal:number;candidateIds:string[]}[]=[],linked:{ordinal:number;movementId:string}[]=[];
+  const conflicts:{ordinal:number;message:string}[]=[],ambiguities:{ordinal:number;poolId:string}[]=[],linked:{ordinal:number;movementId:string}[]=[];
+  const candidatePools:Record<string,string[]>={},bySignature=new Map<string,string[]>();
+  for(const movement of evidence.movements){const ids=bySignature.get(movement.signature)??[];ids.push(movement.id);bySignature.set(movement.signature,ids);}
   const seenIds=new Set<string>();
   for(const row of parsed.rows){
    const existing=row.transactionId?evidence.movements.find(x=>x.transactionId===row.transactionId):undefined;
    if(row.transactionId&&seenIds.has(row.transactionId)){conflicts.push({ordinal:row.ordinal,message:'Repeated stable transaction ID in this file'});continue;}
    if(row.transactionId)seenIds.add(row.transactionId);
    if(existing){if(existing.transactionDate!==row.date||!Dec.of(existing.signedAmount).eq(row.signedAmount))conflicts.push({ordinal:row.ordinal,message:'Stable transaction identity conflicts with canonical date/amount'});else linked.push({ordinal:row.ordinal,movementId:existing.id});continue;}
-   if(!row.transactionId){const candidates=evidence.movements.filter(x=>x.signature===signature(row));if(candidates.length)ambiguities.push({ordinal:row.ordinal,candidateIds:candidates.map(x=>x.id)});}
+   if(!row.transactionId){const poolId=signature(row),candidates=bySignature.get(poolId);if(candidates?.length){candidatePools[poolId]=candidates;ambiguities.push({ordinal:row.ordinal,poolId});}}
   }
-  return {batch:{...batch,rawCsv:undefined},parsed,conflicts,ambiguities,linked,decisions,previewHash:evidenceHash({batch,mapping,context,evidence,decisions})};
+  return {batch:{...batch,rawCsv:undefined},parsed,conflicts,ambiguities,candidatePools,linked,decisions,previewHash:evidenceHash({batch,mapping,context,evidence,decisions})};
  }
  /** Validate complete interval claims against unique canonical rows and overlapping balance anchors. */
  coverage(baseline:{baselineDate:string;bankBalance:string},batches:Pick<StatementImport,'id'|'startDate'|'endDate'|'openingBalance'|'closingBalance'>[],movements:{transactionDate:string;signedAmount:string}[],asOf?:string) {
@@ -89,7 +91,7 @@ export class BankImportService {
    const linked=review.linked.find(x=>x.ordinal===row.ordinal),ambiguous=review.ambiguities.find(x=>x.ordinal===row.ordinal),decision=input.decisions.find(x=>x.ordinal===row.ordinal);
    if(linked){chosen.set(row.ordinal,linked.movementId);continue;}
    if(ambiguous){if(!decision)throw new ConflictException('Finance must resolve duplicate occurrences');
-    if(decision.decision==='link'){if(!ambiguous.candidateIds.includes(decision.movementId!))throw new BadRequestException('Duplicate link is not a canonical candidate');chosen.set(row.ordinal,decision.movementId!);continue;}
+    if(decision.decision==='link'){if(!review.candidatePools[ambiguous.poolId]!.includes(decision.movementId!))throw new BadRequestException('Duplicate link is not a canonical candidate');chosen.set(row.ordinal,decision.movementId!);continue;}
    }
    newRows.push(row);
   }

@@ -35,13 +35,12 @@ export class BankAdjustmentService {
   }
   const preview=await this.previewIn(tx,ctx,entityId,profileId,input.statementRowId);this.replacement(preview,input.replacementOf);
   if(preview.previewHash!==input.reviewedHash)throw new ConflictException('Exception preview changed; review again');
-  const state=await this.matches.stateIn(tx,ctx,entityId,profileId);
   const existingFees=await tx.select().from(bankChargeDocument).where(and(eq(bankChargeDocument.tenantId,ctx.tenant.tenantId),eq(bankChargeDocument.entityId,entityId),eq(bankChargeDocument.bankAccountId,preview.bankAccountId),eq(bankChargeDocument.postingDate,preview.row.date),eq(bankChargeDocument.status,'submitted')));
   const normalize=(value:string)=>value.trim().toUpperCase();
   if(existingFees.some(fee=>{
    const originalReference=(fee.snapshot as {input?:{reference?:string}}|null)?.input?.reference;
    if(originalReference&&normalize(originalReference)===normalize(preview.row.reference))return true;
-   return state.entries.some(x=>x.entry.voucherId===fee.voucherId&&state.book.some(b=>b.id===x.entry.id&&b.kind==='gl'&&Dec.of(b.remaining).eq(preview.row.remaining)));
+   return false;
   }))throw new ConflictException('Existing bank fee evidence is available; match its actual bank movement instead of posting another fee');
   const chargePreview=await this.charges.previewIn(tx,ctx,entityId,input.charge);
   if(!Dec.of(preview.row.remaining).isNeg()||input.charge.bankAccountId!==preview.bankAccountId||input.charge.postingDate!==preview.row.date||!Dec.of(preview.row.remaining).abs().eq(chargePreview.totalAmount))throw new ConflictException('Bank charge must equal the exact statement residual on its bank account and date');

@@ -148,6 +148,13 @@
       "when": 1791295865856,
       "tag": "0020_bank_reconciliation",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791303140794,
+      "tag": "0021_bank_statement_interval_identity",
+      "breakpoints": true
     }
   ]
 }

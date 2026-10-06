@@ -22,6 +22,12 @@ async function bootstrap() {
   server.set('trust proxy', 1);
   server.disable('x-powered-by');
   server.all('/api/auth/{*path}', toNodeHandler(app.get<Auth>(AUTH)));
+  // Reconciliation accepts up to 10,000 explicit decisions with 2,000-character
+  // reasons. Worst-case JSON escapes need 120MB; unrelated routes retain 1MiB.
+  server.use('/api/accounts/bank-reconciliation/profiles/:profileId/imports/:importId/submit', express.json({ limit: '128mb' }));
+  server.use('/api/accounts/bank-reconciliation/profiles/:profileId/matches', express.json({ limit: '2mb' }));
+  // Opening evidence permits two such reasons per item, plus reference text.
+  server.use('/api/accounts/bank-reconciliation/profiles/:profileId/baseline', express.json({ limit: '256mb' }));
   app.use(express.json({ limit: '1mb' }));
 
   app.setGlobalPrefix('api');

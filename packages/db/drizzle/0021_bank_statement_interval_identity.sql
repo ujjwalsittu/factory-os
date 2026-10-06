@@ -1,0 +1,2 @@
+DROP INDEX "br_import_file_uq";--> statement-breakpoint
+CREATE UNIQUE INDEX "br_import_file_uq" ON "bank_statement_import" USING btree ("profile_id","file_hash","mapping_id","start_date","end_date","opening_balance","closing_balance");

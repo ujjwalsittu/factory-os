@@ -131,7 +131,7 @@ try {
   const firstImportId=new URL(page.url()).pathname.split('/').at(-1),normalized=await ctx.request.get(`${B}/api${path}/imports/${firstImportId}/export`,{headers});assert.equal(normalized.status(),200);assert.ok((await normalized.text()).includes("\"'=SUM(1,2)\""),'Formula description safely escaped');
   await page.getByRole('link',{name:'Return to reconciliation',exact:true}).click();await upload('\ufeff'+csv);
   const overlapId=new URL(page.url()).pathname.split('/').at(-1),overlap=await request('get',`${path}/imports/${overlapId}/review`);
-  for(const ambiguity of overlap.ambiguities){await L(`Row ${ambiguity.ordinal} duplicate decision`).selectOption('link');await L(`Row ${ambiguity.ordinal} canonical occurrence`).selectOption(ambiguity.candidateIds[ambiguity.ordinal===3?1:0]);await L(`Row ${ambiguity.ordinal} duplicate reason`).fill('Same original occurrence in overlapping bank export');}
+  for(const ambiguity of overlap.ambiguities){await L(`Row ${ambiguity.ordinal} duplicate decision`).selectOption('link');await L(`Row ${ambiguity.ordinal} canonical occurrence`).fill(overlap.candidatePools[ambiguity.poolId][ambiguity.ordinal===3?1:0]);await L(`Row ${ambiguity.ordinal} duplicate reason`).fill('Same original occurrence in overlapping bank export');}
   await page.getByRole('button',{name:'Submit statement',exact:true}).click();await page.getByText('Statement submitted',{exact:true}).waitFor();
   assert.equal((await request('get',`${path}/matches`)).statement.length,4,'Overlap has one canonical vector per true occurrence');
   await page.getByRole('link',{name:'Return to reconciliation',exact:true}).click();
@@ -155,7 +155,7 @@ try {
   console.log('→ linked charge and journal exceptions');
   const extraCsv=csv+`\n${date},EX-FEE,Bank-only fee,-25\n${date},EX-INTEREST,Bank interest,25`,context=await request('get',path);
   const extraResponse=await ctx.request.post(`${B}/api${path}/imports`,{headers,multipart:{metadata:JSON.stringify({startDate:date,endDate:date,openingBalance:'0',closingBalance:'90100',mappingId:context.mapping.id}),file:{name:'exceptions.csv',mimeType:'text/csv',buffer:Buffer.from(extraCsv)}}});assert.equal(extraResponse.status(),201);const extra=await extraResponse.json(),extraReview=await request('get',`${path}/imports/${extra.id}/review`);
-  await request('post',`${path}/imports/${extra.id}/submit`,{reviewedHash:extraReview.previewHash,decisions:extraReview.ambiguities.map(a=>({ordinal:a.ordinal,decision:'link',movementId:a.candidateIds[a.ordinal===3?1:0],reason:'Same bank export plus newly identified exceptions'}))},201);
+  await request('post',`${path}/imports/${extra.id}/submit`,{reviewedHash:extraReview.previewHash,decisions:extraReview.ambiguities.map(a=>({ordinal:a.ordinal,decision:'link',movementId:extraReview.candidatePools[a.poolId][a.ordinal===3?1:0],reason:'Same bank export plus newly identified exceptions'}))},201);
   await page.reload();await L('Reconciliation bank').selectOption(profile.id);
   const exceptionState=await request('get',`${path}/matches`),extraFee=exceptionState.statement.find(x=>x.reference==='EX-FEE'),interest=exceptionState.statement.find(x=>x.reference==='EX-INTEREST');
   const openException=async ref=>{await page.getByRole('row').filter({has:page.getByText(ref,{exact:true})}).getByRole('button',{name:'Review exception',exact:true}).click();await page.getByRole('button',{name:'Review exception source',exact:true}).click();};
