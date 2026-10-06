@@ -20,6 +20,7 @@ try {
  const response=await fetch(c.base+`${path}/imports`,{method:'POST',headers:{Origin:c.origin,Cookie:c.cookie,'x-tenant-id':c.tenantId,'x-entity-id':c.entityId},body:form}),batch=await response.json();assert.equal(response.status,201);
  const review=await c.req('GET',`${path}/imports/${batch.id}/review`);await c.req('POST',`${path}/imports/${batch.id}/submit`,{reviewedHash:review.previewHash},201);
  const state=await c.req('GET',`${path}/matches`);
+ assert.ok(state.sources?.some(x=>x.voucherId===receipts[0].voucherId),'Matching exposes scoped original voucher links');
  const row=ref=>state.statement.find(x=>x.reference===ref),bank=ref=>state.book.find(x=>x.reference===ref);
  assert.equal(bank('ORDINARY').signedAmount,'89900.000000');assert.ok(!state.book.some(x=>x.signedAmount==='90000.000000'));
  const candidates=await c.req('GET',`${path}/candidates?statementRowId=${row('ORDINARY').id}`);assert.equal(candidates[0].id,bank('ORDINARY').id);assert.equal(candidates.filter(x=>x.exactAmount).length,2,'Multiple exact amounts remain explicit candidates');

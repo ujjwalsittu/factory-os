@@ -4,6 +4,7 @@ import { BankReconciliationGuard } from './bank-reconciliation-guard.service.js'
 import { Dec } from '@factoryos/core';
 import { randomUUID } from 'node:crypto';
 import {
+  bankAdjustmentLink,
   glAccount as account,
   accountGroup,
   accountingSettings,
@@ -805,8 +806,11 @@ export class AccountingController {
           eq(journalVoucher.reversalOf, id),
         ),
       );
+    const [bankLink]=ctx.tenant.permissions.has('accounts.bank_reconciliation.read')?await this.db.select().from(bankAdjustmentLink).where(and(eq(bankAdjustmentLink.voucherId,id),eq(bankAdjustmentLink.tenantId,ctx.tenant.tenantId),eq(bankAdjustmentLink.entityId,entityId))):[];
+    const bankSnapshot=bankLink?.snapshot as {ref:JournalAdjustmentRef;bankAccountId:string;amount:string;date:string}|undefined;
     return {
       ...v,
+      reconciliation:bankLink&&bankSnapshot?{id:bankLink.id,ref:bankSnapshot.ref,bankAccountId:bankSnapshot.bankAccountId,amount:bankSnapshot.amount,date:bankSnapshot.date,releasedAt:bankLink.releasedAt,releaseReason:bankLink.releaseReason}:null,
       entries,
       reversal: reversal
         ? {

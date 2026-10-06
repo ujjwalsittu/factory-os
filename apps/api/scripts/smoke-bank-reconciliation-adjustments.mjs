@@ -14,6 +14,7 @@ try{
  const ip=await c.req('POST',`${path}/adjustments/preview`,{statementRowId:interest.id},201),reconciliation={profileId:profile.id,statementRowId:interest.id,reviewedHash:ip.previewHash};
  const journal={postingDate:date,narration:'Reviewed statement interest',reconciliation,lines:[c.line('bank','100'),c.line('equity','0','100')]};
  const draft=await c.req('POST','/accounts/journals',journal,201);
+ assert.deepEqual((await c.req('GET',`/accounts/journals/${draft.id}`)).reconciliation?.ref,reconciliation,'Journal detail retains immutable provenance for later editing');
  await c.req('POST','/accounts/journals',journal,409);
  await c.req('PUT',`/accounts/journals/${draft.id}`,{...journal,lines:[c.line('bank','101'),c.line('equity','0','101')]},409);
  await c.req('POST',`/accounts/journals/${draft.id}/abandon`,{reason:'Documented linked draft abandonment'},201);

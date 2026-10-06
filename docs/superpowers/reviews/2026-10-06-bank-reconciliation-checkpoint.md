@@ -1,6 +1,6 @@
 # Bank reconciliation implementation checkpoint
 
-2026-10-06. Tasks1–7 are implemented on the authorized default branch. This is a verification/handoff record; independent final review remains Task9.
+2026-10-06. Tasks1–8 are implemented on the authorized default branch. This is a verification/handoff record; independent final review remains Task9.
 
 Commits:275d338 (core), f840d0b (scoped evidence0020),65b1453 (baselines/GL guards),73adbcd (imports),f4740da (matches),ac6b2c6 (exception provenance).
 
@@ -40,3 +40,5 @@ Task 6: complete — missing adjustment endpoint RED404 →45 owner HTTP checks 
 Ruling: released/cancelled source replacements require the caller to name prior provenance; stale journal reservations require explicit abandonment and replacement rather than silently updating their original snapshot — enforces reviewed immutable source evidence — cost if wrong: extra review after unrelated bank evidence changes.
 
 Task7 final evidence: report55/guard43/match56/adjustment45 owner HTTP checks; legacy accounting31/settlements93/charges55 and scoped schema/0011–0019 hashes/original activation PASS. Build11/typecheck17/126 uncached units PASS; lint0. Reproduced/fixed missing404 reports/export/getters, approved journal cancellation200, historical read409 after reset and baseline-day409. Fixture historical ledger mutation was refused; setup corrected without changing ledger rows. Parallel signup429 resolved by serial12-second pacing. No new architecture/business ruling. Task8 next; final independent review remains pendingTask9.
+
+Task8: scoped settings/baseline/statement import and explicit duplicate review, partial/Finance net matching, permission-preserving linked exception forms, dated approval/reopening/history and stored print UI complete. Build11/typecheck17/126 uncached units PASS, lint0; baseline40/adjustment46/match56 owner API source/evidence checks and production bank plus three legacy source browsers PASS. Browser includes older linked source proof, quoted repeated rows/overlap/formula export, real partial/net amounts, delayed amount/account/entity results, charge/journal abandonment/replacement, preparer/auditor restrictions and mobile390px. Fixed reproduced report refetch/prefill remount/grid overflow; immutable evidence shape matched to persisted document/source. Task9 actual barriers/populated invariance/full verification/one final reviewer next. No new architecture ruling.

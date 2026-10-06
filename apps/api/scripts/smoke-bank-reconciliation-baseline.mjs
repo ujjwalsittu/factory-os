@@ -54,7 +54,7 @@ await limited.req('POST',path,input,403);
 await limited.req('PUT',`${path}/${profile.id}`,{dateWindow:10},403);
 await limited.req('POST',`${path}/${profile.id}/baseline/activate`,{...validLinked,reviewedHash:linkedPreview.previewHash},403);
 await limited.req('POST',`${path}/${profile.id}/baseline/reset`,{reason:'Unauthorized reset attempt'},403);
-const context=await c.req('GET',`${path}/${profile.id}`);assert.equal(context.baseline.id,(await limited.req('GET',`${path}/${profile.id}`)).baseline.id);
+const context=await c.req('GET',`${path}/${profile.id}`);assert.equal(context.openingItems?.[0]?.evidence?.document,'Source journal','Activated opening evidence remains readable');assert.equal(context.openingItems?.[0]?.sourceVoucherId,next.id,'Older linked source retains its original voucher link');assert.equal(context.baseline.id,(await limited.req('GET',`${path}/${profile.id}`)).baseline.id);
 await db.$client.query('update gl_account set is_active=false where id=$1',[c.account('bank')]);
 assert.equal((await c.req('GET',`${path}/${profile.id}`)).profile.accountId,c.account('bank'),'Inactive historical account retains profile identity');
 await c.req('PUT',`${path}/${profile.id}`,{dateWindow:10},200);

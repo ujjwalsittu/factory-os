@@ -1,6 +1,6 @@
 # Configurable bank statement reconciliation
 
-Status: Written specification and Native implementation plan approved2026-10-06; decision041 Accepted. Tasks1–7 implemented and verified. Tasks8–9 remain: UI, concurrency/populated invariance and independent final review.
+Status: Written specification and Native implementation plan approved2026-10-06; decision041 Accepted. Tasks1–8 implemented and verified. Task9 remains: concurrency/populated invariance and independent final review.
 
 ## Purpose and assumptions
 

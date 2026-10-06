@@ -51,6 +51,7 @@ export function AccountingPage({
           ['chart', 'Chart of accounts', 'accounts.account.read'],
           ['journals', 'Journals', 'accounts.voucher.read'],
           ['bank-charges', 'Bank charges', 'accounts.bank_charge.read'],
+          ['bank-reconciliation', 'Bank reconciliation', 'accounts.bank_reconciliation.read'],
           ['settlements', 'Receipts & payments', 'accounts.settlement.read'],
           ['outstanding', 'Outstanding', 'accounts.report.read'],
           ['day-book', 'Day book', 'accounts.report.read'],

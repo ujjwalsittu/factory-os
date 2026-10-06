@@ -35,6 +35,7 @@ export interface Entry extends JournalLine {
   balance?: string;
 }
 export interface Journal {
+  reconciliation?:{id:string;ref:{profileId:string;statementRowId:string;reviewedHash:string;replacementOf?:string};bankAccountId:string;amount:string;date:string;releasedAt:string|null;releaseReason:string|null}|null;
   id: string;
   number: string | null;
   status: 'draft' | 'submitted' | 'cancelled';

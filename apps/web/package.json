@@ -16,7 +16,8 @@
     "e2e:imports": "node e2e/imports.mjs",
     "e2e:accounting": "node e2e/accounting.mjs",
     "e2e:settlements": "node e2e/settlements.mjs",
-    "e2e:bank-charges": "node e2e/bank-charges.mjs"
+    "e2e:bank-charges": "node e2e/bank-charges.mjs",
+    "e2e:bank-reconciliation": "node --env-file-if-exists=../../.env e2e/bank-reconciliation.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",

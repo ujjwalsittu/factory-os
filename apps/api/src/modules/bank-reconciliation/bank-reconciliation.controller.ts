@@ -4,7 +4,7 @@ import { bankChargeInput } from '../accounting/bank-charge.service.js';
 import { BankMatchService } from './match.service.js';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BankImportService } from './import.service.js';
-import { bankMappingRevision, bankReconciliationProfile, type Database } from '@factoryos/db';
+import { bankOpeningItem, glEntry, bankMappingRevision, bankReconciliationProfile, type Database } from '@factoryos/db';
 import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post, Put, ConflictException, NotFoundException, BadRequestException, UseInterceptors, UploadedFile, Header, Query } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -22,7 +22,7 @@ export class BankReconciliationController {
  @Get('profiles') @RequirePermission('accounts.bank_reconciliation.read')
  list(@Ctx() ctx:TenantRequestContext){return this.db.select().from(bankReconciliationProfile).where(and(eq(bankReconciliationProfile.tenantId,ctx.tenant.tenantId),eq(bankReconciliationProfile.entityId,entityOf(ctx))));}
  @Get('profiles/:id') @RequirePermission('accounts.bank_reconciliation.read')
- detail(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string){return this.registry.contextIn(this.db,ctx,entityOf(ctx),id);}
+ async detail(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string){const entityId=entityOf(ctx),context=await this.registry.contextIn(this.db,ctx,entityId,id);const rows=context.baseline?await this.db.select({item:bankOpeningItem,sourceVoucherId:glEntry.voucherId}).from(bankOpeningItem).leftJoin(glEntry,and(eq(glEntry.id,bankOpeningItem.glEntryId),eq(glEntry.tenantId,ctx.tenant.tenantId),eq(glEntry.entityId,entityId),eq(glEntry.accountId,context.profile.accountId))).where(and(eq(bankOpeningItem.baselineId,context.baseline.id),eq(bankOpeningItem.profileId,id),eq(bankOpeningItem.tenantId,ctx.tenant.tenantId),eq(bankOpeningItem.entityId,entityId))).orderBy(bankOpeningItem.postingDate,bankOpeningItem.id):[];return {...context,openingItems:rows.map(({item,sourceVoucherId})=>({...item,sourceVoucherId}))};}
  @Post('profiles') @RequirePermission('accounts.bank_reconciliation.configure')
  create(@Ctx() ctx:TenantRequestContext,@Body() body:unknown){const input=parse(BankProfileInput,body);return this.transaction(ctx,async(tx,entityId)=>{
   await this.registry.eligibleAccountIn(tx,ctx,entityId,input.accountId);
@@ -67,7 +67,7 @@ export class BankReconciliationController {
  async exportImport(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Param('importId',ParseUUIDPipe) importId:string){const review=await this.imports.reviewIn(this.db,ctx,entityOf(ctx),id,importId);const cell=(value:string)=>'"'+(/^[\s]*[=+\-@]/.test(value)?"'"+value:value).replaceAll('"','""')+'"';return ['Date,Reference,Description,Amount',...review.parsed.rows.map(row=>[row.date,row.reference,row.description,row.signedAmount].map(cell).join(','))].join('\r\n');}
 
  @Get('profiles/:id/matches') @RequirePermission('accounts.bank_reconciliation.read')
- async matchState(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string){return this.transaction(ctx,async(tx,entityId)=>{const state=await this.matches.stateIn(tx,ctx,entityId,id);return {context:state.context,book:state.book,statement:state.statement,groups:state.groups.map(g=>({...g,reversed:!state.activeGroups.some(x=>x.id===g.id)})),revision:state.revision};});}
+ async matchState(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string){return this.transaction(ctx,async(tx,entityId)=>{const state=await this.matches.stateIn(tx,ctx,entityId,id);return {context:state.context,book:state.book,statement:state.statement,sources:state.entries.map(({entry,voucher})=>({id:entry.id,voucherId:voucher.id,sourceType:voucher.sourceType,sourceId:voucher.sourceId,status:voucher.status})),groups:state.groups.map(g=>({...g,reversed:!state.activeGroups.some(x=>x.id===g.id)})),revision:state.revision};});}
  @Get('profiles/:id/candidates') @RequirePermission('accounts.bank_reconciliation.read')
  candidates(@Ctx() ctx:TenantRequestContext,@Param('id',ParseUUIDPipe) id:string,@Query('statementRowId',ParseUUIDPipe) statementRowId:string){return this.transaction(ctx,(tx,entityId)=>this.matches.candidatesIn(tx,ctx,entityId,id,statementRowId));}
  @Post('profiles/:id/matches/preview') @RequirePermission('accounts.bank_reconciliation.read')

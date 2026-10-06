@@ -15,7 +15,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useEffect, useRef, useState, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {bankPath,useCurrentReview,type Adjustment} from '@/lib/bank-reconciliation';
 import { api } from '@/lib/api';
 import { formatDate, formatMoney, today } from '@/lib/format';
 import {
@@ -106,6 +107,7 @@ export function JournalEditor({ id }: { id?: string }) {
   );
 }
 function Load({ id }: { id?: string }) {
+  const params=useSearchParams(),profileId=params.get('profile'),statementRowId=params.get('statementRow'),replacementOf=params.get('replacement')??undefined;
   const ws = useWorkspace(),
     q = useQuery({
       queryKey: ['accounting-journal', ws.tenantId, ws.entityId, id],
@@ -113,16 +115,22 @@ function Load({ id }: { id?: string }) {
         api<Journal>(`/accounts/journals/${id}`, { scope: ws.scope }),
       enabled: !!id,
     });
+  const requested=!!(!id&&(profileId||statementRowId)),allowed=ws.can('accounts.bank_reconciliation.read')&&ws.can('accounts.bank_reconciliation.create');
+  const adjustment=useQuery({queryKey:['bank',ws.tenantId,ws.entityId,profileId,'journal-prefill',statementRowId],queryFn:()=>api<Adjustment>(`${bankPath(profileId!)}/adjustments/preview`,{method:'POST',body:{statementRowId},scope:ws.scope}),enabled:requested&&allowed&&!!profileId&&!!statementRowId,retry:false});
+  if(requested&&(!allowed||!profileId||!statementRowId))return <Alert tone="danger">Reconciliation access and the original statement row are required.</Alert>;
+  if(adjustment.error)return <Alert tone="danger">{adjustment.error.message}</Alert>;
+  if(requested&&(!adjustment.data||adjustment.isFetching))return <p>Reviewing statement residual…</p>;
   if (id && q.isLoading) return <p>Loading voucher…</p>;
   if (q.error) return <Alert tone="danger">{q.error.message}</Alert>;
   return (
     <Form
-      key={`${ws.entityId}:${id ?? 'new'}:${q.data?.status ?? 'draft'}`}
+      key={`${ws.tenantId}:${ws.entityId}:${id ?? 'new'}:${q.data?.status ?? 'draft'}:${adjustment.data?.previewHash??''}`}
       doc={q.data}
+      linked={adjustment.data&&profileId&&statementRowId?{profileId,statementRowId,replacementOf,preview:adjustment.data}:undefined}
     />
   );
 }
-function Form({ doc }: { doc?: Journal }) {
+function Form({ doc,linked }: { doc?: Journal;linked?:{profileId:string;statementRowId:string;replacementOf?:string;preview:Adjustment} }) {
   const ws = useWorkspace(),
     router = useRouter(),
     qc = useQueryClient(),
@@ -131,10 +139,11 @@ function Form({ doc }: { doc?: Journal }) {
   const editable =
       (!doc || doc.status === 'draft') && (!doc || doc.sourceType === 'manual'),
     canEdit = editable && ws.can('accounts.voucher.create');
-  const [date, setDate] = useState(doc?.postingDate ?? today()),
+  const reconciliation=doc?.reconciliation?.ref??(linked?{profileId:linked.profileId,statementRowId:linked.statementRowId,reviewedHash:linked.preview.previewHash,replacementOf:linked.replacementOf}:undefined);
+  const [date, setDate] = useState(doc?.postingDate ?? linked?.preview.row.date ?? today()),
     [narration, setNarration] = useState(doc?.narration ?? ''),
     [lines, setLines] = useState<JournalLine[]>(
-      doc?.draftLines.length ? doc.draftLines : [emptyLine(), emptyLine()],
+      doc?.draftLines.length ? doc.draftLines : linked?[{accountId:linked.preview.bankAccountId,debit:linked.preview.row.remaining.startsWith('-')?'0':linked.preview.row.remaining,credit:linked.preview.row.remaining.startsWith('-')?linked.preview.row.remaining.slice(1):'0'},emptyLine()]:[emptyLine(), emptyLine()],
     ),
     [reason, setReason] = useState(''),
     [cancelling, setCancelling] = useState(false),
@@ -171,8 +180,9 @@ function Form({ doc }: { doc?: Journal }) {
     void qc.invalidateQueries({ queryKey: ['accounting-journals'] });
     void qc.invalidateQueries({ queryKey: ['accounting-report'] });
   };
+  const formKey=JSON.stringify({date,narration,lines,clearingSourceId,reconciliation}),current=useCurrentReview(formKey);
   const save = useMutation({
-    mutationFn: async (submit: boolean) => {
+    mutationFn: async ({submit}:{submit:boolean;key:string}) => {
       let id = doc?.id;
       if (canEdit) {
         const result = await api<Journal>(
@@ -184,6 +194,7 @@ function Form({ doc }: { doc?: Journal }) {
               narration,
               lines,
               ...(clearingSourceId && { clearingSourceId }),
+              ...(reconciliation && {reconciliation}),
             },
             scope: ws.scope,
           },
@@ -198,7 +209,8 @@ function Form({ doc }: { doc?: Journal }) {
         });
       return id;
     },
-    onSuccess: (id) => {
+    onSuccess: (id,variables) => {
+      if(!current(variables.key))return;
       refresh();
       router.replace(`/app/accounts/journals/${id}`);
     },
@@ -215,6 +227,7 @@ function Form({ doc }: { doc?: Journal }) {
       refresh();
     },
   });
+  const abandon=useMutation({mutationFn:()=>api(`/accounts/journals/${doc!.id}/abandon`,{method:'POST',body:{reason},scope:ws.scope}),onSuccess:()=>{refresh();void qc.invalidateQueries({queryKey:['bank',ws.tenantId,ws.entityId]});}});
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (
@@ -224,18 +237,19 @@ function Form({ doc }: { doc?: Journal }) {
         !save.isPending
       ) {
         e.preventDefault();
-        save.mutate(false);
+        save.mutate({submit:false,key:formKey});
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [canEdit, save]);
+  }, [canEdit, save, formKey]);
   const displayed = doc?.entries?.length
       ? doc.entries
       : (doc?.draftLines ?? []),
     source = doc ? sourceHref(doc) : null;
   return (
     <div className="space-y-5">
+      {reconciliation&&<Alert>Linked statement row {reconciliation.statementRowId}. Original provenance remains fixed. <Link className="text-accent" href="/app/accounts/bank-reconciliation">Return to reconciliation</Link></Alert>}
       {save.error && <Alert tone="danger">{save.error.message}</Alert>}
       {doc && (
         <div className="flex flex-wrap items-center gap-3">
@@ -269,7 +283,7 @@ function Form({ doc }: { doc?: Journal }) {
           ref={formRef}
           onSubmit={(e) => {
             e.preventDefault();
-            save.mutate(false);
+            save.mutate({submit:false,key:formKey});
           }}
           onKeyDown={(e) => {
             if (
@@ -296,6 +310,7 @@ function Form({ doc }: { doc?: Journal }) {
                     <Input
                       {...p}
                       type="date"
+                      disabled={!!reconciliation}
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
                     />
@@ -370,7 +385,7 @@ function Form({ doc }: { doc?: Journal }) {
             {ws.can('accounts.voucher.submit') && doc && (
               <Button
                 disabled={save.isPending}
-                onClick={() => save.mutate(true)}
+                onClick={() => save.mutate({submit:true,key:formKey})}
               >
                 Submit journal
               </Button>
@@ -418,6 +433,7 @@ function Form({ doc }: { doc?: Journal }) {
           </Table>
         </Card>
       )}
+      {doc?.status==='draft'&&doc.reconciliation&&!doc.reconciliation.releasedAt&&ws.can('accounts.voucher.create')&&ws.can('accounts.bank_reconciliation.cancel')&&<Card className="p-4 space-y-3"><Field label="Linked draft abandonment reason">{p=><Input {...p} value={reason} onChange={e=>setReason(e.target.value)}/>}</Field><Button variant="secondary" disabled={!reason.trim()||abandon.isPending} onClick={()=>abandon.mutate()}>Abandon linked draft</Button>{abandon.error&&<Alert tone="danger">{abandon.error.message}</Alert>}</Card>}
       {doc?.sourceType === 'manual' &&
         doc.status === 'submitted' &&
         ws.can('accounts.voucher.cancel') && (
