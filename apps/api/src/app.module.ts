@@ -1,3 +1,5 @@
+import {SsoService} from './modules/sso/sso.service.js';
+import {SsoController} from './modules/sso/sso.controller.js';
 import {EmailService} from './modules/email/email.service.js';
 import {EmailController,PlatformEmailController} from './modules/email/email.controller.js';
 import { BankReportService } from './modules/bank-reconciliation/report.service.js';
@@ -63,8 +65,8 @@ import { SeriesController } from './modules/series.controller.js';
 import { WasteController } from './modules/waste.controller.js';
 
 @Module({
-  controllers: [EmailController,PlatformEmailController,BankReconciliationController,BankChargesController,WithholdingController,GstSandboxController,SupplierReturnsController,SalesNotesController,InvoiceBalancesController, AccountingReportsController, AccountingController, SettlementsController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
-  providers: [EmailService,BankReportService,BankAdjustmentService,BankMatchService,BankImportService,BankRegistryService,BankReconciliationGuard,BankChargeService,TaxPolicyService,SandboxConnectionsService,SandboxOperationsService,SandboxSourceService,SupplierReturnResolutionService,SupplierNoteService,SupplierNotePreviewService,SupplierNotePostingService,SupplierCreditApplicationService,SupplierReturnMovementService,SupplierReturnPolicyService,SupplierReturnClaimService,SalesNoteService, SalesReturnService, CreditApplicationService, SalesNotePostingService, SalesNotePreviewService,
+  controllers: [SsoController,EmailController,PlatformEmailController,BankReconciliationController,BankChargesController,WithholdingController,GstSandboxController,SupplierReturnsController,SalesNotesController,InvoiceBalancesController, AccountingReportsController, AccountingController, SettlementsController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
+  providers: [SsoService,EmailService,BankReportService,BankAdjustmentService,BankMatchService,BankImportService,BankRegistryService,BankReconciliationGuard,BankChargeService,TaxPolicyService,SandboxConnectionsService,SandboxOperationsService,SandboxSourceService,SupplierReturnResolutionService,SupplierNoteService,SupplierNotePreviewService,SupplierNotePostingService,SupplierCreditApplicationService,SupplierReturnMovementService,SupplierReturnPolicyService,SupplierReturnClaimService,SalesNoteService, SalesReturnService, CreditApplicationService, SalesNotePostingService, SalesNotePreviewService,
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: DB, inject: [CONFIG], useFactory: (c: AppConfig) => createDb(c.DATABASE_URL) },
     { provide: AUTH, inject: [DB, CONFIG,EmailService], useFactory: (db: Database, c: AppConfig,email:EmailService) => createAuth(db, c,email) },
