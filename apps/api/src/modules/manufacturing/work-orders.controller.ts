@@ -495,7 +495,7 @@ export class WorkOrdersController {
       .orderBy(asc(stockEntry.createdAt));
     const lines = entries.length
       ? await db
-          .select({ entryId: stockEntryLine.entryId, itemCode: item.code, itemName: item.name, qty: stockEntryLine.qty, value: stockEntryLine.value, rate: stockEntryLine.rate, batchId: stockEntryLine.batchId, batchNo: batch.batchNo, heatNo: batch.heatNo, warehouse: warehouse.name })
+          .select({ entryId: stockEntryLine.entryId, itemId: stockEntryLine.itemId, itemCode: item.code, itemName: item.name, qty: stockEntryLine.qty, value: stockEntryLine.value, rate: stockEntryLine.rate, batchId: stockEntryLine.batchId, batchNo: batch.batchNo, heatNo: batch.heatNo, warehouse: warehouse.name })
           .from(stockEntryLine)
           .innerJoin(item, eq(item.id, stockEntryLine.itemId))
           .leftJoin(batch, eq(batch.id, stockEntryLine.batchId))
