@@ -54,7 +54,7 @@ export class SsoService {
    }else{
     if(!binding||binding.ssoIssuer!==issuer||binding.userId!==data.user.id)throw new Error();
     const [current]=await this.db.select().from(user).where(eq(user.id,binding.userId));
-    if(!current||current.twoFactorEnabled)throw new Error(); // Task5 extends the native MFA lifecycle before allowing these users.
+    if(!current)throw new Error();
     setSsoFrame(ctx,{mode:'signin',provider,userId:binding.userId,accountId:binding.id,issuer,returnPath});
    }
   }catch{

@@ -48,9 +48,16 @@ export class SsoStore {
   if(rows.length!==1)throw new Error('SSO connection unavailable');
  }
  async completeSsoSession(sessionId:string,frame:SsoAuthFrame):Promise<void>{
+  if(frame.mode==='link')throw new Error('SSO session refused');
+  await this.frameForBinding(frame.accountId!,frame.userId,frame.issuer,frame.mode,frame.returnPath);
   if(!this.config.sso[frame.provider]||frame.issuer!==(frame.provider==='google'?'https://accounts.google.com':this.config.sso.microsoft!.issuer))throw new Error('SSO provider unavailable');
   const rows=await this.db.update(session).set({ssoPending:false}).where(and(eq(session.id,sessionId),eq(session.userId,frame.userId),eq(session.ssoAccountId,frame.accountId!),eq(session.ssoIssuer,frame.issuer))).returning({id:session.id});
   if(rows.length!==1)throw new Error('SSO session refused');
+ }
+ async frameForBinding(accountId:string,userId:string,issuer:string,mode:'signin'|'mfa',returnPath:string):Promise<SsoAuthFrame>{
+  const [binding]=await this.db.select().from(account).where(and(eq(account.id,accountId),eq(account.userId,userId)));
+  if(!binding||(binding.providerId!=='google'&&binding.providerId!=='microsoft')||!this.config.sso[binding.providerId]||binding.ssoIssuer!==issuer||issuer!==(binding.providerId==='google'?'https://accounts.google.com':this.config.sso.microsoft!.issuer))throw new Error('SSO binding unavailable');
+  return {mode,accountId,userId,issuer,provider:binding.providerId,returnPath};
  }
  async pruneSsoActions(limit=500):Promise<number>{
   const bounded=Math.min(500,Math.max(1,Math.trunc(limit)||500));

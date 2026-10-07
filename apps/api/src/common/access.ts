@@ -1,5 +1,5 @@
 import { accessibleEntityIds, effectivePermissions, isPermission, type Permission, type ScopedGrant } from '@factoryos/auth';
-import { type Database, legalEntity, membership, platformAdmin, role, roleAssignment, tenant } from '@factoryos/db';
+import { type Database, legalEntity, membership, platformAdmin, role, roleAssignment, tenant,session as authSession } from '@factoryos/db';
 import {
   type CanActivate,
   createParamDecorator,
@@ -80,6 +80,8 @@ export class AccessGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<Request & { ctx?: RequestContext }>();
     const session = await this.auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
     if (!session) throw new UnauthorizedException('Sign in required');
+    const [stored]=await this.db.select({pending:authSession.ssoPending}).from(authSession).where(eq(authSession.id,session.session.id));
+    if(!stored||stored.pending)throw new UnauthorizedException('Complete verification first');
 
     const [admin] = await this.db
       .select({ level: platformAdmin.level })

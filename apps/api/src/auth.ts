@@ -6,8 +6,10 @@ import { twoFactor as twoFactorPlugin } from 'better-auth/plugins';
 import type { AppConfig } from './config.js';
 import {authEmailCallbacks} from './modules/email/auth-email.js';
 import type {EmailService} from './modules/email/email.service.js';
-import {createAuthMiddleware} from 'better-auth/api';
+import {APIError,createAuthMiddleware,isAPIError} from 'better-auth/api';
 import {buildSsoOptions} from './modules/sso/sso.policy.js';
+import {withSsoMfa} from './modules/sso/sso.mfa.js';
+import {SsoStore} from './modules/sso/sso.store.js';
 
 export function createAuth(db: Database, config: AppConfig,email:EmailService) {
   const callbacks=authEmailCallbacks(db,config,email);
@@ -34,9 +36,13 @@ export function createAuth(db: Database, config: AppConfig,email:EmailService) {
     },
     emailVerification:{sendVerificationEmail:callbacks.sendVerificationEmail,sendOnSignUp:config.email.mode==='smtp',sendOnSignIn:false,expiresIn:3600},
     hooks:{...sso.hooks,before:createAuthMiddleware(async ctx=>{const outcome=await callbacks.before({...ctx,returnHeaders:false});if(outcome)return outcome;return mutationBefore({...ctx,returnHeaders:false});})},
-    onAPIError:{errorURL:new URL('/sso/error',config.WEB_ORIGIN).href},
+    onAPIError:{errorURL:new URL('/sso/error',config.WEB_ORIGIN).href,onError(error){
+      // The router logs raw non-API errors even when its logger is disabled.
+      // Adapter errors can contain SQL parameters and credential material.
+      if(!isAPIError(error))throw new APIError('INTERNAL_SERVER_ERROR',{message:'Authentication is temporarily unavailable'});
+    }},
     rateLimit: { enabled: config.NODE_ENV !== 'test', window: 60, max: 100 },
-    plugins: [twoFactorPlugin({ issuer: 'FactoryOS' })],
+    plugins: [withSsoMfa(twoFactorPlugin({ issuer: 'FactoryOS' }),new SsoStore(db,config),config,db)],
   });
 }
 

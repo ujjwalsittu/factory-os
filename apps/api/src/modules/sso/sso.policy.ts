@@ -1,4 +1,4 @@
-import {account,type Database} from '@factoryos/db';
+import {account,session,verification,type Database} from '@factoryos/db';
 import {and,eq,inArray} from 'drizzle-orm';
 import {APIError,createAuthMiddleware,getAuthoritativeSessionFromCtx,addOAuthServerContext,getOAuthState} from 'better-auth/api';
 import {google,microsoft,verifyGoogleIdToken} from 'better-auth/social-providers';
@@ -11,10 +11,19 @@ import {SsoStore} from './sso.store.js';
 import {SsoService} from './sso.service.js';
 import {getSsoFrame,type SsoProviderId} from './sso.types.js';
 import {validateSsoReturn,ssoLanding} from './sso.urls.js';
+import {ssoVerificationData} from './sso.mfa.js';
 
 export function ssoMutationBefore(db:Database,config:AppConfig){
  const store=new SsoStore(db,config);
  return createAuthMiddleware(async ctx=>{
+  if(!ctx.path.startsWith('/callback/')&&!['/sign-in/social','/link-social'].includes(ctx.path)){
+   const current=await getAuthoritativeSessionFromCtx(ctx);
+   if(current){
+    const [row]=await db.select({pending:session.ssoPending}).from(session).where(eq(session.id,current.session.id));
+    if(row?.pending){ctx.context.session=null;if(ctx.path==='/get-session')return ctx.json(null);throw new APIError('UNAUTHORIZED',{message:'Complete verification first'});}
+    if(['/revoke-sessions','/revoke-other-sessions'].includes(ctx.path))await db.delete(verification).where(and(eq(verification.value,current.user.id),inArray(verification.ssoAccountId,(await db.select({id:account.id}).from(account).where(eq(account.userId,current.user.id))).map(a=>a.id))));
+   }
+  }
   if(['/get-access-token','/refresh-token','/account-info','/list-accounts'].includes(ctx.path))throw new APIError('FORBIDDEN',{message:'Provider token access is unavailable'});
   if(ctx.path.startsWith('/callback/')){
    const provider:unknown=ctx.params?.id;
@@ -95,8 +104,10 @@ export function buildSsoOptions(db:Database,config:AppConfig):Pick<BetterAuthOpt
    session:{create:{before:async(data,ctx)=>{
     const frame=getSsoFrame(ctx);if(!frame||frame.mode==='link')return;
     if(frame.userId!==data.userId||!frame.accountId||!config.sso[frame.provider])throw new APIError('FORBIDDEN',{message:'SSO session refused'});
-    return {data:{...data,ssoAccountId:frame.accountId,ssoIssuer:frame.issuer,ssoPending:false}};
+    await service.store.frameForBinding(frame.accountId,frame.userId,frame.issuer,frame.mode==='mfa'?'mfa':'signin',frame.returnPath);
+    return {data:{...data,ssoAccountId:frame.accountId,ssoIssuer:frame.issuer,ssoPending:frame.mode==='signin'}};
    }}},
+   verification:{create:{before:(data,ctx)=>ssoVerificationData(data,ctx,config)}},
   },
  };
 }
