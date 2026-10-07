@@ -29,6 +29,8 @@ No unresolved Critical/Important finding is recorded for the completed email/ban
 
 ## Broader roadmap after current sequence
 
+Manufacturing slice2a is now merged to main (decision044/migration0027); its BOM/work-centre/work-order/issue/job-card/actual-output flows are delivered in that branch history. [Review](../superpowers/reviews/2026-10-07-manufacturing-2a-review.md). Remaining manufacturing roadmap is later depth, including serials/genealogy/remnants and job work/quality/scheduling; this session made no manufacturing product changes.
+
 Manufacturing/quality (BOM/routing/work orders/job cards/genealogy, job work/ITC-04, inspection/calibration, scheduling); services/resources/subscriptions/timesheets; accounting depth (cost centres, inter-company/consolidation) and GST returns/2B-IMS; IoT/edge/OEE and expanded EHS evidence; later maintenance/CAPA/customer portal/analytics/GSTR-9. [Roadmap](../09-roadmap.md) is a broad plan; STATUS and completed reviews override stale pending labels (for example sales/supplier notes, payments and bank reconciliation are already delivered).
 
 ## Implemented in the current requested bundles

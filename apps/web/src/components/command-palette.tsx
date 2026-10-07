@@ -55,6 +55,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     if (ws.can('compliance.sandbox_irn.create')||ws.can('compliance.sandbox_ewb.create')) actions.push({id:'sandbox',label:'Prepare sandbox exercise',group:'Actions',run:go('/app/compliance/sandbox/new')});
     if (ws.can('buying.supplier_note.create')) actions.push({ id: 'supplier-note', label: 'Record supplier note', group: 'Actions', run: go('/app/buying/supplier-notes/new') });
     if (ws.can('buying.purchase_invoice.create')) actions.push({ id: 'pi', label: 'New purchase invoice', group: 'Actions', run: go('/app/buying/invoices/new') });
+    if (ws.can('manufacturing.bom.create')) actions.push({ id: 'bom', label: 'New bill of materials', group: 'Actions', run: go('/app/manufacturing/boms/new') });
     if (ws.can('buying.landed_cost.create')) actions.push({ id: 'lcv', label: 'New landed cost (Bill of Entry)', group: 'Actions', run: go('/app/buying/landed-costs/new') });
     if (ws.can('masters.item.create')) actions.push({ id: 'item', label: 'New item', group: 'Actions', run: go('/app/masters/items?new=1') });
     if (ws.can('masters.party.create')) actions.push({ id: 'party', label: 'New customer or supplier', group: 'Actions', run: go('/app/masters/parties?new=1') });

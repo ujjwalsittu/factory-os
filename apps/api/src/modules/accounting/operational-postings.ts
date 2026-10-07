@@ -75,7 +75,14 @@ export class OperationalPostings {
       for (const row of rows) {
         if (row.ownerPartyId) continue;
         const value = Dec.of(row.value ?? '0');
-        if (
+        // Work orders (decision 044): stock moves between inventory and work in progress.
+        if (entry.purpose === 'production_issue') {
+          lines.add('wip', value);
+          lines.add('inventory', value.neg());
+        } else if (entry.purpose === 'production_return' || entry.purpose === 'production_output') {
+          lines.add('inventory', value);
+          lines.add('wip', value.neg());
+        } else if (
           entry.purpose === 'receipt' ||
           (entry.purpose === 'adjustment' && row.toWarehouseId)
         ) {
@@ -108,6 +115,21 @@ export class OperationalPostings {
       entry.postingDate,
       lines.plan(),
     );
+  }
+  /** A posting by account role, e.g. job-card absorption or a work order's close variance (decision 044). */
+  async rolesIn(
+    tx: Tx,
+    ctx: TenantRequestContext,
+    entityId: string,
+    source: { type: string; id: string; purpose: string; number: string | null },
+    postingDate: string,
+    amounts: [role: string, debit: Dec | string][],
+  ) {
+    const settings = await this.gl.active(tx, entityId);
+    if (!settings) return;
+    const lines = new Lines(settings.mappings);
+    for (const [role, debit] of amounts) lines.add(role, debit);
+    await this.gl.postIn(tx, ctx, entityId, source, postingDate, lines.plan());
   }
   async purchaseIn(
     tx: Tx,

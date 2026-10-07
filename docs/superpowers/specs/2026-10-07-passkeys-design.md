@@ -1,6 +1,6 @@
 # Optional configurable passkeys — design
 
-Date: 2026-10-07 (Asia/Kolkata). Status: **Written spec approved by user Continue on 2026-10-08; implementation-plan review pending**. Continues decisions 009/045 and the requested foundation sequence. Decision 044 is already reserved for manufacturing on the shared development branch.
+Date: 2026-10-07 (Asia/Kolkata). Status: **Written spec approved by user Continue on 2026-10-08; implementation-plan review pending**. Continues decisions 009/045 and the requested foundation sequence. Decision 044 covers manufacturing already merged to main.
 
 This document proposes application behavior. It authorizes no product implementation, dependency installation, database migration, credential enrollment or deployment. Merge the verified SSO corrections from `sso-completion-20261007` into `main` before dependent implementation. Execute the later approved plan inline using the existing Native preference, on a branch from current `origin/main`, through the required claim/PR/green-CI workflow.
 
@@ -62,7 +62,7 @@ Unsupported framework behavior must fail closed and be reported as a blocker; do
 
 Credentials and authentication actions belong to the global auth user, like existing auth tables, because users can belong to several tenants. They do not carry a selected-tenant ownership claim. Every application request still resolves current tenant membership, entity scope and permissions normally.
 
-Use additive generated SQL after reconciling the latest merged migration journal. Manufacturing already uses 0027 on another branch: **assign no next migration number in this design**, and never edit or overwrite prior migration SQL.
+Use additive generated SQL after reconciling the latest merged migration journal. Manufacturing0027 is now on main in73de072: **assign no next migration number in this design**, and never edit or overwrite prior migration SQL.
 
 - **Native passkey credential plus private provenance:** native fields for public key/credential ID/counter/device/backup/transports/AAGUID/created time; globally unique canonical credential ID; immutable owner, RP ID, public key and server-issued opaque user handle; private last-used time. Bound user-entered labels to 1–80 characters. Device labels are escaped display text, not trust evidence.
 - **Management action:** hashed random nonce, exact user/live session, kind (register/rename/remove), target credential for mutations, local-password proof reference, fixed RP/configuration snapshot, expiry no later than five minutes and one-time consumption. Revalidate proof/session/ownership and database time after waits. A grant from another session cannot be borrowed or replace a stale request's grant.
