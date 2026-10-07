@@ -15,10 +15,10 @@ export async function seedSsoOwner(db){
  return {userId,sessionId,email:`${userId}@example.test`};
 }
 export async function seedSsoAction(db,owner,kind='link',target=null,patch={}){
- const id=randomUUID(),nonce=randomUUID(),provider=patch.provider??'google',issuer=patch.issuer??'https://accounts.google.com';
- await db.$client.query('insert into auth_sso_action(id,user_id,session_id,kind,provider,email_snapshot,issuer,target_account_id,nonce_hash,expires_at) values($1,$2,$3,$4,$5,$6,$7,$8,$9,now()+interval \'5 minutes\')',[id,owner.userId,owner.sessionId,kind,provider,owner.email,issuer,target,createHash('sha256').update(nonce).digest('hex')]);
- return {id,nonce,provider,issuer};
+ const id=randomUUID(),nonce=randomUUID(),provider=patch.provider??'google',issuer=patch.issuer??'https://accounts.google.com',clientId=patch.clientId??(provider==='google'?'synthetic-google':'synthetic-ms');
+ await db.$client.query('insert into auth_sso_action(id,user_id,session_id,kind,provider,email_snapshot,issuer,target_account_id,nonce_hash,client_id,expires_at) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now()+interval \'5 minutes\')',[id,owner.userId,owner.sessionId,kind,provider,owner.email,issuer,target,createHash('sha256').update(nonce).digest('hex'),clientId]);
+ return {id,nonce,provider,issuer,clientId};
 }
 export async function seedSsoBinding(db,owner,action,accountKey=randomUUID()){
- const id=randomUUID();await db.$client.query('insert into account(id,user_id,provider_id,account_id,sso_issuer,sso_action_id) values($1,$2,$3,$4,$5,$6)',[id,owner.userId,action.provider,accountKey,action.issuer,action.id]);return id;
+ const id=randomUUID(),clientId=action.clientId??(await db.$client.query('select client_id from auth_sso_action where id=$1',[action.id])).rows[0].client_id;await db.$client.query('insert into account(id,user_id,provider_id,account_id,sso_issuer,sso_action_id,sso_client_id) values($1,$2,$3,$4,$5,$6,$7)',[id,owner.userId,action.provider,accountKey,action.issuer,action.id,clientId]);return id;
 }

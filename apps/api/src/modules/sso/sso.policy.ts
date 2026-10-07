@@ -85,8 +85,8 @@ export function buildSsoOptions(db:Database,config:AppConfig):Pick<BetterAuthOpt
  const privateString={type:'string' as const,required:false,input:false,returned:false};
  return {
   socialProviders,
-  account:{encryptOAuthTokens:true,storeAccountCookie:false,updateAccountOnSignIn:false,additionalFields:{ssoIssuer:privateString,ssoActionId:privateString},accountLinking:{enabled:true,disableImplicitLinking:true,allowDifferentEmails:false,updateUserInfoOnLink:false,trustedProviders:['google','microsoft']}},
-  session:{expiresIn:60*60*24*7,updateAge:60*60*24,additionalFields:{ssoAccountId:privateString,ssoIssuer:privateString,ssoPending:{type:'boolean',required:false,input:false,returned:false,defaultValue:false}}},
+  account:{encryptOAuthTokens:true,storeAccountCookie:false,updateAccountOnSignIn:false,additionalFields:{ssoIssuer:privateString,ssoClientId:privateString,ssoActionId:privateString},accountLinking:{enabled:true,disableImplicitLinking:true,allowDifferentEmails:false,updateUserInfoOnLink:false,trustedProviders:['google','microsoft']}},
+  session:{expiresIn:60*60*24*7,updateAge:60*60*24,additionalFields:{ssoAccountId:privateString,ssoIssuer:privateString,ssoClientId:privateString,ssoPending:{type:'boolean',required:false,input:false,returned:false,defaultValue:false}}},
   user:{validateUserInfo:(data,ctx)=>service.authorizeOAuth(data,ctx)},
   hooks:{before:ssoMutationBefore(db,config),after:createAuthMiddleware(async ctx=>{
    if(ctx.path.startsWith('/callback/')){
@@ -98,13 +98,13 @@ export function buildSsoOptions(db:Database,config:AppConfig):Pick<BetterAuthOpt
    account:{create:{before:async (data,ctx)=>{
     if(data.providerId!=='google'&&data.providerId!=='microsoft')return;
     const frame=getSsoFrame(ctx);if(!frame||frame.mode!=='link'||frame.userId!==data.userId||frame.provider!==data.providerId||!frame.actionId)throw new APIError('FORBIDDEN',{message:'Identity authorization required'});
-    return {data:{...data,ssoIssuer:frame.issuer,ssoActionId:frame.actionId,...(data.idToken?{idToken:await symmetricEncrypt({key:config.BETTER_AUTH_SECRET,data:data.idToken})}:{})}};
+    return {data:{...data,ssoIssuer:frame.issuer,ssoClientId:frame.clientId,ssoActionId:frame.actionId,...(data.idToken?{idToken:await symmetricEncrypt({key:config.BETTER_AUTH_SECRET,data:data.idToken})}:{})}};
    }},update:{before:async(data)=>({data:{...data,...(data.idToken?{idToken:await symmetricEncrypt({key:config.BETTER_AUTH_SECRET,data:data.idToken})}:{})}})}},
    session:{create:{before:async(data,ctx)=>{
     const frame=getSsoFrame(ctx);if(!frame||frame.mode==='link')return;
     if(frame.userId!==data.userId||!frame.accountId||!config.sso[frame.provider])throw new APIError('FORBIDDEN',{message:'SSO session refused'});
     await service.store.frameForBinding(frame.accountId,frame.userId,frame.issuer,frame.mode==='mfa'?'mfa':'signin',frame.returnPath);
-    return {data:{...data,ssoAccountId:frame.accountId,ssoIssuer:frame.issuer,ssoPending:frame.mode==='signin'}};
+    return {data:{...data,ssoAccountId:frame.accountId,ssoIssuer:frame.issuer,ssoClientId:frame.clientId,ssoPending:frame.mode==='signin'}};
    }}},
    verification:{create:{before:(data,ctx)=>ssoVerificationData(data,ctx,config)}},
   },

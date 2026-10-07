@@ -15,15 +15,15 @@ export class SsoStore {
    const [u]=await tx.select().from(user).where(eq(user.id,ctx.user.id)).for('update');
    const result=await tx.execute<{now:Date}>(sql`select clock_timestamp() as now`),now=new Date(result.rows[0]!.now);
    if(!s||!u||s.ssoPending||s.expiresAt<=now||now.getTime()-s.createdAt.getTime()>=300000||!u.emailVerified)throw new Error('SSO reauthentication required');
-   let issuer:string;
+   let issuer:string,clientId:string|null;
    if(input.kind==='link'){
     if(input.targetAccountId||!this.config.sso[input.provider])throw new Error('SSO provider unavailable');
-    issuer=input.provider==='google'?'https://accounts.google.com':this.config.sso.microsoft!.issuer;
+    issuer=input.provider==='google'?'https://accounts.google.com':this.config.sso.microsoft!.issuer;clientId=this.config.sso[input.provider]!.clientId;
    }else{
     const [binding]=await tx.select().from(account).where(and(eq(account.id,input.targetAccountId??''),eq(account.userId,u.id),eq(account.providerId,input.provider)));
-    if(!binding||!binding.ssoIssuer)throw new Error('SSO connection unavailable');issuer=binding.ssoIssuer;
+    if(!binding)throw new Error('SSO connection unavailable');issuer=binding.ssoIssuer??'unverified';clientId=binding.ssoClientId;
    }
-   const [action]=await tx.insert(authSsoAction).values({userId:u.id,sessionId:s.id,provider:input.provider,kind:input.kind,emailSnapshot:u.email,issuer,targetAccountId:input.targetAccountId??null,nonceHash:this.digest(nonce),createdAt:now,expiresAt:new Date(now.getTime()+300000)}).returning();return action!;
+   const [action]=await tx.insert(authSsoAction).values({userId:u.id,sessionId:s.id,provider:input.provider,kind:input.kind,emailSnapshot:u.email,issuer,clientId,targetAccountId:input.targetAccountId??null,nonceHash:this.digest(nonce),createdAt:now,expiresAt:new Date(now.getTime()+300000)}).returning();return action!;
   });
   return {nonce,expiresAt:row.expiresAt};
  }
@@ -39,7 +39,7 @@ export class SsoStore {
   const [s]=await this.db.select().from(session).where(and(eq(session.id,a.sessionId),eq(session.userId,a.userId)));
   const [u]=await this.db.select().from(user).where(eq(user.id,a.userId));const now=new Date();
   if(!s||!u||s.ssoPending||!u.emailVerified||u.email!==a.emailSnapshot||s.expiresAt<=now||a.expiresAt<=now||now.getTime()-s.createdAt.getTime()>=300000)throw new Error('SSO consent refused');
-  if(a.kind==='link'&&(!this.config.sso[a.provider]||a.issuer!==(a.provider==='google'?'https://accounts.google.com':this.config.sso.microsoft!.issuer)))throw new Error('SSO provider unavailable');
+  if(a.kind==='link'&&(!this.config.sso[a.provider]||a.issuer!==(a.provider==='google'?'https://accounts.google.com':this.config.sso.microsoft!.issuer)||a.clientId!==this.config.sso[a.provider]!.clientId))throw new Error('SSO provider unavailable');
   return a;
  }
  async prepareUnlinkReference(ctx:RequestContext,action:SsoActionRecord):Promise<void>{
@@ -51,13 +51,13 @@ export class SsoStore {
   if(frame.mode==='link')throw new Error('SSO session refused');
   await this.frameForBinding(frame.accountId!,frame.userId,frame.issuer,frame.mode,frame.returnPath);
   if(!this.config.sso[frame.provider]||frame.issuer!==(frame.provider==='google'?'https://accounts.google.com':this.config.sso.microsoft!.issuer))throw new Error('SSO provider unavailable');
-  const rows=await this.db.update(session).set({ssoPending:false}).where(and(eq(session.id,sessionId),eq(session.userId,frame.userId),eq(session.ssoAccountId,frame.accountId!),eq(session.ssoIssuer,frame.issuer))).returning({id:session.id});
+  const rows=await this.db.update(session).set({ssoPending:false}).where(and(eq(session.id,sessionId),eq(session.userId,frame.userId),eq(session.ssoAccountId,frame.accountId!),eq(session.ssoIssuer,frame.issuer),eq(session.ssoClientId,frame.clientId))).returning({id:session.id});
   if(rows.length!==1)throw new Error('SSO session refused');
  }
  async frameForBinding(accountId:string,userId:string,issuer:string,mode:'signin'|'mfa',returnPath:string):Promise<SsoAuthFrame>{
   const [binding]=await this.db.select().from(account).where(and(eq(account.id,accountId),eq(account.userId,userId)));
-  if(!binding||(binding.providerId!=='google'&&binding.providerId!=='microsoft')||!this.config.sso[binding.providerId]||binding.ssoIssuer!==issuer||issuer!==(binding.providerId==='google'?'https://accounts.google.com':this.config.sso.microsoft!.issuer))throw new Error('SSO binding unavailable');
-  return {mode,accountId,userId,issuer,provider:binding.providerId,returnPath};
+  if(!binding||(binding.providerId!=='google'&&binding.providerId!=='microsoft')||!this.config.sso[binding.providerId]||binding.ssoIssuer!==issuer||binding.ssoClientId!==this.config.sso[binding.providerId]!.clientId||issuer!==(binding.providerId==='google'?'https://accounts.google.com':this.config.sso.microsoft!.issuer))throw new Error('SSO binding unavailable');
+  return {mode,accountId,userId,issuer,clientId:binding.ssoClientId!,provider:binding.providerId,returnPath};
  }
  async pruneSsoActions(limit=500):Promise<number>{
   const bounded=Math.min(500,Math.max(1,Math.trunc(limit)||500));

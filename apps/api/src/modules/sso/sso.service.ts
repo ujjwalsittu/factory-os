@@ -46,16 +46,16 @@ export class SsoService {
    if(data.source.action==='link-account'){
     if(typeof context.factoryosAction!=='string'||binding)throw new Error();
     const action=await this.store.validateActionById(context.factoryosAction);
-    if(action.kind!=='link'||action.provider!==provider||action.issuer!==issuer||action.userId!==data.user.id||String(data.user.email).toLowerCase()!==action.emailSnapshot.toLowerCase())throw new Error();
+    if(action.kind!=='link'||action.provider!==provider||action.issuer!==issuer||action.clientId!==options.clientId||action.userId!==data.user.id||String(data.user.email).toLowerCase()!==action.emailSnapshot.toLowerCase())throw new Error();
     // Browser/session identity must still be the original locally authorized account.
     const live=await getAuthoritativeSessionFromCtx(ctx);
     if(!live||live.session.id!==action.sessionId||live.user.id!==action.userId)throw new Error();
-    setSsoFrame(ctx,{mode:'link',provider,userId:action.userId,accountId:null,issuer,returnPath,actionId:action.id});
+    setSsoFrame(ctx,{mode:'link',provider,userId:action.userId,accountId:null,issuer,clientId:options.clientId,returnPath,actionId:action.id});
    }else{
-    if(!binding||binding.ssoIssuer!==issuer||binding.userId!==data.user.id)throw new Error();
+    if(!binding||binding.ssoIssuer!==issuer||binding.ssoClientId!==options.clientId||binding.userId!==data.user.id)throw new Error();
     const [current]=await this.db.select().from(user).where(eq(user.id,binding.userId));
     if(!current)throw new Error();
-    setSsoFrame(ctx,{mode:'signin',provider,userId:binding.userId,accountId:binding.id,issuer,returnPath});
+    setSsoFrame(ctx,{mode:'signin',provider,userId:binding.userId,accountId:binding.id,issuer,clientId:options.clientId,returnPath});
    }
   }catch{
    if(binding)await this.db.insert(authSsoEvent).values({userId:binding.userId,accountId:binding.id,provider,issuer,kind:'failed',code:'identity_refused'});

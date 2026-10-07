@@ -22,6 +22,7 @@ export const session = pgTable(
     userAgent: text('user_agent'),
     ssoAccountId: text('sso_account_id'),
     ssoIssuer: text('sso_issuer'),
+    ssoClientId: text('sso_client_id'),
     ssoPending: boolean('sso_pending').notNull().default(false),
     userId: text('user_id')
       .notNull()
@@ -49,6 +50,7 @@ export const account = pgTable(
     scope: text('scope'),
     password: text('password'),
     ssoIssuer: text('sso_issuer'),
+    ssoClientId: text('sso_client_id'),
     ssoActionId: uuid('sso_action_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
