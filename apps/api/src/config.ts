@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import {loadEmailConfig,type EmailConfig} from '@factoryos/email';
+import {loadSsoConfig} from './modules/sso/sso.config.js';
+import type {SsoConfig} from './modules/sso/sso.types.js';
 
 const limit=z.coerce.number().int().min(1).max(1000);
 const schema = z.object({
@@ -37,7 +39,7 @@ const schema = z.object({
     .transform((v) => v === 'true'),
 });
 
-export type AppConfig = z.infer<typeof schema> & {email:EmailConfig};
+export type AppConfig = z.infer<typeof schema> & {email:EmailConfig;sso:SsoConfig};
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = schema.safeParse(env);
@@ -45,5 +47,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     const issues = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
-  return {...parsed.data,email:loadEmailConfig(env)};
+  return {...parsed.data,email:loadEmailConfig(env),sso:loadSsoConfig(env)};
 }

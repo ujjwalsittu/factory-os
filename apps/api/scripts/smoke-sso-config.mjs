@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import {loadSsoConfig,providerAvailability} from '../dist/modules/sso/sso.config.js';
+import {validateSsoReturn,ssoLanding} from '../dist/modules/sso/sso.urls.js';
+import {loadConfig} from '../dist/config.js';
+const base={NODE_ENV:'test',BETTER_AUTH_URL:'http://localhost:3000',WEB_ORIGIN:'http://localhost:3000',DATABASE_URL:'postgresql://localhost/synthetic',BETTER_AUTH_SECRET:'synthetic-secret-at-least-thirty-two-characters'};
+const google={SSO_GOOGLE_ENABLED:'true',SSO_GOOGLE_CLIENT_ID:'synthetic-google',SSO_GOOGLE_CLIENT_SECRET:'never-public-secret'};
+const microsoft={SSO_MICROSOFT_ENABLED:'true',SSO_MICROSOFT_CLIENT_ID:'synthetic-ms',SSO_MICROSOFT_CLIENT_SECRET:'never-public-secret',SSO_MICROSOFT_TENANT_ID:'11111111-2222-4333-8444-555555555555'};
+let n=0;function test(name,fn){fn();n++;console.log(`PASS ${name}`);}
+test('disabled by default without credentials',()=>assert.deepEqual(loadSsoConfig(base),{google:null,microsoft:null}));
+test('disabled availability is empty',()=>assert.deepEqual(providerAvailability(loadSsoConfig(base)),[]));
+for(const key of ['SSO_GOOGLE_CLIENT_ID','SSO_GOOGLE_CLIENT_SECRET'])test(`enabled google requires ${key}`,()=>assert.throws(()=>loadSsoConfig({...base,...google,[key]:''}),/SSO/));
+for(const key of ['SSO_MICROSOFT_CLIENT_ID','SSO_MICROSOFT_CLIENT_SECRET','SSO_MICROSOFT_TENANT_ID'])test(`enabled Microsoft requires ${key}`,()=>assert.throws(()=>loadSsoConfig({...base,...microsoft,[key]:''}),/SSO/));
+for(const tenant of ['common','organizations','consumers','bad-id'])test(`refuse ambiguous tenant ${tenant}`,()=>assert.throws(()=>loadSsoConfig({...base,...microsoft,SSO_MICROSOFT_TENANT_ID:tenant}),/SSO/));
+test('exact hosted domains normalize and dedupe',()=>assert.deepEqual(loadSsoConfig({...base,...google,SSO_GOOGLE_ALLOWED_HOSTED_DOMAINS:' EXAMPLE.COM,example.com,other.example '}).google.allowedHostedDomains,['example.com','other.example']));
+for(const domain of ['*.example.com','example.com\n','https://example.com','example.com/path','@example.com'])test('invalid hosted domain refused',()=>assert.throws(()=>loadSsoConfig({...base,...google,SSO_GOOGLE_ALLOWED_HOSTED_DOMAINS:domain}),/SSO/));
+for(const patch of [{NODE_ENV:'production'},{BETTER_AUTH_URL:'http://foreign.example'},{BETTER_AUTH_URL:'http://localhost:3001'},{WEB_ORIGIN:'https://safe.example/path'},{BETTER_AUTH_URL:'https://user:secret@safe.example',WEB_ORIGIN:'https://safe.example'}])test('unsafe canonical origin refused',()=>assert.throws(()=>loadSsoConfig({...base,...google,...patch}),/SSO/));
+test('both providers independent and original environment survives app parse',()=>{const c=loadConfig({...base,...google,...microsoft});assert.equal(c.sso.google.clientId,'synthetic-google');assert.equal(c.sso.microsoft.issuer,`https://login.microsoftonline.com/${microsoft.SSO_MICROSOFT_TENANT_ID}/v2.0`);assert.deepEqual(providerAvailability(c.sso),[{id:'google',label:'Google'},{id:'microsoft',label:'Microsoft'}]);assert(!JSON.stringify(providerAvailability(c.sso)).includes('secret'));});
+test('safe invitation return retained',()=>assert.equal(validateSsoReturn('/invite/accept?token=opaque'),'/invite/accept?token=opaque'));
+test('missing next uses app',()=>assert.equal(validateSsoReturn(undefined),'/app'));
+for(const next of ['https://evil.example','//evil.example','/%2f%2fevil.example','/\\evil.example','/ok\n','/%5cevil.example','/%252f%252fevil.example'])test('unsafe return refused',()=>assert.throws(()=>validateSsoReturn(next),/SSO/));
+test('fixed landing origin',()=>assert.equal(ssoLanding('http://localhost:3000','success'),'http://localhost:3000/sso/complete'));
+console.log(`SSO config ${n} checks PASS`);

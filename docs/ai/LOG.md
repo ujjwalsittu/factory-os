@@ -121,3 +121,5 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 2026-10-07 · agent · Accept SSO written spec/decision043 from user Continue; prepare/self-review eight-task Native implementation plan and due-items register. Plan covers provider config, transactional immutable identity/consent/events, local proof/API, real native OAuth, callback TOTP/challenge provenance, current-user UI, observed PostgreSQL races/invariance and one final reviewer. No product/dependency/migration/secret/provider setup. Next user written-plan review then standalone claim; live email/IdP, NIC wire contracts, numerical TDS/TCS, passkeys/impersonation/RLS and deferred minors remain due.
 
 2026-10-07 · agent · User approved SSO eight-task plan; claim Native/default-branch implementation before product code. Task1 provider config/contracts next; live apps/credentials/books untouched.
+
+2026-10-07 · agent · SSO Task1 contracts/config/URLs RED missing module→GREEN33 checks; API dependency build7/root typecheck/test24 PASS (cached existing tests), lint0. Disabled defaults and original env parsing preserved; Task2 additive durable authority next.
