@@ -16,8 +16,11 @@ import {ssoVerificationData} from './sso.mfa.js';
 export function ssoMutationBefore(db:Database,config:AppConfig){
  const store=new SsoStore(db,config);
  return createAuthMiddleware(async ctx=>{
+  // Authorization reads must not renew: native dispatch replaces before-hook
+  // headers with endpoint headers. Let the endpoint renew its own cookie.
+  const currentSession=()=>getAuthoritativeSessionFromCtx({...ctx,query:{...ctx.query,disableRefresh:true}});
   if(!ctx.path.startsWith('/callback/')&&!['/sign-in/social','/link-social'].includes(ctx.path)){
-   const current=await getAuthoritativeSessionFromCtx(ctx);
+   const current=await currentSession();
    if(current){
     const [row]=await db.select({pending:session.ssoPending}).from(session).where(eq(session.id,current.session.id));
     if(row?.pending){ctx.context.session=null;if(ctx.path==='/get-session')return ctx.json(null);throw new APIError('UNAUTHORIZED',{message:'Complete verification first'});}
@@ -39,7 +42,7 @@ export function ssoMutationBefore(db:Database,config:AppConfig){
    let returnPath:string;try{returnPath=validateSsoReturn(ctx.headers?.get('x-factoryos-sso-return')??undefined);}catch{throw new APIError('BAD_REQUEST',{message:'SSO return refused'});}
    if(ctx.path==='/link-social'){
     try{
-     const current=await getAuthoritativeSessionFromCtx(ctx);if(!current)throw new Error();
+     const current=await currentSession();if(!current)throw new Error();
      const requestContext:RequestContext={user:current.user,sessionId:current.session.id,platformAdminLevel:null,tenant:null,ip:null,userAgent:null};
      const grant=await store.validateSsoAction(requestContext,ctx.headers?.get('x-factoryos-sso-action')??'',{kind:'link',provider});
      await addOAuthServerContext({factoryosAction:grant.id});returnPath='/app/settings/security';
@@ -50,12 +53,11 @@ export function ssoMutationBefore(db:Database,config:AppConfig){
   }
   if(ctx.path!=='/unlink-account')return;
   try{
-   const current=await getAuthoritativeSessionFromCtx(ctx);if(!current)throw new Error();
+   const current=await currentSession();if(!current)throw new Error();
    const [binding]=await db.select().from(account).where(and(eq(account.id,String(ctx.body?.accountId??'')),eq(account.userId,current.user.id),inArray(account.providerId,['google','microsoft'])));
    if(!binding)throw new Error();
    const requestContext:RequestContext={user:current.user,sessionId:current.session.id,platformAdminLevel:null,tenant:null,ip:null,userAgent:null};
-   const grant=await store.validateSsoAction(requestContext,ctx.headers?.get('x-factoryos-sso-action')??'',{kind:'unlink',provider:binding.providerId as SsoProviderId,targetAccountId:binding.id});
-   await store.prepareUnlinkReference(requestContext,grant);
+   await store.validateSsoAction(requestContext,ctx.headers?.get('x-factoryos-sso-action')??'',{kind:'unlink',provider:binding.providerId as SsoProviderId,targetAccountId:binding.id});
   }catch{throw new APIError('FORBIDDEN',{message:'Connection authorization required'});}
  });
 }
@@ -99,7 +101,17 @@ export function buildSsoOptions(db:Database,config:AppConfig):Pick<BetterAuthOpt
     if(data.providerId!=='google'&&data.providerId!=='microsoft')return;
     const frame=getSsoFrame(ctx);if(!frame||frame.mode!=='link'||frame.userId!==data.userId||frame.provider!==data.providerId||!frame.actionId)throw new APIError('FORBIDDEN',{message:'Identity authorization required'});
     return {data:{...data,ssoIssuer:frame.issuer,ssoClientId:frame.clientId,ssoActionId:frame.actionId,...(data.idToken?{idToken:await symmetricEncrypt({key:config.BETTER_AUTH_SECRET,data:data.idToken})}:{})}};
-   }},update:{before:async(data)=>({data:{...data,...(data.idToken?{idToken:await symmetricEncrypt({key:config.BETTER_AUTH_SECRET,data:data.idToken})}:{})}})}},
+   }},update:{before:async(data)=>({data:{...data,...(data.idToken?{idToken:await symmetricEncrypt({key:config.BETTER_AUTH_SECRET,data:data.idToken})}:{})}})},delete:{before:async(data,ctx)=>{
+    if((data.providerId!=='google'&&data.providerId!=='microsoft')||ctx?.path!=='/unlink-account')return;
+    const live=await getAuthoritativeSessionFromCtx({...ctx,query:{...ctx.query,disableRefresh:true}});
+    if(!live||live.user.id!==data.userId)throw new APIError('FORBIDDEN',{message:'Connection authorization required'});
+    const current:RequestContext={user:live.user,sessionId:live.session.id,platformAdminLevel:null,tenant:null,ip:null,userAgent:null};
+    const grant=await service.store.validateSsoAction(current,ctx.headers?.get('x-factoryos-sso-action')??'',{kind:'unlink',provider:data.providerId,targetAccountId:data.id});
+    await service.store.unlinkSsoAccount(current,grant);
+    // Supported native hook cancellation suppresses a second adapter delete;
+    // native ownership/last-account checks ran, and SQL mutation/event committed.
+    return false;
+   }}},
    session:{create:{before:async(data,ctx)=>{
     const frame=getSsoFrame(ctx);if(!frame||frame.mode==='link')return;
     if(frame.userId!==data.userId||!frame.accountId||!config.sso[frame.provider])throw new APIError('FORBIDDEN',{message:'SSO session refused'});

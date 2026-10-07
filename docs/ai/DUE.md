@@ -4,12 +4,12 @@ Current requested foundation/accounting/NIC sequence. Completed implementation a
 
 | Item | Current state | Next concrete step |
 |---|---|---|
-| Google/Microsoft SSO | All eight tasks/review verified on completion branch; final corrections not merged to main | [Open SSO PR](https://github.com/ujjwalsittu/factory-os/pull/new/sso-completion-20261007), confirm green CI and merge; API403 blocks automation |
+| Google/Microsoft SSO | Software verified and merged to main (PR #3, 2026-10-08) | Live enablement separately (see below) |
 | Passkeys | Written spec/decision045 and eight-task plan approved; standalone claim pushed; not implemented | Execute approved [plan](../superpowers/plans/2026-10-08-passkeys.md) inline after prerequisites. [Open documentation PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-design-20261007) (API403); merge SSO/planning and the [standalone claim PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-claim-20261008) after green CI before product work |
 | Audited impersonation | Not implemented | Separate scoped SuperAdmin/support consent, expiry and audit design |
 | PostgreSQL RLS | Not implemented | Separate database role/context/transaction/pool and migration design; app tenancy checks stay authoritative |
 | Live SMTP | Email software complete; delivery disabled | Secure existing-service sender/credentials/payload key, DNS/TLS/connectivity and authorized real mailbox acceptance |
-| Live Google/Microsoft SSO | Software verified on completion branch; providers disabled, no apps/credentials registered | Integrate software; organization's OAuth apps, secure credentials, exact callbacks, Microsoft tenant UUID and local email verification |
+| Live Google/Microsoft SSO | Software merged; providers disabled, no apps/credentials registered | Organization's OAuth apps, secure credentials, exact callbacks, Microsoft tenant UUID and local email verification |
 | NIC e-invoice/e-way bill wire adapter | Offline encrypted/mock foundation complete; verified protocol and live sandbox acceptance blocked | Reachable official NIC auth/schema/API contracts or authorized exports, then adapter implementation and real sandbox verification |
 | Automatic TDS/TCS | Evidence/engine/available charge scope complete; numerical profiles and source workflows blocked | Official GST-base/PAN-operative relief/lower-nil guidance plus applicability; then invoice/advice/advance recognition, settlement/TCS totals, remittances/corrections and tax UI |
 | Bank-charge replacement/later GST adjustment | Not implemented; cancelled original references intentionally reserved | Separate replacement provenance and evidence-only GST adjustment workflow design |
@@ -35,4 +35,4 @@ Manufacturing/quality (BOM/routing/work orders/job cards/genealogy, job work/ITC
 
 ## Implemented in the current requested bundles
 
-Verified optional Google/Microsoft SSO software on its completion branch, durable SMTP email software, bank charges and bank reconciliation, tax evidence foundation and NIC offline/mock groundwork. SSO final corrections await main integration. Live provider issuance, automatic numerical withholding and shared book activation have not been claimed.
+Verified optional Google/Microsoft SSO software (merged), durable SMTP email software, bank charges and bank reconciliation, tax evidence foundation and NIC offline/mock groundwork. Live provider issuance, automatic numerical withholding and shared book activation have not been claimed.
