@@ -1,12 +1,12 @@
-# Configurable Google and Microsoft SSO — proposed design
+# Configurable Google and Microsoft SSO — design
 
-Date:2026-10-07 (Asia/Kolkata). Status: **Proposed; written review pending**. Continues accepted decision009 and the authorized foundation sequence after completed email delivery. Native/default-branch preference persists. This document authorizes no implementation, credential registration or live identity-provider access.
+Date:2026-10-07 (Asia/Kolkata). Status: **Accepted by user Continue2026-10-07; implementation-plan review pending**. Continues accepted decision009 and the authorized foundation sequence after completed email delivery. Native/default-branch preference persists. This document authorizes no implementation, credential registration or live identity-provider access.
 
 ## Intent and success
 
 Let existing FactoryOS users sign in with their Google or Microsoft work identity while retaining their local account, TOTP, memberships, entity scope and audit identity. Providers are configurable and disabled until securely configured. A provider identity authenticates a person; it does not create a tenant membership or grant Owner/platform privileges.
 
-The user requested configurable features and continuation of the foundation roadmap. The optional-versus-tenant-required preference was requested; no answer was received while preparing this proposal, so it assumes **optional SSO first**. That assumption remains a proposal, not an accepted enforcement decision. Password/TOTP sign-in and recovery continue. Required-per-tenant SSO, new SSO-only user provisioning and automatic domain enrolment need a later policy design.
+The user requested configurable features and continuation of the foundation roadmap. The user approved this written design with Continue2026-10-07, including **optional SSO first**. Tenant-required enforcement is outside this accepted phase. Password/TOTP sign-in and recovery continue. Required-per-tenant SSO, new SSO-only user provisioning and automatic domain enrolment need a later policy design.
 
 Success means: an existing user explicitly connects a same-email provider after verification and recent local authentication; subsequent provider sign-in returns that exact account; enabled TOTP is still enforced; cancellation, invalid state or a foreign provider identity grants no session or membership; disconnect leaves the password sign-in route available. Enabling providers must not change shared accounting/books/stock evidence.
 
@@ -118,6 +118,6 @@ Live enablement needs the organization's registered Google/Microsoft OAuth appli
 
 ## Self-review and next step
 
-Scope is one optional authentication method layer for existing accounts. Configuration, explicit binding proof, callback MFA and security UI fit one written implementation plan; tenant enforcement/provisioning remain separate. Proposed policy defaults are stated above, not silently accepted. Installed exported hooks and provider behavior were inspected; implementation must validate the exact wrapper/adapter behavior through real handler fixtures before claiming guarantees. No placeholders or live-service success claims.
+Scope is one optional authentication method layer for existing accounts. Configuration, explicit binding proof, callback MFA and security UI fit one written implementation plan; tenant enforcement/provisioning remain separate. Policy defaults are stated above and accepted with the written design. Installed exported hooks and provider behavior were inspected; implementation must validate the exact wrapper/adapter behavior through real handler fixtures before claiming guarantees. No placeholders or live-service success claims.
 
-Next: user review of this written proposal. On written-spec approval, record decision043 Accepted and write the implementation plan. Product work requires a standalone task claim after written-plan approval; no implementation has started.
+Written design approved by user Continue2026-10-07; decision043 Accepted. Next: review the implementation plan before standalone product claim. No implementation has started.
