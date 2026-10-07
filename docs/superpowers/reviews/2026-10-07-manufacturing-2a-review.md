@@ -44,5 +44,8 @@ A review by a fresh agent or human is still recommended before Finance relies on
 - `apps/api/scripts/smoke-manufacturing.mjs`: 104 checks. Activated books (GL WIP/inventory/
   absorbed/variance balances at each step, close/reopen, output cancel with backflush, trace) and
   inactive books (no GL).
-- Regression: existing API suites (see STATUS for the run) and `e2e:manufacturing` desktop and
-  390 px mobile.
+- Build 12/12 and typecheck 19/19 tasks pass.
+- Regression: all 64 existing stock, buying, selling, accounting, settlement, sales-note,
+  supplier-return, bank and withholding suites pass; `smoke-supplier-returns-races.mjs` failed twice
+  then passed three times (intermittent, outside this slice; noted in STATUS).
+- `e2e:manufacturing` passes on desktop and 390 px mobile.
