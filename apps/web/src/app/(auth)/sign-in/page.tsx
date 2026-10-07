@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { type FormEvent, Suspense, useState } from 'react';
 import { authClient } from '@/lib/auth-client';
 import {safeNextPath} from '@/lib/safe-next';
+import {ProviderButtons} from '@/components/sso/provider-buttons';
 
 function SignInForm() {
   const router = useRouter();
@@ -38,6 +39,7 @@ function SignInForm() {
           Sign in
         </Button>
       </form>
+      <ProviderButtons next={next}/>
       <p className="mt-6 text-center text-[13px] text-muted">
         New to FactoryOS?{' '}
         <Link href={`/sign-up${params.get('next') ? `?next=${encodeURIComponent(next)}` : ''}`} className="font-medium text-accent hover:underline">

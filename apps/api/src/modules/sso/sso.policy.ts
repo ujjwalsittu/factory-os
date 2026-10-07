@@ -46,8 +46,7 @@ export function ssoMutationBefore(db:Database,config:AppConfig){
     }catch{throw new APIError('FORBIDDEN',{message:'Connection authorization required'});}
    }
    await addOAuthServerContext({factoryosProvider:provider,factoryosReturn:returnPath});
-   ctx.body={...body,callbackURL:ssoLanding(config.WEB_ORIGIN,'success')+'?'+new URLSearchParams({next:returnPath}),errorCallbackURL:ssoLanding(config.WEB_ORIGIN,'error')};
-   return;
+   return {context:{body:{...body,callbackURL:ssoLanding(config.WEB_ORIGIN,'success')+'?'+new URLSearchParams({next:returnPath}),errorCallbackURL:ssoLanding(config.WEB_ORIGIN,'error')}}};
   }
   if(ctx.path!=='/unlink-account')return;
   try{

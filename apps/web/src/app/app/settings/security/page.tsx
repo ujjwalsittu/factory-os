@@ -7,6 +7,7 @@ import { type FormEvent, useState } from 'react';
 import { useWorkspace } from '@/components/workspace';
 import { authClient } from '@/lib/auth-client';
 import {VerificationCard} from '@/components/email/verification-card';
+import {ConnectionCard} from '@/components/sso/connection-card';
 
 type Step = { kind: 'idle' } | { kind: 'scan'; qr: string; secret: string; backupCodes: string[] } | { kind: 'done'; backupCodes: string[] };
 
@@ -64,6 +65,7 @@ export default function SecurityPage() {
     <>
       <PageHeader title="My security" description={session.data?.user.email?`Signed in as ${session.data.user.email}`:'Loading account…'} />
       {session.data?.user&&<VerificationCard key={session.data.user.id} user={session.data.user} refresh={session.refetch}/>}
+      {session.data?.user&&<ConnectionCard key={session.data.user.id+':'+session.data.session.id} user={session.data.user} sessionId={session.data.session.id}/>}
       <Card className="max-w-2xl">
         <CardHeader
           title="Two-factor authentication"
