@@ -5,7 +5,7 @@ Current requested foundation/accounting/NIC sequence. Completed implementation a
 | Item | Current state | Next concrete step |
 |---|---|---|
 | Google/Microsoft SSO | All eight tasks/review verified on completion branch; final corrections not merged to main | [Open SSO PR](https://github.com/ujjwalsittu/factory-os/pull/new/sso-completion-20261007), confirm green CI and merge; API403 blocks automation |
-| Passkeys | Conversational scope approved, including retained TOTP; written design ready; not implemented | Review [spec](../superpowers/specs/2026-10-07-passkeys-design.md)/proposed decision045, then implementation plan. Merge SSO corrections and standalone claim before product work |
+| Passkeys | Conversational scope approved, including retained TOTP; written design pushed; not implemented | Review [spec](../superpowers/specs/2026-10-07-passkeys-design.md)/proposed decision045, then plan. [Open design PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-design-20261007) (API403); merge SSO corrections and standalone claim before product work |
 | Audited impersonation | Not implemented | Separate scoped SuperAdmin/support consent, expiry and audit design |
 | PostgreSQL RLS | Not implemented | Separate database role/context/transaction/pool and migration design; app tenancy checks stay authoritative |
 | Live SMTP | Email software complete; delivery disabled | Secure existing-service sender/credentials/payload key, DNS/TLS/connectivity and authorized real mailbox acceptance |
