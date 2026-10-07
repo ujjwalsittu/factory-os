@@ -24,7 +24,8 @@ export function WorkOrderView({ wo }: { wo: WorkOrderDetail }) {
   const release = useMutation({ mutationFn: () => api<WorkOrderDetail>(`/manufacturing/work-orders/${wo.id}/release`, { method: 'POST', body: {}, scope: ws.scope }), onSuccess: refresh });
   const released = wo.status === 'released';
   const canPost = ws.can('manufacturing.work_order.submit');
-  const remaining = Math.max(0, Number(wo.plannedQty) - Number(wo.producedQty));
+  // Rounded to the API's 6 places: a float difference like 0.30000000000000004 would be refused.
+  const remaining = Math.max(0, Number((Number(wo.plannedQty) - Number(wo.producedQty)).toFixed(6)));
   const nothingPosted = !wo.movements.some((m) => m.status === 'submitted') && !wo.jobCards.some((c) => c.status !== 'cancelled');
 
   return (

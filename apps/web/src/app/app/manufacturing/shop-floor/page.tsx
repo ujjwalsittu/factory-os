@@ -110,13 +110,18 @@ function MyCard({ card }: { card: JobCard }) {
   const [now, setNow] = useState(() => Date.now());
   const [pausing, setPausing] = useState(false);
   const [stopping, setStopping] = useState(false);
-  const [loaded] = useState(() => Date.now());
+  // Base for the live part of the clock: reset whenever the server sends fresh minutes.
+  const [loaded, setLoaded] = useState(() => Date.now());
+  useEffect(() => {
+    setLoaded(Date.now());
+    setNow(Date.now());
+  }, [card.minutes, card.status]);
   useEffect(() => {
     if (card.status !== 'running') return;
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [card.status]);
-  // Minutes from the server at load, plus the time since while running.
+  // Minutes from the server's latest figure, plus the time since while running.
   const minutes = Number(card.minutes) + (card.status === 'running' ? (now - loaded) / 60_000 : 0);
   const resume = useMutation({
     mutationFn: () => api(`/manufacturing/job-cards/${card.id}/resume`, { method: 'POST', body: {}, scope: ws.scope }),

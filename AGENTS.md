@@ -14,12 +14,12 @@ NestJS API, Drizzle ORM, PostgreSQL, Better Auth, and a Next.js web app. The pla
 ## 1. Start-of-session ritual (do this, and only this, before working)
 
 1. Read this file.
-2. Read [`docs/ai/STATUS.md`](docs/ai/STATUS.md): current phase, next tasks, blockers.
-3. Read [`docs/ai/MEMORY.md`](docs/ai/MEMORY.md): durable facts and user preferences.
-4. Read the last 3 entries of [`docs/ai/LOG.md`](docs/ai/LOG.md).
-5. Read [`docs/decisions/DECISIONS.md`](docs/decisions/DECISIONS.md) if your task touches architecture.
-6. `git fetch` and start from the latest `origin/main` (the default branch). Several agents and
-   humans work in parallel; read STATUS from `origin/main`, not from your local copy.
+2. `git fetch` and start from the latest `origin/main` (the default branch). Several agents and
+   humans work in parallel, so read the files below from `origin/main`, not an older local copy.
+3. Read [`docs/ai/STATUS.md`](docs/ai/STATUS.md): current phase, next tasks, blockers.
+4. Read [`docs/ai/MEMORY.md`](docs/ai/MEMORY.md): durable facts and user preferences.
+5. Read the last 3 entries of [`docs/ai/LOG.md`](docs/ai/LOG.md).
+6. Read [`docs/decisions/DECISIONS.md`](docs/decisions/DECISIONS.md) if your task touches architecture.
 
 Then state in **one line** which task you are taking. Default: the first unchecked item under
 "Next" in STATUS.md, unless the user asked for something else.

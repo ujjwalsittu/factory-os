@@ -150,7 +150,7 @@ function NewOrderDialog({ onClose }: { onClose: () => void }) {
       <Field label="BOM revision" error={err.bomId} hint={item && boms.data?.length === 0 ? 'This item has no active BOM yet' : undefined}>
         {(f) => (
           <Select {...f} value={form.bomId || boms.data?.find((b) => b.isDefault)?.id || ''} onChange={set('bomId')} disabled={!item}>
-            {!boms.data?.length && <option value="">—</option>}
+            {!boms.data?.some((b) => b.isDefault) && <option value="">{boms.data?.length ? 'Choose…' : '—'}</option>}
             {boms.data?.map((b) => (
               <option key={b.id} value={b.id}>
                 Revision {b.revision}
