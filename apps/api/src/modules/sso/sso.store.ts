@@ -42,10 +42,16 @@ export class SsoStore {
   if(a.kind==='link'&&(!this.config.sso[a.provider]||a.issuer!==(a.provider==='google'?'https://accounts.google.com':this.config.sso.microsoft!.issuer)||a.clientId!==this.config.sso[a.provider]!.clientId))throw new Error('SSO provider unavailable');
   return a;
  }
- async prepareUnlinkReference(ctx:RequestContext,action:SsoActionRecord):Promise<void>{
+ async unlinkSsoAccount(ctx:RequestContext,action:SsoActionRecord):Promise<void>{
   if(action.kind!=='unlink'||action.userId!==ctx.user.id||action.sessionId!==ctx.sessionId)throw new Error('SSO consent refused');
-  const rows=await this.db.update(account).set({ssoActionId:action.id}).where(and(eq(account.id,action.targetAccountId!),eq(account.userId,ctx.user.id))).returning({id:account.id});
-  if(rows.length!==1)throw new Error('SSO connection unavailable');
+  await this.db.transaction(async tx=>{
+   const [binding]=await tx.select().from(account).where(and(eq(account.id,action.targetAccountId!),eq(account.userId,ctx.user.id),eq(account.providerId,action.provider))).for('update');
+   if(!binding)throw new Error('SSO connection unavailable');
+   // Hold the binding lock through reference assignment AND deletion. SQL
+   // rechecks this request's grant/session/time and commits evidence atomically.
+   await tx.update(account).set({ssoActionId:action.id}).where(eq(account.id,binding.id));
+   await tx.delete(account).where(eq(account.id,binding.id));
+  });
  }
  async completeSsoSession(sessionId:string,frame:SsoAuthFrame):Promise<void>{
   if(frame.mode==='link')throw new Error('SSO session refused');

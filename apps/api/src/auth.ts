@@ -35,7 +35,15 @@ export function createAuth(db: Database, config: AppConfig,email:EmailService) {
       sendResetPassword:callbacks.sendResetPassword,
     },
     emailVerification:{sendVerificationEmail:callbacks.sendVerificationEmail,sendOnSignUp:config.email.mode==='smtp',sendOnSignIn:false,expiresIn:3600},
-    hooks:{...sso.hooks,before:createAuthMiddleware(async ctx=>{const outcome=await callbacks.before({...ctx,returnHeaders:false});if(outcome)return outcome;return mutationBefore({...ctx,returnHeaders:false});})},
+    hooks:{...sso.hooks,before:createAuthMiddleware(async ctx=>{
+      const merge=(headers:Headers)=>{headers.forEach((value,key)=>{if(key!=='set-cookie')ctx.setHeader(key,value);});for(const cookie of headers.getSetCookie())ctx.responseHeaders.append('set-cookie',cookie);};
+      const outcome=await callbacks.before({...ctx,returnHeaders:true});
+      if(!outcome||typeof outcome!=='object'||!('headers' in outcome)||!(outcome.headers instanceof Headers)||!('response' in outcome))throw new APIError('INTERNAL_SERVER_ERROR',{message:'Authentication is temporarily unavailable'});
+      merge(outcome.headers);if(outcome.response)return outcome.response;
+      const result=await mutationBefore({...ctx,returnHeaders:true});
+      if(!result||typeof result!=='object'||!('headers' in result)||!(result.headers instanceof Headers)||!('response' in result))throw new APIError('INTERNAL_SERVER_ERROR',{message:'Authentication is temporarily unavailable'});
+      merge(result.headers);return result.response;
+    })},
     onAPIError:{errorURL:new URL('/sso/error',config.WEB_ORIGIN).href,onError(error){
       // The router logs raw non-API errors even when its logger is disabled.
       // Adapter errors can contain SQL parameters and credential material.

@@ -26,8 +26,8 @@ export class SsoService {
  async disconnectAction(ctx:RequestContext,bindingId:string,nonce:string){
   const [binding]=await this.db.select().from(account).where(and(eq(account.id,bindingId),eq(account.userId,ctx.user.id),inArray(account.providerId,['google','microsoft'])));
   if(!binding)throw new ForbiddenException('Connection unavailable');
-  const action=await this.store.validateSsoAction(ctx,nonce,{kind:'unlink',provider:binding.providerId as SsoProviderId,targetAccountId:binding.id});
-  await this.store.prepareUnlinkReference(ctx,action);return binding;
+  await this.store.validateSsoAction(ctx,nonce,{kind:'unlink',provider:binding.providerId as SsoProviderId,targetAccountId:binding.id});
+  return binding;
  }
  async authorizeOAuth(data:NativeUserValidation,ctx:NativeContext):Promise<void|{error:string}>{
   if(data.source.method!=='oauth')return;
