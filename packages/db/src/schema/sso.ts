@@ -1,0 +1,10 @@
+// Global account-security evidence, independent of tenant business ledgers.
+import {sql} from 'drizzle-orm';
+import {check,index,pgTable,text,timestamp,uniqueIndex,uuid} from 'drizzle-orm/pg-core';
+const time=(name:string)=>timestamp(name,{withTimezone:true});
+export const authSsoAction=pgTable('auth_sso_action',{
+ id:uuid('id').primaryKey().defaultRandom(),userId:text('user_id').notNull(),sessionId:text('session_id').notNull(),kind:text('kind').$type<'link'|'unlink'>().notNull(),provider:text('provider').$type<'google'|'microsoft'>().notNull(),emailSnapshot:text('email_snapshot').notNull(),issuer:text('issuer').notNull(),targetAccountId:text('target_account_id'),nonceHash:text('nonce_hash').notNull(),createdAt:time('created_at').notNull().defaultNow(),expiresAt:time('expires_at').notNull(),consumedAt:time('consumed_at'),
+},t=>[uniqueIndex('auth_sso_action_nonce_uq').on(t.nonceHash),index('auth_sso_action_expiry_idx').on(t.expiresAt),check('auth_sso_action_shape_ck',sql`${t.provider} in ('google','microsoft') and ${t.kind} in ('link','unlink') and ((${t.kind}='unlink')=(${t.targetAccountId} is not null)) and ${t.nonceHash} ~ '^[a-f0-9]{64}$' and ${t.expiresAt}>${t.createdAt} and ${t.expiresAt}<=${t.createdAt}+interval '300 seconds'`)]);
+export const authSsoEvent=pgTable('auth_sso_event',{
+ id:uuid('id').primaryKey().defaultRandom(),userId:text('user_id').notNull(),accountId:text('account_id'),sessionId:text('session_id'),provider:text('provider').$type<'google'|'microsoft'>().notNull(),issuer:text('issuer').notNull(),kind:text('kind').$type<'linked'|'unlinked'|'signed_in'|'failed'>().notNull(),code:text('code'),createdAt:time('created_at').notNull().defaultNow(),
+},t=>[index('auth_sso_event_user_idx').on(t.userId,t.createdAt),check('auth_sso_event_shape_ck',sql`${t.provider} in ('google','microsoft') and ${t.kind} in ('linked','unlinked','signed_in','failed') and (${t.code} is null or ${t.code} in ('identity_refused','consent_refused','mfa_refused','provider_refused'))`)]);

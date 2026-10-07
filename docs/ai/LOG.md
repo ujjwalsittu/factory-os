@@ -123,3 +123,5 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 2026-10-07 · agent · User approved SSO eight-task plan; claim Native/default-branch implementation before product code. Task1 provider config/contracts next; live apps/credentials/books untouched.
 
 2026-10-07 · agent · SSO Task1 contracts/config/URLs RED missing module→GREEN33 checks; API dependency build7/root typecheck/test24 PASS (cached existing tests), lint0. Disabled defaults and original env parsing preserved; Task2 additive durable authority next.
+
+2026-10-07 · agent · SSO Task2 additive0025 schema/trigger/store RED missing relation→GREEN10 cases plus duplicate-key upgrade failure preserving rows. Actual PG expiry waiter, create/delete/session audit rollback, pending evidence, owner/issuer freeze, consent replay and bounded pruning PASS; original0011–0024/activations/populated ledger invariant. Build7/typecheck19/157 uncached units/lint0 PASS. Next Task3 local consent and guarded native account changes.

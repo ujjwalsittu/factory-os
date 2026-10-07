@@ -176,6 +176,13 @@
       "when": 1791313581506,
       "tag": "0024_email_invitation_origin",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791342645856,
+      "tag": "0025_sso_account_security",
+      "breakpoints": true
     }
   ]
 }
