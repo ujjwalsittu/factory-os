@@ -22,6 +22,7 @@ const LABELS: Record<string, string> = {
   customer_receipt: 'Customer receipt',
   supplier_payment: 'Supplier payment',
   settlement_allocation: 'On-account allocation',
+  work_order: 'Work order',
 };
 
 /** Number series of the active entity for the current FY; the next number can be moved forward (decision 029). */
