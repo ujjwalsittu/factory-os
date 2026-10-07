@@ -5,7 +5,7 @@ Current requested foundation/accounting/NIC sequence. Completed implementation a
 | Item | Current state | Next concrete step |
 |---|---|---|
 | Google/Microsoft SSO | Software verified; final corrections on completion branch | [Open PR](https://github.com/ujjwalsittu/factory-os/pull/new/sso-completion-20261007) to main (API403 blocked automation), green CI; live enablement separately |
-| Passkeys | Not implemented | Separate WebAuthn/recovery written design after SSO |
+| Passkeys | Native plugin/source discovery complete; proposed scope awaits review; not implemented | Confirm TOTP policy and optional existing-account approach; review written WebAuthn/recovery spec and plan. SSO corrections must merge before dependent implementation |
 | Audited impersonation | Not implemented | Separate scoped SuperAdmin/support consent, expiry and audit design |
 | PostgreSQL RLS | Not implemented | Separate database role/context/transaction/pool and migration design; app tenancy checks stay authoritative |
 | Live SMTP | Email software complete; delivery disabled | Secure existing-service sender/credentials/payload key, DNS/TLS/connectivity and authorized real mailbox acceptance |
