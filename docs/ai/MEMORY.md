@@ -41,15 +41,17 @@ at the end of the relevant section, with a date.
   `efit50pxykwkpiubgz4zir3l` (personal repos incl. `ujjwalsittu/factory-os`).
 - Dev apps: `factoryos-api` `bsv3inwzrvuhuau7vojaxkms` (no public domain; network alias
   `factoryos-api`), `factoryos-web` `slubm3yhqacghghrqwg4barm` at https://factoryos.azeonics.com and
-  http://slubm3yhqacghghrqwg4barm.13.205.93.77.sslip.io. Both build branch
-  `claude/zealous-allen-35g1vm`. Server public IP 13.205.93.77.
+  http://slubm3yhqacghghrqwg4barm.13.205.93.77.sslip.io. Both build branch `main`
+  (since 2026-10-07; before that `claude/zealous-allen-35g1vm`). Server public IP 13.205.93.77.
 - Coolify gotchas: env vars created via API default to build-time; set `is_buildtime:false`.
   Containers aren't reachable by app UUID; use `custom_network_aliases`. `/deploy` is POST.
-- **Every push to `claude/zealous-allen-35g1vm` auto-redeploys both dev apps** (GitHub webhook).
-  Don't push broken code to that branch; use another branch for experiments.
+- **`main` is the default branch; only merges to `main` deploy dev** (GitHub webhook), and only
+  the apps whose watch paths changed (see docs/16-deployment.md). Work on a branch and open a PR
+  to `main`. Coolify watch paths are set through the API (`PATCH /applications/{uuid}`,
+  `watch_paths`, newline-separated globs).
 - First SuperAdmin on dev: sittu.ujjwal@gmail.com (bootstrapped 2026-10-04; the setting is now inert).
 - `turbo` rewrites a managed block at the bottom of AGENTS.md. Keep it and commit it.
-- Force-push is not permitted. The first commit on `claude/zealous-allen-35g1vm` predates the
+- Force-push is not permitted. The repository's first commit predates the
   message guard and is left as-is.
 - Local dev DB: PostgreSQL 16 (`docker compose up -d db`, or a local cluster). See `.env.example`.
 
@@ -187,3 +189,4 @@ at the end of the relevant section, with a date.
 - 2026-10-07: SSO written proposal docs/superpowers/specs/2026-10-07-sso-design.md/decision043 awaits review. Optional-first policy question unanswered during preparation; assumption remains proposed. Recommend native Google/Microsoft, explicit existing-account linkage, locally verified email/recent local proof, immutable issuer provenance, native endpoint guards and callback TOTP. Installed Better Auth1.7.7 twoFactor matcher excludes OAuth callbacks; linking routes use ordinary sessions (not fresh by default), Microsoft scopes include User.Read/offline_access/photo fetch and Microsoft email verification may be absent. Design explicitly handles these rather than merely adding buttons. Read-only DB preflight0 social accounts/0 duplicate provider keys. No implementation, dependency/migration/secret/app registration or live IdP call; next written-spec approval then plan. Native/default branch unchanged.
 
 - 2026-10-07: User Continue approved the presented SSO written spec, including optional existing-account-first scope; decision043 Accepted. Eight-task plan docs/superpowers/plans/2026-10-07-sso.md awaits written-plan review before standalone product claim. Native/default branch already selected; no method question or per-task agents. Source inspection: verification extra fields must use plugin schema, and SSO provenance must survive actual TOTP challenge consumption; pending sessions cannot confer API/get-session authority. SQL trigger binds consent/action/evidence; native PKCE verifier flow tested rather than assuming an invented option. No product/secret/migration/provider app created during planning. Outstanding snapshot docs/ai/DUE.md distinguishes delivered software, live prerequisites, blocked statutory/provider work and deferred minors; older roadmap pending labels can be stale.
+- 2026-10-07: Manufacturing 2a (decision 044) uses actual costing: each output takes its share of the work order's WIP ledger (`work_order_cost`), the output reaching the planned qty takes all of it, close sends the rest to `production_variance`. Production stock entries are system-generated (purposes `production_issue/return/output`, `stock_entry.work_order_id`) and cancel only through the work order. Serial-tracked items are refused until slice 2b. Open WIP at accounting cut-over must go into the opening worksheet on the `wip` account.

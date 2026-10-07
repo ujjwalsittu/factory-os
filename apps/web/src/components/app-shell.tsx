@@ -13,6 +13,9 @@ import {
   ClipboardCheck,
   Cpu,
   Factory,
+  ListTree,
+  Timer,
+  Cog,
   FileSpreadsheet,
   Home,
   KeyRound,
@@ -60,7 +63,10 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
   {
     section: 'Operations',
     items: [
-      { href: '/app/manufacturing', label: 'Manufacturing', icon: Factory, phase: 2 },
+      { href: '/app/manufacturing', label: 'Work orders', icon: Factory, permission: 'manufacturing.work_order.read', entityScoped: true },
+      { href: '/app/manufacturing/shop-floor', label: 'Shop floor', icon: Timer, permission: 'manufacturing.job_card.read', entityScoped: true },
+      { href: '/app/manufacturing/boms', label: 'Bills of materials', icon: ListTree, permission: 'manufacturing.bom.read', entityScoped: true },
+      { href: '/app/manufacturing/work-centres', label: 'Work centres', icon: Cog, permission: 'manufacturing.work_centre.read', entityScoped: true },
       { href: '/app/quality', label: 'Quality', icon: ClipboardCheck, phase: 2 },
       { href: '/app/services', label: 'Services', icon: Wrench, phase: 3 },
     ],
@@ -139,6 +145,9 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     ],
   },
 ];
+
+/** Nested entries (e.g. /app/manufacturing/boms under /app/manufacturing): the most specific one is highlighted. */
+const LONGER = NAV.flatMap((g) => g.items.map((i) => i.href));
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -224,7 +233,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
               {group.items
                 .filter((item) => !item.permission || (item.entityScoped ? ws.can(item.permission) : ws.canTenant(item.permission)))
                 .map((item) => {
-                  const active = item.href === '/app' ? pathname === '/app' : pathname.startsWith(item.href);
+                  const active = item.href === '/app' ? pathname === '/app' : pathname.startsWith(item.href) && !LONGER.some((h) => h.length > item.href.length && h.startsWith(item.href) && pathname.startsWith(h));
                   const Icon = item.icon;
                   if (item.phase) {
                     return (

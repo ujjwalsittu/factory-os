@@ -14,12 +14,12 @@ NestJS API, Drizzle ORM, PostgreSQL, Better Auth, and a Next.js web app. The pla
 ## 1. Start-of-session ritual (do this, and only this, before working)
 
 1. Read this file.
-2. Read [`docs/ai/STATUS.md`](docs/ai/STATUS.md): current phase, next tasks, blockers.
-3. Read [`docs/ai/MEMORY.md`](docs/ai/MEMORY.md): durable facts and user preferences.
-4. Read the last 3 entries of [`docs/ai/LOG.md`](docs/ai/LOG.md).
-5. Read [`docs/decisions/DECISIONS.md`](docs/decisions/DECISIONS.md) if your task touches architecture.
-6. `git fetch` and fast-forward your branch. Several agents (and humans) push to the same branch;
-   read STATUS from the fetched head, not from your local copy.
+2. `git fetch` and start from the latest `origin/main` (the default branch). Several agents and
+   humans work in parallel, so read the files below from `origin/main`, not an older local copy.
+3. Read [`docs/ai/STATUS.md`](docs/ai/STATUS.md): current phase, next tasks, blockers.
+4. Read [`docs/ai/MEMORY.md`](docs/ai/MEMORY.md): durable facts and user preferences.
+5. Read the last 3 entries of [`docs/ai/LOG.md`](docs/ai/LOG.md).
+6. Read [`docs/decisions/DECISIONS.md`](docs/decisions/DECISIONS.md) if your task touches architecture.
 
 Then state in **one line** which task you are taking. Default: the first unchecked item under
 "Next" in STATUS.md, unless the user asked for something else.
@@ -70,6 +70,13 @@ Then state in **one line** which task you are taking. Default: the first uncheck
 - Do not bypass hooks (`--no-verify`). Do not force-push or rewrite pushed history.
 - Message style: imperative subject ≤ 72 chars; body explains *why*.
 - One logical change per commit.
+- **Branches and PRs.** `main` is the default branch and the only one that deploys. Work on your
+  own branch from `origin/main` and open a PR to `main`; merge only after CI is green. Never push
+  directly to `main`. Your L11 claim must reach `main` before you build: merge it as its own small
+  PR first, so other agents see it.
+- **Deploys.** Coolify deploys dev from `main` only, and only the apps whose files changed (watch
+  paths in [`docs/16-deployment.md`](docs/16-deployment.md)). A docs-only merge deploys nothing. If
+  you add a workspace package to an app, add it to that app's watch paths too.
 
 ## 6. Code conventions
 

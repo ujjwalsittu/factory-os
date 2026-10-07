@@ -14,3 +14,4 @@ export * from './supplier-returns.js';
 export * from './bank-reconciliation-types.js';
 export * from './bank-statement.js';
 export * from './bank-reconciliation.js';
+export * from './manufacturing.js';
