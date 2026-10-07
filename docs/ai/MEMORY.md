@@ -41,15 +41,17 @@ at the end of the relevant section, with a date.
   `efit50pxykwkpiubgz4zir3l` (personal repos incl. `ujjwalsittu/factory-os`).
 - Dev apps: `factoryos-api` `bsv3inwzrvuhuau7vojaxkms` (no public domain; network alias
   `factoryos-api`), `factoryos-web` `slubm3yhqacghghrqwg4barm` at https://factoryos.azeonics.com and
-  http://slubm3yhqacghghrqwg4barm.13.205.93.77.sslip.io. Both build branch
-  `claude/zealous-allen-35g1vm`. Server public IP 13.205.93.77.
+  http://slubm3yhqacghghrqwg4barm.13.205.93.77.sslip.io. Both build branch `main`
+  (since 2026-10-07; before that `claude/zealous-allen-35g1vm`). Server public IP 13.205.93.77.
 - Coolify gotchas: env vars created via API default to build-time; set `is_buildtime:false`.
   Containers aren't reachable by app UUID; use `custom_network_aliases`. `/deploy` is POST.
-- **Every push to `claude/zealous-allen-35g1vm` auto-redeploys both dev apps** (GitHub webhook).
-  Don't push broken code to that branch; use another branch for experiments.
+- **`main` is the default branch; only merges to `main` deploy dev** (GitHub webhook), and only
+  the apps whose watch paths changed (see docs/16-deployment.md). Work on a branch and open a PR
+  to `main`. Coolify watch paths are set through the API (`PATCH /applications/{uuid}`,
+  `watch_paths`, newline-separated globs).
 - First SuperAdmin on dev: sittu.ujjwal@gmail.com (bootstrapped 2026-10-04; the setting is now inert).
 - `turbo` rewrites a managed block at the bottom of AGENTS.md. Keep it and commit it.
-- Force-push is not permitted. The first commit on `claude/zealous-allen-35g1vm` predates the
+- Force-push is not permitted. The repository's first commit predates the
   message guard and is left as-is.
 - Local dev DB: PostgreSQL 16 (`docker compose up -d db`, or a local cluster). See `.env.example`.
 

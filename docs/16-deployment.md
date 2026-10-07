@@ -20,6 +20,21 @@ Dev is live at `https://factoryos.azeonics.com` (web only). The API has no publi
 app proxies `/api` to it over Coolify's `coolify` network using the alias `factoryos-api`
 (`API_INTERNAL_URL=http://factoryos-api:4000`).
 
+## What deploys when
+
+Both apps build branch `main` (the default branch). A merge to `main` triggers Coolify's GitHub
+webhook, and each app rebuilds only if the merge touched one of its watch paths:
+
+| App | Watch paths |
+|---|---|
+| `factoryos-api` | `apps/api/**`, `packages/{auth,compliance-in,core,db,email,gsp,config}/**` |
+| `factoryos-web` | `apps/web/**`, `packages/{auth,ui,gsp,core,config}/**` |
+| both | `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `turbo.json`, `.dockerignore` |
+
+Coolify stores one glob per line (no braces); the table groups them for reading. Docs-only merges
+deploy nothing. When an app gains a workspace dependency (its own or a transitive one), add that
+package to the app's watch paths in Coolify and in this table.
+
 ## Environment variables
 
 See `.env.example` in the repo root. Required in Coolify (all runtime-only):
