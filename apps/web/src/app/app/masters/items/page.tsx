@@ -115,6 +115,7 @@ function ItemDialog({ item, onClose }: { item: Item | null; onClose: () => void 
     stockUomId: item?.stockUomId ?? '',
     hsnCode: item?.hsnCode ?? '',
     revision: item?.revision ?? '',
+    serialPrefix: item?.serialPrefix ?? '',
     drawingNo: item?.drawingNo ?? '',
     shelfLifeDays: item?.shelfLifeDays?.toString() ?? '',
     mslLevel: item?.mslLevel ?? '',
@@ -133,6 +134,7 @@ function ItemDialog({ item, onClose }: { item: Item | null; onClose: () => void 
         type: f.type,
         hsnCode: f.hsnCode || null,
         revision: f.revision || null,
+        serialPrefix: f.tracking === 'serial' ? f.serialPrefix || null : null,
         drawingNo: f.drawingNo || null,
         shelfLifeDays: f.shelfLifeDays ? Number(f.shelfLifeDays) : null,
         mslLevel: f.mslLevel || null,
@@ -189,12 +191,12 @@ function ItemDialog({ item, onClose }: { item: Item | null; onClose: () => void 
               </Select>
             )}
           </Field>
-          <Field label="Tracking" hint={f.tracking === 'batch' ? 'Heat numbers, powder lots, reels' : undefined} error={e.tracking}>
+          <Field label="Tracking" hint={f.tracking === 'batch' ? 'Heat numbers, powder lots, reels' : f.tracking === 'serial' ? 'One unit per serial; numbers generated on production output' : undefined} error={e.tracking}>
             {(p) => (
               <Select {...p} value={isService ? 'none' : f.tracking} onChange={set('tracking')} disabled={!!item || isService}>
                 <option value="none">Not tracked</option>
                 <option value="batch">Batch / heat number</option>
-                <option value="serial">Serial number (Phase 2)</option>
+                <option value="serial">Serial number</option>
               </Select>
             )}
           </Field>
@@ -203,6 +205,9 @@ function ItemDialog({ item, onClose }: { item: Item | null; onClose: () => void 
           <Field label={isService ? 'SAC' : 'HSN'} error={e.hsnCode}>{(p) => <Input {...p} value={f.hsnCode} onChange={set('hsnCode')} inputMode="numeric" className="font-mono" placeholder="81089090" />}</Field>
           <Field label="Drawing no." error={e.drawingNo}>{(p) => <Input {...p} value={f.drawingNo} onChange={set('drawingNo')} className="font-mono" />}</Field>
           <Field label="Revision" error={e.revision}>{(p) => <Input {...p} value={f.revision} onChange={set('revision')} className="font-mono uppercase" placeholder="A" />}</Field>
+          {f.tracking === 'serial' && (
+            <Field label="Serial prefix" hint="Generated serials: PREFIX-000001; empty = item code" error={e.serialPrefix}>{(p) => <Input {...p} value={f.serialPrefix} onChange={set('serialPrefix')} className="font-mono uppercase" placeholder="BRK" />}</Field>
+          )}
           <Field label="Reorder level" error={e.reorderLevel}>{(p) => <Input {...p} value={f.reorderLevel} onChange={set('reorderLevel')} inputMode="decimal" className="tabular" />}</Field>
         </div>
         {!isService && (

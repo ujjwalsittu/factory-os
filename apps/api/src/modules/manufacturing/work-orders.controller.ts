@@ -9,6 +9,7 @@ import {
   jobCardEvent,
   machine,
   salesOrder,
+  serialComponent,
   stockEntry,
   stockEntryLine,
   uom,
@@ -21,7 +22,7 @@ import {
   workOrderOperation,
 } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../../common/access.js';
@@ -505,6 +506,14 @@ export class WorkOrdersController {
           .orderBy(asc(stockEntryLine.lineNo))
       : [];
     const costs = await db.select().from(workOrderCost).where(eq(workOrderCost.workOrderId, id));
+    // Live as-built rows (decision 046): which component serial is in which assembly serial.
+    const assembly = alias(batch, 'assembly');
+    const asBuilt = await db
+      .select({ assemblyBatchId: serialComponent.assemblyBatchId, assemblyNo: assembly.batchNo, componentBatchId: serialComponent.componentBatchId, componentNo: batch.batchNo })
+      .from(serialComponent)
+      .innerJoin(batch, eq(batch.id, serialComponent.componentBatchId))
+      .innerJoin(assembly, eq(assembly.id, serialComponent.assemblyBatchId))
+      .where(and(eq(serialComponent.workOrderId, id), isNull(serialComponent.reversalOf), sql`not exists (select 1 from serial_component r where r.reversal_of = ${serialComponent.id})`));
     const sum = (k: string) => costs.filter((c) => c.kind === k).reduce((s, c) => s.add(c.amount), Dec.ZERO);
     const wip = costs.reduce((s, c) => s.add(c.amount), Dec.ZERO);
     return {
@@ -527,6 +536,7 @@ export class WorkOrdersController {
       })),
       jobCards: cards,
       movements: entries.map((e) => ({ ...e, backflush: e.reference === 'Backflush', lines: lines.filter((l) => l.entryId === e.id) })),
+      asBuilt,
       cost: {
         material: sum('issue').add(sum('return')).toString(),
         absorbed: sum('absorption').toString(),

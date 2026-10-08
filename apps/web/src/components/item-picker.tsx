@@ -94,7 +94,7 @@ export function ItemPicker({
                 <span className="truncate text-muted">{it.name}</span>
                 <span className="ml-auto shrink-0 text-[11px] text-subtle">
                   {it.uomCode}
-                  {it.tracking === 'batch' ? ' · batch' : ''}
+                  {it.tracking === 'batch' ? ' · batch' : it.tracking === 'serial' ? ' · serial' : ''}
                 </span>
               </div>
             </li>

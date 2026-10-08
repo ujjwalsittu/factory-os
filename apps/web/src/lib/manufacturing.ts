@@ -139,10 +139,11 @@ export interface WorkOrderDetail {
   remarks: string | null;
   completedOn: string | null;
   cancelReason: string | null;
-  materials: { id: string | null; itemId: string; itemCode: string; itemName: string; tracking: string; uom: string; requiredQty: string | null; issuedQty: string; backflush: boolean }[];
+  materials: { id: string | null; itemId: string; itemCode: string; itemName: string; tracking: string; uom: string; qtyPerUnit: string | null; requiredQty: string | null; issuedQty: string; backflush: boolean }[];
   operations: { id: string; seq: number; name: string; workCentre: string; hourlyRate: string; plannedMinutes: string; actualMinutes: string; goodQty: string; instructions: string | null }[];
   jobCards: JobCard[];
   movements: Movement[];
+  asBuilt: { assemblyBatchId: string; assemblyNo: string; componentBatchId: string; componentNo: string }[];
   cost: { material: string; absorbed: string; output: string; variance: string; wip: string; unitCost: string | null };
 }
 
@@ -154,6 +155,8 @@ export interface Availability {
   batchNo: string | null;
   heatNo: string | null;
   expiryDate: string | null;
+  kind: 'lot' | 'serial' | 'remnant' | null;
+  lengthMm: string | null;
   qty: string;
 }
 

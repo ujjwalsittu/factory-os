@@ -210,7 +210,7 @@ export function SellingForm({
       .map((l) => ({
         itemId: l.item!.id,
         description: l.description || null,
-        qty: l.qty.trim(),
+        qty: l.item?.tracking === 'serial' ? '1' : l.qty.trim(),
         rate: l.rate.trim(),
         ...(l.gstRate && { gstRate: l.gstRate }),
         ...(kind === 'invoices' && {
@@ -760,7 +760,9 @@ export function SellingForm({
                         aria-label="Quantity"
                         inputMode="decimal"
                         className="tabular text-right"
-                        value={l.qty}
+                        value={l.item?.tracking === 'serial' ? '1' : l.qty}
+                        disabled={l.item?.tracking === 'serial'}
+                        title={l.item?.tracking === 'serial' ? 'One serial per line' : undefined}
                         onChange={(e) => update(l.key, { qty: e.target.value })}
                       />
                     ) : (
@@ -826,9 +828,10 @@ export function SellingForm({
                                 </option>
                               ))}
                           </Select>
-                          {l.item.tracking === 'batch' && (
+                          {l.item.tracking !== 'none' && (
                             <div className="mt-2">
                               <DispatchBatch
+                                serial={l.item.tracking === 'serial'}
                                 itemId={l.item.id}
                                 warehouseId={l.warehouseId}
                                 value={l.batchId}
@@ -998,11 +1001,13 @@ export function SellingForm({
 }
 
 function DispatchBatch({
+  serial,
   itemId,
   warehouseId,
   value,
   onChange,
 }: {
+  serial?: boolean;
   itemId: string;
   warehouseId: string;
   value: string;
@@ -1021,11 +1026,11 @@ function DispatchBatch({
   return (
     <>
       <Select
-        aria-label="Batch"
+        aria-label={serial ? 'Serial' : 'Batch'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
-        <option value="">Choose batch…</option>
+        <option value="">{serial ? "Choose serial…" : "Choose batch…"}</option>
         {q.data?.map((b) => (
           <option key={b.id} value={b.id}>
             {b.batchNo} · {formatQty(b.qty)}

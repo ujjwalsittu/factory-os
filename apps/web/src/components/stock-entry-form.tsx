@@ -175,10 +175,10 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
         qty: l.qty,
         fromWarehouseId: usesFrom(l) ? l.fromWarehouseId || null : null,
         toWarehouseId: usesTo(l) ? l.toWarehouseId || null : null,
-        batchId: l.item.tracking === 'batch' && !incoming(l) ? l.batchId || null : null,
-        newBatchNo: l.item.tracking === 'batch' && incoming(l) ? l.newBatchNo || null : null,
+        batchId: l.item.tracking !== 'none' && !incoming(l) ? l.batchId || null : null,
+        newBatchNo: l.item.tracking !== 'none' && incoming(l) ? l.newBatchNo || null : null,
         heatNo: l.item.tracking === 'batch' && incoming(l) ? l.heatNo || l.newBatchNo || null : null,
-        expiryDate: l.item.tracking === 'batch' && incoming(l) ? l.expiryDate || null : null,
+        expiryDate: l.item.tracking !== 'none' && incoming(l) ? l.expiryDate || null : null,
         rate: incoming(l) && !customerOwned ? l.rate || null : null,
         wasteCategory: purpose === 'scrap' ? l.wasteCategory || null : null,
         poLineId: header.purchaseOrderId ? l.poLineId : null,
@@ -383,7 +383,7 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
                       <ItemPicker
                         value={l.item}
                         autoFocus={i === lines.length - 1 && i > 0}
-                        onChange={(it) => update(l.key, { item: { id: it.id, code: it.code, name: it.name, tracking: it.tracking, uomCode: it.uomCode }, batchId: '', newBatchNo: '', heatNo: '' })}
+                        onChange={(it) => update(l.key, { item: { id: it.id, code: it.code, name: it.name, tracking: it.tracking, uomCode: it.uomCode }, batchId: '', newBatchNo: '', heatNo: '', ...(it.tracking === 'serial' ? { qty: '1' } : {}) })}
                       />
                     </Td>
                     {purpose === 'adjustment' && (
@@ -396,7 +396,7 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
                     )}
                     <Td>
                       <div className="flex items-center gap-1">
-                        <Input className="tabular text-right" inputMode="decimal" value={l.qty} onChange={(e) => update(l.key, { qty: e.target.value })} aria-label="Quantity" />
+                        <Input className="tabular text-right" inputMode="decimal" value={l.qty} onChange={(e) => update(l.key, { qty: e.target.value })} aria-label="Quantity" disabled={l.item?.tracking === 'serial'} title={l.item?.tracking === 'serial' ? 'One serial per line' : undefined} />
                         <span className="w-9 text-[11px] text-subtle">{l.item?.uomCode}</span>
                       </div>
                       {l.pendingQty && <p className="mt-1 text-[11px] text-subtle">{formatQty(l.pendingQty)} pending on PO</p>}
@@ -410,8 +410,23 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
                     <Td>
                       {!l.item ? (
                         <Muted />
-                      ) : l.item.tracking !== 'batch' ? (
+                      ) : l.item.tracking === 'none' ? (
                         <span className="text-[12px] text-subtle">Not tracked</span>
+                      ) : l.item.tracking === 'serial' && incoming(l) ? (
+                        // Decision 046: one serial per line; pasting several serials makes one line each.
+                        <Input
+                          placeholder="Serial no. (paste many)"
+                          value={l.newBatchNo}
+                          onChange={(e) => update(l.key, { newBatchNo: e.target.value })}
+                          onPaste={(e) => {
+                            const many = e.clipboardData.getData('text').split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+                            if (many.length < 2) return;
+                            e.preventDefault();
+                            setLines((ls) => ls.flatMap((x) => (x.key === l.key ? many.map((no, k) => (k === 0 ? { ...x, newBatchNo: no, qty: '1' } : { ...blankLine(x), item: x.item, rate: x.rate, qty: '1', newBatchNo: no })) : [x])));
+                          }}
+                          className="font-mono"
+                          aria-label="Serial number"
+                        />
                       ) : incoming(l) ? (
                         <div className="grid gap-1">
                           <Input placeholder="Batch / heat no." value={l.newBatchNo} onChange={(e) => update(l.key, { newBatchNo: e.target.value })} className="font-mono" aria-label="New batch number" />

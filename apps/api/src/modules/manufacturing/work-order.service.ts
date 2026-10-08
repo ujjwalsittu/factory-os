@@ -553,7 +553,7 @@ export class WorkOrderService {
 export async function availableStock(db: Database | Tx, entityId: string, itemIds: string[]) {
   if (!itemIds.length) return [];
   const rows = await db
-    .select({ itemId: stockBin.itemId, warehouseId: stockBin.warehouseId, warehouse: warehouse.name, batchId: stockBin.batchId, batchNo: batch.batchNo, heatNo: batch.heatNo, expiryDate: batch.expiryDate, qty: stockBin.qty })
+    .select({ itemId: stockBin.itemId, warehouseId: stockBin.warehouseId, warehouse: warehouse.name, batchId: stockBin.batchId, batchNo: batch.batchNo, heatNo: batch.heatNo, expiryDate: batch.expiryDate, kind: batch.kind, lengthMm: batch.lengthMm, qty: stockBin.qty })
     .from(stockBin)
     .innerJoin(warehouse, eq(warehouse.id, stockBin.warehouseId))
     .leftJoin(batch, eq(batch.id, stockBin.batchId))
