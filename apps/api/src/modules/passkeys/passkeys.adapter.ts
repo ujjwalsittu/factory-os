@@ -4,7 +4,7 @@ import {getCurrentAdapter,runWithTransaction} from '@better-auth/core/context';
 import type {Database} from '@factoryos/db';
 import type {AuthTransaction,NativeAdapter,NativeAdapterFactory} from './passkeys.types.js';
 
-type Scope={facade:NativeAdapter;native:NativeAdapter;tx:AuthTransaction;registration?:Extract<import('./passkeys.types.js').PasskeyFrame,{mode:'register'}>};
+type Scope={facade:NativeAdapter;native:NativeAdapter;tx:AuthTransaction;authorityWrite?:boolean;safeMfaFailure?:boolean;registration?:Extract<import('./passkeys.types.js').PasskeyFrame,{mode:'register'}>};
 const transactions=new AsyncLocalStorage<Scope>();
 type TransactionEntry=<T>(work:()=>Promise<T>)=>Promise<T>;
 const entries=new WeakMap<NativeAdapter,TransactionEntry>();
@@ -13,12 +13,15 @@ export function requirePasskeyTransaction():AuthTransaction{
  const scope=transactions.getStore();if(!scope)throw new Error('Passkey transaction required');return scope.tx;
 }
 export function getPasskeyTransaction():AuthTransaction|undefined{return transactions.getStore()?.tx;}
+export function markNativeMfaFailure():void{const scope=transactions.getStore();if(!scope)throw new Error('Passkey transaction required');scope.safeMfaFailure=true;}
+export function canPreserveNativeMfaFailure():boolean{const scope=transactions.getStore();return !!scope?.safeMfaFailure&&!scope.authorityWrite;}
 export function stampVerifiedRegistration(frame:Extract<import('./passkeys.types.js').PasskeyFrame,{mode:'register'}>):void{
  const scope=transactions.getStore();if(!scope)throw new Error('Passkey transaction required');scope.registration=frame;
 }
 function scopedNative(native:NativeAdapter):NativeAdapter{
  return new Proxy(native,{get(target,key,receiver){const value=Reflect.get(target,key,receiver);if(key!=='create')return value;
-  return (input:Parameters<NativeAdapter['create']>[0])=>{const frame=transactions.getStore()?.registration;
+  return (input:Parameters<NativeAdapter['create']>[0])=>{const scope=transactions.getStore(),frame=scope?.registration;
+   if(scope&&(input.model==='session'||input.model==='passkey'))scope.authorityWrite=true;
    if(input.model!=='passkey'||!frame)return target.create(input);
    if(input.data.userId!==frame.userId)throw new Error('Passkey owner refused');
    return target.create({...input,data:{...input.data,rpId:frame.rpId,userHandle:frame.userHandle,registrationActionId:frame.actionId,registrationCeremonyId:frame.ceremonyId}});

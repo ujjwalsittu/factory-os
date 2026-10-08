@@ -15,18 +15,20 @@ import {createPasskeyPlugin} from './modules/passkeys/passkeys.native.js';
 import {and,eq} from 'drizzle-orm';
 import {getPasskeyFrame} from './modules/passkeys/passkeys.types.js';
 import {requirePasskeyTransaction} from './modules/passkeys/passkeys.adapter.js';
+import {withPasskeyMfa,passkeyVerificationData} from './modules/passkeys/passkeys.mfa.js';
 import {PasskeyStore} from './modules/passkeys/passkeys.store.js';
 
 export function createAuth(db: Database, config: AppConfig,email:EmailService) {
   const callbacks=authEmailCallbacks(db,config,email);
   const sso=buildSsoOptions(db,config);
+  const passkeys=new PasskeyStore(db,config);
   const privateString={type:'string' as const,required:false,input:false,returned:false};
   const privateVerification={passkeyCredentialId:privateString,passkeyRpId:privateString,passkeyReturnCipher:privateString,passkeyPasswordVersion:privateString};
   const mutationBefore=sso.hooks!.before!;
   const auth=betterAuth({
     ...sso,
     session:{...sso.session,additionalFields:{...sso.session?.additionalFields,passkeyCredentialId:privateString,passkeyRpId:privateString,passkeyPending:{type:'boolean',required:false,input:false,returned:false,defaultValue:false}}},
-    databaseHooks:{...sso.databaseHooks,session:{...sso.databaseHooks?.session,create:{...sso.databaseHooks?.session?.create,before:async(data,ctx)=>{
+    databaseHooks:{...sso.databaseHooks,verification:{...sso.databaseHooks?.verification,create:{...sso.databaseHooks?.verification?.create,before:async(data,ctx)=>await passkeyVerificationData(data,ctx,config)??await sso.databaseHooks?.verification?.create?.before?.(data,ctx)}},session:{...sso.databaseHooks?.session,create:{...sso.databaseHooks?.session?.create,before:async(data,ctx)=>{
       const frame=getPasskeyFrame(ctx);if(frame?.mode==='signin'||frame?.mode==='mfa'){
        if(frame.userId!==data.userId)throw new APIError('FORBIDDEN',{message:'Passkey session refused'});requirePasskeyTransaction();
        return {data:{...data,passkeyCredentialId:frame.credentialId,passkeyRpId:frame.rpId,passkeyPending:true}};
@@ -65,7 +67,7 @@ export function createAuth(db: Database, config: AppConfig,email:EmailService) {
       if(!isAPIError(error))throw new APIError('INTERNAL_SERVER_ERROR',{message:'Authentication is temporarily unavailable'});
     }},
     rateLimit: { enabled: config.NODE_ENV !== 'test', window: 60, max: 100 },
-    plugins: [withSsoMfa(twoFactorPlugin({ issuer: 'FactoryOS' }),new SsoStore(db,config),config,db),{id:'factoryos-passkey-schema',schema:{verification:{fields:privateVerification}}},createPasskeyPlugin(db,config,new PasskeyStore(db,config))],
+    plugins: [withPasskeyMfa(withSsoMfa(twoFactorPlugin({ issuer: 'FactoryOS' }),new SsoStore(db,config),config,db),passkeys,config),{id:'factoryos-passkey-schema',schema:{verification:{fields:privateVerification}}},createPasskeyPlugin(db,config,passkeys)],
   });
   return withPasskeyAuthority(auth,db);
 }

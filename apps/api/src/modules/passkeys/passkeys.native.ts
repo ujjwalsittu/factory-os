@@ -69,10 +69,10 @@ export function createPasskeyPlugin(db:Database,config:AppConfig,store:PasskeySt
    }
    if(ctx.path==='/passkey/verify-registration'){const frame=getPasskeyFrame(ctx);if(frame?.mode!=='register')throw refused();const keys=await ownedPasskeySummaries(db,frame.userId);const returned=z.object({id:z.string()}).passthrough().safeParse(ctx.context.returned),key=returned.success?keys.find(key=>key.id===returned.data.id):null;if(!key)throw refused();return ctx.json(key);}
    if(ctx.path==='/passkey/verify-authentication'){
-    const frame=getPasskeyFrame(ctx),provisional=ctx.context.newSession;if(frame?.mode!=='signin'||!provisional||provisional.user.twoFactorEnabled)throw refused();
-    try{await store.completeSession(provisional.session.id,frame);}catch{throw refused();}
-    const [completed]=await requirePasskeyTransaction().select().from(session).where(eq(session.id,provisional.session.id));if(!completed)throw refused();
-    ctx.context.setNewSession({...provisional,session:completed});return ctx.json({session:parseSessionOutput(ctx.context.options,completed),user:parseUserOutput(ctx.context.options,provisional.user)});
+    const frame=getPasskeyFrame(ctx),provisional=ctx.context.newSession;if(frame?.mode!=='signin')throw refused();
+    if(!provisional){const pending=z.object({twoFactorRedirect:z.literal(true),next:z.string()}).strict().safeParse(ctx.context.returned);if(!pending.success)throw refused();return ctx.json(pending.data);}
+    const [completed]=await requirePasskeyTransaction().select().from(session).where(eq(session.id,provisional.session.id));if(!completed||completed.passkeyPending)throw refused();
+    return ctx.json({session:parseSessionOutput(ctx.context.options,completed),user:parseUserOutput(ctx.context.options,provisional.user)});
    }
    if(ctx.path==='/passkey/list-user-passkeys'){const live=ctx.context.session;if(!live)return;return ctx.json(await ownedPasskeySummaries(db,live.user.id));}
    const frame=getPasskeyFrame(ctx);if(!frame||frame.mode!=='rename'&&frame.mode!=='remove')return;

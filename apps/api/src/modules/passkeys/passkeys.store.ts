@@ -1,5 +1,5 @@
 import {createHash,createHmac,randomBytes,timingSafeEqual} from 'node:crypto';
-import {account,authPasskeyAction,authPasskeyCeremony,authPasskeyEvent,passkey,session,user,type Database} from '@factoryos/db';
+import {account,authPasskeyAction,authPasskeyCeremony,authPasskeyEvent,passkey,session,user,verification,type Database} from '@factoryos/db';
 import {and,eq,sql} from 'drizzle-orm';
 import type {AppConfig} from '../../config.js';
 import type {RequestContext} from '../../common/access.js';
@@ -9,6 +9,7 @@ import {stampVerifiedRegistration} from './passkeys.adapter.js';
 import {symmetricDecrypt,symmetricEncrypt} from 'better-auth/crypto';
 import {getPasskeyFrame,setPasskeyFrame,type NativeAuthContext,type NativeRegistrationProof} from './passkeys.types.js';
 import {validateSsoReturn} from '../sso/sso.urls.js';
+import {z} from 'zod';
 
 export type PasskeyActionRecord=typeof authPasskeyAction.$inferSelect;
 export type PasskeyCeremonyRecord=typeof authPasskeyCeremony.$inferSelect;
@@ -19,6 +20,10 @@ function sameVersion(a:string,b:string):boolean{return /^[a-f0-9]{64}$/.test(a)&
 export class PasskeyStore{
  constructor(private readonly db:Database,private readonly config:AppConfig){}
  configHash():string{return hash(JSON.stringify(this.config.passkeys));}
+ async pendingChallengeRecord(identifier:string):Promise<typeof verification.$inferSelect|undefined>{
+  const [record]=await (getPasskeyTransaction()??this.db).select().from(verification).where(eq(verification.identifier,identifier));
+  return record&&(record.passkeyCredentialId||record.passkeyRpId||record.passkeyReturnCipher||record.passkeyPasswordVersion)?record:undefined;
+ }
  async prepareCeremony(ctx:NativeAuthContext,input:{kind:'register'|'signin';nonce?:string;returnPath:string},options:{challenge:string;userHandle?:string}):Promise<PasskeyCeremonyRecord>{
   const tx=requirePasskeyTransaction(),frame=getPasskeyFrame(ctx),cookie=ctx.context.createAuthCookie('better-auth-passkey');
   // Options just minted this cookie; getSignedCookie reads only request cookies.
@@ -58,6 +63,16 @@ export class PasskeyStore{
   if(!userVerified)throw refused();const tx=requirePasskeyTransaction(),now=await this.now(tx);
   const rows=await tx.update(authPasskeyCeremony).set({userId:frame.userId,credentialId:frame.credentialId,passwordVersion:frame.passwordVersion,consumedAt:now}).where(and(eq(authPasskeyCeremony.id,frame.ceremonyId),sql`${authPasskeyCeremony.consumedAt} is null`,sql`${authPasskeyCeremony.expiresAt}>clock_timestamp()`)).returning();if(rows.length!==1)throw refused();
   await tx.execute(sql`select set_config('factoryos.passkey.ceremony_id',${frame.ceremonyId},true)`);
+ }
+ async frameForPendingChallenge(record:typeof verification.$inferSelect):Promise<Extract<PasskeyFrame,{mode:'mfa'}>>{
+  const tx=requirePasskeyTransaction();if(!record.passkeyCredentialId||!record.passkeyRpId||!record.passkeyPasswordVersion||!record.passkeyReturnCipher||!/^2fa-(?!attempts-)/.test(record.identifier)||record.ssoAccountId)throw refused();
+  const [owner]=await tx.select().from(user).where(eq(user.id,record.value)).for('update');if(!owner)throw refused();
+  const version=await this.credentialVersion(tx,owner.id,true),[key]=await tx.select().from(passkey).where(eq(passkey.id,record.passkeyCredentialId)).for('update');
+  const payload=z.object({v:z.literal(1),ceremonyId:z.string().uuid(),returnPath:z.string().max(2048)}).strict().parse(JSON.parse(await symmetricDecrypt({key:this.config.BETTER_AUTH_SECRET,data:record.passkeyReturnCipher})));
+  const [ceremony]=await tx.select().from(authPasskeyCeremony).where(eq(authPasskeyCeremony.id,payload.ceremonyId)).for('update');
+  const [live]=await tx.select().from(verification).where(eq(verification.id,record.id)).for('update'),now=await this.now(tx);
+  if(!this.config.passkeys.enabled||!key||key.userId!==owner.id||key.rpId!==this.config.passkeys.rpId||key.rpId!==record.passkeyRpId||!sameVersion(version,record.passkeyPasswordVersion)||!ceremony?.consumedAt||ceremony.kind!=='signin'||ceremony.userId!==owner.id||ceremony.credentialId!==key.id||ceremony.rpId!==key.rpId||!sameVersion(version,ceremony.passwordVersion??'')||!live||live.identifier!==record.identifier||live.value!==owner.id||live.passkeyCredentialId!==key.id||live.passkeyReturnCipher!==record.passkeyReturnCipher||live.expiresAt<=now)throw refused();
+  return {mode:'mfa',userId:owner.id,credentialId:key.id,ceremonyId:ceremony.id,rpId:key.rpId,passwordVersion:version,returnPath:validateSsoReturn(payload.returnPath),challengeExpiresAt:live.expiresAt};
  }
  async passwordVersionForOwner(userId:string):Promise<string>{return this.credentialVersion(getPasskeyTransaction()??this.db,userId,false);}
  private async credentialVersion(reader:Database|AuthTransaction,userId:string,locked:boolean):Promise<string>{
@@ -103,6 +118,7 @@ export class PasskeyStore{
   const [key]=await tx.select().from(passkey).where(and(eq(passkey.id,frame.credentialId),eq(passkey.userId,owner.id))).for('update');
   const [ceremony]=await tx.select().from(authPasskeyCeremony).where(eq(authPasskeyCeremony.id,frame.ceremonyId)).for('update');
   const [pending]=await tx.select().from(session).where(eq(session.id,sessionId)).for('update');const now=await this.now(tx);
+  if(frame.mode==='mfa'&&(!frame.challengeExpiresAt||frame.challengeExpiresAt<=now))throw refused();
   if(!this.config.passkeys.enabled||!key||key.rpId!==this.config.passkeys.rpId||key.rpId!==frame.rpId||!sameVersion(version,frame.passwordVersion)||!ceremony?.consumedAt||ceremony.kind!=='signin'||ceremony.userId!==owner.id||ceremony.credentialId!==key.id||ceremony.rpId!==key.rpId||!sameVersion(ceremony.passwordVersion??'',version)||!pending?.passkeyPending||pending.userId!==owner.id||pending.passkeyCredentialId!==key.id||pending.passkeyRpId!==key.rpId||pending.expiresAt<=now)throw refused();
   await tx.insert(authPasskeyEvent).values({kind:'signed_in',userId:owner.id,credentialId:key.id,sessionId:pending.id,rpId:key.rpId,createdAt:now});
   await tx.update(session).set({passkeyPending:false}).where(eq(session.id,pending.id));

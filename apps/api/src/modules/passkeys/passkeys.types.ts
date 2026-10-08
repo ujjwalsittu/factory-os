@@ -18,7 +18,7 @@ export type PasskeyIdentity={userId:string;credentialId:string;ceremonyId:string
 export type PasskeyFrame=
  | {mode:'register';userId:string;sessionId:string;actionId:string;ceremonyId:string;rpId:string;userHandle:string}
  | ({mode:'signin'} & PasskeyIdentity)
- | ({mode:'mfa'} & PasskeyIdentity)
+ | ({mode:'mfa';challengeExpiresAt:Date} & PasskeyIdentity)
  | {mode:'rename'|'remove';userId:string;sessionId:string;actionId:string;credentialId:string};
 const frameKey=Symbol('FactoryOS verified passkey frame');
 export function setPasskeyFrame(ctx:NativeAuthContext,frame:PasskeyFrame){Object.assign(ctx.context,{[frameKey]:frame});}
