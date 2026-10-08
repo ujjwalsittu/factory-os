@@ -5,7 +5,7 @@ Current requested foundation/accounting/NIC sequence. Completed implementation a
 | Item | Current state | Next concrete step |
 |---|---|---|
 | Google/Microsoft SSO | Software verified and merged to main (PR #3, 2026-10-08) | Live enablement separately (see below) |
-| Passkeys | Prerequisites/owned claim visible on main; configuration Task1 verified; Tasks2–8 pending | Execute approved [plan](../superpowers/plans/2026-10-08-passkeys.md) inline; Task2 shared transaction/schema authority next |
+| Passkeys | Prerequisites/owned claim visible on main; configuration/transaction/schema Tasks1–2 verified; Tasks3–8 pending | Execute approved [plan](../superpowers/plans/2026-10-08-passkeys.md) inline; Task3 guarded personal management next |
 | Audited impersonation | Not implemented | Separate scoped SuperAdmin/support consent, expiry and audit design |
 | PostgreSQL RLS | Not implemented | Separate database role/context/transaction/pool and migration design; app tenancy checks stay authoritative |
 | Live SMTP | Email software complete; delivery disabled | Secure existing-service sender/credentials/payload key, DNS/TLS/connectivity and authorized real mailbox acceptance |

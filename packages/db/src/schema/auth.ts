@@ -24,6 +24,9 @@ export const session = pgTable(
     ssoIssuer: text('sso_issuer'),
     ssoClientId: text('sso_client_id'),
     ssoPending: boolean('sso_pending').notNull().default(false),
+    passkeyCredentialId: text('passkey_credential_id'),
+    passkeyRpId: text('passkey_rp_id'),
+    passkeyPending: boolean('passkey_pending').notNull().default(false),
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -65,6 +68,10 @@ export const verification = pgTable('verification', {
   ssoAccountId: text('sso_account_id'),
   ssoIssuer: text('sso_issuer'),
   ssoReturnCipher: text('sso_return_cipher'),
+  passkeyCredentialId: text('passkey_credential_id'),
+  passkeyRpId: text('passkey_rp_id'),
+  passkeyReturnCipher: text('passkey_return_cipher'),
+  passkeyPasswordVersion: text('passkey_password_version'),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

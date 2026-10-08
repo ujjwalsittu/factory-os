@@ -1,7 +1,6 @@
 import type { Database } from '@factoryos/db';
 import { account, session, twoFactor, user, verification } from '@factoryos/db';
 import { betterAuth } from 'better-auth';
-import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { twoFactor as twoFactorPlugin } from 'better-auth/plugins';
 import type { AppConfig } from './config.js';
 import {authEmailCallbacks} from './modules/email/auth-email.js';
@@ -10,23 +9,25 @@ import {APIError,createAuthMiddleware,isAPIError} from 'better-auth/api';
 import {buildSsoOptions} from './modules/sso/sso.policy.js';
 import {withSsoMfa} from './modules/sso/sso.mfa.js';
 import {SsoStore} from './modules/sso/sso.store.js';
+import {createTransactionalAuthAdapter} from './modules/passkeys/passkeys.adapter.js';
+import {withPasskeyAuthority} from './modules/passkeys/passkeys.scope.js';
 
 export function createAuth(db: Database, config: AppConfig,email:EmailService) {
   const callbacks=authEmailCallbacks(db,config,email);
   const sso=buildSsoOptions(db,config);
+  const privateString={type:'string' as const,required:false,input:false,returned:false};
+  const privateVerification={passkeyCredentialId:privateString,passkeyRpId:privateString,passkeyReturnCipher:privateString,passkeyPasswordVersion:privateString};
   const mutationBefore=sso.hooks!.before!;
-  return betterAuth({
+  const auth=betterAuth({
     ...sso,
+    session:{...sso.session,additionalFields:{...sso.session?.additionalFields,passkeyCredentialId:privateString,passkeyRpId:privateString,passkeyPending:{type:'boolean',required:false,input:false,returned:false,defaultValue:false}}},
     appName: 'FactoryOS',
     logger:{disabled:true},
     baseURL: config.BETTER_AUTH_URL,
     basePath: '/api/auth',
     secret: config.BETTER_AUTH_SECRET,
     trustedOrigins: [config.WEB_ORIGIN, ...config.EXTRA_TRUSTED_ORIGINS],
-    database: drizzleAdapter(db, {
-      provider: 'pg',
-      schema: { user, session, account, verification, twoFactor },
-    }),
+    database: createTransactionalAuthAdapter(db,{ user, session, account, verification, twoFactor }),
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 10,
@@ -50,8 +51,9 @@ export function createAuth(db: Database, config: AppConfig,email:EmailService) {
       if(!isAPIError(error))throw new APIError('INTERNAL_SERVER_ERROR',{message:'Authentication is temporarily unavailable'});
     }},
     rateLimit: { enabled: config.NODE_ENV !== 'test', window: 60, max: 100 },
-    plugins: [withSsoMfa(twoFactorPlugin({ issuer: 'FactoryOS' }),new SsoStore(db,config),config,db)],
+    plugins: [withSsoMfa(twoFactorPlugin({ issuer: 'FactoryOS' }),new SsoStore(db,config),config,db),{id:'factoryos-passkey-schema',schema:{verification:{fields:privateVerification}}}],
   });
+  return withPasskeyAuthority(auth,db);
 }
 
 export type Auth = ReturnType<typeof createAuth>;
