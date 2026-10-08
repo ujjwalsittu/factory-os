@@ -176,3 +176,5 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 2026-10-08 · agent · Verify15 passkey lock races and populated historical upgrade/invariance on owned PostgreSQL copies; all eight passkey suites and root19/12/168 uncached/lint0 PASS; shared data/migrations/runtime unchanged. Next full regression, one fresh review and integration handoff.
 
 2026-10-08 · agent · Verify final passkeys/SSO/email fixtures,22 isolated HTTP runs across20 legacy suites, five production browsers and root19/12/168 uncached/lint0; save reusable cloud instructions; shared schema/data/runtime unchanged. Next one fresh whole-branch review and one evidenced correction pass if needed.
+
+- 2026-10-08 · agent · Manufacturing 2b built (decision 046): serials as batches of one, generated serials with per-serial cost, as-built, remnant cuts, genealogy explorer and recall CSV; migration 0028_serials_remnants (passkeys branch must renumber its 0028) · next: full regression result, PR to main

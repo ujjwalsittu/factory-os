@@ -1,5 +1,5 @@
 {
-  "id": "0f5156ee-7e6d-448d-a2a8-053c6b17358b",
+  "id": "9568f0e2-2efe-41c8-aa09-654bf09e8c09",
   "prevId": "84b8d42f-d5d5-4e25-b41b-1568e99f0a6c",
   "version": "7",
   "dialect": "postgresql",
@@ -220,25 +220,6 @@
         },
         "sso_pending": {
           "name": "sso_pending",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "passkey_credential_id": {
-          "name": "passkey_credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_rp_id": {
-          "name": "passkey_rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_pending": {
-          "name": "passkey_pending",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
@@ -491,30 +472,6 @@
         },
         "sso_return_cipher": {
           "name": "sso_return_cipher",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_credential_id": {
-          "name": "passkey_credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_rp_id": {
-          "name": "passkey_rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_return_cipher": {
-          "name": "passkey_return_cipher",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_password_version": {
-          "name": "passkey_password_version",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -2026,6 +1983,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "serial_prefix": {
+          "name": "serial_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "drawing_no": {
           "name": "drawing_no",
           "type": "text",
@@ -2551,6 +2514,20 @@
           "primaryKey": false,
           "notNull": false
         },
+        "kind": {
+          "name": "kind",
+          "type": "batch_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'lot'"
+        },
+        "length_mm": {
+          "name": "length_mm",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -2592,6 +2569,21 @@
             },
             {
               "expression": "heat_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "batch_parent_idx": {
+          "name": "batch_parent_idx",
+          "columns": [
+            {
+              "expression": "parent_batch_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3401,6 +3393,12 @@
         "waste_category": {
           "name": "waste_category",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "length_mm": {
+          "name": "length_mm",
+          "type": "numeric(24, 6)",
           "primaryKey": false,
           "notNull": false
         },
@@ -23669,6 +23667,300 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.serial_component": {
+      "name": "serial_component",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assembly_batch_id": {
+          "name": "assembly_batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "component_batch_id": {
+          "name": "component_batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "work_order_id": {
+          "name": "work_order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stock_entry_id": {
+          "name": "stock_entry_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reversal_of": {
+          "name": "reversal_of",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "serial_component_assembly_idx": {
+          "name": "serial_component_assembly_idx",
+          "columns": [
+            {
+              "expression": "assembly_batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "serial_component_component_idx": {
+          "name": "serial_component_component_idx",
+          "columns": [
+            {
+              "expression": "component_batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "serial_component_reversal_uq": {
+          "name": "serial_component_reversal_uq",
+          "columns": [
+            {
+              "expression": "reversal_of",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "serial_component_tenant_id_tenant_id_fk": {
+          "name": "serial_component_tenant_id_tenant_id_fk",
+          "tableFrom": "serial_component",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "serial_component_entity_id_legal_entity_id_fk": {
+          "name": "serial_component_entity_id_legal_entity_id_fk",
+          "tableFrom": "serial_component",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "serial_component_assembly_batch_id_batch_id_fk": {
+          "name": "serial_component_assembly_batch_id_batch_id_fk",
+          "tableFrom": "serial_component",
+          "tableTo": "batch",
+          "columnsFrom": [
+            "assembly_batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "serial_component_component_batch_id_batch_id_fk": {
+          "name": "serial_component_component_batch_id_batch_id_fk",
+          "tableFrom": "serial_component",
+          "tableTo": "batch",
+          "columnsFrom": [
+            "component_batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "serial_component_work_order_id_work_order_id_fk": {
+          "name": "serial_component_work_order_id_work_order_id_fk",
+          "tableFrom": "serial_component",
+          "tableTo": "work_order",
+          "columnsFrom": [
+            "work_order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "serial_component_stock_entry_id_stock_entry_id_fk": {
+          "name": "serial_component_stock_entry_id_stock_entry_id_fk",
+          "tableFrom": "serial_component",
+          "tableTo": "stock_entry",
+          "columnsFrom": [
+            "stock_entry_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "serial_component_created_by_user_id_fk": {
+          "name": "serial_component_created_by_user_id_fk",
+          "tableFrom": "serial_component",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.serial_counter": {
+      "name": "serial_counter",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "next_value": {
+          "name": "next_value",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        }
+      },
+      "indexes": {
+        "serial_counter_item_uq": {
+          "name": "serial_counter_item_uq",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "serial_counter_tenant_id_tenant_id_fk": {
+          "name": "serial_counter_tenant_id_tenant_id_fk",
+          "tableFrom": "serial_counter",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "serial_counter_item_id_item_id_fk": {
+          "name": "serial_counter_item_id_item_id_fk",
+          "tableFrom": "serial_counter",
+          "tableTo": "item",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.work_centre": {
       "name": "work_centre",
       "schema": "",
@@ -24600,514 +24892,6 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
-    },
-    "public.auth_passkey_action": {
-      "name": "auth_passkey_action",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_id": {
-          "name": "target_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rp_id": {
-          "name": "rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "config_hash": {
-          "name": "config_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "password_version": {
-          "name": "password_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nonce_hash": {
-          "name": "nonce_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consumed_at": {
-          "name": "consumed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "auth_passkey_action_nonce_uq": {
-          "name": "auth_passkey_action_nonce_uq",
-          "columns": [
-            {
-              "expression": "nonce_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "auth_passkey_action_expiry_idx": {
-          "name": "auth_passkey_action_expiry_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "auth_passkey_action_shape_ck": {
-          "name": "auth_passkey_action_shape_ck",
-          "value": "\"auth_passkey_action\".\"kind\" in ('register','rename','remove') and ((\"auth_passkey_action\".\"kind\"='register')=(\"auth_passkey_action\".\"target_id\" is null)) and \"auth_passkey_action\".\"nonce_hash\" ~ '^[a-f0-9]{64}$' and \"auth_passkey_action\".\"password_version\" ~ '^[a-f0-9]{64}$' and \"auth_passkey_action\".\"config_hash\" ~ '^[a-f0-9]{64}$' and \"auth_passkey_action\".\"expires_at\">\"auth_passkey_action\".\"created_at\" and \"auth_passkey_action\".\"expires_at\"<=\"auth_passkey_action\".\"created_at\"+interval '300 seconds' and (\"auth_passkey_action\".\"consumed_at\" is null or (\"auth_passkey_action\".\"consumed_at\">=\"auth_passkey_action\".\"created_at\" and \"auth_passkey_action\".\"consumed_at\"<\"auth_passkey_action\".\"expires_at\"))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.auth_passkey_ceremony": {
-      "name": "auth_passkey_ceremony",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "action_id": {
-          "name": "action_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "challenge_hash": {
-          "name": "challenge_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rp_id": {
-          "name": "rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_handle": {
-          "name": "user_handle",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "return_cipher": {
-          "name": "return_cipher",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_id": {
-          "name": "credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "password_version": {
-          "name": "password_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consumed_at": {
-          "name": "consumed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "auth_passkey_ceremony_challenge_uq": {
-          "name": "auth_passkey_ceremony_challenge_uq",
-          "columns": [
-            {
-              "expression": "challenge_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "auth_passkey_ceremony_expiry_idx": {
-          "name": "auth_passkey_ceremony_expiry_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "auth_passkey_ceremony_shape_ck": {
-          "name": "auth_passkey_ceremony_shape_ck",
-          "value": "\"auth_passkey_ceremony\".\"kind\" in ('register','signin') and \"auth_passkey_ceremony\".\"challenge_hash\" ~ '^[a-f0-9]{64}$' and ((\"auth_passkey_ceremony\".\"kind\"='register' and \"auth_passkey_ceremony\".\"user_id\" is not null and \"auth_passkey_ceremony\".\"session_id\" is not null and \"auth_passkey_ceremony\".\"action_id\" is not null and \"auth_passkey_ceremony\".\"user_handle\" ~ '^[A-Za-z0-9_-]{43}$') or (\"auth_passkey_ceremony\".\"kind\"='signin' and \"auth_passkey_ceremony\".\"action_id\" is null and \"auth_passkey_ceremony\".\"user_handle\" is null)) and \"auth_passkey_ceremony\".\"expires_at\">\"auth_passkey_ceremony\".\"created_at\" and \"auth_passkey_ceremony\".\"expires_at\"<=\"auth_passkey_ceremony\".\"created_at\"+interval '300 seconds' and (\"auth_passkey_ceremony\".\"password_version\" is null or \"auth_passkey_ceremony\".\"password_version\" ~ '^[a-f0-9]{64}$') and (\"auth_passkey_ceremony\".\"consumed_at\" is null or (\"auth_passkey_ceremony\".\"consumed_at\">=\"auth_passkey_ceremony\".\"created_at\" and \"auth_passkey_ceremony\".\"consumed_at\"<\"auth_passkey_ceremony\".\"expires_at\"))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.auth_passkey_event": {
-      "name": "auth_passkey_event",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_id": {
-          "name": "credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rp_id": {
-          "name": "rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "code": {
-          "name": "code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "auth_passkey_event_owner_idx": {
-          "name": "auth_passkey_event_owner_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "auth_passkey_event_shape_ck": {
-          "name": "auth_passkey_event_shape_ck",
-          "value": "\"auth_passkey_event\".\"kind\" in ('enrolled','renamed','removed','signed_in','failed') and (\"auth_passkey_event\".\"code\" is null or \"auth_passkey_event\".\"code\" in ('credential_refused','consent_refused','mfa_refused','configuration_refused'))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.passkey": {
-      "name": "passkey",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_id": {
-          "name": "credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "public_key": {
-          "name": "public_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "counter": {
-          "name": "counter",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "device_type": {
-          "name": "device_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "backed_up": {
-          "name": "backed_up",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transports": {
-          "name": "transports",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "aaguid": {
-          "name": "aaguid",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rp_id": {
-          "name": "rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_handle": {
-          "name": "user_handle",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "registration_action_id": {
-          "name": "registration_action_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "registration_ceremony_id": {
-          "name": "registration_ceremony_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "last_used_at": {
-          "name": "last_used_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "passkey_credential_uq": {
-          "name": "passkey_credential_uq",
-          "columns": [
-            {
-              "expression": "credential_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "passkey_owner_idx": {
-          "name": "passkey_owner_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "passkey_user_id_user_id_fk": {
-          "name": "passkey_user_id_user_id_fk",
-          "tableFrom": "passkey",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "passkey_shape_ck": {
-          "name": "passkey_shape_ck",
-          "value": "length(btrim(\"passkey\".\"name\")) between 1 and 80 and \"passkey\".\"name\"=btrim(\"passkey\".\"name\") and \"passkey\".\"counter\" between 0 and 4294967295 and \"passkey\".\"credential_id\" ~ '^[A-Za-z0-9_-]+$' and length(\"passkey\".\"credential_id\") between 1 and 1024 and length(\"passkey\".\"credential_id\")%4<>1 and \"passkey\".\"user_handle\" ~ '^[A-Za-z0-9_-]{43}$' and length(\"passkey\".\"rp_id\") between 1 and 253 and length(\"passkey\".\"public_key\")>0 and \"passkey\".\"device_type\" in ('singleDevice','multiDevice')"
-        }
-      },
-      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -25204,6 +24988,15 @@
         "scrap"
       ]
     },
+    "public.batch_kind": {
+      "name": "batch_kind",
+      "schema": "public",
+      "values": [
+        "lot",
+        "serial",
+        "remnant"
+      ]
+    },
     "public.doc_status": {
       "name": "doc_status",
       "schema": "public",
@@ -25229,7 +25022,8 @@
         "purchase_return_receipt",
         "production_issue",
         "production_return",
-        "production_output"
+        "production_output",
+        "cut"
       ]
     },
     "public.warehouse_type": {

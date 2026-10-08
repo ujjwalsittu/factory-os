@@ -14,6 +14,7 @@ import {
   Cpu,
   Factory,
   ListTree,
+  GitBranch,
   Timer,
   Cog,
   FileSpreadsheet,
@@ -65,6 +66,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     items: [
       { href: '/app/manufacturing', label: 'Work orders', icon: Factory, permission: 'manufacturing.work_order.read', entityScoped: true },
       { href: '/app/manufacturing/shop-floor', label: 'Shop floor', icon: Timer, permission: 'manufacturing.job_card.read', entityScoped: true },
+      { href: '/app/manufacturing/genealogy', label: 'Genealogy', icon: GitBranch, permission: 'manufacturing.genealogy.read', entityScoped: true },
       { href: '/app/manufacturing/boms', label: 'Bills of materials', icon: ListTree, permission: 'manufacturing.bom.read', entityScoped: true },
       { href: '/app/manufacturing/work-centres', label: 'Work centres', icon: Cog, permission: 'manufacturing.work_centre.read', entityScoped: true },
       { href: '/app/quality', label: 'Quality', icon: ClipboardCheck, phase: 2 },
@@ -97,6 +99,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
       { href: '/app/inventory/entries', label: 'Stock entries', icon: ArrowLeftRight, permission: 'inventory.stock_entry.read', entityScoped: true },
       { href: '/app/inventory/balance', label: 'Stock balance', icon: Boxes, permission: 'inventory.report.read', entityScoped: true },
       { href: '/app/inventory/customer-material', label: 'Customer material', icon: Handshake, permission: 'inventory.report.read', entityScoped: true },
+      { href: '/app/inventory/remnants', label: 'Remnants', icon: Ruler, permission: 'inventory.batch.read', entityScoped: true },
       { href: '/app/inventory/warehouses', label: 'Warehouses', icon: Warehouse, permission: 'inventory.warehouse.read', entityScoped: true },
     ],
   },

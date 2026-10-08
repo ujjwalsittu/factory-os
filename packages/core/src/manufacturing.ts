@@ -70,3 +70,26 @@ export function runningMinutes(events: readonly { kind: JobCardEventKind; at: Da
   const micro = (total * 1_000_000n + 30_000n) / 60_000n;
   return Dec.of(micro).div('1000000').toString();
 }
+
+/** Splits a value equally over `count` units at 6 places; the last unit takes the exact remainder. */
+export function splitEqually(total: string, count: number): string[] {
+  if (!Number.isInteger(count) || count < 1) throw new Error('Count must be a positive whole number');
+  const t = Dec.of(total);
+  const each = t.div(String(count));
+  const out = Array.from({ length: count - 1 }, () => each.toString());
+  out.push(t.sub(each.mul(String(count - 1))).toString());
+  return out;
+}
+
+/** Serial number from an item prefix and a running number, e.g. BRK-000041 (decision 046). */
+export function formatSerial(prefix: string, value: number, width = 6): string {
+  if (!Number.isInteger(value) || value < 1) throw new Error('Serial counter must be a positive whole number');
+  const p = prefix.trim().toUpperCase();
+  return `${p}${p && !/[-/]$/.test(p) ? '-' : ''}${String(value).padStart(width, '0')}`;
+}
+
+/** True when a quantity is a whole number of units (serial-tracked items move in whole units). */
+export function isWholeUnits(qty: string): boolean {
+  const q = Dec.of(qty);
+  return q.gt('0') && q.raw % 1_000_000n === 0n;
+}

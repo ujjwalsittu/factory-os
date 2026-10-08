@@ -353,6 +353,7 @@ function IssueDialog({ wo, onDone, onClose }: { wo: WorkOrderDetail; onDone: (d:
     return out;
   }, [avail.data, manual]);
   const [qty, setQty] = useState<Record<string, string> | null>(null);
+  const [cutting, setCutting] = useState<Availability | null>(null);
   const values = qty ?? suggestion;
   const m = useMutation({
     mutationFn: () =>
@@ -371,6 +372,7 @@ function IssueDialog({ wo, onDone, onClose }: { wo: WorkOrderDetail; onDone: (d:
     },
   });
   return (
+    <>
     <FormDialog title="Issue material" description="Batches are suggested oldest first for what is still required. Change any quantity, or pick a specific heat." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Issue" wide>
       {manual.length === 0 && <Alert>Every material on this order is backflushed on output.</Alert>}
       {manual.map((mat) => {
@@ -391,11 +393,23 @@ function IssueDialog({ wo, onDone, onClose }: { wo: WorkOrderDetail; onDone: (d:
                       <tr key={key} className="border-t border-line">
                         <Td className="text-[13px]">
                           {a.batchNo ? <span className="font-mono">{a.batchNo}</span> : 'Unbatched'}
+                          {a.kind === 'remnant' && (
+                            <Badge tone="info" className="ml-1">
+                              Remnant {a.lengthMm ? `${formatQty(a.lengthMm, 0)} mm` : ''}
+                            </Badge>
+                          )}
                           {a.heatNo && a.heatNo !== a.batchNo && <span className="text-subtle"> heat {a.heatNo}</span>}
                           <span className="text-subtle"> · {a.warehouse}</span>
                           {a.expiryDate && <span className="text-subtle"> · exp {formatDate(a.expiryDate)}</span>}
                         </Td>
-                        <Td className="tabular text-right text-[13px] text-muted">{formatQty(a.qty)} available</Td>
+                        <Td className="tabular text-right text-[13px] text-muted whitespace-nowrap">
+                          {formatQty(a.qty)} available
+                          {mat.tracking === 'batch' && a.batchId && ws.can('inventory.stock_entry.submit') && (
+                            <Button size="sm" variant="ghost" className="ml-1" onClick={() => setCutting(a)}>
+                              Cut…
+                            </Button>
+                          )}
+                        </Td>
                         <Td className="w-36">
                           <Input aria-label={`Issue ${mat.itemCode} ${a.batchNo ?? ''}`} inputMode="decimal" className="text-right" value={values[key] ?? ''} onChange={(e) => setQty({ ...values, [key]: e.target.value })} />
                         </Td>
@@ -409,6 +423,19 @@ function IssueDialog({ wo, onDone, onClose }: { wo: WorkOrderDetail; onDone: (d:
         );
       })}
     </FormDialog>
+    {/* A sibling, not a child: a form inside the issue form would submit the page. */}
+    {cutting && (
+      <CutDialog
+        stock={cutting}
+        itemCode={manual.find((x) => x.itemId === cutting.itemId)?.itemCode ?? ''}
+        onDone={() => {
+          setQty(null);
+          void avail.refetch();
+        }}
+        onClose={() => setCutting(null)}
+      />
+    )}
+    </>
   );
 }
 
@@ -470,8 +497,35 @@ function OutputDialog({ wo, remaining, onDone, onClose }: { wo: WorkOrderDetail;
   const [qty, setQty] = useState(remaining ? String(remaining) : '');
   const [batchNo, setBatchNo] = useState('');
   const flush = wo.materials.filter((m) => m.backflush);
+  const serial = wo.tracking === 'serial';
+  // As-built (decision 046): serial components issued to this order and not yet built into an assembly.
+  const serialMats = serial ? wo.materials.filter((x) => x.tracking === 'serial' && x.qtyPerUnit) : [];
+  const built = new Set(wo.asBuilt.map((b) => b.componentBatchId));
+  const freeSerials = useMemo(() => {
+    const net = new Map<string, { itemId: string; batchId: string; batchNo: string; n: number }>();
+    for (const mv of wo.movements.filter((x) => x.status === 'submitted' && x.purpose !== 'production_output'))
+      for (const l of mv.lines)
+        if (l.batchId && serialMats.some((x) => x.itemId === l.itemId)) {
+          const cur = net.get(l.batchId) ?? { itemId: l.itemId, batchId: l.batchId, batchNo: l.batchNo ?? '', n: 0 };
+          cur.n += mv.purpose === 'production_issue' ? 1 : -1;
+          net.set(l.batchId, cur);
+        }
+    return [...net.values()].filter((x) => x.n > 0 && !built.has(x.batchId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wo.movements, wo.asBuilt]);
+  // As-built pickers are shown for up to MAX_ASSEMBLIES units; a larger serial output is refused here rather than sent with fewer assemblies than units.
+  const MAX_ASSEMBLIES = 200;
+  const units = serial && /^\d+$/.test(qty) ? Number(qty) : 0;
+  const tooMany = serialMats.length > 0 && units > MAX_ASSEMBLIES;
+  const slots = serialMats.flatMap((mat) => Array.from({ length: Number(mat.qtyPerUnit) }, (_, k) => ({ mat, k })));
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const asBuilt = serialMats.length ? Array.from({ length: units }, (_, u) => slots.map((s) => picked[`${u}:${s.mat.itemId}:${s.k}`]).filter((x): x is string => !!x)) : undefined;
   const m = useMutation({
-    mutationFn: () => api<WorkOrderDetail>(`/manufacturing/work-orders/${wo.id}/output`, { method: 'POST', scope: ws.scope, body: { qty, batchNo: batchNo || null } }),
+    mutationFn: () => {
+      if (tooMany) throw new Error(`Record at most ${MAX_ASSEMBLIES} serial assemblies at a time.`);
+      if (asBuilt?.some((a) => a.length < slots.length)) throw new Error('Choose every component serial for each assembly.');
+      return api<WorkOrderDetail>(`/manufacturing/work-orders/${wo.id}/output`, { method: 'POST', scope: ws.scope, body: { qty, batchNo: batchNo || null, ...(asBuilt ? { asBuilt } : {}) } });
+    },
     onSuccess: (d) => {
       onDone(d);
       onClose();
@@ -490,7 +544,44 @@ function OutputDialog({ wo, remaining, onDone, onClose }: { wo: WorkOrderDetail;
             {(f) => <Input {...f} value={batchNo} onChange={(e) => setBatchNo(e.target.value)} placeholder={wo.number ?? ''} />}
           </Field>
         )}
+        {serial && <p className="self-end pb-2 text-[13px] text-muted">One serial number is generated per unit, each with an equal share of the cost.</p>}
       </div>
+      {tooMany && <Alert tone="danger">{`Record at most ${MAX_ASSEMBLIES} serial assemblies at a time; split this output.`}</Alert>}
+      {serialMats.length > 0 && units > 0 && !tooMany && (
+        <div>
+          <p className="mb-1 text-[13px] font-medium">As-built: component serials in each assembly</p>
+          <div className="space-y-2">
+            {Array.from({ length: units }, (_, u) => (
+              <div key={u} className="flex flex-wrap items-center gap-2 rounded-lg border border-line p-2">
+                <span className="w-24 text-[13px] text-muted">Assembly {u + 1}</span>
+                {slots.map((sl) => {
+                  const key = `${u}:${sl.mat.itemId}:${sl.k}`;
+                  const taken = new Set(Object.entries(picked).filter(([k2]) => k2 !== key).map(([, v]) => v));
+                  return (
+                    <select
+                      key={key}
+                      aria-label={`Assembly ${u + 1} ${sl.mat.itemCode} ${sl.k + 1}`}
+                      className="h-8 rounded-lg border border-line bg-surface px-2 font-mono text-[13px]"
+                      value={picked[key] ?? ''}
+                      onChange={(e) => setPicked({ ...picked, [key]: e.target.value })}
+                    >
+                      <option value="">{sl.mat.itemCode}…</option>
+                      {freeSerials
+                        .filter((f) => f.itemId === sl.mat.itemId && (!taken.has(f.batchId) || picked[key] === f.batchId))
+                        .map((f) => (
+                          <option key={f.batchId} value={f.batchId}>
+                            {f.batchNo}
+                          </option>
+                        ))}
+                    </select>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+          {freeSerials.length === 0 && <p className="mt-1 text-[13px] text-warning">Issue the component serials to this work order first.</p>}
+        </div>
+      )}
       {flush.length > 0 && <p className="text-[13px] text-muted">Backflushed now: {flush.map((f) => f.itemCode).join(', ')}.</p>}
       <Alert>
         {final
@@ -543,12 +634,55 @@ function CancelDialog({ path, title, confirm, onDone, onClose }: { path: string;
   );
 }
 
+/** Cut part of a bar into a remnant piece (decision 046), from the issue screen. */
+function CutDialog({ stock, itemCode, onDone, onClose }: { stock: Availability; itemCode: string; onDone: () => void; onClose: () => void }) {
+  const ws = useWorkspace();
+  const [form, setForm] = useState({ qty: '', lengthMm: '', remnantNo: '' });
+  const m = useMutation({
+    mutationFn: () =>
+      api<{ remnantNo: string }>('/stock/cuts', {
+        method: 'POST',
+        scope: ws.scope,
+        body: { postingDate: new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10), itemId: stock.itemId, warehouseId: stock.warehouseId, batchId: stock.batchId, qty: form.qty, lengthMm: form.lengthMm, remnantNo: form.remnantNo || null },
+      }),
+    onSuccess: () => {
+      onDone();
+      onClose();
+    },
+  });
+  const err = fieldErrors(m.error);
+  return (
+    <FormDialog title={`Cut ${itemCode} ${stock.batchNo ?? ''}`} description={`Weigh the piece you set aside. It becomes a remnant of heat ${stock.heatNo ?? stock.batchNo}, valued by weight at its FIFO cost.`} onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Cut remnant">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label="Remnant weight" error={err.qty} hint={`${formatQty(stock.qty)} on hand`}>
+          {(f) => <Input {...f} inputMode="decimal" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} required autoFocus />}
+        </Field>
+        <Field label="Length (mm)" error={err.lengthMm}>
+          {(f) => <Input {...f} inputMode="decimal" value={form.lengthMm} onChange={(e) => setForm({ ...form, lengthMm: e.target.value })} required />}
+        </Field>
+        <Field label="Remnant no." hint="Empty = automatic" error={err.remnantNo}>
+          {(f) => <Input {...f} value={form.remnantNo} onChange={(e) => setForm({ ...form, remnantNo: e.target.value })} className="font-mono" />}
+        </Field>
+      </div>
+    </FormDialog>
+  );
+}
+
 function TraceDialog({ batchId, onClose }: { batchId: string; onClose: () => void }) {
   const ws = useWorkspace();
   const q = useQuery({ queryKey: ['trace', batchId], queryFn: () => api<Trace>(`/manufacturing/trace/${batchId}`, { scope: ws.scope }) });
   const t = q.data;
   return (
-    <Dialog open onClose={onClose} title={t ? `Trace ${t.batch.itemCode} · ${t.batch.batchNo}` : 'Trace'} description="Backward: what this lot was made from. Forward: where it was used." footer={<Button variant="secondary" onClick={onClose}>Close</Button>}>
+    <Dialog open onClose={onClose} title={t ? `Trace ${t.batch.itemCode} · ${t.batch.batchNo}` : 'Trace'} description="Backward: what this lot was made from. Forward: where it was used." footer={
+        <>
+          <Link className="mr-auto text-[13px] text-accent hover:underline" href={`/app/manufacturing/genealogy?batch=${batchId}`}>
+            Open full genealogy →
+          </Link>
+          <Button variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        </>
+      }>
       {q.error instanceof ApiError && <Alert tone="danger">{q.error.message}</Alert>}
       {t && (
         <div className="space-y-4 text-[13px]">

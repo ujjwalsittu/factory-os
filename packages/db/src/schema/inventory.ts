@@ -46,7 +46,10 @@ export const warehouse = pgTable(
   (t) => [uniqueIndex('warehouse_entity_code_uq').on(t.entityId, t.code)],
 );
 
-/** A batch / heat number / powder lot / reel of one item (docs/03 §4). */
+/** lot: heat/powder lot/reel; serial: one unit (decision 046); remnant: a cut piece of a parent batch. */
+export const batchKind = pgEnum('batch_kind', ['lot', 'serial', 'remnant']);
+
+/** A batch / heat number / powder lot / reel of one item (docs/03 §4). Serials and remnants are batches too (decision 046). */
 export const batch = pgTable(
   'batch',
   {
@@ -65,9 +68,12 @@ export const batch = pgTable(
     expiryDate: date('expiry_date'),
     /** Remnants and blends point to the batch they came from (Phase 2). */
     parentBatchId: uuid('parent_batch_id'),
+    kind: batchKind('kind').notNull().default('lot'),
+    /** Remnant pieces: the length of the piece. */
+    lengthMm: qty('length_mm'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('batch_item_no_uq').on(t.itemId, t.batchNo), index('batch_tenant_heat_idx').on(t.tenantId, t.heatNo)],
+  (t) => [uniqueIndex('batch_item_no_uq').on(t.itemId, t.batchNo), index('batch_tenant_heat_idx').on(t.tenantId, t.heatNo), index('batch_parent_idx').on(t.parentBatchId)],
 );
 
 /** Per-entity, per-document-type, per-FY counters. Numbers are allocated at submit, so drafts never burn numbers. */
@@ -92,7 +98,7 @@ export const numberSeries = pgTable(
 export const docStatus = pgEnum('doc_status', ['draft', 'submitted', 'cancelled']);
 /** return: customer material sent back to its owner. scrap: stock written off into the waste register. */
 /** `delivery` = goods shipped to a customer by a sales invoice (decision 030). */
-export const stockEntryPurpose = pgEnum('stock_entry_purpose', ['receipt', 'issue', 'transfer', 'adjustment', 'return', 'scrap', 'delivery', 'sales_return', 'purchase_return', 'purchase_return_receipt', 'production_issue', 'production_return', 'production_output']);
+export const stockEntryPurpose = pgEnum('stock_entry_purpose', ['receipt', 'issue', 'transfer', 'adjustment', 'return', 'scrap', 'delivery', 'sales_return', 'purchase_return', 'purchase_return_receipt', 'production_issue', 'production_return', 'production_output', 'cut']);
 
 export const stockEntry = pgTable(
   'stock_entry',
@@ -162,6 +168,8 @@ export const stockEntryLine = pgTable(
     poLineId: uuid('po_line_id'),
     /** Scrap lines: the waste-register category the stock goes into. */
     wasteCategory: text('waste_category'),
+    /** Cut lines: length of the new remnant piece (decision 046). */
+    lengthMm: qty('length_mm'),
     /** Receipt cost per unit; for issues it's computed from FIFO on submit. */
     rate: qty('rate'),
     value: qty('value'),

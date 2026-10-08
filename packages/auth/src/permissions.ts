@@ -70,6 +70,7 @@ export const RESOURCES = [
   { module: 'selling', resource: 'sales_invoice', label: 'Sales invoices', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'manufacturing', resource: 'work_centre', label: 'Work centres and machines', actions: ['read', 'create', 'update'] },
   { module: 'manufacturing', resource: 'bom', label: 'Bills of materials', actions: ['read', 'create', 'update', 'submit', 'cancel'] },
+  { module: 'manufacturing', resource: 'genealogy', label: 'Genealogy and recall', actions: ['read', 'export'] },
   { module: 'manufacturing', resource: 'work_order', label: 'Work orders', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'manufacturing', resource: 'job_card', label: 'Job cards', actions: ['read', 'create', 'update', 'submit'] },
   { module: 'quality', resource: 'inspection', label: 'Inspections, NCR, FAI', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },

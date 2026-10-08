@@ -9,6 +9,7 @@ import {
   jobCardEvent,
   machine,
   salesOrder,
+  serialComponent,
   stockEntry,
   stockEntryLine,
   uom,
@@ -21,7 +22,7 @@ import {
   workOrderOperation,
 } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../../common/access.js';
@@ -60,6 +61,8 @@ const outputInput = z.object({
   qty: positive,
   batchNo: z.string().trim().max(40).nullable().optional(),
   warehouseId: z.uuid().nullable().optional(),
+  /** Serial assemblies: per new serial, the component serial (batch) ids built into it (decision 046). */
+  asBuilt: z.array(z.array(z.uuid()).max(100)).max(1000).optional(),
 });
 const stopInput = z.object({ goodQty: quantity.default('0'), reworkQty: quantity.default('0'), scrapQty: quantity.default('0'), remarks: z.string().trim().max(1000).nullable().optional() });
 
@@ -374,7 +377,6 @@ export class WorkOrdersController {
   private async validate(tx: Tx, ctx: TenantRequestContext, entityId: string, input: z.infer<typeof orderInput>) {
     const [it] = await tx.select().from(item).where(and(eq(item.id, input.itemId), eq(item.tenantId, ctx.tenant.tenantId)));
     if (!it) throw new BadRequestException('Unknown item');
-    if (it.tracking === 'serial') throw new BadRequestException('Serial-tracked items are made from slice 2b');
     let bomId = input.bomId;
     if (!bomId) {
       const [d] = await tx.select({ id: bom.id }).from(bom).where(and(eq(bom.entityId, entityId), eq(bom.itemId, it.id), eq(bom.isDefault, true)));
@@ -504,6 +506,14 @@ export class WorkOrdersController {
           .orderBy(asc(stockEntryLine.lineNo))
       : [];
     const costs = await db.select().from(workOrderCost).where(eq(workOrderCost.workOrderId, id));
+    // Live as-built rows (decision 046): which component serial is in which assembly serial.
+    const assembly = alias(batch, 'assembly');
+    const asBuilt = await db
+      .select({ assemblyBatchId: serialComponent.assemblyBatchId, assemblyNo: assembly.batchNo, componentBatchId: serialComponent.componentBatchId, componentNo: batch.batchNo })
+      .from(serialComponent)
+      .innerJoin(batch, eq(batch.id, serialComponent.componentBatchId))
+      .innerJoin(assembly, eq(assembly.id, serialComponent.assemblyBatchId))
+      .where(and(eq(serialComponent.workOrderId, id), isNull(serialComponent.reversalOf), sql`not exists (select 1 from serial_component r where r.reversal_of = ${serialComponent.id})`));
     const sum = (k: string) => costs.filter((c) => c.kind === k).reduce((s, c) => s.add(c.amount), Dec.ZERO);
     const wip = costs.reduce((s, c) => s.add(c.amount), Dec.ZERO);
     return {
@@ -526,6 +536,7 @@ export class WorkOrdersController {
       })),
       jobCards: cards,
       movements: entries.map((e) => ({ ...e, backflush: e.reference === 'Backflush', lines: lines.filter((l) => l.entryId === e.id) })),
+      asBuilt,
       cost: {
         material: sum('issue').add(sum('return')).toString(),
         absorbed: sum('absorption').toString(),

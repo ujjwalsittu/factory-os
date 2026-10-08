@@ -64,3 +64,27 @@ describe('job card time', () => {
     expect(runningMinutes([{ kind: 'start', at: start }], new Date(start.getTime() + 90_000))).toBe('1.500000');
   });
 });
+
+import { formatSerial, isWholeUnits, splitEqually } from './manufacturing.js';
+import { Dec as D } from './decimal.js';
+
+describe('serial helpers', () => {
+  it('splits a value over serials with the exact remainder on the last', () => {
+    const parts = splitEqually('100', 3);
+    expect(parts).toEqual(['33.333333', '33.333333', '33.333334']);
+    expect(parts.reduce((s, p) => s.add(p), D.ZERO).toString()).toBe('100.000000');
+    expect(splitEqually('10', 1)).toEqual(['10.000000']);
+    expect(() => splitEqually('1', 0)).toThrow();
+  });
+  it('formats serial numbers from a prefix', () => {
+    expect(formatSerial('BRK', 41)).toBe('BRK-000041');
+    expect(formatSerial('AZ-BRK-', 7)).toBe('AZ-BRK-000007');
+    expect(formatSerial('sat', 1234567)).toBe('SAT-1234567');
+  });
+  it('recognises whole units', () => {
+    expect(isWholeUnits('3')).toBe(true);
+    expect(isWholeUnits('1.000000')).toBe(true);
+    expect(isWholeUnits('1.5')).toBe(false);
+    expect(isWholeUnits('0')).toBe(false);
+  });
+});
