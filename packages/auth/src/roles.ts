@@ -88,7 +88,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'quality',
     name: 'Quality',
     description: 'Inspections, NCR, FAI, calibration and recording scrap/waste.',
-    permissions: all((p) => p.startsWith('quality.') || p === 'masters.item.read' || p === 'ehs.waste.read' || p === 'ehs.waste.create'),
+    permissions: all((p) => p.startsWith('quality.') || p.startsWith('manufacturing.genealogy.') || p === 'masters.item.read' || p === 'ehs.waste.read' || p === 'ehs.waste.create'),
   },
   {
     key: 'auditor',

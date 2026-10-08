@@ -60,6 +60,8 @@ const outputInput = z.object({
   qty: positive,
   batchNo: z.string().trim().max(40).nullable().optional(),
   warehouseId: z.uuid().nullable().optional(),
+  /** Serial assemblies: per new serial, the component serial (batch) ids built into it (decision 046). */
+  asBuilt: z.array(z.array(z.uuid()).max(100)).max(1000).optional(),
 });
 const stopInput = z.object({ goodQty: quantity.default('0'), reworkQty: quantity.default('0'), scrapQty: quantity.default('0'), remarks: z.string().trim().max(1000).nullable().optional() });
 
@@ -374,7 +376,6 @@ export class WorkOrdersController {
   private async validate(tx: Tx, ctx: TenantRequestContext, entityId: string, input: z.infer<typeof orderInput>) {
     const [it] = await tx.select().from(item).where(and(eq(item.id, input.itemId), eq(item.tenantId, ctx.tenant.tenantId)));
     if (!it) throw new BadRequestException('Unknown item');
-    if (it.tracking === 'serial') throw new BadRequestException('Serial-tracked items are made from slice 2b');
     let bomId = input.bomId;
     if (!bomId) {
       const [d] = await tx.select({ id: bom.id }).from(bom).where(and(eq(bom.entityId, entityId), eq(bom.itemId, it.id), eq(bom.isDefault, true)));

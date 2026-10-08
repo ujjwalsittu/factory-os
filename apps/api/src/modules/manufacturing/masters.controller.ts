@@ -1,5 +1,5 @@
 // Manufacturing masters (decision 044): work centres, machines and revisioned BOMs with operations.
-import { Dec } from '@factoryos/core';
+import { Dec, isWholeUnits } from '@factoryos/core';
 import { bom, bomMaterial, bomOperation, type Database, item, machine, uom, workCentre } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
@@ -296,14 +296,13 @@ export class ManufacturingMastersController {
     const parent = items.get(input.itemId);
     if (!parent) throw new BadRequestException('Unknown item');
     if (!parent.isStockItem) throw new BadRequestException(`${parent.code} is not a stock item`);
-    if (parent.tracking === 'serial') throw new BadRequestException('Serial-tracked items are made from slice 2b');
     const seen = new Set<string>();
     input.materials.forEach((m, i) => {
       const it = items.get(m.itemId);
       if (!it) throw new BadRequestException(`Material ${i + 1}: unknown item`);
       if (m.itemId === input.itemId) throw new BadRequestException(`Material ${i + 1}: an item can't be made from itself`);
       if (!it.isStockItem) throw new BadRequestException(`Material ${i + 1}: ${it.code} is not a stock item`);
-      if (it.tracking === 'serial') throw new BadRequestException(`Material ${i + 1}: serial-tracked materials arrive in slice 2b`);
+      if (it.tracking === 'serial' && !isWholeUnits(m.qty)) throw new BadRequestException(`Material ${i + 1}: ${it.code} is serial-tracked; use whole units`);
       if (m.backflush && it.tracking !== 'none') throw new BadRequestException(`Material ${i + 1}: ${it.code} is batch-tracked; issue it by batch instead of backflushing`);
       if (seen.has(m.itemId)) throw new BadRequestException(`Material ${i + 1}: ${it.code} is listed twice; combine the quantities`);
       seen.add(m.itemId);
