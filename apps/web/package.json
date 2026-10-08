@@ -18,7 +18,8 @@
     "e2e:settlements": "node e2e/settlements.mjs",
     "e2e:manufacturing": "node e2e/manufacturing.mjs",
     "e2e:bank-charges": "node e2e/bank-charges.mjs",
-    "e2e:bank-reconciliation": "node --env-file-if-exists=../../.env e2e/bank-reconciliation.mjs"
+    "e2e:bank-reconciliation": "node --env-file-if-exists=../../.env e2e/bank-reconciliation.mjs",
+    "e2e:passkeys": "node --env-file-if-exists=../../.env e2e/passkeys.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",
@@ -44,6 +45,7 @@
     "next": "^16.3.8",
     "qrcode": "^1.5.4",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "zod": "4.6.5"
   }
 }

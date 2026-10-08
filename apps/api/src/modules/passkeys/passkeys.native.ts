@@ -33,7 +33,13 @@ export function createPasskeyPlugin(db:Database,config:AppConfig,store:PasskeySt
   before:[{matcher:ctx=>(ctx.path??'').startsWith('/passkey/'),handler:createAuthMiddleware(async ctx=>{
    const ceremony=['/passkey/generate-register-options','/passkey/generate-authenticate-options','/passkey/verify-registration','/passkey/verify-authentication'].includes(ctx.path);
    if(ceremony){
-    if(!config.passkeys.enabled||!config.passkeys.origins.includes(ctx.headers?.get('origin')??''))throw new APIError('SERVICE_UNAVAILABLE',{message:'Passkeys are unavailable'});
+    let browserOrigin=ctx.headers?.get('origin')??'';
+    // Browsers omit Origin on same-origin options GETs. Classify that request
+    // using exact allowed referrer + Fetch Metadata; verifier origins stay fixed.
+    if(!browserOrigin&&ctx.method==='GET'&&ctx.path.endsWith('-options')&&ctx.headers?.get('sec-fetch-site')==='same-origin'){
+     try{browserOrigin=new URL(ctx.headers.get('referer')??'').origin;}catch{/* Missing or invalid metadata refuses below. */}
+    }
+    if(!config.passkeys.enabled||!config.passkeys.origins.includes(browserOrigin))throw new APIError('SERVICE_UNAVAILABLE',{message:'Passkeys are unavailable'});
     if(ctx.path.includes('authenticate-options')||ctx.path.includes('verify-authentication')){
      const current=await getAuthoritativeSessionFromCtx({...ctx,query:{...ctx.query,disableRefresh:true}});if(current)throw refused();
      if(ctx.path.includes('options')){if(Object.keys(ctx.query??{}).length)throw refused();try{validateSsoReturn(ctx.headers?.get('x-factoryos-passkey-return')??undefined);}catch{throw refused();}return;}

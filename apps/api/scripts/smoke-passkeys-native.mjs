@@ -35,5 +35,10 @@ try{
   await f.db.$client.query("create function reject_api_evidence() returns trigger language plpgsql as $$begin if new.kind='signed_in' then raise exception 'synthetic evidence refusal'; end if; return new; end$$; create trigger reject_api_evidence before insert on auth_passkey_event for each row execute function reject_api_evidence()");
   try{let failure;try{await f.auth.api.verifyPasskeyAuthentication({headers:signHeaders(),body:{response:key.assertion(signOptions.response)},returnHeaders:true});}catch(error){failure=error;}assert(failure);for(const value of [failure.headers,...Object.getOwnPropertySymbols(failure).map(symbol=>failure[symbol])])if(value instanceof Headers)assert.equal(value.getSetCookie().length,0);assert.equal((await f.db.$client.query('select count(*)::int n from session where passkey_credential_id=$1',[registered.response.id])).rows[0].n,0);}finally{await f.db.$client.query('drop trigger reject_api_evidence on auth_passkey_event; drop function reject_api_evidence()');}
  });
+ await test('browser same-origin options GET without Origin uses bounded metadata, never verifier trust',async()=>{
+  const request=async(headers,method='GET')=>f.auth.handler(new Request(f.config.WEB_ORIGIN+'/api/auth/passkey/generate-authenticate-options',{method,headers}));
+  const trusted={'sec-fetch-site':'same-origin',referer:f.config.WEB_ORIGIN+'/sign-in'};assert.equal((await request(trusted)).status,200);
+  for(const headers of [{}, {...trusted,referer:'https://evil.example/sign-in'}, {...trusted,'sec-fetch-site':'cross-site'}, {...trusted,origin:'https://evil.example'}])assert.notEqual((await request(headers)).status,200);
+ });
  console.log('Passkeys native '+count+' cases PASS');
 }finally{await f.close();}
