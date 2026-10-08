@@ -29,12 +29,12 @@ export async function startPasskeyFixture(overrides={},database=null){
  PlatformAdmin()(AuthorityProbes.prototype,'platform',Object.getOwnPropertyDescriptor(AuthorityProbes.prototype,'platform'));
  class FixtureModule{};Module({controllers:[PasskeysController,AuthorityProbes],providers:[PasskeysService,{provide:AUTH,useValue:auth},{provide:DB,useValue:f.db},{provide:CONFIG,useValue:config},{provide:APP_GUARD,useClass:AccessGuard}]})(FixtureModule);
  let app;
- const api=new URL(process.env.API??'http://localhost:4000');
- try{app=await NestFactory.create(FixtureModule,{logger:false,abortOnError:false});app.setGlobalPrefix('api');await app.listen(Number(api.port||4000),api.hostname);}catch(error){if(app)await app.close();await f.close();throw error;}
+ const api=new URL(process.env.API??'http://localhost:4000'),listenHost=api.hostname==='localhost'?'127.0.0.1':api.hostname,transportApi=new URL(api);transportApi.hostname=listenHost;
+ try{app=await NestFactory.create(FixtureModule,{logger:false,abortOnError:false});app.setGlobalPrefix('api');await app.listen(Number(api.port||4000),listenHost);}catch(error){if(app)await app.close();await f.close();throw error;}
  async function request(path,body,cookies=new Map(),headers={},handler=auth){
   const url=config.BETTER_AUTH_URL+(path.startsWith('/api/')?path:'/api/auth'+path);
   const application=path.startsWith('/api/')&&!path.startsWith('/api/auth/');
-  const request=new Request(application?new URL(path,api):url,{method:body===undefined?'GET':'POST',headers:{origin:config.WEB_ORIGIN,'content-type':'application/json',cookie:[...cookies].map(([key,value])=>key+'='+value).join('; '),...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
+  const request=new Request(application?new URL(path,transportApi):url,{method:body===undefined?'GET':'POST',headers:{origin:config.WEB_ORIGIN,'content-type':'application/json',cookie:[...cookies].map(([key,value])=>key+'='+value).join('; '),...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
   const response=application?await fetch(request):await handler.handler(request);
   for(const item of response.headers.getSetCookie()){const [pair]=item.split(';'),i=pair.indexOf('='),key=pair.slice(0,i),value=pair.slice(i+1);if(value&&!/max-age=0/i.test(item))cookies.set(key,value);else cookies.delete(key);}
   const data=await response.json().catch(()=>null);return {status:response.status,data,headers:response.headers};

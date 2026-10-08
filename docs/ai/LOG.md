@@ -174,3 +174,5 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 2026-10-08 · agent · Add personal passkey sign-in/security controls;9 real mobile ceremonies and four existing production browsers verified, including SSO sibling-key and80-character overflow RED→GREEN; native22/MFA17/actions13/adapter8 and168 uncached units PASS. Next observed database races/populated invariance, full regression and one final review.
 
 2026-10-08 · agent · Verify15 passkey lock races and populated historical upgrade/invariance on owned PostgreSQL copies; all eight passkey suites and root19/12/168 uncached/lint0 PASS; shared data/migrations/runtime unchanged. Next full regression, one fresh review and integration handoff.
+
+2026-10-08 · agent · Verify final passkeys/SSO/email fixtures,22 isolated HTTP runs across20 legacy suites, five production browsers and root19/12/168 uncached/lint0; save reusable cloud instructions; shared schema/data/runtime unchanged. Next one fresh whole-branch review and one evidenced correction pass if needed.
