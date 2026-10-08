@@ -1,5 +1,5 @@
 import type { Database } from '@factoryos/db';
-import { account, session, twoFactor, user, verification } from '@factoryos/db';
+import { account, passkey, session, twoFactor, user, verification } from '@factoryos/db';
 import { betterAuth } from 'better-auth';
 import { twoFactor as twoFactorPlugin } from 'better-auth/plugins';
 import type { AppConfig } from './config.js';
@@ -11,6 +11,8 @@ import {withSsoMfa} from './modules/sso/sso.mfa.js';
 import {SsoStore} from './modules/sso/sso.store.js';
 import {createTransactionalAuthAdapter} from './modules/passkeys/passkeys.adapter.js';
 import {withPasskeyAuthority} from './modules/passkeys/passkeys.scope.js';
+import {createPasskeyPlugin} from './modules/passkeys/passkeys.native.js';
+import {PasskeyStore} from './modules/passkeys/passkeys.store.js';
 
 export function createAuth(db: Database, config: AppConfig,email:EmailService) {
   const callbacks=authEmailCallbacks(db,config,email);
@@ -27,7 +29,7 @@ export function createAuth(db: Database, config: AppConfig,email:EmailService) {
     basePath: '/api/auth',
     secret: config.BETTER_AUTH_SECRET,
     trustedOrigins: [config.WEB_ORIGIN, ...config.EXTRA_TRUSTED_ORIGINS],
-    database: createTransactionalAuthAdapter(db,{ user, session, account, verification, twoFactor }),
+    database: createTransactionalAuthAdapter(db,{ user, session, account, verification, twoFactor,passkey }),
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 10,
@@ -51,7 +53,7 @@ export function createAuth(db: Database, config: AppConfig,email:EmailService) {
       if(!isAPIError(error))throw new APIError('INTERNAL_SERVER_ERROR',{message:'Authentication is temporarily unavailable'});
     }},
     rateLimit: { enabled: config.NODE_ENV !== 'test', window: 60, max: 100 },
-    plugins: [withSsoMfa(twoFactorPlugin({ issuer: 'FactoryOS' }),new SsoStore(db,config),config,db),{id:'factoryos-passkey-schema',schema:{verification:{fields:privateVerification}}}],
+    plugins: [withSsoMfa(twoFactorPlugin({ issuer: 'FactoryOS' }),new SsoStore(db,config),config,db),{id:'factoryos-passkey-schema',schema:{verification:{fields:privateVerification}}},createPasskeyPlugin(db,config,new PasskeyStore(db,config))],
   });
   return withPasskeyAuthority(auth,db);
 }

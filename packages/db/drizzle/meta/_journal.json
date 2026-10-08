@@ -204,6 +204,13 @@
       "when": 1791434750413,
       "tag": "0028_passkey_security",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791436901939,
+      "tag": "0029_passkey_ceremony_bounds",
+      "breakpoints": true
     }
   ]
 }
