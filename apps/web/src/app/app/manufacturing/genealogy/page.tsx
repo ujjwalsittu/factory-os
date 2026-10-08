@@ -102,6 +102,7 @@ function TreeView({ batchId, direction, onDirection, onOpen }: { batchId: string
   const ws = useWorkspace();
   const tree = useQuery({ queryKey: ['genealogy', batchId, direction], queryFn: () => api<Tree>(`/manufacturing/genealogy/${batchId}?direction=${direction}`, { scope: ws.scope }) });
   const recall = useQuery({ queryKey: ['recall', batchId], queryFn: () => api<{ truncated: boolean; rows: RecallRow[] }>(`/manufacturing/genealogy/${batchId}/recall`, { scope: ws.scope }), enabled: direction === 'forward' });
+  const [exportError, setExportError] = useState<string | null>(null);
   if (tree.error) return <Alert tone="danger">{tree.error.message}</Alert>;
   const t = tree.data;
   return (
@@ -133,12 +134,21 @@ function TreeView({ batchId, direction, onDirection, onOpen }: { batchId: string
             description="Every serial and lot reached, and where it is now."
             actions={
               ws.can('manufacturing.genealogy.export') && (
-                <a className={buttonClass('secondary', 'sm')} href={`/api/manufacturing/genealogy/${batchId}/recall.csv?tenant=${ws.tenantId}`} onClick={(e) => (e.preventDefault(), void download(batchId, ws.scope))}>
+                <a className={buttonClass('secondary', 'sm')} href={`/api/manufacturing/genealogy/${batchId}/recall.csv?tenant=${ws.tenantId}`} onClick={(e) => {
+                    e.preventDefault();
+                    setExportError(null);
+                    download(batchId, ws.scope).catch((err: unknown) => setExportError(err instanceof Error ? err.message : 'Export failed'));
+                  }}>
                   Export CSV
                 </a>
               )
             }
           />
+          {exportError && (
+            <div className="px-4 pb-3">
+              <Alert tone="danger">{exportError}</Alert>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <Table>
               <thead>
@@ -173,6 +183,7 @@ function TreeView({ batchId, direction, onDirection, onOpen }: { batchId: string
 
 async function download(batchId: string, scope: { tenantId?: string | null; entityId?: string | null }) {
   const res = await fetch(`/api/manufacturing/genealogy/${batchId}/recall.csv`, { headers: { ...(scope.tenantId ? { 'x-tenant-id': scope.tenantId } : {}), ...(scope.entityId ? { 'x-entity-id': scope.entityId } : {}) }, credentials: 'include' });
+  if (!res.ok) throw new Error(`Export failed (${res.status})`);
   const blob = await res.blob();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);

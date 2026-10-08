@@ -513,12 +513,19 @@ function OutputDialog({ wo, remaining, onDone, onClose }: { wo: WorkOrderDetail;
     return [...net.values()].filter((x) => x.n > 0 && !built.has(x.batchId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wo.movements, wo.asBuilt]);
-  const units = serial && /^\d+$/.test(qty) ? Math.min(Number(qty), 200) : 0;
+  // As-built pickers are shown for up to MAX_ASSEMBLIES units; a larger serial output is refused here rather than sent with fewer assemblies than units.
+  const MAX_ASSEMBLIES = 200;
+  const units = serial && /^\d+$/.test(qty) ? Number(qty) : 0;
+  const tooMany = serialMats.length > 0 && units > MAX_ASSEMBLIES;
   const slots = serialMats.flatMap((mat) => Array.from({ length: Number(mat.qtyPerUnit) }, (_, k) => ({ mat, k })));
   const [picked, setPicked] = useState<Record<string, string>>({});
   const asBuilt = serialMats.length ? Array.from({ length: units }, (_, u) => slots.map((s) => picked[`${u}:${s.mat.itemId}:${s.k}`]).filter((x): x is string => !!x)) : undefined;
   const m = useMutation({
-    mutationFn: () => api<WorkOrderDetail>(`/manufacturing/work-orders/${wo.id}/output`, { method: 'POST', scope: ws.scope, body: { qty, batchNo: batchNo || null, ...(asBuilt ? { asBuilt } : {}) } }),
+    mutationFn: () => {
+      if (tooMany) throw new Error(`Record at most ${MAX_ASSEMBLIES} serial assemblies at a time.`);
+      if (asBuilt?.some((a) => a.length < slots.length)) throw new Error('Choose every component serial for each assembly.');
+      return api<WorkOrderDetail>(`/manufacturing/work-orders/${wo.id}/output`, { method: 'POST', scope: ws.scope, body: { qty, batchNo: batchNo || null, ...(asBuilt ? { asBuilt } : {}) } });
+    },
     onSuccess: (d) => {
       onDone(d);
       onClose();
@@ -539,7 +546,8 @@ function OutputDialog({ wo, remaining, onDone, onClose }: { wo: WorkOrderDetail;
         )}
         {serial && <p className="self-end pb-2 text-[13px] text-muted">One serial number is generated per unit, each with an equal share of the cost.</p>}
       </div>
-      {serialMats.length > 0 && units > 0 && (
+      {tooMany && <Alert tone="danger">{`Record at most ${MAX_ASSEMBLIES} serial assemblies at a time; split this output.`}</Alert>}
+      {serialMats.length > 0 && units > 0 && !tooMany && (
         <div>
           <p className="mb-1 text-[13px] font-medium">As-built: component serials in each assembly</p>
           <div className="space-y-2">
