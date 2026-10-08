@@ -5,6 +5,10 @@ import type {AppConfig} from '../../config.js';
 import type {RequestContext} from '../../common/access.js';
 import type {AuthTransaction,PasskeyActionGrant,PasskeyActionInput,PasskeyFrame} from './passkeys.types.js';
 import {getPasskeyTransaction,requirePasskeyTransaction} from './passkeys.adapter.js';
+import {stampVerifiedRegistration} from './passkeys.adapter.js';
+import {symmetricDecrypt,symmetricEncrypt} from 'better-auth/crypto';
+import {getPasskeyFrame,setPasskeyFrame,type NativeAuthContext,type NativeRegistrationProof} from './passkeys.types.js';
+import {validateSsoReturn} from '../sso/sso.urls.js';
 
 export type PasskeyActionRecord=typeof authPasskeyAction.$inferSelect;
 export type PasskeyCeremonyRecord=typeof authPasskeyCeremony.$inferSelect;
@@ -15,6 +19,46 @@ function sameVersion(a:string,b:string):boolean{return /^[a-f0-9]{64}$/.test(a)&
 export class PasskeyStore{
  constructor(private readonly db:Database,private readonly config:AppConfig){}
  configHash():string{return hash(JSON.stringify(this.config.passkeys));}
+ async prepareCeremony(ctx:NativeAuthContext,input:{kind:'register'|'signin';nonce?:string;returnPath:string},options:{challenge:string;userHandle?:string}):Promise<PasskeyCeremonyRecord>{
+  const tx=requirePasskeyTransaction(),frame=getPasskeyFrame(ctx),cookie=ctx.context.createAuthCookie('better-auth-passkey');
+  // Options just minted this cookie; getSignedCookie reads only request cookies.
+  // This server response identifier selects the newly created challenge record,
+  // never authenticates a later caller (the native verifier checks its signature).
+  const headers='responseHeaders' in ctx.context&&ctx.context.responseHeaders instanceof Headers?ctx.context.responseHeaders:null;
+  const outgoing=headers?.getSetCookie().find(value=>value.startsWith(cookie.name+'='));
+  const signed=outgoing?decodeURIComponent(outgoing.split(';')[0]!.slice(cookie.name.length+1)):'';
+  const identifier=signed.slice(0,signed.lastIndexOf('.'));
+  const native=identifier?await ctx.context.internalAdapter.findVerificationValue(identifier):null;
+  const data=native?JSON.parse(native.value) as {type?:string;expectedChallenge?:string}:null;
+  if(!this.config.passkeys.enabled||!this.config.passkeys.rpId||!native||data?.expectedChallenge!==options.challenge||data.type!==(input.kind==='register'?'registration':'authentication'))throw refused();
+  if(input.kind==='register'&&(!frame||frame.mode!=='register'||!options.userHandle||!/^[A-Za-z0-9_-]{43}$/.test(options.userHandle)))throw refused();
+  const now=await this.now(tx),expiresAt=new Date(Math.min(now.getTime()+300000,native.expiresAt.getTime()));
+  const [record]=await tx.insert(authPasskeyCeremony).values({kind:input.kind,challengeHash:hash(options.challenge),rpId:this.config.passkeys.rpId,returnCipher:await symmetricEncrypt({key:this.config.BETTER_AUTH_SECRET,data:validateSsoReturn(input.returnPath)}),createdAt:now,expiresAt,...(frame?.mode==='register'?{userId:frame.userId,sessionId:frame.sessionId,actionId:frame.actionId,userHandle:options.userHandle}: {})}).returning();
+  if(!record)throw refused();return record;
+ }
+ async registrationFrame(ctx:NativeAuthContext,action:PasskeyActionRecord,challenge:string):Promise<Extract<PasskeyFrame,{mode:'register'}>>{
+  const tx=requirePasskeyTransaction(),[ceremony]=await tx.select().from(authPasskeyCeremony).where(eq(authPasskeyCeremony.challengeHash,hash(challenge))).for('update'),now=await this.now(tx);
+  if(!ceremony||ceremony.kind!=='register'||ceremony.actionId!==action.id||ceremony.userId!==action.userId||ceremony.sessionId!==action.sessionId||ceremony.rpId!==action.rpId||!ceremony.userHandle||ceremony.consumedAt||ceremony.createdAt>now||ceremony.expiresAt<=now)throw refused();
+  const frame:Extract<PasskeyFrame,{mode:'register'}>={mode:'register',userId:action.userId,sessionId:action.sessionId,actionId:action.id,ceremonyId:ceremony.id,rpId:ceremony.rpId,userHandle:ceremony.userHandle};setPasskeyFrame(ctx,frame);return frame;
+ }
+ async acceptRegistrationProof(_ctx:NativeAuthContext,frame:Extract<PasskeyFrame,{mode:'register'}>,verified:NativeRegistrationProof):Promise<void>{
+  if(!verified.verification.verified||!verified.verification.registrationInfo?.userVerified||verified.user.id!==frame.userId)throw refused();
+  await requirePasskeyTransaction().execute(sql`select set_config('factoryos.passkey.ceremony_id',${frame.ceremonyId},true)`);stampVerifiedRegistration(frame);
+ }
+ async signinFrame(ctx:NativeAuthContext,challenge:string,credentialID:string,userHandle:string):Promise<Extract<PasskeyFrame,{mode:'signin'}>>{
+  const tx=requirePasskeyTransaction();if(!/^[A-Za-z0-9_-]{1,1024}$/.test(credentialID)||Buffer.from(credentialID,'base64url').toString('base64url')!==credentialID)throw refused();
+  const [lookup]=await tx.select({id:passkey.id,userId:passkey.userId}).from(passkey).where(eq(passkey.credentialID,credentialID));if(!lookup)throw refused();
+  const [owner]=await tx.select().from(user).where(eq(user.id,lookup.userId)).for('update');if(!owner)throw refused();
+  const version=await this.credentialVersion(tx,owner.id,true),[key]=await tx.select().from(passkey).where(eq(passkey.id,lookup.id)).for('update');
+  const [ceremony]=await tx.select().from(authPasskeyCeremony).where(eq(authPasskeyCeremony.challengeHash,hash(challenge))).for('update'),now=await this.now(tx);
+  if(!this.config.passkeys.enabled||!key||key.rpId!==this.config.passkeys.rpId||key.userHandle!==userHandle||!ceremony||ceremony.kind!=='signin'||ceremony.rpId!==key.rpId||ceremony.consumedAt||ceremony.createdAt>now||ceremony.expiresAt<=now)throw refused();
+  const frame:Extract<PasskeyFrame,{mode:'signin'}>={mode:'signin',userId:owner.id,credentialId:key.id,ceremonyId:ceremony.id,rpId:key.rpId,passwordVersion:version,returnPath:validateSsoReturn(await symmetricDecrypt({key:this.config.BETTER_AUTH_SECRET,data:ceremony.returnCipher}))};setPasskeyFrame(ctx,frame);return frame;
+ }
+ async acceptAuthenticationProof(frame:Extract<PasskeyFrame,{mode:'signin'}>,userVerified:boolean):Promise<void>{
+  if(!userVerified)throw refused();const tx=requirePasskeyTransaction(),now=await this.now(tx);
+  const rows=await tx.update(authPasskeyCeremony).set({userId:frame.userId,credentialId:frame.credentialId,passwordVersion:frame.passwordVersion,consumedAt:now}).where(and(eq(authPasskeyCeremony.id,frame.ceremonyId),sql`${authPasskeyCeremony.consumedAt} is null`,sql`${authPasskeyCeremony.expiresAt}>clock_timestamp()`)).returning();if(rows.length!==1)throw refused();
+  await tx.execute(sql`select set_config('factoryos.passkey.ceremony_id',${frame.ceremonyId},true)`);
+ }
  async passwordVersionForOwner(userId:string):Promise<string>{return this.credentialVersion(getPasskeyTransaction()??this.db,userId,false);}
  private async credentialVersion(reader:Database|AuthTransaction,userId:string,locked:boolean):Promise<string>{
   const query=reader.select().from(account).where(and(eq(account.userId,userId),eq(account.providerId,'credential'),eq(account.accountId,userId)));

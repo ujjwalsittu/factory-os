@@ -1,5 +1,5 @@
 import type {Database} from '@factoryos/db';
-import {isAPIError} from 'better-auth/api';
+import {APIError,isAPIError} from 'better-auth/api';
 import {isPasskeyAdapter,withPasskeyTransaction} from './passkeys.adapter.js';
 
 const methods=new Set(['generatePasskeyRegistrationOptions','generatePasskeyAuthenticationOptions','verifyPasskeyRegistration','verifyPasskeyAuthentication','listPasskeys','deletePasskey','updatePasskey']);
@@ -20,7 +20,15 @@ export function withPasskeyAuthority<T extends {handler:(request:Request)=>Promi
   const {adapter}=await auth.$context;
   if(!isPasskeyAdapter(adapter))throw new Error('Passkey transaction adapter required');
   try{return await withPasskeyTransaction(adapter,async()=>{const result=await work();if(failed(result))throw new ReturnedFailure(result);return result;});}
-  catch(error){if(error instanceof ReturnedFailure)return withoutAuthorityCookies(error.value);throw error;}
+  catch(error){
+   if(error instanceof ReturnedFailure)return withoutAuthorityCookies(error.value);
+   if(isAPIError(error)){
+    // Native API dispatch stores accumulated cookies on a hidden error symbol.
+    // Rebuilding its public error preserves ordinary headers without that state.
+    const headers=new Headers(error.headers);headers.delete('set-cookie');throw new APIError(error.status,error.body,headers);
+   }
+   throw error;
+  }
  };
  const api=new Proxy(auth.api,{get(target,key,receiver){const value=Reflect.get(target,key,receiver);if(typeof key!=='string'||!methods.has(key)||typeof value!=='function')return value;return (...args:unknown[])=>call(()=>Reflect.apply(value,target,args));}});
  return {...auth,api,handler:async(request:Request)=>{

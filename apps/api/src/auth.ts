@@ -5,13 +5,16 @@ import { twoFactor as twoFactorPlugin } from 'better-auth/plugins';
 import type { AppConfig } from './config.js';
 import {authEmailCallbacks} from './modules/email/auth-email.js';
 import type {EmailService} from './modules/email/email.service.js';
-import {APIError,createAuthMiddleware,isAPIError} from 'better-auth/api';
+import {APIError,createAuthMiddleware,getAuthoritativeSessionFromCtx,isAPIError} from 'better-auth/api';
 import {buildSsoOptions} from './modules/sso/sso.policy.js';
 import {withSsoMfa} from './modules/sso/sso.mfa.js';
 import {SsoStore} from './modules/sso/sso.store.js';
 import {createTransactionalAuthAdapter} from './modules/passkeys/passkeys.adapter.js';
 import {withPasskeyAuthority} from './modules/passkeys/passkeys.scope.js';
 import {createPasskeyPlugin} from './modules/passkeys/passkeys.native.js';
+import {and,eq} from 'drizzle-orm';
+import {getPasskeyFrame} from './modules/passkeys/passkeys.types.js';
+import {requirePasskeyTransaction} from './modules/passkeys/passkeys.adapter.js';
 import {PasskeyStore} from './modules/passkeys/passkeys.store.js';
 
 export function createAuth(db: Database, config: AppConfig,email:EmailService) {
@@ -23,6 +26,13 @@ export function createAuth(db: Database, config: AppConfig,email:EmailService) {
   const auth=betterAuth({
     ...sso,
     session:{...sso.session,additionalFields:{...sso.session?.additionalFields,passkeyCredentialId:privateString,passkeyRpId:privateString,passkeyPending:{type:'boolean',required:false,input:false,returned:false,defaultValue:false}}},
+    databaseHooks:{...sso.databaseHooks,session:{...sso.databaseHooks?.session,create:{...sso.databaseHooks?.session?.create,before:async(data,ctx)=>{
+      const frame=getPasskeyFrame(ctx);if(frame?.mode==='signin'||frame?.mode==='mfa'){
+       if(frame.userId!==data.userId)throw new APIError('FORBIDDEN',{message:'Passkey session refused'});requirePasskeyTransaction();
+       return {data:{...data,passkeyCredentialId:frame.credentialId,passkeyRpId:frame.rpId,passkeyPending:true}};
+      }
+      return sso.databaseHooks?.session?.create?.before?.(data,ctx);
+    }}}},
     appName: 'FactoryOS',
     logger:{disabled:true},
     baseURL: config.BETTER_AUTH_URL,
@@ -40,6 +50,8 @@ export function createAuth(db: Database, config: AppConfig,email:EmailService) {
     emailVerification:{sendVerificationEmail:callbacks.sendVerificationEmail,sendOnSignUp:config.email.mode==='smtp',sendOnSignIn:false,expiresIn:3600},
     hooks:{...sso.hooks,before:createAuthMiddleware(async ctx=>{
       const merge=(headers:Headers)=>{headers.forEach((value,key)=>{if(key!=='set-cookie')ctx.setHeader(key,value);});for(const cookie of headers.getSetCookie())ctx.responseHeaders.append('set-cookie',cookie);};
+      const current=await getAuthoritativeSessionFromCtx({...ctx,query:{...ctx.query,disableRefresh:true}});
+      if(current){const [stored]=await db.select({pending:session.passkeyPending}).from(session).where(and(eq(session.id,current.session.id),eq(session.userId,current.user.id)));if(stored?.pending){ctx.context.session=null;if(ctx.path==='/get-session')return ctx.json(null);throw new APIError('UNAUTHORIZED',{message:'Complete verification first'});}}
       const outcome=await callbacks.before({...ctx,returnHeaders:true});
       if(!outcome||typeof outcome!=='object'||!('headers' in outcome)||!(outcome.headers instanceof Headers)||!('response' in outcome))throw new APIError('INTERNAL_SERVER_ERROR',{message:'Authentication is temporarily unavailable'});
       merge(outcome.headers);if(outcome.response)return outcome.response;
