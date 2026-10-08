@@ -197,6 +197,13 @@
       "when": 1791347943993,
       "tag": "0027_manufacturing",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1791434412157,
+      "tag": "0028_serials_remnants",
+      "breakpoints": true
     }
   ]
 }

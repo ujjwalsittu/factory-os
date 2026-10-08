@@ -3,7 +3,7 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, date, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { user } from './auth.js';
-import { stockEntry, warehouse } from './inventory.js';
+import { batch, stockEntry, warehouse } from './inventory.js';
 import { item, qty } from './masters.js';
 import { legalEntity, tenant } from './platform.js';
 import { salesOrder } from './selling.js';
@@ -292,4 +292,50 @@ export const workOrderCost = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('work_order_cost_wo_idx').on(t.workOrderId, t.createdAt), uniqueIndex('work_order_cost_reversal_uq').on(t.reversalOf)],
+);
+
+/** Gapless running number per serial-tracked item per tenant; never resets (decision 046). */
+export const serialCounter = pgTable(
+  'serial_counter',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => item.id),
+    nextValue: integer('next_value').notNull().default(1),
+  },
+  (t) => [uniqueIndex('serial_counter_item_uq').on(t.tenantId, t.itemId)],
+);
+
+/** As-built: which component serial went into which assembly serial. Append-only; a reversal row frees it. */
+export const serialComponent = pgTable(
+  'serial_component',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ...scope,
+    assemblyBatchId: uuid('assembly_batch_id')
+      .notNull()
+      .references(() => batch.id),
+    componentBatchId: uuid('component_batch_id')
+      .notNull()
+      .references(() => batch.id),
+    workOrderId: uuid('work_order_id')
+      .notNull()
+      .references(() => workOrder.id),
+    stockEntryId: uuid('stock_entry_id')
+      .notNull()
+      .references(() => stockEntry.id),
+    reversalOf: uuid('reversal_of'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('serial_component_assembly_idx').on(t.assemblyBatchId),
+    index('serial_component_component_idx').on(t.componentBatchId),
+    uniqueIndex('serial_component_reversal_uq').on(t.reversalOf),
+  ],
 );
