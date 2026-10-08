@@ -40,6 +40,8 @@ const itemInput = z.object({
   stockUomId: z.string().uuid(),
   hsnCode: z.string().trim().regex(/^\d{4,8}$/).optional().nullable(),
   revision: z.string().trim().max(10).optional().nullable(),
+  /** Serial-tracked items: prefix for generated serial numbers (decision 046). */
+  serialPrefix: z.string().trim().toUpperCase().regex(/^[A-Z0-9/-]{0,20}$/, 'Up to 20 letters, digits, - or /').optional().nullable(),
   drawingNo: z.string().trim().max(60).optional().nullable(),
   shelfLifeDays: z.number().int().positive().max(36500).optional().nullable(),
   mslLevel: z.enum(['1', '2', '2a', '3', '4', '5', '5a', '6']).optional().nullable(),

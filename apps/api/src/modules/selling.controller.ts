@@ -904,6 +904,8 @@ export class SellingController {
     }
     for (const [i, l] of lines.entries()) {
       if (!l.isStockItem && (l.warehouseId || l.batchId)) throw new BadRequestException(`Line ${i + 1}: services don't ship from a warehouse`);
+      // Decision 046: one line per serial.
+      if (l.isStockItem && l.tracking === 'serial' && !Dec.of(l.qty).eq('1')) throw new BadRequestException({ message: `Line ${i + 1}: serial-tracked items go one serial per line (quantity 1)`, issues: [{ path: `lines.${i}.qty`, message: 'One serial per line' }] });
     }
     const t = this.tax(c, lines);
     const addresses = (c.customer.addresses ?? []) as Address[];
@@ -945,7 +947,7 @@ export class SellingController {
         hsnCode: l.hsn,
         soLineId: l.soLineId ?? null,
         warehouseId: l.isStockItem ? (l.warehouseId ?? null) : null,
-        batchId: l.isStockItem && l.tracking === 'batch' ? (l.batchId ?? null) : null,
+        batchId: l.isStockItem && l.tracking !== 'none' ? (l.batchId ?? null) : null,
         qty: l.qty,
         rate: l.rate,
         gstRate: l.gstRate,

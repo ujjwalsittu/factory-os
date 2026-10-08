@@ -168,6 +168,8 @@ export const stockEntryLine = pgTable(
     poLineId: uuid('po_line_id'),
     /** Scrap lines: the waste-register category the stock goes into. */
     wasteCategory: text('waste_category'),
+    /** Cut lines: length of the new remnant piece (decision 046). */
+    lengthMm: qty('length_mm'),
     /** Receipt cost per unit; for issues it's computed from FIFO on submit. */
     rate: qty('rate'),
     value: qty('value'),

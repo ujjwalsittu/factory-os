@@ -22,6 +22,7 @@ CREATE TABLE "serial_counter" (
 ALTER TABLE "item" ADD COLUMN "serial_prefix" text;--> statement-breakpoint
 ALTER TABLE "batch" ADD COLUMN "kind" "batch_kind" DEFAULT 'lot' NOT NULL;--> statement-breakpoint
 ALTER TABLE "batch" ADD COLUMN "length_mm" numeric(24, 6);--> statement-breakpoint
+ALTER TABLE "stock_entry_line" ADD COLUMN "length_mm" numeric(24, 6);--> statement-breakpoint
 ALTER TABLE "serial_component" ADD CONSTRAINT "serial_component_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "serial_component" ADD CONSTRAINT "serial_component_entity_id_legal_entity_id_fk" FOREIGN KEY ("entity_id") REFERENCES "public"."legal_entity"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "serial_component" ADD CONSTRAINT "serial_component_assembly_batch_id_batch_id_fk" FOREIGN KEY ("assembly_batch_id") REFERENCES "public"."batch"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

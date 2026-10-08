@@ -169,6 +169,57 @@ export class InventoryController {
     return rows.map((r) => ({ ...r.batch, qty: r.qty })).filter((r) => inStock !== 'true' || Dec.of(r.qty).gt(Dec.ZERO));
   }
 
+  // ---- Remnants (decision 046) ----
+  /** Cut part of a bar (batch) into a remnant piece with a length. Posts at once; cancel like any stock entry. */
+  @Post('stock/cuts')
+  @RequirePermission('inventory.stock_entry.submit')
+  async cut(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const input = parse(
+      z.object({
+        postingDate: z.string().date(),
+        itemId: z.string().uuid(),
+        warehouseId: z.string().uuid(),
+        batchId: z.string().uuid(),
+        qty: qtyString.refine((v) => Dec.of(v).gt('0'), 'Must be more than zero'),
+        lengthMm: qtyString.refine((v) => Dec.of(v).gt('0'), 'Enter the remnant length'),
+        remnantNo: z.string().trim().max(60).nullable().optional(),
+        remarks: z.string().trim().max(500).nullable().optional(),
+      }),
+      body,
+    );
+    return this.db.transaction(async (tx) => {
+      const [e] = await tx.insert(stockEntry).values({ tenantId: ctx.tenant.tenantId, entityId, purpose: 'cut', postingDate: input.postingDate, remarks: input.remarks ?? null, createdBy: ctx.user.id }).returning();
+      await tx.insert(stockEntryLine).values({ entryId: e!.id, lineNo: 1, itemId: input.itemId, qty: input.qty, fromWarehouseId: input.warehouseId, batchId: input.batchId, newBatchNo: input.remnantNo ?? null, lengthMm: input.lengthMm });
+      const posted = await this.posting.submitIn(tx, ctx, entityId, e!.id);
+      const [line] = await tx.select({ remnantNo: stockEntryLine.newBatchNo, value: stockEntryLine.value }).from(stockEntryLine).where(eq(stockEntryLine.entryId, e!.id));
+      return { ...posted, remnantNo: line!.remnantNo, value: line!.value };
+    });
+  }
+
+  /** Remnant pieces in stock, longest first; filter by item, minimum length and warehouse. */
+  @Get('stock/remnants')
+  @RequirePermission('inventory.batch.read')
+  async remnants(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
+    const entityId = entityOf(ctx);
+    const q = parse(z.object({ itemId: z.string().uuid().optional(), minLengthMm: qtyString.optional(), warehouseId: z.string().uuid().optional() }), query);
+    const where: SQL[] = [eq(stockBin.entityId, entityId), eq(batch.kind, 'remnant'), gt(stockBin.qty, '0'), isNull(stockBin.ownerPartyId)];
+    if (q.itemId) where.push(eq(stockBin.itemId, q.itemId));
+    if (q.warehouseId) where.push(eq(stockBin.warehouseId, q.warehouseId));
+    if (q.minLengthMm) where.push(sql`${batch.lengthMm} >= ${q.minLengthMm}`);
+    const parent = sql<string | null>`(select p.batch_no from batch p where p.id = ${batch.parentBatchId})`;
+    return this.db
+      .select({ batchId: batch.id, batchNo: batch.batchNo, heatNo: batch.heatNo, lengthMm: batch.lengthMm, parentBatchNo: parent, itemId: item.id, itemCode: item.code, itemName: item.name, warehouseId: warehouse.id, warehouse: warehouse.name, qty: stockBin.qty, uom: uom.code })
+      .from(stockBin)
+      .innerJoin(batch, eq(batch.id, stockBin.batchId))
+      .innerJoin(item, eq(item.id, stockBin.itemId))
+      .innerJoin(uom, eq(uom.id, item.stockUomId))
+      .innerJoin(warehouse, eq(warehouse.id, stockBin.warehouseId))
+      .where(and(...where))
+      .orderBy(desc(batch.lengthMm))
+      .limit(500);
+  }
+
   // ---- Stock entries ----
   @Get('stock-entries')
   @RequirePermission('inventory.stock_entry.read')

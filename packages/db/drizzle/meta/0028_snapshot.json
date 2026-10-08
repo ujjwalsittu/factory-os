@@ -1,5 +1,5 @@
 {
-  "id": "4e3aa64f-1800-4f1d-985b-d69f666c7344",
+  "id": "9568f0e2-2efe-41c8-aa09-654bf09e8c09",
   "prevId": "84b8d42f-d5d5-4e25-b41b-1568e99f0a6c",
   "version": "7",
   "dialect": "postgresql",
@@ -3393,6 +3393,12 @@
         "waste_category": {
           "name": "waste_category",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "length_mm": {
+          "name": "length_mm",
+          "type": "numeric(24, 6)",
           "primaryKey": false,
           "notNull": false
         },
