@@ -1,6 +1,6 @@
 // Work orders (decision 044): release freezes the BOM, stock moves through system stock entries, job cards
 // absorb time, outputs are valued at actual cost and close sends what is left in WIP to variance.
-import { absorptionValue, Dec, nextJobCardState, outputValue, runningMinutes, scaleBomQty, type JobCardState } from '@factoryos/core';
+import { absorptionValue, Dec, formatSerial, isWholeUnits, nextJobCardState, outputValue, runningMinutes, scaleBomQty, splitEqually, type JobCardState } from '@factoryos/core';
 import {
   batch,
   bom,
@@ -11,6 +11,8 @@ import {
   jobCard,
   jobCardEvent,
   machine,
+  serialComponent,
+  serialCounter,
   stockBin,
   stockEntry,
   stockEntryLine,
@@ -133,7 +135,7 @@ export class WorkOrderService {
     for (const [i, l] of lines.entries()) {
       const it = items.get(l.itemId)!;
       if (l.itemId === wo.itemId) throw new BadRequestException(`Line ${i + 1}: a work order can't consume the item it makes`);
-      if (it.tracking === 'batch' && !l.batchId) throw new BadRequestException(`Line ${i + 1}: ${it.code} is batch-tracked; choose the batch / heat`);
+      if (it.tracking !== 'none' && !l.batchId) throw new BadRequestException(`Line ${i + 1}: ${it.code} is ${it.tracking}-tracked; choose the ${it.tracking === 'serial' ? 'serial' : 'batch / heat'}`);
     }
     const entry = await this.movement(tx, ctx, entityId, wo, 'production_issue', postingDate, lines.map((l) => ({ ...l, from: l.warehouseId ?? wo.sourceWarehouseId })));
     await this.cost(tx, ctx, entityId, wo, 'issue', postingDate, await this.entryValue(tx, entry.id), { stockEntryId: entry.id });
@@ -160,10 +162,13 @@ export class WorkOrderService {
   }
 
   /** Finished goods into stock: backflush first, then value the output from WIP (actual costing). */
-  async outputIn(tx: Tx, ctx: TenantRequestContext, entityId: string, wo: WorkOrder, postingDate: string, input: { qty: string; batchNo?: string | null; warehouseId?: string | null }) {
+  async outputIn(tx: Tx, ctx: TenantRequestContext, entityId: string, wo: WorkOrder, postingDate: string, input: { qty: string; batchNo?: string | null; warehouseId?: string | null; asBuilt?: string[][] }) {
     this.assertOpen(wo);
     const q = Dec.of(input.qty);
     const [it] = await tx.select().from(item).where(eq(item.id, wo.itemId));
+    const serial = it!.tracking === 'serial';
+    if (serial && !isWholeUnits(q.toString())) throw new BadRequestException(`${it!.code} is serial-tracked; output whole units`);
+    const asBuilt = serial ? await this.checkAsBuilt(tx, wo, Number(q.toString()), input.asBuilt) : [];
     let backflushEntryId: string | null = null;
     const flush = (await tx.select().from(workOrderMaterial).where(and(eq(workOrderMaterial.workOrderId, wo.id), eq(workOrderMaterial.backflush, true)))).map((m) => ({
       itemId: m.itemId,
@@ -177,17 +182,29 @@ export class WorkOrderService {
     }
     const value = outputValue({ wipBalance: await this.wip(tx, wo.id), outputQty: q.toString(), plannedQty: wo.plannedQty, producedQty: wo.producedQty });
     const outputs = await this.outputCount(tx, wo.id);
-    const batchNo = it!.tracking === 'batch' ? (input.batchNo?.trim() || (outputs ? `${wo.number}-${outputs + 1}` : wo.number!)) : null;
-    const entry = await this.movement(
-      tx,
-      ctx,
-      entityId,
-      wo,
-      'production_output',
-      postingDate,
-      [{ itemId: wo.itemId, qty: q.toString(), to: input.warehouseId ?? wo.targetWarehouseId, rate: Dec.of(value).div(q).toString(), newBatchNo: batchNo }],
-      backflushEntryId ? `backflush:${backflushEntryId}` : null,
-    );
+    const to = input.warehouseId ?? wo.targetWarehouseId;
+    let outLines: { itemId: string; qty: string; to: string; rate: string; newBatchNo: string | null }[];
+    if (serial) {
+      // Decision 046: one generated serial per unit, each carrying an equal share of the value (last takes the remainder).
+      const n = Number(q.toString());
+      const [counter] = await tx
+        .insert(serialCounter)
+        .values({ tenantId: ctx.tenant.tenantId, itemId: it!.id, nextValue: n + 1 })
+        .onConflictDoUpdate({ target: [serialCounter.tenantId, serialCounter.itemId], set: { nextValue: sql`${serialCounter.nextValue} + ${n}` } })
+        .returning({ next: serialCounter.nextValue });
+      const first = counter!.next - n;
+      const parts = splitEqually(value, n);
+      outLines = parts.map((part, k) => ({ itemId: wo.itemId, qty: '1', to, rate: part, newBatchNo: formatSerial(it!.serialPrefix || it!.code, first + k) }));
+    } else {
+      const batchNo = it!.tracking === 'batch' ? (input.batchNo?.trim() || (outputs ? `${wo.number}-${outputs + 1}` : wo.number!)) : null;
+      outLines = [{ itemId: wo.itemId, qty: q.toString(), to, rate: Dec.of(value).div(q).toString(), newBatchNo: batchNo }];
+    }
+    const entry = await this.movement(tx, ctx, entityId, wo, 'production_output', postingDate, outLines, backflushEntryId ? `backflush:${backflushEntryId}` : null);
+    if (asBuilt.length) {
+      const made = await tx.select({ lineNo: stockEntryLine.lineNo, batchId: stockEntryLine.batchId }).from(stockEntryLine).where(eq(stockEntryLine.entryId, entry.id)).orderBy(asc(stockEntryLine.lineNo));
+      const rows = asBuilt.flatMap((components, k) => components.map((componentBatchId) => ({ tenantId: ctx.tenant.tenantId, entityId, assemblyBatchId: made[k]!.batchId!, componentBatchId, workOrderId: wo.id, stockEntryId: entry.id, createdBy: ctx.user.id })));
+      if (rows.length) await tx.insert(serialComponent).values(rows);
+    }
     // The stock line's value (qty × rate, rounded) is what leaves WIP; any rounding stays for the close.
     await this.cost(tx, ctx, entityId, wo, 'output', postingDate, Dec.of(await this.entryValue(tx, entry.id)).neg().toString(), { stockEntryId: entry.id, qty: q.toString() });
     await tx.update(workOrder).set({ producedQty: Dec.of(wo.producedQty).add(q).toString(), updatedAt: new Date() }).where(eq(workOrder.id, wo.id));
@@ -212,6 +229,10 @@ export class WorkOrderService {
       const [row] = await tx.select().from(workOrderCost).where(and(eq(workOrderCost.stockEntryId, entry.id), isNull(workOrderCost.reversalOf)));
       await this.posting.cancelIn(tx, ctx, entityId, entry.id, reason);
       await this.reverseCost(tx, ctx, row!);
+      // As-built rows of the cancelled assembly serials are reversed, which frees their components.
+      const built = await tx.select().from(serialComponent).where(and(eq(serialComponent.stockEntryId, entry.id), isNull(serialComponent.reversalOf)));
+      if (built.length)
+        await tx.insert(serialComponent).values(built.map((b) => ({ tenantId: b.tenantId, entityId: b.entityId, assemblyBatchId: b.assemblyBatchId, componentBatchId: b.componentBatchId, workOrderId: b.workOrderId, stockEntryId: b.stockEntryId, reversalOf: b.id, createdBy: ctx.user.id })));
       await tx.update(workOrder).set({ producedQty: Dec.of(wo.producedQty).sub(row!.qty!).toString(), updatedAt: new Date() }).where(eq(workOrder.id, wo.id));
       const flushed = entry.reference?.startsWith('backflush:') ? entry.reference.slice('backflush:'.length) : null;
       if (flushed) {
@@ -372,6 +393,44 @@ export class WorkOrderService {
     return net;
   }
 
+  /**
+   * As-built (decision 046): for each new assembly serial, the component serials that went into it. Required when the
+   * BOM has serial-tracked materials: each assembly gets exactly qty-per-unit serials of each, issued to this work
+   * order and not already in another live assembly.
+   */
+  private async checkAsBuilt(tx: Tx, wo: WorkOrder, units: number, asBuilt: string[][] | undefined): Promise<string[][]> {
+    const mats = await tx
+      .select({ itemId: workOrderMaterial.itemId, qtyPerUnit: workOrderMaterial.qtyPerUnit, code: item.code })
+      .from(workOrderMaterial)
+      .innerJoin(item, eq(item.id, workOrderMaterial.itemId))
+      .where(and(eq(workOrderMaterial.workOrderId, wo.id), eq(item.tracking, 'serial')));
+    if (!mats.length) {
+      if (asBuilt?.some((a) => a.length)) throw new BadRequestException('This BOM has no serial-tracked components to record');
+      return [];
+    }
+    if (!asBuilt || asBuilt.length !== units) throw new BadRequestException(`Record the component serials for each of the ${units} assemblies`);
+    const net = await this.netIssued(tx, wo.id);
+    const issued = new Map([...net.values()].filter((n) => n.batchId).map((n) => [n.batchId!, n.itemId]));
+    const ids = [...new Set(asBuilt.flat())];
+    if (ids.length !== asBuilt.flat().length) throw new BadRequestException('A component serial is listed twice');
+    const live = ids.length
+      ? await tx
+          .select({ componentBatchId: serialComponent.componentBatchId })
+          .from(serialComponent)
+          .where(and(inArray(serialComponent.componentBatchId, ids), isNull(serialComponent.reversalOf), sql`not exists (select 1 from serial_component r where r.reversal_of = ${serialComponent.id})`))
+      : [];
+    if (live.length) throw new BadRequestException('A component serial is already built into another assembly');
+    asBuilt.forEach((components, k) => {
+      for (const id of components) if (!issued.has(id)) throw new BadRequestException(`Assembly ${k + 1}: a component serial wasn't issued to this work order`);
+      for (const m of mats) {
+        const need = Dec.of(m.qtyPerUnit);
+        const have = components.filter((id) => issued.get(id) === m.itemId).length;
+        if (!need.eq(String(have))) throw new BadRequestException(`Assembly ${k + 1}: needs ${need.toFixed(0)} serial(s) of ${m.code}, ${have} chosen`);
+      }
+    });
+    return asBuilt;
+  }
+
   private assertOpen(wo: WorkOrder) {
     if (wo.status !== 'released') throw new ConflictException(wo.status === 'completed' ? 'This work order is closed; reopen it first' : `The work order is ${wo.status}; release it first`);
   }
@@ -494,7 +553,7 @@ export class WorkOrderService {
 export async function availableStock(db: Database | Tx, entityId: string, itemIds: string[]) {
   if (!itemIds.length) return [];
   const rows = await db
-    .select({ itemId: stockBin.itemId, warehouseId: stockBin.warehouseId, warehouse: warehouse.name, batchId: stockBin.batchId, batchNo: batch.batchNo, heatNo: batch.heatNo, expiryDate: batch.expiryDate, qty: stockBin.qty })
+    .select({ itemId: stockBin.itemId, warehouseId: stockBin.warehouseId, warehouse: warehouse.name, batchId: stockBin.batchId, batchNo: batch.batchNo, heatNo: batch.heatNo, expiryDate: batch.expiryDate, kind: batch.kind, lengthMm: batch.lengthMm, qty: stockBin.qty })
     .from(stockBin)
     .innerJoin(warehouse, eq(warehouse.id, stockBin.warehouseId))
     .leftJoin(batch, eq(batch.id, stockBin.batchId))

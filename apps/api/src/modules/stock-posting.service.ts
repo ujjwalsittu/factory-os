@@ -152,9 +152,11 @@ export class StockPostingService {
         const it = items.get(line.itemId);
         if (!it || it.tenantId !== ctx.tenant.tenantId) throw new BadRequestException(`Line ${line.lineNo}: unknown item`);
         if (!it.isStockItem) throw new BadRequestException(`Line ${line.lineNo}: ${it.code} is not a stock item`);
-        if (it.tracking === 'serial') throw new BadRequestException(`Line ${line.lineNo}: serial-tracked items arrive in Phase 2`);
         const q = Dec.of(line.qty);
         if (!q.gt(Dec.ZERO)) throw new BadRequestException(`Line ${line.lineNo}: quantity must be positive`);
+        // Decision 046: a serial is a batch of one, so every serial line moves exactly one unit.
+        if (it.tracking === 'serial' && !q.eq('1')) throw new BadRequestException(`Line ${line.lineNo}: ${it.code} is serial-tracked; use one line per serial with quantity 1`);
+        if (entry.purpose === 'cut' && it.tracking !== 'batch') throw new BadRequestException(`Line ${line.lineNo}: only batch-tracked material (bars by weight) can be cut into remnants`);
         const from = line.fromWarehouseId ? whs.get(line.fromWarehouseId) : undefined;
         const to = line.toWarehouseId ? whs.get(line.toWarehouseId) : undefined;
         if ((line.fromWarehouseId && !from) || (line.toWarehouseId && !to)) throw new BadRequestException(`Line ${line.lineNo}: warehouse not in this entity`);
@@ -187,9 +189,10 @@ export class StockPostingService {
         }
         if (direction === 'transfer' && from!.id === to!.id) throw new BadRequestException(`Line ${line.lineNo}: source and target are the same`);
 
-        if (it.tracking === 'batch') {
+        if (it.tracking !== 'none') {
+          const noun = it.tracking === 'serial' ? 'serial number' : 'batch / heat number';
           if (direction === 'in' && !batchId) {
-            if (!line.newBatchNo) throw new BadRequestException(`Line ${line.lineNo}: ${it.code} is batch-tracked; enter a batch / heat number`);
+            if (!line.newBatchNo) throw new BadRequestException(`Line ${line.lineNo}: ${it.code} is ${it.tracking}-tracked; enter a ${noun}`);
             const [b] = await tx
               .insert(batch)
               .values({
@@ -198,24 +201,31 @@ export class StockPostingService {
                 batchNo: line.newBatchNo,
                 heatNo: line.heatNo,
                 supplierId: entry.partyId,
+                kind: it.tracking === 'serial' ? 'serial' : 'lot',
                 expiryDate: line.expiryDate ?? (it.shelfLifeDays ? addDays(entry.postingDate, it.shelfLifeDays) : null),
               })
               .onConflictDoNothing()
               .returning();
-            if (!b) throw new BadRequestException(`Line ${line.lineNo}: batch ${line.newBatchNo} already exists for ${it.code}; select it instead`);
+            if (!b) throw new BadRequestException(`Line ${line.lineNo}: ${it.tracking === 'serial' ? 'serial' : 'batch'} ${line.newBatchNo} already exists for ${it.code}; select it instead`);
             batchId = b.id;
           }
-          if (!batchId) throw new BadRequestException(`Line ${line.lineNo}: ${it.code} is batch-tracked; select a batch`);
+          if (!batchId) throw new BadRequestException(`Line ${line.lineNo}: ${it.code} is ${it.tracking}-tracked; select the ${noun}`);
           const [b] = await tx.select().from(batch).where(and(eq(batch.id, batchId), eq(batch.itemId, it.id)));
           if (!b) throw new BadRequestException(`Line ${line.lineNo}: batch doesn't belong to ${it.code}`);
           if (direction !== 'in' && b.expiryDate && b.expiryDate < entry.postingDate && CONSUMING.has(entry.purpose)) {
             throw new BadRequestException(`Line ${line.lineNo}: batch ${b.batchNo} expired on ${b.expiryDate}`);
           }
+          if (entry.purpose === 'cut' && b.kind === 'serial') throw new BadRequestException(`Line ${line.lineNo}: serials can't be cut`);
         } else if (batchId || line.newBatchNo) {
           throw new BadRequestException(`Line ${line.lineNo}: ${it.code} is not batch-tracked`);
         }
 
         const base = { tenantId: ctx.tenant.tenantId, entityId, itemId: it.id, batchId, ownerPartyId: owner, postingDate: entry.postingDate, voucherType: 'stock_entry', voucherId: entry.id, voucherLineId: line.id };
+
+        if (entry.purpose === 'cut') {
+          await this.cutIn(tx, ctx, entityId, entry, line, it, from!, batchId!, q, base);
+          continue;
+        }
 
         if (direction === 'in') {
           const owned = !owner;
@@ -230,6 +240,7 @@ export class StockPostingService {
             await tx.insert(fifoLayer).values({ tenantId: ctx.tenant.tenantId, entityId, itemId: it.id, batchId, qtyIn: q.toString(), qtyRemaining: q.toString(), rate: rate.toString(), sourceSeq: sle!.seq, postingDate: entry.postingDate, voucherId: entry.id });
           }
           await this.moveBin(tx, ctx.tenant.tenantId, entityId, it.id, to!.id, batchId, owner, q);
+          if (it.tracking === 'serial') await this.assertSingleSerial(tx, entityId, batchId!, `Line ${line.lineNo}`);
           await tx.update(stockEntryLine).set({ batchId, rate: rate.toString(), value: value.toString() }).where(eq(stockEntryLine.id, line.id));
         } else if (direction === 'out') {
           await this.moveBin(tx, ctx.tenant.tenantId, entityId, it.id, from!.id, batchId, owner, q.neg(), `Line ${line.lineNo}: ${it.code}`);
@@ -432,6 +443,72 @@ export class StockPostingService {
     }
   }
 
+  /** A serial is one unit: across all warehouses and owners its stock is never above 1 (decision 046). */
+  private async assertSingleSerial(tx: Tx, entityId: string, batchId: string, context: string) {
+    const [r] = await tx.select({ q: sql<string>`coalesce(sum(${stockBin.qty}), 0)` }).from(stockBin).where(and(eq(stockBin.entityId, entityId), eq(stockBin.batchId, batchId)));
+    if (Dec.of(r!.q).gt('1')) {
+      const [b] = await tx.select({ no: batch.batchNo }).from(batch).where(eq(batch.id, batchId));
+      throw new BadRequestException(`${context}: serial ${b?.no} is already in stock`);
+    }
+  }
+
+  /**
+   * Cut (decision 046): part of a batch becomes a remnant piece, a child batch with a length. The FIFO portions
+   * taken out of the parent are recreated on the child at the same rates, so value moves exactly and no GL posts.
+   */
+  private async cutIn(
+    tx: Tx,
+    ctx: TenantRequestContext,
+    entityId: string,
+    entry: typeof stockEntry.$inferSelect,
+    line: Line,
+    it: typeof item.$inferSelect,
+    from: typeof warehouse.$inferSelect,
+    parentId: string,
+    q: Dec,
+    base: { tenantId: string; entityId: string; itemId: string; batchId: string | null; ownerPartyId: string | null; postingDate: string; voucherType: string; voucherId: string; voucherLineId: string },
+  ) {
+    if (line.ownerPartyId) throw new BadRequestException(`Line ${line.lineNo}: customer material can't be cut here`);
+    if (!line.lengthMm || !Dec.of(line.lengthMm).gt('0')) throw new BadRequestException(`Line ${line.lineNo}: enter the remnant length in mm`);
+    const [parent] = await tx.select().from(batch).where(eq(batch.id, parentId));
+    await this.moveBin(tx, ctx.tenant.tenantId, entityId, it.id, from.id, parentId, null, q.neg(), `Line ${line.lineNo}: ${it.code} ${parent!.batchNo}`);
+    const layers = await tx
+      .select()
+      .from(fifoLayer)
+      .where(and(eq(fifoLayer.entityId, entityId), eq(fifoLayer.itemId, it.id), eq(fifoLayer.batchId, parentId), gt(fifoLayer.qtyRemaining, '0')))
+      .orderBy(asc(fifoLayer.postingDate), asc(fifoLayer.sourceSeq))
+      .for('update');
+    let consumed: { layerId: string; qty: Dec }[];
+    try {
+      consumed = consumeFifo(layers.map((l) => ({ id: l.id, qty: Dec.of(l.qtyRemaining), rate: Dec.of(l.rate) })), q).consumed;
+    } catch (e) {
+      if (e instanceof InsufficientStockError) throw new BadRequestException(`Line ${line.lineNo}: ${parent!.batchNo} has ${e.available.toFixed(3)} valued in stock, ${e.requested.toFixed(3)} requested`);
+      throw e;
+    }
+    const rates = new Map(layers.map((l) => [l.id, Dec.of(l.rate)]));
+    const portions = consumed.map((c) => ({ ...c, rate: rates.get(c.layerId)!, value: c.qty.mul(rates.get(c.layerId)!) }));
+    const total = portions.reduce((s, p) => s.add(p.value), Dec.ZERO);
+    for (const c of consumed) await tx.update(fifoLayer).set({ qtyRemaining: sql`${fifoLayer.qtyRemaining} - ${c.qty.toString()}` }).where(eq(fifoLayer.id, c.layerId));
+    const [out] = await tx.insert(stockLedgerEntry).values({ ...base, batchId: parentId, warehouseId: from.id, qty: q.neg().toString(), rate: total.div(q).toString(), value: total.neg().toString() }).returning();
+    await tx.insert(fifoConsumption).values(consumed.map((c) => ({ sleSeq: out!.seq, layerId: c.layerId, qty: c.qty.toString() })));
+
+    const [{ n }] = (await tx.select({ n: sql<number>`count(*)::int` }).from(batch).where(eq(batch.parentBatchId, parentId))) as [{ n: number }];
+    const childNo = line.newBatchNo?.trim() || `${parent!.batchNo}-R${n + 1}`;
+    const [child] = await tx
+      .insert(batch)
+      .values({ tenantId: ctx.tenant.tenantId, itemId: it.id, batchNo: childNo, heatNo: parent!.heatNo, supplierId: parent!.supplierId, expiryDate: parent!.expiryDate, parentBatchId: parentId, kind: 'remnant', lengthMm: line.lengthMm })
+      .onConflictDoNothing()
+      .returning();
+    if (!child) throw new BadRequestException(`Line ${line.lineNo}: batch ${childNo} already exists for ${it.code}`);
+    // One ledger row and layer per FIFO portion, so a cancel restores each exactly.
+    for (const p of portions) {
+      const [sle] = await tx.insert(stockLedgerEntry).values({ ...base, batchId: child.id, warehouseId: from.id, qty: p.qty.toString(), rate: p.rate.toString(), value: p.value.toString() }).returning();
+      await tx.insert(fifoLayer).values({ tenantId: ctx.tenant.tenantId, entityId, itemId: it.id, batchId: child.id, qtyIn: p.qty.toString(), qtyRemaining: p.qty.toString(), rate: p.rate.toString(), sourceSeq: sle!.seq, postingDate: entry.postingDate, voucherId: entry.id });
+    }
+    await this.moveBin(tx, ctx.tenant.tenantId, entityId, it.id, from.id, child.id, null, q);
+    await tx.update(stockEntryLine).set({ newBatchNo: childNo, rate: total.div(q).toString(), value: total.toString() }).where(eq(stockEntryLine.id, line.id));
+  }
+
   private async lockEntry(tx: Tx, entityId: string, entryId: string) {
     const [entry] = await tx.select().from(stockEntry).where(and(eq(stockEntry.id, entryId), eq(stockEntry.entityId, entityId))).for('update');
     if (!entry) throw new NotFoundException('Stock entry not found');
@@ -487,6 +564,7 @@ function lineDirection(purpose: string, line: Line): 'in' | 'out' | 'transfer' {
   if (purpose === 'receipt' || purpose === 'purchase_return_receipt' || purpose === 'production_return' || purpose === 'production_output') return 'in';
   if (purpose === 'issue' || purpose === 'return' || purpose === 'scrap' || purpose === 'delivery' || purpose === 'purchase_return' || purpose === 'production_issue') return 'out';
   if (purpose === 'transfer') return 'transfer';
+  if (purpose === 'cut') return 'out';
   if (line.toWarehouseId && !line.fromWarehouseId) return 'in';
   if (line.fromWarehouseId && !line.toWarehouseId) return 'out';
   throw new BadRequestException(`Line ${line.lineNo}: an adjustment line sets either a target (increase) or a source (decrease) warehouse`);

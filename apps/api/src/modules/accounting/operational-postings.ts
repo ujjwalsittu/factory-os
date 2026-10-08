@@ -71,7 +71,8 @@ export class OperationalPostings {
         .select()
         .from(stockEntryLine)
         .where(eq(stockEntryLine.entryId, entry.id));
-    if (entry.purpose !== 'transfer')
+    // Transfers and cuts (decision 046) move value between bins or batches, never out of inventory.
+    if (entry.purpose !== 'transfer' && entry.purpose !== 'cut')
       for (const row of rows) {
         if (row.ownerPartyId) continue;
         const value = Dec.of(row.value ?? '0');

@@ -20,7 +20,7 @@ and assume a small team; we will re-plan after Phase 0.
 - **E-invoice + e-way bill** via GSP adapter (mock + first live provider).
 - **Exit**: Azeonics buys bar stock and sells parts with legal invoices, IRN and EWB.
 
-## Phase 2 — Manufacturing & Quality (in progress: 2a work orders, job cards, actual costing done 2026-10-07)
+## Phase 2 — Manufacturing & Quality (in progress: 2a work orders, job cards, actual costing done 2026-10-07; 2b serials, remnants, as-built and genealogy done 2026-10-08)
 - BOM & routing (revisioned), work centers/machines, work orders, reservations, pick/issue,
   job cards (shop-floor PWA), output with serials, remnants, genealogy explorer.
 - Job-work outward (subcontract) + inward (customer material), **ITC-04**.

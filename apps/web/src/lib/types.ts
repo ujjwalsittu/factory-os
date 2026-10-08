@@ -152,6 +152,7 @@ export interface Item {
   uomDecimals?: number;
   hsnCode: string | null;
   revision: string | null;
+  serialPrefix?: string | null;
   drawingNo: string | null;
   shelfLifeDays: number | null;
   mslLevel: string | null;

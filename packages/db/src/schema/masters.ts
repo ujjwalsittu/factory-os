@@ -81,6 +81,8 @@ export const item = pgTable(
     hsnCode: text('hsn_code'),
     /** Drawing revision (A, B, C…). AS9100 configuration control (docs/03 §1). */
     revision: text('revision'),
+    /** Serial-tracked items: prefix for numbers generated on production output (decision 046); empty = item code. */
+    serialPrefix: text('serial_prefix'),
     drawingNo: text('drawing_no'),
     shelfLifeDays: integer('shelf_life_days'),
     /** Moisture sensitivity level for SMT parts (1, 2, 2a, 3, 4, 5, 5a, 6). */
