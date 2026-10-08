@@ -40,4 +40,4 @@ decision 046. A review by a fresh agent or human is still recommended.
 - `smoke-serials.mjs` passes 59 checks and `smoke-genealogy.mjs` 53.
 - `smoke-manufacturing.mjs` (104 checks) still passes.
 - `e2e:genealogy` and `e2e:manufacturing` pass on desktop, and `e2e:genealogy` also at 390 px mobile.
-- See STATUS for the full regression run.
+- Full API regression: all 67 suites pass (stock, buying, selling, accounting, settlements, sales notes, supplier returns, bank, withholding, manufacturing, serials, genealogy).
