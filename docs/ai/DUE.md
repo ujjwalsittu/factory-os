@@ -5,7 +5,7 @@ Current requested foundation/accounting/NIC sequence. Completed implementation a
 | Item | Current state | Next concrete step |
 |---|---|---|
 | Google/Microsoft SSO | Software verified and merged to main (PR #3, 2026-10-08) | Live enablement separately (see below) |
-| Passkeys | Prerequisites/owned claim visible on main; native passkeys/MFA/browser/races/populated invariance Tasks1–7/final regression verified; final review/integration pending | Execute approved [plan](../superpowers/plans/2026-10-08-passkeys.md) inline; One fresh review/correction pass/integration handoff next |
+| Passkeys | All8 tasks, final review/correction and integrated regression complete; software disabled by default | [Integration PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-implementation-20261008), actual green CI, then separate HTTPS/RP/origin/device acceptance; [review](../superpowers/reviews/2026-10-08-passkeys-review.md) |
 | Audited impersonation | Not implemented | Separate scoped SuperAdmin/support consent, expiry and audit design |
 | PostgreSQL RLS | Not implemented | Separate database role/context/transaction/pool and migration design; app tenancy checks stay authoritative |
 | Live SMTP | Email software complete; delivery disabled | Secure existing-service sender/credentials/payload key, DNS/TLS/connectivity and authorized real mailbox acceptance |
