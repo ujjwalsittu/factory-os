@@ -33,6 +33,8 @@ export interface WorkCentre {
   code: string;
   name: string;
   hourlyRate: string;
+  /** Null = the entity's default calendar (decision 049). */
+  calendarId?: string | null;
   isActive: boolean;
   machines: { id: string; code: string; name: string; isActive: boolean; workCentreId: string }[];
 }
@@ -63,7 +65,7 @@ export interface BomDetail {
   isDefault: boolean;
   remarks: string | null;
   materials: { id: string; lineNo: number; itemId: string; itemCode: string; itemName: string; tracking: string; uom: string; qty: string; backflush: boolean; remarks: string | null }[];
-  operations: { id: string; seq: number; name: string; workCentreId: string | null; workCentreCode: string | null; workCentreName: string | null; hourlyRate: string | null; outsourced: boolean; supplierId: string | null; supplierName: string | null; setupMinutes: string; runMinutesPerUnit: string; instructions: string | null }[];
+  operations: { id: string; seq: number; name: string; workCentreId: string | null; workCentreCode: string | null; workCentreName: string | null; hourlyRate: string | null; outsourced: boolean; supplierId: string | null; supplierName: string | null; setupMinutes: string; runMinutesPerUnit: string; leadDays?: number | null; instructions: string | null }[];
 }
 
 export interface WorkOrderRow {
@@ -77,6 +79,8 @@ export interface WorkOrderRow {
   producedQty: string;
   plannedStart: string | null;
   plannedEnd: string | null;
+  priority?: number;
+  scheduledFinish?: string | null;
   salesOrder: string | null;
   wip: string;
 }
@@ -128,6 +132,9 @@ export interface WorkOrderDetail {
   /** Null on rework orders, which have no BOM (decision 048). */
   bomId: string | null;
   reworkOfNcrId?: string | null;
+  /** 1 = highest … 5 (decision 049). */
+  priority?: number;
+  scheduledFinish?: string | null;
   revision: string;
   plannedQty: string;
   producedQty: string;
@@ -142,7 +149,7 @@ export interface WorkOrderDetail {
   completedOn: string | null;
   cancelReason: string | null;
   materials: { id: string | null; itemId: string; itemCode: string; itemName: string; tracking: string; uom: string; qtyPerUnit: string | null; requiredQty: string | null; issuedQty: string; backflush: boolean }[];
-  operations: { id: string; seq: number; name: string; workCentre: string | null; hourlyRate: string | null; plannedMinutes: string; actualMinutes: string; goodQty: string; instructions: string | null; outsourced: boolean; supplierId: string | null; supplier: string | null }[];
+  operations: { id: string; seq: number; name: string; workCentre: string | null; hourlyRate: string | null; plannedMinutes: string; actualMinutes: string; goodQty: string; instructions: string | null; outsourced: boolean; supplierId: string | null; supplier: string | null; leadDays?: number | null }[];
   jobCards: JobCard[];
   movements: Movement[];
   asBuilt: { assemblyBatchId: string; assemblyNo: string; componentBatchId: string; componentNo: string }[];
@@ -163,7 +170,7 @@ export interface Availability {
 }
 
 export interface ShopFloor {
-  operations: { operationId: string; seq: number; name: string; plannedMinutes: string; instructions: string | null; workCentreId: string; workCentre: string; workOrderId: string; number: string; itemCode: string; itemName: string; plannedQty: string; producedQty: string; goodQty: string }[];
+  operations: { operationId: string; seq: number; name: string; plannedMinutes: string; instructions: string | null; workCentreId: string; workCentre: string; workOrderId: string; number: string; itemCode: string; itemName: string; plannedQty: string; producedQty: string; goodQty: string; scheduledMachineId: string | null; scheduledStart: string | null; scheduledEnd: string | null }[];
   openCards: JobCard[];
   mine: JobCard | null;
   machines: { id: string; code: string; name: string; workCentreId: string }[];
