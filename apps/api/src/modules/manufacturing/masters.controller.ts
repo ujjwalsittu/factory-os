@@ -1,6 +1,6 @@
 // Manufacturing masters (decision 044): work centres, machines and revisioned BOMs with operations.
 import { Dec, isWholeUnits } from '@factoryos/core';
-import { bom, bomMaterial, bomOperation, type Database, item, machine, uom, workCentre } from '@factoryos/db';
+import { bom, bomMaterial, bomOperation, type Database, item, machine, party, uom, workCentre } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -41,7 +41,10 @@ const bomInput = z.object({
       z.object({
         seq: z.number().int().min(1).max(9999),
         name: z.string().trim().min(1).max(120),
-        workCentreId: z.uuid(),
+        workCentreId: z.uuid().nullable().optional(),
+        /** Done by a job worker (decision 047): no work centre, no job cards. */
+        outsourced: z.boolean().default(false),
+        supplierId: z.uuid().nullable().optional(),
         setupMinutes: decimal(2).default('0'),
         runMinutesPerUnit: decimal(4).default('0'),
         instructions: z.string().trim().max(4000).nullable().optional(),
@@ -277,7 +280,7 @@ export class ManufacturingMastersController {
       if (!row) throw new ConflictException(`Revision ${revision} already exists for this item`);
       await this.writeLines(tx, row.id, {
         materials: from.materials.map((m) => ({ itemId: m.itemId, qty: m.qty, backflush: m.backflush, remarks: m.remarks })),
-        operations: from.operations.map((o) => ({ seq: o.seq, name: o.name, workCentreId: o.workCentreId, setupMinutes: o.setupMinutes, runMinutesPerUnit: o.runMinutesPerUnit, instructions: o.instructions })),
+        operations: from.operations.map((o) => ({ seq: o.seq, name: o.name, workCentreId: o.workCentreId, outsourced: o.outsourced, supplierId: o.supplierId, setupMinutes: o.setupMinutes, runMinutesPerUnit: o.runMinutesPerUnit, instructions: o.instructions })),
       });
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'bom.copy', targetType: 'bom', targetId: row.id, after: { from: from.revision, revision } }, tx);
       return this.loadBom(tx, entityId, row.id);
@@ -308,12 +311,21 @@ export class ManufacturingMastersController {
       seen.add(m.itemId);
     });
     const seqs = new Set<number>();
-    const centreIds = [...new Set(input.operations.map((o) => o.workCentreId))];
+    const centreIds = [...new Set(input.operations.flatMap((o) => (o.outsourced || !o.workCentreId ? [] : [o.workCentreId])))];
+    const supplierIds = [...new Set(input.operations.flatMap((o) => (o.outsourced && o.supplierId ? [o.supplierId] : [])))];
+    const suppliers = new Map((supplierIds.length ? await tx.select().from(party).where(and(inArray(party.id, supplierIds), eq(party.tenantId, ctx.tenant.tenantId))) : []).map((p) => [p.id, p]));
     const centres = new Map((centreIds.length ? await tx.select().from(workCentre).where(and(inArray(workCentre.id, centreIds), eq(workCentre.entityId, entityId))) : []).map((c) => [c.id, c]));
     input.operations.forEach((o) => {
       if (seqs.has(o.seq)) throw new BadRequestException(`Operation ${o.seq} is listed twice`);
       seqs.add(o.seq);
-      const c = centres.get(o.workCentreId);
+      if (o.outsourced) {
+        if (o.supplierId) {
+          const sup = suppliers.get(o.supplierId);
+          if (!sup?.isJobWorker) throw new BadRequestException(`Operation ${o.seq}: choose a supplier marked as a job worker`);
+        }
+        return;
+      }
+      const c = o.workCentreId ? centres.get(o.workCentreId) : undefined;
       if (!c) throw new BadRequestException(`Operation ${o.seq}: unknown work centre`);
       if (!c.isActive) throw new BadRequestException(`Operation ${o.seq}: work centre ${c.code} is inactive`);
     });
@@ -324,7 +336,7 @@ export class ManufacturingMastersController {
       await tx.insert(bomMaterial).values(input.materials.map((m, i) => ({ bomId, lineNo: i + 1, itemId: m.itemId, qty: m.qty, backflush: m.backflush, remarks: m.remarks ?? null })));
     if (input.operations.length)
       await tx.insert(bomOperation).values(
-        input.operations.map((o) => ({ bomId, seq: o.seq, name: o.name, workCentreId: o.workCentreId, setupMinutes: o.setupMinutes, runMinutesPerUnit: o.runMinutesPerUnit, instructions: o.instructions ?? null })),
+        input.operations.map((o) => ({ bomId, seq: o.seq, name: o.name, workCentreId: o.outsourced ? null : (o.workCentreId ?? null), outsourced: o.outsourced, supplierId: o.outsourced ? (o.supplierId ?? null) : null, setupMinutes: o.setupMinutes, runMinutesPerUnit: o.runMinutesPerUnit, instructions: o.instructions ?? null })),
       );
   }
 
@@ -344,9 +356,10 @@ export class ManufacturingMastersController {
       .where(eq(bomMaterial.bomId, id))
       .orderBy(asc(bomMaterial.lineNo));
     const operations = await db
-      .select({ ...bomOperationCols, workCentreCode: workCentre.code, workCentreName: workCentre.name, hourlyRate: workCentre.hourlyRate })
+      .select({ ...bomOperationCols, workCentreCode: workCentre.code, workCentreName: workCentre.name, hourlyRate: workCentre.hourlyRate, supplierName: party.name })
       .from(bomOperation)
-      .innerJoin(workCentre, eq(workCentre.id, bomOperation.workCentreId))
+      .leftJoin(workCentre, eq(workCentre.id, bomOperation.workCentreId))
+      .leftJoin(party, eq(party.id, bomOperation.supplierId))
       .where(eq(bomOperation.bomId, id))
       .orderBy(asc(bomOperation.seq));
     return { ...row.bom, itemCode: row.itemCode, itemName: row.itemName, itemRevision: row.itemRevision, uom: row.uom, materials, operations };
@@ -366,6 +379,8 @@ const bomOperationCols = {
   seq: bomOperation.seq,
   name: bomOperation.name,
   workCentreId: bomOperation.workCentreId,
+  outsourced: bomOperation.outsourced,
+  supplierId: bomOperation.supplierId,
   setupMinutes: bomOperation.setupMinutes,
   runMinutesPerUnit: bomOperation.runMinutesPerUnit,
   instructions: bomOperation.instructions,

@@ -20,8 +20,10 @@ import { useWorkspace } from './workspace';
 
 interface DraftLine {
   key: string;
-  item: (Pick<Item, 'id' | 'code' | 'name'> & { uomCode?: string }) | null;
+  item: (Pick<Item, 'id' | 'code' | 'name'> & { uomCode?: string; isStockItem?: boolean }) | null;
   poLineId: string | null;
+  /** Service lines may charge a job work receipt of this supplier (decision 047). */
+  jobWorkReceiptId: string;
   /** For PO lines: the ordered rate and what is still billable, to flag variances before submit. */
   poRate: string | null;
   billable: string | null;
@@ -35,6 +37,7 @@ const blank = (): DraftLine => ({
   key: `i${++keySeq}`,
   item: null,
   poLineId: null,
+  jobWorkReceiptId: '',
   poRate: null,
   billable: null,
   qty: '',
@@ -53,6 +56,7 @@ const fromPo = (po: PurchaseOrderDetail): DraftLine[] =>
         uomCode: l.uomCode,
       },
       poLineId: l.id,
+      jobWorkReceiptId: '',
       poRate: l.rate,
       billable: l.unbilledQty,
       qty: String(Number(l.unbilledQty)),
@@ -96,6 +100,7 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
             uomCode: l.uomCode,
           },
           poLineId: l.poLineId,
+          jobWorkReceiptId: l.jobWorkReceiptId ?? '',
           poRate: l.poRate,
           billable: null,
           qty: String(Number(l.qty)),
@@ -170,6 +175,11 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
   });
   const update = (key: string, patch: Partial<DraftLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const supplier = suppliers.data?.find((s) => s.id === header.supplierId);
+  const jobWorkReceipts = useQuery({
+    queryKey: ['job-work-receipts', ws.entityId, header.supplierId],
+    queryFn: () => api<{ id: string; number: string; postingDate: string; orderNumber: string; natureOfWork: string | null; chargedBy: string | null }[]>(`/manufacturing/job-work-receipts?supplierId=${header.supplierId}`, { scope: ws.scope }),
+    enabled: editable && !!header.supplierId && !!supplier?.isJobWorker && ws.can('manufacturing.job_work.read'),
+  });
 
   const payload = () => ({
     supplierId: header.supplierId,
@@ -188,6 +198,7 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
       .map((l) => ({
         itemId: l.item!.id,
         poLineId: l.poLineId,
+        jobWorkReceiptId: l.jobWorkReceiptId || null,
         qty: l.qty,
         rate: l.rate,
         ...(l.gstRate && { gstRate: l.gstRate }),
@@ -495,10 +506,24 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
                                   code: it.code,
                                   name: it.name,
                                   uomCode: it.uomCode,
+                                  isStockItem: it.isStockItem,
                                 },
+                                jobWorkReceiptId: '',
                               })
                             }
                           />
+                        )}
+                        {!l.poLineId && (l.item?.isStockItem === false || l.jobWorkReceiptId) && jobWorkReceipts.data && jobWorkReceipts.data.length > 0 && (
+                          <Select className="mt-1" aria-label={`Job work receipt for line ${i + 1}`} value={l.jobWorkReceiptId} onChange={(e) => update(l.key, { jobWorkReceiptId: e.target.value })}>
+                            <option value="">Not job work processing</option>
+                            {jobWorkReceipts.data.map((r) => (
+                              <option key={r.id} value={r.id} disabled={!!r.chargedBy && r.id !== l.jobWorkReceiptId}>
+                                {r.number} · {r.orderNumber}
+                                {r.natureOfWork ? ` · ${r.natureOfWork}` : ''}
+                                {r.chargedBy ? ` (charged by ${r.chargedBy})` : ''}
+                              </option>
+                            ))}
+                          </Select>
                         )}
                       </Td>
                       <Td>

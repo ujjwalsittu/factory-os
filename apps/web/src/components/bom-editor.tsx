@@ -22,6 +22,9 @@ interface OperationRow {
   seq: string;
   name: string;
   workCentreId: string;
+  /** Done by a job worker (decision 047): no work centre, no job cards. */
+  outsourced: boolean;
+  supplierId: string;
   setupMinutes: string;
   runMinutesPerUnit: string;
   instructions: string;
@@ -42,10 +45,11 @@ export function BomEditor({ bom }: { bom: BomDetail | null }) {
     bom?.materials.map((m) => ({ item: { id: m.itemId, code: m.itemCode, name: m.itemName, tracking: m.tracking, uomCode: m.uom }, qty: num(m.qty), backflush: m.backflush })) ?? [{ item: null, qty: '', backflush: false }],
   );
   const [operations, setOperations] = useState<OperationRow[]>(
-    bom?.operations.map((o) => ({ seq: String(o.seq), name: o.name, workCentreId: o.workCentreId, setupMinutes: num(o.setupMinutes), runMinutesPerUnit: num(o.runMinutesPerUnit), instructions: o.instructions ?? '' })) ?? [],
+    bom?.operations.map((o) => ({ seq: String(o.seq), name: o.name, workCentreId: o.workCentreId ?? '', outsourced: o.outsourced, supplierId: o.supplierId ?? '', setupMinutes: num(o.setupMinutes), runMinutesPerUnit: num(o.runMinutesPerUnit), instructions: o.instructions ?? '' })) ?? [],
   );
   const [copying, setCopying] = useState(false);
   const centres = useQuery({ queryKey: ['work-centres', ws.entityId], queryFn: () => api<WorkCentre[]>('/manufacturing/work-centres', { scope: ws.scope }) });
+  const workers = useQuery({ queryKey: ['parties', 'job_worker'], queryFn: () => api<{ id: string; name: string }[]>('/parties?role=job_worker&limit=200', { scope: ws.scope }) });
 
   const body = () => ({
     itemId: item?.id,
@@ -53,7 +57,7 @@ export function BomEditor({ bom }: { bom: BomDetail | null }) {
     quantity,
     remarks: remarks || null,
     materials: materials.filter((m) => m.item).map((m) => ({ itemId: m.item!.id, qty: m.qty, backflush: m.backflush })),
-    operations: operations.map((o) => ({ seq: Number(o.seq), name: o.name, workCentreId: o.workCentreId, setupMinutes: o.setupMinutes || '0', runMinutesPerUnit: o.runMinutesPerUnit || '0', instructions: o.instructions || null })),
+    operations: operations.map((o) => ({ seq: Number(o.seq), name: o.name, workCentreId: o.outsourced ? null : o.workCentreId, outsourced: o.outsourced, supplierId: o.outsourced ? o.supplierId || null : null, setupMinutes: o.setupMinutes || '0', runMinutesPerUnit: o.runMinutesPerUnit || '0', instructions: o.instructions || null })),
   });
   const done = (b: BomDetail) => {
     void qc.invalidateQueries({ queryKey: ['boms'] });
@@ -192,7 +196,7 @@ export function BomEditor({ bom }: { bom: BomDetail | null }) {
               <tr>
                 <Th className="w-20">Seq</Th>
                 <Th>Operation</Th>
-                <Th>Work centre</Th>
+                <Th>Work centre / job worker</Th>
                 <Th className="w-28 text-right">Setup min</Th>
                 <Th className="w-28 text-right">Run min/unit</Th>
                 <Th className="w-10" />
@@ -211,14 +215,30 @@ export function BomEditor({ bom }: { bom: BomDetail | null }) {
                       <Input aria-label={`Name of operation ${i + 1}`} value={o.name} onChange={(e) => set({ name: e.target.value })} disabled={!editable} placeholder="Mill complete" />
                     </Td>
                     <Td className="min-w-48">
-                      <Select aria-label={`Work centre of operation ${i + 1}`} value={o.workCentreId} onChange={(e) => set({ workCentreId: e.target.value })} disabled={!editable}>
+                      <Select
+                        aria-label={`Work centre of operation ${i + 1}`}
+                        value={o.outsourced ? 'job_worker' : o.workCentreId}
+                        onChange={(e) => (e.target.value === 'job_worker' ? set({ outsourced: true, workCentreId: '' }) : set({ outsourced: false, workCentreId: e.target.value, supplierId: '' }))}
+                        disabled={!editable}
+                      >
                         <option value="">Choose…</option>
                         {centres.data?.filter((c) => c.isActive || c.id === o.workCentreId).map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.code} · {c.name}
                           </option>
                         ))}
+                        <option value="job_worker">Outsourced to a job worker</option>
                       </Select>
+                      {o.outsourced && (
+                        <Select className="mt-1" aria-label={`Job worker of operation ${i + 1}`} value={o.supplierId} onChange={(e) => set({ supplierId: e.target.value })} disabled={!editable}>
+                          <option value="">Choose when sending</option>
+                          {workers.data?.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
                       {centre && <p className="mt-1 text-[12px] text-subtle">{formatMoney(centre.hourlyRate)}/h</p>}
                     </Td>
                     <Td>
@@ -242,7 +262,7 @@ export function BomEditor({ bom }: { bom: BomDetail | null }) {
         </div>
         {editable && (
           <div className="border-t border-line p-3">
-            <Button size="sm" variant="ghost" onClick={() => setOperations([...operations, { seq: String((operations.length + 1) * 10), name: '', workCentreId: '', setupMinutes: '0', runMinutesPerUnit: '0', instructions: '' }])}>
+            <Button size="sm" variant="ghost" onClick={() => setOperations([...operations, { seq: String((operations.length + 1) * 10), name: '', workCentreId: '', outsourced: false, supplierId: '', setupMinutes: '0', runMinutesPerUnit: '0', instructions: '' }])}>
               <Plus className="size-4" /> Add operation
             </Button>
           </div>

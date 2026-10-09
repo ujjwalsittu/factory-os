@@ -7,6 +7,7 @@ import { fieldErrors, FormDialog } from '@/components/form-dialog';
 import { useWorkspace } from '@/components/workspace';
 import { api, ApiError } from '@/lib/api';
 import { formatDate, formatMoney, formatQty } from '@/lib/format';
+import type { OutsourcedState } from '@/lib/job-work';
 import { type Availability, CARD_STATUS, formatMinutes, MOVEMENT_LABEL, type Movement, type Trace, WO_STATUS, type WorkOrderDetail } from '@/lib/manufacturing';
 
 type Dialogs = 'issue' | 'return' | 'output' | 'close' | 'reopen' | 'cancel' | null;
@@ -17,6 +18,13 @@ export function WorkOrderView({ wo }: { wo: WorkOrderDetail }) {
   const [dialog, setDialog] = useState<Dialogs>(null);
   const [cancelling, setCancelling] = useState<{ path: string; title: string; confirm: string } | null>(null);
   const [trace, setTrace] = useState<string | null>(null);
+  const [pieces, setPieces] = useState<{ kind: 'send' | 'receive'; op: WorkOrderDetail['operations'][number] } | null>(null);
+  const outsourced = wo.operations.some((o) => o.outsourced);
+  const jw = useQuery({
+    queryKey: ['work-order-job-work', wo.id, ws.entityId],
+    queryFn: () => api<OutsourcedState>(`/manufacturing/work-orders/${wo.id}/job-work`, { scope: ws.scope }),
+    enabled: outsourced && ws.can('manufacturing.job_work.read'),
+  });
   const refresh = (data: WorkOrderDetail) => {
     qc.setQueryData(['work-order', wo.id, ws.entityId], data);
     void qc.invalidateQueries({ queryKey: ['work-orders'] });
@@ -87,7 +95,7 @@ export function WorkOrderView({ wo }: { wo: WorkOrderDetail }) {
 
       <div className="mb-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Material" value={formatMoney(wo.cost.material)} />
-        <Stat label="Time absorbed" value={formatMoney(wo.cost.absorbed)} />
+        <Stat label={Number(wo.cost.jobWork) ? 'Time + job work' : 'Time absorbed'} value={formatMoney(String(Number(wo.cost.absorbed) + Number(wo.cost.jobWork ?? 0)))} />
         <Stat label="Output value" value={formatMoney(wo.cost.output)} />
         <Stat label="Still in WIP" value={formatMoney(wo.cost.wip)} strong />
         <Stat label="Variance on close" value={formatMoney(wo.cost.variance)} />
@@ -156,12 +164,26 @@ export function WorkOrderView({ wo }: { wo: WorkOrderDetail }) {
                   <Td>
                     <span className="font-mono text-[13px]">{o.seq}</span> {o.name}
                   </Td>
-                  <Td className="text-[13px]">
-                    {o.workCentre} <span className="text-subtle">· {formatMoney(o.hourlyRate)}/h</span>
-                  </Td>
-                  <Td className="tabular text-right text-[13px]">{formatMinutes(o.plannedMinutes)}</Td>
-                  <Td className="tabular text-right text-[13px]">{formatMinutes(o.actualMinutes)}</Td>
-                  <Td className="tabular text-right text-[13px]">{formatQty(o.goodQty)}</Td>
+                  {o.outsourced ? (
+                    <OutsourcedCells
+                      op={o}
+                      state={jw.data?.operations.find((x) => x.operationId === o.id)}
+                      orders={jw.data?.orders.filter((x) => x.operationId === o.id) ?? []}
+                      canAct={released && ws.can('manufacturing.job_work.submit')}
+                      planned={wo.plannedQty}
+                      onSend={() => setPieces({ kind: 'send', op: o })}
+                      onReceive={() => setPieces({ kind: 'receive', op: o })}
+                    />
+                  ) : (
+                    <>
+                      <Td className="text-[13px]">
+                        {o.workCentre} <span className="text-subtle">· {formatMoney(o.hourlyRate)}/h</span>
+                      </Td>
+                      <Td className="tabular text-right text-[13px]">{formatMinutes(o.plannedMinutes)}</Td>
+                      <Td className="tabular text-right text-[13px]">{formatMinutes(o.actualMinutes)}</Td>
+                      <Td className="tabular text-right text-[13px]">{formatQty(o.goodQty)}</Td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -266,7 +288,129 @@ export function WorkOrderView({ wo }: { wo: WorkOrderDetail }) {
       {dialog === 'cancel' && <ConfirmDialog wo={wo} path="cancel" title="Cancel work order" description="Only possible while nothing has been posted against it." confirm="Cancel work order" reason onDone={refresh} onClose={() => setDialog(null)} />}
       {cancelling && <CancelDialog {...cancelling} onDone={(d) => { if (d && typeof d === 'object' && 'movements' in d) refresh(d as WorkOrderDetail); }} onClose={() => setCancelling(null)} />}
       {trace && <TraceDialog batchId={trace} onClose={() => setTrace(null)} />}
+      {pieces && (
+        <PiecesDialog
+          wo={wo}
+          kind={pieces.kind}
+          op={pieces.op}
+          state={jw.data?.operations.find((x) => x.operationId === pieces.op.id)}
+          onDone={() => {
+            void qc.invalidateQueries({ queryKey: ['work-order-job-work', wo.id] });
+            void qc.invalidateQueries({ queryKey: ['work-order', wo.id] });
+          }}
+          onClose={() => setPieces(null)}
+        />
+      )}
     </>
+  );
+}
+
+/** An outsourced operation (decision 047): pieces go to a job worker on a challan and come back; output waits for them. */
+function OutsourcedCells({
+  op,
+  state,
+  orders,
+  canAct,
+  planned,
+  onSend,
+  onReceive,
+}: {
+  planned: string;
+  op: WorkOrderDetail['operations'][number];
+  state: OutsourcedState['operations'][number] | undefined;
+  orders: OutsourcedState['orders'];
+  canAct: boolean;
+  onSend: () => void;
+  onReceive: () => void;
+}) {
+  return (
+    <>
+      <Td className="text-[13px]">
+        <Badge tone="info">Job worker</Badge> {op.supplier ?? <span className="text-subtle">choose when sending</span>}
+        {orders.map((o) => (
+          <Link key={o.id} className="block font-mono text-[12px] text-muted hover:text-accent" href={`/app/manufacturing/job-work/${o.id}`}>
+            {o.number} · {o.supplier}
+          </Link>
+        ))}
+      </Td>
+      <Td className="tabular text-right text-[13px]" colSpan={2}>
+        {state && Number(state.atVendor) > 0 ? <span>{formatQty(state.atVendor)} with job worker</span> : <span className="text-subtle">—</span>}
+        {canAct && (
+          <span className="mt-1 flex justify-end gap-1">
+            {Number(state?.sent ?? 0) < Number(planned) && (
+              <Button size="sm" variant="secondary" onClick={onSend}>
+                Send…
+              </Button>
+            )}
+            {state && Number(state.atVendor) > 0 && (
+              <Button size="sm" variant="secondary" onClick={onReceive}>
+                Receive…
+              </Button>
+            )}
+          </span>
+        )}
+      </Td>
+      <Td className="tabular text-right text-[13px]">{formatQty(state?.good ?? '0')}</Td>
+    </>
+  );
+}
+
+function PiecesDialog({ wo, kind, op, state, onDone, onClose }: { wo: WorkOrderDetail; kind: 'send' | 'receive'; op: WorkOrderDetail['operations'][number]; state: OutsourcedState['operations'][number] | undefined; onDone: () => void; onClose: () => void }) {
+  const ws = useWorkspace();
+  const today = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+  const left = Math.max(0, Number(wo.plannedQty) - Number(state?.sent ?? 0));
+  const [form, setForm] = useState({ postingDate: today, qty: kind === 'send' ? String(left || '') : (state?.atVendor ? String(Number(state.atVendor)) : ''), rejectedQty: '', ewayBillNo: '', vehicleNo: '', jobWorkerChallanNo: '' });
+  const m = useMutation({
+    mutationFn: () =>
+      api(`/manufacturing/work-orders/${wo.id}/operations/${op.id}/${kind}`, {
+        method: 'POST',
+        scope: ws.scope,
+        body:
+          kind === 'send'
+            ? { postingDate: form.postingDate, qty: form.qty, ewayBillNo: form.ewayBillNo || null, vehicleNo: form.vehicleNo || null }
+            : { postingDate: form.postingDate, qty: form.qty || '0', rejectedQty: form.rejectedQty || '0', jobWorkerChallanNo: form.jobWorkerChallanNo || null },
+      }),
+    onSuccess: () => {
+      onDone();
+      onClose();
+    },
+  });
+  const err = fieldErrors(m.error);
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
+  return kind === 'send' ? (
+    <FormDialog title={`Send to job worker · op ${op.seq} ${op.name}`} description={`A delivery challan to ${op.supplier ?? 'the job worker'} for pieces of ${wo.number}. They stay in WIP; no stock or GL moves.`} onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Issue challan">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Date" error={err.postingDate}>
+          {(f) => <Input {...f} type="date" value={form.postingDate} onChange={set('postingDate')} required />}
+        </Field>
+        <Field label={`Pieces (${wo.uom})`} error={err.qty ?? err['lines.0.qty']} hint={`${formatQty(String(left))} not yet sent`}>
+          {(f) => <Input {...f} inputMode="decimal" value={form.qty} onChange={set('qty')} required autoFocus />}
+        </Field>
+        <Field label="E-way bill no." error={err.ewayBillNo} hint="12 digits, if generated">
+          {(f) => <Input {...f} inputMode="numeric" value={form.ewayBillNo} onChange={set('ewayBillNo')} />}
+        </Field>
+        <Field label="Vehicle no." error={err.vehicleNo}>
+          {(f) => <Input {...f} value={form.vehicleNo} onChange={(e) => setForm({ ...form, vehicleNo: e.target.value.toUpperCase() })} />}
+        </Field>
+      </div>
+    </FormDialog>
+  ) : (
+    <FormDialog title={`Receive from job worker · op ${op.seq} ${op.name}`} description="Good pieces count toward output; rejected pieces stay in this work order's cost." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Receive">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Date" error={err.postingDate}>
+          {(f) => <Input {...f} type="date" value={form.postingDate} onChange={set('postingDate')} required />}
+        </Field>
+        <Field label="Their challan no." error={err.jobWorkerChallanNo}>
+          {(f) => <Input {...f} value={form.jobWorkerChallanNo} onChange={set('jobWorkerChallanNo')} />}
+        </Field>
+        <Field label="Good pieces" error={err.qty ?? err['received.0.qty']} hint={`${formatQty(state?.atVendor ?? '0')} with the job worker`}>
+          {(f) => <Input {...f} inputMode="decimal" value={form.qty} onChange={set('qty')} autoFocus />}
+        </Field>
+        <Field label="Rejected at the job worker" error={err.rejectedQty}>
+          {(f) => <Input {...f} inputMode="decimal" value={form.rejectedQty} onChange={set('rejectedQty')} />}
+        </Field>
+      </div>
+    </FormDialog>
   );
 }
 

@@ -63,7 +63,7 @@ export interface BomDetail {
   isDefault: boolean;
   remarks: string | null;
   materials: { id: string; lineNo: number; itemId: string; itemCode: string; itemName: string; tracking: string; uom: string; qty: string; backflush: boolean; remarks: string | null }[];
-  operations: { id: string; seq: number; name: string; workCentreId: string; workCentreCode: string; workCentreName: string; hourlyRate: string; setupMinutes: string; runMinutesPerUnit: string; instructions: string | null }[];
+  operations: { id: string; seq: number; name: string; workCentreId: string | null; workCentreCode: string | null; workCentreName: string | null; hourlyRate: string | null; outsourced: boolean; supplierId: string | null; supplierName: string | null; setupMinutes: string; runMinutesPerUnit: string; instructions: string | null }[];
 }
 
 export interface WorkOrderRow {
@@ -140,11 +140,11 @@ export interface WorkOrderDetail {
   completedOn: string | null;
   cancelReason: string | null;
   materials: { id: string | null; itemId: string; itemCode: string; itemName: string; tracking: string; uom: string; qtyPerUnit: string | null; requiredQty: string | null; issuedQty: string; backflush: boolean }[];
-  operations: { id: string; seq: number; name: string; workCentre: string; hourlyRate: string; plannedMinutes: string; actualMinutes: string; goodQty: string; instructions: string | null }[];
+  operations: { id: string; seq: number; name: string; workCentre: string | null; hourlyRate: string | null; plannedMinutes: string; actualMinutes: string; goodQty: string; instructions: string | null; outsourced: boolean; supplierId: string | null; supplier: string | null }[];
   jobCards: JobCard[];
   movements: Movement[];
   asBuilt: { assemblyBatchId: string; assemblyNo: string; componentBatchId: string; componentNo: string }[];
-  cost: { material: string; absorbed: string; output: string; variance: string; wip: string; unitCost: string | null };
+  cost: { material: string; absorbed: string; jobWork: string; output: string; variance: string; wip: string; unitCost: string | null };
 }
 
 export interface Availability {
