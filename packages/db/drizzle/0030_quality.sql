@@ -204,6 +204,7 @@ CREATE TABLE "ncr_disposition" (
 	CONSTRAINT "ncr_disposition_qty_ck" CHECK ("ncr_disposition"."qty" > 0)
 );
 --> statement-breakpoint
+ALTER TABLE "work_order" ALTER COLUMN "bom_id" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "item" ADD COLUMN "requires_final_inspection" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "item" ADD COLUMN "requires_fai" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "item" ADD COLUMN "fai_process_change" boolean DEFAULT false NOT NULL;--> statement-breakpoint
@@ -280,6 +281,7 @@ CREATE INDEX "inspection_record_item_idx" ON "inspection_record" USING btree ("e
 CREATE UNIQUE INDEX "ncr_number_uq" ON "ncr" USING btree ("entity_id","number");--> statement-breakpoint
 CREATE INDEX "ncr_status_idx" ON "ncr" USING btree ("entity_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "ncr_disposition_line_uq" ON "ncr_disposition" USING btree ("ncr_id","line_no");--> statement-breakpoint
+ALTER TABLE "work_order" ADD CONSTRAINT "work_order_bom_ck" CHECK ("work_order"."bom_id" is not null or "work_order"."rework_of_ncr_id" is not null);--> statement-breakpoint
 ALTER TABLE "work_order" ADD CONSTRAINT "work_order_rework_of_ncr_id_fk" FOREIGN KEY ("rework_of_ncr_id") REFERENCES "public"."ncr"("id");--> statement-breakpoint
 ALTER TABLE "quality_inspection" ADD CONSTRAINT "quality_inspection_inspection_record_id_fk" FOREIGN KEY ("inspection_record_id") REFERENCES "public"."inspection_record"("id");--> statement-breakpoint
 ALTER TABLE "inspection_measurement" ADD CONSTRAINT "inspection_measurement_gauge_id_fk" FOREIGN KEY ("gauge_id") REFERENCES "public"."gauge"("id");--> statement-breakpoint

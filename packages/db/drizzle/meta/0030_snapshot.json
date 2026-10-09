@@ -1,5 +1,5 @@
 {
-  "id": "e6111836-2672-4f07-a0e4-9590d103e166",
+  "id": "6dc9c7e7-3a8c-46f2-9be1-3067c472a47f",
   "prevId": "945823bb-13ec-4bab-b4dd-3a6e03020f57",
   "version": "7",
   "dialect": "postgresql",
@@ -24230,7 +24230,7 @@
           "name": "bom_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "planned_qty": {
           "name": "planned_qty",
@@ -24552,6 +24552,10 @@
         "work_order_qty_ck": {
           "name": "work_order_qty_ck",
           "value": "\"work_order\".\"planned_qty\" > 0"
+        },
+        "work_order_bom_ck": {
+          "name": "work_order_bom_ck",
+          "value": "\"work_order\".\"bom_id\" is not null or \"work_order\".\"rework_of_ncr_id\" is not null"
         }
       },
       "isRLSEnabled": false

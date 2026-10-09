@@ -77,6 +77,7 @@ export class WorkOrderService {
 
   async releaseIn(tx: Tx, ctx: TenantRequestContext, entityId: string, wo: WorkOrder) {
     if (wo.status !== 'draft') throw new ConflictException(`Only drafts can be released (this one is ${wo.status})`);
+    if (!wo.bomId) throw new BadRequestException('A rework order is released from its NCR');
     const [b] = await tx.select().from(bom).where(and(eq(bom.id, wo.bomId), eq(bom.entityId, entityId)));
     if (!b || b.itemId !== wo.itemId) throw new BadRequestException('The BOM is not for this item');
     if (b.status !== 'active') throw new BadRequestException(`BOM revision ${b.revision} is ${b.status}; only active BOMs can be released`);

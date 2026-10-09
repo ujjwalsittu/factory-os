@@ -91,7 +91,7 @@ export class WorkOrdersController {
         status: workOrder.status,
         itemCode: item.code,
         itemName: item.name,
-        revision: bom.revision,
+        revision: sql<string>`coalesce(${bom.revision}, 'Rework')`,
         plannedQty: workOrder.plannedQty,
         producedQty: workOrder.producedQty,
         plannedStart: workOrder.plannedStart,
@@ -102,7 +102,7 @@ export class WorkOrdersController {
       })
       .from(workOrder)
       .innerJoin(item, eq(item.id, workOrder.itemId))
-      .innerJoin(bom, eq(bom.id, workOrder.bomId))
+      .leftJoin(bom, eq(bom.id, workOrder.bomId))
       .leftJoin(salesOrder, eq(salesOrder.id, workOrder.salesOrderId))
       .where(and(...where))
       .orderBy(desc(workOrder.createdAt))
@@ -450,11 +450,11 @@ export class WorkOrdersController {
 
   private async detail(db: Database | Tx, entityId: string, id: string) {
     const [row] = await db
-      .select({ wo: workOrder, itemCode: item.code, itemName: item.name, tracking: item.tracking, uom: uom.code, revision: bom.revision, salesOrder: salesOrder.number })
+      .select({ wo: workOrder, itemCode: item.code, itemName: item.name, tracking: item.tracking, uom: uom.code, revision: sql<string>`coalesce(${bom.revision}, 'Rework')`, salesOrder: salesOrder.number })
       .from(workOrder)
       .innerJoin(item, eq(item.id, workOrder.itemId))
       .innerJoin(uom, eq(uom.id, item.stockUomId))
-      .innerJoin(bom, eq(bom.id, workOrder.bomId))
+      .leftJoin(bom, eq(bom.id, workOrder.bomId))
       .leftJoin(salesOrder, eq(salesOrder.id, workOrder.salesOrderId))
       .where(and(eq(workOrder.id, id), eq(workOrder.entityId, entityId)));
     if (!row) throw new NotFoundException('Work order not found');
