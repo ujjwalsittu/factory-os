@@ -10,7 +10,7 @@ const SNAP = 15;
 /** Hour and day labels in the calendar's time zone. */
 function labels(timeZone: string) {
   const hour = new Intl.DateTimeFormat('en-IN', { timeZone, hour: '2-digit', hour12: false });
-  const day = new Intl.DateTimeFormat('en-IN', { timeZone, weekday: 'short', day: '2-digit', month: 'short' });
+  const day = new Intl.DateTimeFormat('en-IN', { timeZone, weekday: 'short', day: 'numeric' });
   return { hour: (d: Date) => hour.format(d), day: (d: Date) => day.format(d) };
 }
 
@@ -99,8 +99,9 @@ export function Gantt({
           const moved = Math.abs(drag.dx) > 3 || Math.abs(drag.dy) > 3;
           setDrag(null);
           if (!moved) return onSelect(b);
-          const minutes = Math.round(((drag.dx / pxPerHour) * 60) / SNAP) * SNAP;
-          const start = new Date(new Date(b.startsAt).getTime() + minutes * MIN);
+          // Snap the new start to the clock's quarter hours.
+          const raw = new Date(b.startsAt).getTime() + (drag.dx / pxPerHour) * 3600e3;
+          const start = new Date(Math.round(raw / (SNAP * MIN)) * SNAP * MIN);
           onMove(b, targetRow(b, e.clientY) ?? b.machineId!, start);
         }}
         onPointerCancel={() => setDrag(null)}
@@ -138,7 +139,7 @@ export function Gantt({
             const h = l.hour(t);
             return (
               <div key={t.getTime()} className="absolute top-0 h-full border-l border-line pl-1" style={{ left: x(t) }}>
-                {h === '00' ? <span className="font-medium text-fg">{l.day(t)}</span> : `${h}:00`}
+                {h === '00' ? <span className="font-medium whitespace-nowrap text-fg">{l.day(t)}</span> : `${h}:00`}
               </div>
             );
           })}

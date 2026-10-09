@@ -101,6 +101,8 @@ function StartButton({ operationId, label, machines, scheduledMachineId }: { ope
     onSuccess: () => {
       setReason(null);
       void qc.invalidateQueries({ queryKey: ['shop-floor'] });
+      void qc.invalidateQueries({ queryKey: ['out-of-sequence'] });
+      void qc.invalidateQueries({ queryKey: ['schedule'] });
     },
     onError: (e) => {
       if (e instanceof ApiError && e.issues.some((i) => i.path === 'outOfSequenceReason') && reason === null) setReason('');
