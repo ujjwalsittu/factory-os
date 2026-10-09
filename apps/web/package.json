@@ -19,6 +19,7 @@
     "e2e:manufacturing": "node e2e/manufacturing.mjs",
     "e2e:genealogy": "node e2e/genealogy.mjs",
     "e2e:job-work": "node e2e/job-work.mjs",
+    "e2e:quality": "node e2e/quality.mjs",
     "e2e:bank-charges": "node e2e/bank-charges.mjs",
     "e2e:bank-reconciliation": "node --env-file-if-exists=../../.env e2e/bank-reconciliation.mjs"
   },

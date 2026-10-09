@@ -52,13 +52,14 @@ export function AttachmentsPanel({ ownerType, ownerId, defaultKind = 'other', ti
   return (
     <Card>
       <CardHeader
+        className="flex-col sm:flex-row"
         title={title}
         description="PDF, images, CSV, XML, XLSX or ZIP up to 25 MB. Files are kept; a wrong one is withdrawn with a reason."
         actions={
           can &&
           q.data?.storage && (
             <div className="flex flex-wrap items-center gap-2">
-              <Select aria-label="File kind" value={kind} onChange={(e) => setKind(e.target.value as Attachment['kind'])}>
+              <Select aria-label="File kind" className="w-44" value={kind} onChange={(e) => setKind(e.target.value as Attachment['kind'])}>
                 {Object.entries(ATTACHMENT_KIND).map(([k, label]) => (
                   <option key={k} value={k}>
                     {label}

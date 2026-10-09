@@ -206,7 +206,7 @@ export class FaiService {
       const latest = await this.quality.latestResults(this.db, f.inspectionRecordId);
       for (const c of chars) {
         const rs = latest.filter((x) => x.characteristicId === c.id);
-        const requirement = c.lowerLimit !== null || c.upperLimit !== null ? `${c.nominal ?? ''} ${c.lowerLimit ?? '−∞'}…${c.upperLimit ?? '∞'} ${c.unit ?? ''}`.trim() : (c.method ?? 'Conforms');
+        const requirement = c.lowerLimit !== null || c.upperLimit !== null ? `${trim(c.nominal) ?? ''} ${trim(c.lowerLimit) ?? '−∞'}…${trim(c.upperLimit) ?? '∞'} ${c.unit ?? ''}`.trim() : (c.method ?? 'Conforms');
         const row = { balloon: c.balloon, description: c.description, kind: c.kind, requirement, results: rs.map((x) => x.measured ?? (x.pass ? 'OK' : 'NOK')), result: (rs.length ? (rs.every((x) => x.pass) ? 'pass' : 'fail') : 'not_measured') as 'pass' | 'fail' | 'not_measured', key: c.isKey };
         characteristics.push(row);
         if (c.kind === 'functional') tests.push({ description: c.description, result: row.result });
@@ -276,3 +276,6 @@ const REASON_TEXT: Record<FaiReason, string> = {
   process_change: 'process change',
   lapse: 'more than two years since the last one',
 };
+
+/** numeric(18,6) as printed on Form 3: 10.050000 → 10.05. */
+const trim = (v: string | null) => (v === null ? null : v.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, ''));
