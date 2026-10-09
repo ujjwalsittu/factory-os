@@ -72,7 +72,7 @@ export class FaiService {
     const [it] = await tx.select().from(item).where(and(eq(item.id, input.itemId), eq(item.tenantId, ctx.tenant.tenantId)));
     if (!it) throw new BadRequestException({ message: 'Unknown item', issues: [{ path: 'itemId', message: 'Unknown item' }] });
     if (input.batchId) {
-      const [b] = await tx.select().from(batch).where(eq(batch.id, input.batchId));
+      const [b] = await tx.select().from(batch).where(and(eq(batch.id, input.batchId), eq(batch.tenantId, ctx.tenant.tenantId)));
       if (!b || b.itemId !== it.id) throw new BadRequestException({ message: 'The serial or lot is not of this item', issues: [{ path: 'batchId', message: 'Wrong item' }] });
     }
     if (input.inspectionRecordId) await this.finalInspection(tx, entityId, it.id, input.inspectionRecordId);
@@ -93,7 +93,7 @@ export class FaiService {
     if (f.status !== 'draft') throw new ConflictException('Only draft FAIs can change');
     if (input.inspectionRecordId) await this.finalInspection(tx, entityId, f.itemId, input.inspectionRecordId);
     if (input.batchId) {
-      const [b] = await tx.select().from(batch).where(eq(batch.id, input.batchId));
+      const [b] = await tx.select().from(batch).where(and(eq(batch.id, input.batchId), eq(batch.tenantId, ctx.tenant.tenantId)));
       if (!b || b.itemId !== f.itemId) throw new BadRequestException({ message: 'The serial or lot is not of this item', issues: [{ path: 'batchId', message: 'Wrong item' }] });
     }
     await tx
@@ -233,8 +233,8 @@ export class FaiService {
     };
     walk(tree.root);
     const batchIds = [...ids];
-    const recs = await this.db.select({ id: inspectionRecord.id }).from(inspectionRecord).where(and(inArray(inspectionRecord.batchId, batchIds), eq(inspectionRecord.status, 'submitted')));
-    const fais = await this.db.select({ id: fai.id }).from(fai).where(and(inArray(fai.batchId, batchIds), eq(fai.status, 'approved')));
+    const recs = await this.db.select({ id: inspectionRecord.id }).from(inspectionRecord).where(and(eq(inspectionRecord.entityId, entityId), inArray(inspectionRecord.batchId, batchIds), eq(inspectionRecord.status, 'submitted')));
+    const fais = await this.db.select({ id: fai.id }).from(fai).where(and(eq(fai.entityId, entityId), inArray(fai.batchId, batchIds), eq(fai.status, 'approved')));
     const jwr = await this.db
       .selectDistinct({ id: jobWorkReceipt.id })
       .from(jobWorkReceipt)
