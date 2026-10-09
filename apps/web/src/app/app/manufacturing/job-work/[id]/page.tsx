@@ -48,7 +48,7 @@ function OrderView() {
               {JW_STATUS[o.status].label}
             </Badge>
             {conversion && live && canSubmit && <Button onClick={() => setDialog({ kind: 'send' })}>Send material</Button>}
-            {conversion && o.status === 'open' && canSubmit && (
+            {conversion && o.status === 'open' && Number(o.atVendor) > 0 && canSubmit && (
               <Button variant="secondary" onClick={() => setDialog({ kind: 'receive' })}>
                 Receive back
               </Button>
@@ -108,7 +108,7 @@ function OrderView() {
                             <span className="block text-subtle">{formatDate(c.postingDate)}</span>
                             {c.status === 'cancelled' && <Badge tone="danger">Cancelled</Badge>}
                             {c.interstate && !c.ewayBillNo && c.status === 'submitted' && <span className="block text-[12px] text-warning">Interstate · no e-way bill no.</span>}
-                            {c.status === 'submitted' && canCancel && (
+                            {c.status === 'submitted' && canCancel && c.lines.every((x) => Number(x.open ?? 0) === Number(x.qty)) && (
                               <button type="button" className="block text-[12px] text-muted hover:text-danger" onClick={() => setDialog({ kind: 'reason', title: `Cancel challan ${c.number}`, path: `/manufacturing/job-work/challans/${c.id}/cancel`, confirm: 'Cancel challan', description: 'Only while nothing has come back against it. Stock returns to where it left from.' })}>
                                 Cancel…
                               </button>

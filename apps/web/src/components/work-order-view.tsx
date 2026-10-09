@@ -170,6 +170,7 @@ export function WorkOrderView({ wo }: { wo: WorkOrderDetail }) {
                       state={jw.data?.operations.find((x) => x.operationId === o.id)}
                       orders={jw.data?.orders.filter((x) => x.operationId === o.id) ?? []}
                       canAct={released && ws.can('manufacturing.job_work.submit')}
+                      planned={wo.plannedQty}
                       onSend={() => setPieces({ kind: 'send', op: o })}
                       onReceive={() => setPieces({ kind: 'receive', op: o })}
                     />
@@ -310,9 +311,11 @@ function OutsourcedCells({
   state,
   orders,
   canAct,
+  planned,
   onSend,
   onReceive,
 }: {
+  planned: string;
   op: WorkOrderDetail['operations'][number];
   state: OutsourcedState['operations'][number] | undefined;
   orders: OutsourcedState['orders'];
@@ -334,9 +337,11 @@ function OutsourcedCells({
         {state && Number(state.atVendor) > 0 ? <span>{formatQty(state.atVendor)} with job worker</span> : <span className="text-subtle">—</span>}
         {canAct && (
           <span className="mt-1 flex justify-end gap-1">
-            <Button size="sm" variant="secondary" onClick={onSend}>
-              Send…
-            </Button>
+            {Number(state?.sent ?? 0) < Number(planned) && (
+              <Button size="sm" variant="secondary" onClick={onSend}>
+                Send…
+              </Button>
+            )}
             {state && Number(state.atVendor) > 0 && (
               <Button size="sm" variant="secondary" onClick={onReceive}>
                 Receive…
