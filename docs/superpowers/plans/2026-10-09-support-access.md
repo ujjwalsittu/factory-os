@@ -1,6 +1,6 @@
 # Audited Support Access Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Any agent or human can execute this plan task by task. Optional note: the superpowers:subagent-driven-development or superpowers:executing-plans skills fit it. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give a known platform operator tenant-approved, temporary read-only access to one member's permitted business data in one legal entity, with both identities in durable evidence.
 
@@ -8,9 +8,9 @@
 
 **Tech Stack:** TypeScript, NestJS, Better Auth 1.7.7 with the accepted SSO/passkey integration, Drizzle/PostgreSQL 16, Next.js, TanStack Query, existing `@factoryos/ui`, Node assertion fixtures and Playwright.
 
-**Spec:** [Approved written design](../specs/2026-10-09-support-access-design.md), accepted decision050. User APPROVED the written spec on2026-10-09. User approved this nine-task plan on2026-10-09; Native inline execution remains selected.
+**Spec:** [Approved written design](../specs/2026-10-09-support-access-design.md), accepted decision 050. The user approved the written spec on 2026-10-09 and this nine-task plan on 2026-10-09.
 
-**Execution method:** Native inline, already selected. Implement all tasks in this session using the preserved method, then one fresh independent whole-branch review and author correction pass. No per-task agents or repeat method selection. The generic skill header does not override that preference.
+**Execution method:** any workflow that completes the tasks in order, followed by one fresh independent whole-branch review and an author correction pass. Optional note: Native inline execution was the preferred method.
 
 ## Global Constraints
 

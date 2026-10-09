@@ -1,6 +1,6 @@
 # Approved support access — implementation prerequisites
 
-User approved the written spec and nine-task plan on2026-10-09. Native inline execution remains selected; no further scope, plan or method approval is required. Accepted support decision050 preserves published scheduling049 and the other-owner scheduling/accounting claims. Product Task1 has not started.
+User approved the written spec and nine-task plan on 2026-10-09. No further scope or plan approval is required; the execution method is the implementer's choice (optional note: Native inline was preferred). Accepted support decision050 preserves published scheduling049 and the other-owner scheduling/accounting claims. Product Task1 has not started.
 
 Current main4374823 lacks the completed passkey implementation, support planning and support product claim. The passkey prerequisite is reconciled/verified at45e4180; [fresh evidence](2026-10-09-passkeys-quality-integration-verification.txt) and [review/rulings](2026-10-08-passkeys-review.md) explain source history and test limits. Planning incorporates that verified code unchanged. The queued claim478b870 is exactly STATUS-only from main; a merge-tree against planning is clean.
 
@@ -18,7 +18,7 @@ Merge only after actual green CI, never by direct main push. These are manual cr
 
 Title: `Enable optional native passkeys with the current quality schema`
 
-Existing accounts can enroll and sign in with personal passkeys while retaining native TOTP, backup/trusted-device policy, authorization and password recovery. Passkeys remain disabled by default. The completion includes the original final review/corrections and reconciles published quality0030 without changing any published SQL or main dependency versions; both reviewed passkey migrations are byte-identical at0031/0032.
+Existing accounts can enroll and sign in with personal passkeys while retaining native TOTP, backup/trusted-device policy, authorization and password recovery. Passkeys remain disabled by default. The completion includes the original final review/corrections and reconciles published quality0030 without changing any published SQL or main dependency versions; both reviewed passkey migrations are byte-identical, finally numbered 0032/0033 after published 0031_scheduling.
 
 Validation: typecheck19/build12/186 uncached units,23 native auth fixtures, eight manufacturing/quality HTTP suites (514 counted checks plus attachment assertions), and four production browser suites passed. Lint has0 configured tasks. Protected populated books/activations/auth/audit/source migration history remain unchanged; copied pre-release history is normalized only in an owned test fixture. Real HTTPS devices, R2/provider setup, shared migration and deployment remain separate. See the permanent review and selected output for initial orchestration failures and the non-reproduced quality404.
 
@@ -38,4 +38,4 @@ STATUS-only named-owner/start-time queued claim for the approved nine-task Nativ
 
 ## Resume without repeating approvals
 
-Fetch `origin main:refs/remotes/origin/main`, read current handoff and verify the prerequisite/claim merges. Then create the own implementation branch from that main and execute Tasks1–9 inline using the existing spec/plan/ledger, RED/GREEN checks and one fresh final whole-branch reviewer. Generate the next migration from that published journal. Do not infer main integration from local tests or push main directly. PostgreSQL RLS and live configuration/acceptance remain separate.
+Fetch `origin main:refs/remotes/origin/main`, read current handoff and verify the prerequisite/claim merges. Then create the own implementation branch from that main and execute Tasks 1–9 in order (any workflow; inline was preferred) using the existing spec/plan/ledger, RED/GREEN checks and one fresh final whole-branch reviewer. Generate the next migration from that published journal. Do not infer main integration from local tests or push main directly. PostgreSQL RLS and live configuration/acceptance remain separate.

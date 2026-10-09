@@ -92,12 +92,12 @@ async function reconcileOwnedPasskeyCopy(f){
   const applied=new Map(rows.map(row=>[row.hash,row]));
   assert.equal(applied.size,rows.length,'no duplicate copied migration hashes');
   for(const row of rows)assert(files.some(e=>e.hash===row.hash),'unknown copied migration history refuses');
-  const passkeys=files.filter(e=>e.tag==='0031_passkey_security'||e.tag==='0032_passkey_ceremony_bounds');
+  const passkeys=files.filter(e=>e.tag==='0032_passkey_security'||e.tag==='0033_passkey_ceremony_bounds');
   assert.equal(passkeys.length,2);
   if(!passkeys.some(e=>applied.has(e.hash)))return;
   assert(passkeys.every(e=>applied.has(e.hash)),'both reviewed unpublished migrations must be present');
   const missing=files.filter(e=>!applied.has(e.hash));
-  assert(missing.every(e=>e.tag==='0030_quality'),'only the known incoming quality migration may be absent');
+  assert(missing.every(e=>['0030_quality','0031_scheduling'].includes(e.tag)),'only known incoming published migrations may be absent');
   for(const e of files.filter(e=>applied.has(e.hash)&&!passkeys.includes(e)))assert.equal(String(applied.get(e.hash).created_at),String(e.when),'published copied history unchanged');
   await c.query('begin');
   for(const e of missing){for(const statement of e.bytes.toString('utf8').split('--> statement-breakpoint'))if(statement.trim())await c.query(statement);await c.query('insert into drizzle.__drizzle_migrations(hash,created_at) values($1,$2)',[e.hash,e.when]);}
