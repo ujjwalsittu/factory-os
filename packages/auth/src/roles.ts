@@ -70,7 +70,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'stores',
     name: 'Stores',
     description: 'Stock receipts, issues, transfers, counts and the waste register.',
-    permissions: all((p) => p.startsWith('inventory.') || p.startsWith('ehs.') || ['compliance.sandbox_operation.read','compliance.sandbox_connection.read','compliance.sandbox_partb.create','compliance.sandbox_partb.update'].includes(p) || p === 'buying.return_claim.read' || p === 'buying.return_movement.read' || p === 'buying.return_movement.create' || p === 'masters.item.read' || p === 'masters.party.read'),
+    permissions: all((p) => p.startsWith('inventory.') || p.startsWith('ehs.') || ['compliance.sandbox_operation.read','compliance.sandbox_connection.read','compliance.sandbox_partb.create','compliance.sandbox_partb.update'].includes(p) || p === 'buying.return_claim.read' || p === 'buying.return_movement.read' || p === 'buying.return_movement.create' || ['manufacturing.job_work.read', 'manufacturing.job_work.create', 'manufacturing.job_work.submit'].includes(p) || p === 'masters.item.read' || p === 'masters.party.read'),
   },
   {
     key: 'production_planner',
@@ -88,7 +88,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'quality',
     name: 'Quality',
     description: 'Inspections, NCR, FAI, calibration and recording scrap/waste.',
-    permissions: all((p) => p.startsWith('quality.') || p.startsWith('manufacturing.genealogy.') || p === 'masters.item.read' || p === 'ehs.waste.read' || p === 'ehs.waste.create'),
+    permissions: all((p) => p.startsWith('quality.') || p.startsWith('manufacturing.genealogy.') || p === 'manufacturing.job_work.read' || p === 'masters.item.read' || p === 'ehs.waste.read' || p === 'ehs.waste.create'),
   },
   {
     key: 'auditor',

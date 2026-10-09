@@ -73,6 +73,7 @@ export const RESOURCES = [
   { module: 'manufacturing', resource: 'genealogy', label: 'Genealogy and recall', actions: ['read', 'export'] },
   { module: 'manufacturing', resource: 'work_order', label: 'Work orders', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'manufacturing', resource: 'job_card', label: 'Job cards', actions: ['read', 'create', 'update', 'submit'] },
+  { module: 'manufacturing', resource: 'job_work', label: 'Job work (challans and receipts)', actions: ['read', 'create', 'submit', 'cancel'] },
   { module: 'quality', resource: 'inspection', label: 'Inspections, NCR, FAI', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'accounts', resource: 'account', label: 'Chart of accounts', actions: ['read', 'create', 'update'] },
   { module: 'accounts', resource: 'setup', label: 'Accounting setup and cut-over', actions: ['read', 'create', 'update', 'approve'] },
@@ -80,6 +81,7 @@ export const RESOURCES = [
   { module: 'accounts', resource: 'settlement', label: 'Customer receipts, supplier payments and allocations', actions: ['read', 'create', 'submit', 'cancel', 'export'] },
   { module: 'accounts', resource: 'voucher', label: 'Accounting vouchers', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'compliance', resource: 'gst_return', label: 'GST returns', actions: ['read', 'create', 'approve', 'file', 'export'] },
+  { module: 'compliance', resource: 'itc04', label: 'ITC-04 and job work deadlines', actions: ['read', 'export', 'update'] },
   { module: 'compliance', resource: 'einvoice', label: 'E-invoice & e-way bill', actions: ['read', 'create', 'cancel'] },
 ] as const satisfies readonly ResourceDef[];
 

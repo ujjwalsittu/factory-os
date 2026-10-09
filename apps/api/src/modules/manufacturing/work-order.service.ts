@@ -33,6 +33,7 @@ import { seedChart } from '../accounting/chart.js';
 import { GlPostingService } from '../accounting/gl-posting.service.js';
 import { OperationalPostings } from '../accounting/operational-postings.js';
 import { StockPostingService } from '../stock-posting.service.js';
+import { JobWorkService } from './job-work.service.js';
 
 type WorkOrder = typeof workOrder.$inferSelect;
 type Purpose = 'production_issue' | 'production_return' | 'production_output';
@@ -51,6 +52,7 @@ export class WorkOrderService {
     private readonly posting: StockPostingService,
     private readonly accounting: OperationalPostings,
     private readonly gl: GlPostingService,
+    private readonly jobWork: JobWorkService,
   ) {}
 
   /** Every mutation: accounting lock first (the stock engine takes it too), then the work order row. */
@@ -170,6 +172,7 @@ export class WorkOrderService {
     const [it] = await tx.select().from(item).where(eq(item.id, wo.itemId));
     const serial = it!.tracking === 'serial';
     if (serial && !isWholeUnits(q.toString())) throw new BadRequestException(`${it!.code} is serial-tracked; output whole units`);
+    await this.jobWork.assertOutputAllowed(tx, wo.id, Dec.of(wo.producedQty).add(q).toString());
     const asBuilt = serial ? await this.checkAsBuilt(tx, wo, Number(q.toString()), input.asBuilt) : [];
     let backflushEntryId: string | null = null;
     const flush = (await tx.select().from(workOrderMaterial).where(and(eq(workOrderMaterial.workOrderId, wo.id), eq(workOrderMaterial.backflush, true)))).map((m) => ({

@@ -2,7 +2,7 @@ import { acquisitionCostChange, receiptInvoiceAllocation } from '@factoryos/db';
 import { OperationalPostings } from './accounting/operational-postings.js';
 import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
-import { consumeFifo, Dec, formatSeries, fyCode, InsufficientStockError } from '@factoryos/core';
+import { allocateProportion, consumeFifo, Dec, formatSeries, fyCode, InsufficientStockError } from '@factoryos/core';
 import {
   batch,
   type Database,
@@ -44,6 +44,10 @@ export const DEFAULT_SERIES: Record<string, string> = {
   sales_order: '{ENTITY}/SO/{FY}/{####}',
   /** Per GSTIN (doc type `sales_invoice:<gst registration id>`), ≤ 16 characters (decision 029). */
   sales_invoice: '{ENTITY}/{FY}/{#####}',
+  job_work_order: '{ENTITY}/JWO/{FY}/{####}',
+  /** Per GSTIN (doc type `job_work_challan:<gst registration id>`), ≤ 16 characters (rule 55, decision 047). */
+  job_work_challan: 'JW/{FY}/{#####}',
+  job_work_receipt: '{ENTITY}/JWR/{FY}/{#####}',
   credit_note: '{ENTITY}/CN/{FY}/{####}',
   debit_note: '{ENTITY}/DN/{FY}/{####}',
   customer_receipt: '{ENTITY}/RCT/{FY}/{#####}',
@@ -55,13 +59,15 @@ export const DEFAULT_SERIES: Record<string, string> = {
 };
 
 /** Statutory documents whose number goes on a GST return: at most 16 characters. */
-const GST_DOCS = new Set(['sales_invoice', 'credit_note', 'debit_note']);
+const GST_DOCS = new Set(['sales_invoice', 'credit_note', 'debit_note', 'job_work_challan']);
 
 /** Waste categories that are hazardous under the Hazardous Waste Rules 2016 (docs/03 §9). */
 const HAZARDOUS = new Set(['metal_powder', 'coolant_oil', 'solvent']);
 
 /** Stock entries a work order posts (decision 044). */
 export const PRODUCTION_PURPOSES = new Set(['production_issue', 'production_return', 'production_output']);
+/** Stock entries job work posts (decision 047): out = to the job worker, in = consumed there and received back. */
+export const JOB_WORK_PURPOSES = new Set(['job_work_out', 'job_work_in']);
 /** Purposes that take stock out for use, so the source must be available for issue and in date. */
 const CONSUMING = new Set(['issue', 'delivery', 'production_issue']);
 
@@ -148,6 +154,17 @@ export class StockPostingService {
         }
       }
 
+      // Job work receipt (decision 047): the material consumed at the job worker becomes the returned goods.
+      // Lines without a rate share the consumed value by quantity, exactly; scrap lines carry rate 0.
+      let jwConsumed = Dec.ZERO;
+      const jwShared = entry.purpose === 'job_work_in' ? lines.filter((l) => l.toWarehouseId && !l.fromWarehouseId && l.rate === null) : [];
+      const jwSharedQty = jwShared.reduce((sum, l) => sum.add(l.qty), Dec.ZERO);
+      let jwAllocated = Dec.ZERO;
+      if (entry.purpose === 'job_work_in') {
+        const firstIn = lines.findIndex((l) => !l.fromWarehouseId);
+        if (firstIn < 0 || lines.slice(firstIn).some((l) => l.fromWarehouseId)) throw new BadRequestException('A job work receipt lists the material consumed first, then the goods received');
+        if (!jwShared.length) throw new BadRequestException('A job work receipt needs at least one received line that takes the cost');
+      }
       for (const line of lines) {
         const it = items.get(line.itemId);
         if (!it || it.tenantId !== ctx.tenant.tenantId) throw new BadRequestException(`Line ${line.lineNo}: unknown item`);
@@ -176,6 +193,17 @@ export class StockPostingService {
         if (entry.purpose === 'scrap' && !line.wasteCategory) throw new BadRequestException(`Line ${line.lineNo}: choose a waste category`);
         for (const w of [from, to]) {
           if (w?.type === 'customer_owned' && !owner) throw new BadRequestException(`Line ${line.lineNo}: ${w.name} holds customer material; choose the owner`);
+        }
+        // Stock at a job worker moves only through job work challans and receipts (decision 047).
+        if (JOB_WORK_PURPOSES.has(entry.purpose)) {
+          if (!entry.systemGenerated) throw new BadRequestException('Job work movements are posted from a job work challan or receipt');
+          if (owner) throw new BadRequestException(`Line ${line.lineNo}: customer material can't be sent on our job work`);
+          const vendorSide = entry.purpose === 'job_work_out' ? to : from;
+          const ourSide = entry.purpose === 'job_work_out' ? from : to;
+          if (vendorSide && vendorSide.type !== 'at_job_worker') throw new BadRequestException(`Line ${line.lineNo}: ${vendorSide.name} is not a job worker's warehouse`);
+          if (ourSide?.type === 'at_job_worker') throw new BadRequestException(`Line ${line.lineNo}: ${ourSide.name} is a job worker's warehouse`);
+        } else if (from?.type === 'at_job_worker' || to?.type === 'at_job_worker') {
+          throw new BadRequestException(`Line ${line.lineNo}: stock at a job worker moves only with job work challans and receipts`);
         }
 
         if (direction === 'in' || direction === 'transfer') {
@@ -229,12 +257,18 @@ export class StockPostingService {
 
         if (direction === 'in') {
           const owned = !owner;
-          if (owned && line.rate === null) throw new BadRequestException(`Line ${line.lineNo}: enter the unit cost`);
+          if (owned && line.rate === null && entry.purpose !== 'job_work_in') throw new BadRequestException(`Line ${line.lineNo}: enter the unit cost`);
           if (!owned && line.rate !== null && Dec.of(line.rate).gt(Dec.ZERO)) {
             throw new BadRequestException(`Line ${line.lineNo}: customer-supplied material has no cost to us; leave the unit cost empty`);
           }
-          const rate = owned ? Dec.of(line.rate!) : Dec.ZERO;
-          const value = q.mul(rate);
+          let rate = owned ? Dec.of(line.rate ?? '0') : Dec.ZERO;
+          let value = q.mul(rate);
+          if (entry.purpose === 'job_work_in' && line.rate === null) {
+            const last = jwShared[jwShared.length - 1]!.id === line.id;
+            value = last ? jwConsumed.sub(jwAllocated) : Dec.min(Dec.of(allocateProportion(jwConsumed.toString(), line.qty, jwSharedQty.toString())), jwConsumed.sub(jwAllocated));
+            jwAllocated = jwAllocated.add(value);
+            rate = value.div(q);
+          }
           const [sle] = await tx.insert(stockLedgerEntry).values({ ...base, warehouseId: to!.id, qty: q.toString(), rate: rate.toString(), value: value.toString() }).returning();
           if (owned) {
             await tx.insert(fifoLayer).values({ tenantId: ctx.tenant.tenantId, entityId, itemId: it.id, batchId, qtyIn: q.toString(), qtyRemaining: q.toString(), rate: rate.toString(), sourceSeq: sle!.seq, postingDate: entry.postingDate, voucherId: entry.id });
@@ -267,6 +301,7 @@ export class StockPostingService {
             }
           }
           const rate = value.div(q);
+          if (entry.purpose === 'job_work_in') jwConsumed = jwConsumed.add(value);
           const [sle] = await tx.insert(stockLedgerEntry).values({ ...base, warehouseId: from!.id, qty: q.neg().toString(), rate: rate.toString(), value: value.neg().toString() }).returning();
           if (consumed.length) await tx.insert(fifoConsumption).values(consumed.map((c) => ({ sleSeq: sle!.seq, layerId: c.layerId, qty: c.qty.toString() })));
           await tx.update(stockEntryLine).set({ rate: rate.toString(), value: value.toString() }).where(eq(stockEntryLine.id, line.id));
@@ -563,7 +598,7 @@ export class StockPostingService {
 function lineDirection(purpose: string, line: Line): 'in' | 'out' | 'transfer' {
   if (purpose === 'receipt' || purpose === 'purchase_return_receipt' || purpose === 'production_return' || purpose === 'production_output') return 'in';
   if (purpose === 'issue' || purpose === 'return' || purpose === 'scrap' || purpose === 'delivery' || purpose === 'purchase_return' || purpose === 'production_issue') return 'out';
-  if (purpose === 'transfer') return 'transfer';
+  if (purpose === 'transfer' || purpose === 'job_work_out') return 'transfer';
   if (purpose === 'cut') return 'out';
   if (line.toWarehouseId && !line.fromWarehouseId) return 'in';
   if (line.fromWarehouseId && !line.toWarehouseId) return 'out';

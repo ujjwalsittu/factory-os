@@ -19,7 +19,7 @@ export interface GenealogyNode {
   itemCode: string;
   itemName: string;
   /** How this node relates to its parent in the tree, with the quantity that moved. */
-  via: { type: 'work_order' | 'remnant' | 'as_built'; number: string | null; workOrderId?: string; qty: string } | null;
+  via: { type: 'work_order' | 'remnant' | 'as_built' | 'job_work'; number: string | null; workOrderId?: string; qty: string } | null;
   receipts: { number: string | null; date: string; supplier: string | null; qty: string }[];
   stock: { warehouse: string; qty: string }[];
   deliveries: { invoice: string | null; date: string; customer: string | null; qty: string; returned: string }[];
@@ -164,6 +164,7 @@ export class GenealogyService {
         edges.push({ batchId: c.batchId, via: { type: builtIds.has(c.batchId) ? 'as_built' : 'work_order', number: wo.number, workOrderId: wo.workOrderId, qty: c.qty } });
       }
     }
+    edges.push(...(await this.jobWork(entityId, batchId, 'backward')));
     return edges;
   }
 
@@ -183,6 +184,28 @@ export class GenealogyService {
         continue;
       }
       for (const p of await this.produced(entityId, wo.workOrderId)) edges.push({ batchId: p.batchId, via: { type: 'work_order', number: wo.number, workOrderId: wo.workOrderId, qty: p.qty } });
+    }
+    edges.push(...(await this.jobWork(entityId, batchId, 'forward')));
+    return edges;
+  }
+
+  /**
+   * Job work receipts (decision 047): material consumed at the job worker became the received goods. Backward
+   * from a received batch to what was consumed; forward from a consumed batch to what came back. Same-batch
+   * processing (heat treatment of one heat) links a batch to itself and is skipped.
+   */
+  private async jobWork(entityId: string, batchId: string, direction: 'backward' | 'forward'): Promise<Edge[]> {
+    const mine = direction === 'backward' ? sql`${stockEntryLine.toWarehouseId} is not null` : sql`${stockEntryLine.fromWarehouseId} is not null`;
+    const other = direction === 'backward' ? sql`${stockEntryLine.fromWarehouseId} is not null` : sql`${stockEntryLine.toWarehouseId} is not null`;
+    const entries = await this.db
+      .selectDistinct({ id: stockEntry.id, number: stockEntry.reference })
+      .from(stockEntryLine)
+      .innerJoin(stockEntry, eq(stockEntry.id, stockEntryLine.entryId))
+      .where(and(eq(stockEntry.entityId, entityId), eq(stockEntry.purpose, 'job_work_in'), eq(stockEntry.status, 'submitted'), eq(stockEntryLine.batchId, batchId), mine));
+    const edges: Edge[] = [];
+    for (const e of entries) {
+      const lines = await this.db.select({ batchId: stockEntryLine.batchId, qty: stockEntryLine.qty }).from(stockEntryLine).where(and(eq(stockEntryLine.entryId, e.id), other, sql`${stockEntryLine.batchId} is not null`));
+      for (const l of lines) if (l.batchId !== batchId) edges.push({ batchId: l.batchId!, via: { type: 'job_work', number: e.number, qty: l.qty } });
     }
     return edges;
   }
