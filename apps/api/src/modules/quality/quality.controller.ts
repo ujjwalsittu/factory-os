@@ -226,11 +226,12 @@ export class QualityController {
   @Get('inspections')
   @RequirePermission('quality.inspection.read')
   inspections(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
-    const q = parse(z.object({ status: z.enum(['draft', 'submitted', 'cancelled']).optional(), stage: stage.optional(), itemId: z.uuid().optional() }), query);
+    const q = parse(z.object({ status: z.enum(['draft', 'submitted', 'cancelled']).optional(), stage: stage.optional(), itemId: z.uuid().optional(), workOrderId: z.uuid().optional() }), query);
     const where: SQL[] = [eq(inspectionRecord.entityId, entityOf(ctx))];
     if (q.status) where.push(eq(inspectionRecord.status, q.status));
     if (q.stage) where.push(eq(inspectionRecord.stage, q.stage));
     if (q.itemId) where.push(eq(inspectionRecord.itemId, q.itemId));
+    if (q.workOrderId) where.push(eq(inspectionRecord.workOrderId, q.workOrderId));
     return this.db
       .select({ r: inspectionRecord, itemCode: item.code, itemName: item.name, batchNo: batch.batchNo, workOrder: workOrder.number })
       .from(inspectionRecord)

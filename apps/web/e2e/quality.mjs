@@ -60,7 +60,7 @@ await page.click('text=Antenna lug');
 await page.getByLabel(/Final inspection before release/).check();
 if (!(await page.getByLabel(/First article inspection before invoicing/).isChecked())) throw new Error('requiresFai should show as checked');
 await page.click('dialog button:has-text("Save")');
-await page.waitForSelector('dialog', { state: 'detached', timeout: 8000 }).catch(async (e) => { await shot('debug-item'); throw e; });
+await page.waitForSelector('dialog', { state: 'detached' });
 if (!(await call('GET', `/items/${lug.id}`)).requiresFinalInspection) throw new Error('flag not saved');
 
 step('inspection plan: two ballooned characteristics, activate');
@@ -135,6 +135,16 @@ await page.click('button:has-text("Close NCR")');
 await page.waitForSelector('main >> text=Closed');
 await shot('05-ncr-closed');
 
+step('work order lists its final inspection; start an in-process check');
+await page.goto(`${B}/app/manufacturing/work-orders/${wo.id}`); await pickEntity();
+await page.waitForSelector('main >> text=Output of an item that needs final inspection');
+await page.waitForSelector('main li >> text=Partial');
+await page.click('button:has-text("In-process check")');
+await page.click('dialog button:has-text("Start")');
+await page.waitForURL(/\/quality\/inspections\/[0-9a-f-]{36}$/);
+await page.waitForSelector('text=No active inspection plan for this item and stage');
+await shot('06-in-process-check');
+
 step('FAI: create from the first-article lot, attach; a nonconforming Form 3 blocks submission');
 await page.click('nav >> text=First article');
 await page.click('button:has-text("New FAI")');
@@ -155,7 +165,7 @@ await page.waitForSelector('td >> text=10…10.05 mm');
 expected = 1;
 await page.click('button:has-text("Submit for approval")');
 await page.waitForSelector('text=can only be submitted when Form 3 conforms');
-await shot('06-fai');
+await shot('07-fai');
 
 step('genealogy: certificate pack zip');
 await page.goto(`${B}/app/manufacturing/genealogy?batch=${lot.id}`); await pickEntity();
@@ -163,12 +173,12 @@ await page.waitForSelector('text=LUG-B · LUG-L1');
 const [dl] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("Certificate pack")')]);
 const zip = fs.readFileSync(await dl.path());
 if (zip.subarray(0, 2).toString() !== 'PK' || !zip.includes(Buffer.from('MTC HT-5501.pdf'))) throw new Error('certificate pack should be a zip with the mill certificate');
-await shot('07-genealogy-pack');
+await shot('08-genealogy-pack');
 
 step('mobile');
 await page.setViewportSize({ width: 390, height: 844 });
-await page.goto(`${B}/app/quality/inspections/${draft.id}`); await pickEntity(); await page.waitForSelector('text=Bore Ø10'); await shot('08-mobile-inspection');
-await page.goto(`${B}/app/quality/ncrs`); await pickEntity(); await page.click('button[role=tab]:has-text("Closed")'); await page.waitForSelector('text=Bore Ø10 oversize'); await shot('09-mobile-ncrs');
+await page.goto(`${B}/app/quality/inspections/${draft.id}`); await pickEntity(); await page.waitForSelector('text=Bore Ø10'); await shot('09-mobile-inspection');
+await page.goto(`${B}/app/quality/ncrs`); await pickEntity(); await page.click('button[role=tab]:has-text("Closed")'); await page.waitForSelector('text=Bore Ø10 oversize'); await shot('10-mobile-ncrs');
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
 if (overflow) throw new Error('horizontal page scroll at 390 px');
 
