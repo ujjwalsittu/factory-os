@@ -33,6 +33,7 @@ import { seedChart } from '../accounting/chart.js';
 import { GlPostingService } from '../accounting/gl-posting.service.js';
 import { OperationalPostings } from '../accounting/operational-postings.js';
 import { StockPostingService } from '../stock-posting.service.js';
+import { JobWorkService } from './job-work.service.js';
 
 type WorkOrder = typeof workOrder.$inferSelect;
 type Purpose = 'production_issue' | 'production_return' | 'production_output';
@@ -51,6 +52,7 @@ export class WorkOrderService {
     private readonly posting: StockPostingService,
     private readonly accounting: OperationalPostings,
     private readonly gl: GlPostingService,
+    private readonly jobWork: JobWorkService,
   ) {}
 
   /** Every mutation: accounting lock first (the stock engine takes it too), then the work order row. */
@@ -98,6 +100,8 @@ export class WorkOrderService {
           seq: o.seq,
           name: o.name,
           workCentreId: o.workCentreId,
+          outsourced: o.outsourced,
+          supplierId: o.supplierId,
           plannedMinutes: Dec.of(o.setupMinutes).add(scaleBomQty(o.runMinutesPerUnit, '1', wo.plannedQty)).toString(),
           instructions: o.instructions,
         })),
@@ -168,6 +172,7 @@ export class WorkOrderService {
     const [it] = await tx.select().from(item).where(eq(item.id, wo.itemId));
     const serial = it!.tracking === 'serial';
     if (serial && !isWholeUnits(q.toString())) throw new BadRequestException(`${it!.code} is serial-tracked; output whole units`);
+    await this.jobWork.assertOutputAllowed(tx, wo.id, Dec.of(wo.producedQty).add(q).toString());
     const asBuilt = serial ? await this.checkAsBuilt(tx, wo, Number(q.toString()), input.asBuilt) : [];
     let backflushEntryId: string | null = null;
     const flush = (await tx.select().from(workOrderMaterial).where(and(eq(workOrderMaterial.workOrderId, wo.id), eq(workOrderMaterial.backflush, true)))).map((m) => ({
@@ -287,6 +292,7 @@ export class WorkOrderService {
     this.assertOpen(wo);
     const [op] = await tx.select().from(workOrderOperation).where(and(eq(workOrderOperation.id, operationId), eq(workOrderOperation.workOrderId, wo.id)));
     if (!op) throw new NotFoundException('Operation not found on this work order');
+    if (op.outsourced) throw new BadRequestException(`Operation ${op.seq} is done by a job worker; send the pieces from the work order instead of starting a job card`);
     if (machineId) {
       const [m] = await tx.select().from(machine).where(and(eq(machine.id, machineId), eq(machine.entityId, entityId)));
       if (!m || m.workCentreId !== op.workCentreId) throw new BadRequestException('Choose a machine of the operation\'s work centre');
@@ -333,7 +339,7 @@ export class WorkOrderService {
     const events = await tx.select().from(jobCardEvent).where(eq(jobCardEvent.jobCardId, card.id)).orderBy(asc(jobCardEvent.at), asc(jobCardEvent.id));
     const minutes = runningMinutes(events, now);
     const [op] = await tx.select().from(workOrderOperation).where(eq(workOrderOperation.id, card.operationId));
-    const [centre] = await tx.select().from(workCentre).where(eq(workCentre.id, op!.workCentreId));
+    const [centre] = await tx.select().from(workCentre).where(eq(workCentre.id, op!.workCentreId!));
     const value = absorptionValue(minutes, centre!.hourlyRate);
     const postingDate = businessDate();
     const [after] = await tx

@@ -1,11 +1,11 @@
-# Outstanding work — 2026-10-08
+# Outstanding work — 2026-10-09
 
 Current requested foundation/accounting/NIC sequence. Completed implementation and live enablement are separate states; roadmap items already delivered are not repeated as pending.
 
 | Item | Current state | Next concrete step |
 |---|---|---|
 | Google/Microsoft SSO | Software verified and merged to main (PR #3, 2026-10-08) | Live enablement separately (see below) |
-| Passkeys | All8 tasks, final review/correction and integrated regression complete; software disabled by default | [Integration PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-implementation-20261008), actual green CI, then separate HTTPS/RP/origin/device acceptance; [review](../superpowers/reviews/2026-10-08-passkeys-review.md) |
+| Passkeys | All8 tasks and final review/correction complete; integrated manufacturing2c/main1acf6c9 with byte-identical passkey0030/0031 and fresh regressions; disabled by default | [Integration PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-implementation-20261008), actual green CI, then separate HTTPS/RP/origin/device acceptance; [review](../superpowers/reviews/2026-10-08-passkeys-review.md) |
 | Audited impersonation | Not implemented | Separate scoped SuperAdmin/support consent, expiry and audit design |
 | PostgreSQL RLS | Not implemented | Separate database role/context/transaction/pool and migration design; app tenancy checks stay authoritative |
 | Live SMTP | Email software complete; delivery disabled | Secure existing-service sender/credentials/payload key, DNS/TLS/connectivity and authorized real mailbox acceptance |
@@ -13,7 +13,7 @@ Current requested foundation/accounting/NIC sequence. Completed implementation a
 | NIC e-invoice/e-way bill wire adapter | Offline encrypted/mock foundation complete; verified protocol and live sandbox acceptance blocked | Reachable official NIC auth/schema/API contracts or authorized exports, then adapter implementation and real sandbox verification |
 | Automatic TDS/TCS | Evidence/engine/available charge scope complete; numerical profiles and source workflows blocked | Official GST-base/PAN-operative relief/lower-nil guidance plus applicability; then invoice/advice/advance recognition, settlement/TCS totals, remittances/corrections and tax UI |
 | Bank-charge replacement/later GST adjustment | Not implemented; cancelled original references intentionally reserved | Separate replacement provenance and evidence-only GST adjustment workflow design |
-| Finance review/cut-over | Shared old books not activated | User/Finance review of completed workflows and deliberate entity opening/cut-over using reviewed previews |
+| Finance review/cut-over | Existing shared activation states preserved | User/Finance review of completed workflows and deliberate entity opening/cut-over using reviewed previews |
 
 NIC connectivity states are the last recorded observations in STATUS, not a new live recheck. Evidence gate references: [NIC scope and requirements](../superpowers/specs/2026-10-06-nic-sandbox-design.md), [withholding requirements](../compliance/withholding-profile-evidence.md), [current handoff](STATUS.md).
 
@@ -29,7 +29,7 @@ No unresolved Critical/Important finding is recorded for the completed email/ban
 
 ## Broader roadmap after current sequence
 
-Manufacturing slice2a is now merged to main (decision044/migration0027); its BOM/work-centre/work-order/issue/job-card/actual-output flows are delivered in that branch history. [Review](../superpowers/reviews/2026-10-07-manufacturing-2a-review.md). Remaining manufacturing roadmap is later depth, including serials/genealogy/remnants and job work/quality/scheduling; this session made no manufacturing product changes.
+Manufacturing slices2a–2c are merged to main: BOM/routing/work orders, serials/genealogy/remnants, and job work/ITC-04 (decisions044/046/047, migrations0027–0029). Inspection/FAI/NCR/calibration design is already claimed by the manufacturing owner; preserve that work. Scheduling remains later. This session only integrates their existing product files with passkeys.
 
 Manufacturing/quality (BOM/routing/work orders/job cards/genealogy, job work/ITC-04, inspection/calibration, scheduling); services/resources/subscriptions/timesheets; accounting depth (cost centres, inter-company/consolidation) and GST returns/2B-IMS; IoT/edge/OEE and expanded EHS evidence; later maintenance/CAPA/customer portal/analytics/GSTR-9. [Roadmap](../09-roadmap.md) is a broad plan; STATUS and completed reviews override stale pending labels (for example sales/supplier notes, payments and bank reconciliation are already delivered).
 

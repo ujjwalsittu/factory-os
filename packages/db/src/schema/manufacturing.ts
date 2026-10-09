@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import { boolean, check, date, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { user } from './auth.js';
 import { batch, stockEntry, warehouse } from './inventory.js';
-import { item, qty } from './masters.js';
+import { item, party, qty } from './masters.js';
 import { legalEntity, tenant } from './platform.js';
 import { salesOrder } from './selling.js';
 
@@ -112,14 +112,16 @@ export const bomOperation = pgTable(
     /** 10, 20, 30… */
     seq: integer('seq').notNull(),
     name: text('name').notNull(),
-    workCentreId: uuid('work_centre_id')
-      .notNull()
-      .references(() => workCentre.id),
+    /** Null only for an outsourced operation (decision 047). */
+    workCentreId: uuid('work_centre_id').references(() => workCentre.id),
+    /** Done by a job worker: no work centre, no job cards (decision 047). */
+    outsourced: boolean('outsourced').notNull().default(false),
+    supplierId: uuid('supplier_id').references(() => party.id),
     setupMinutes: qty('setup_minutes').notNull().default('0'),
     runMinutesPerUnit: qty('run_minutes_per_unit').notNull().default('0'),
     instructions: text('instructions'),
   },
-  (t) => [uniqueIndex('bom_operation_seq_uq').on(t.bomId, t.seq)],
+  (t) => [uniqueIndex('bom_operation_seq_uq').on(t.bomId, t.seq), check('bom_operation_centre_ck', sql`${t.outsourced} or ${t.workCentreId} is not null`)],
 );
 
 export const workOrderStatus = pgEnum('work_order_status', ['draft', 'released', 'completed', 'cancelled']);
@@ -198,13 +200,13 @@ export const workOrderOperation = pgTable(
       .references(() => workOrder.id, { onDelete: 'cascade' }),
     seq: integer('seq').notNull(),
     name: text('name').notNull(),
-    workCentreId: uuid('work_centre_id')
-      .notNull()
-      .references(() => workCentre.id),
+    workCentreId: uuid('work_centre_id').references(() => workCentre.id),
+    outsourced: boolean('outsourced').notNull().default(false),
+    supplierId: uuid('supplier_id').references(() => party.id),
     plannedMinutes: qty('planned_minutes').notNull(),
     instructions: text('instructions'),
   },
-  (t) => [uniqueIndex('work_order_operation_seq_uq').on(t.workOrderId, t.seq)],
+  (t) => [uniqueIndex('work_order_operation_seq_uq').on(t.workOrderId, t.seq), check('work_order_operation_centre_ck', sql`${t.outsourced} or ${t.workCentreId} is not null`)],
 );
 
 export const jobCardStatus = pgEnum('job_card_status', ['running', 'paused', 'completed', 'cancelled']);
@@ -267,7 +269,7 @@ export const jobCardEvent = pgTable(
   (t) => [index('job_card_event_card_idx').on(t.jobCardId, t.at)],
 );
 
-export const workOrderCostKind = pgEnum('work_order_cost_kind', ['issue', 'return', 'absorption', 'output', 'variance']);
+export const workOrderCostKind = pgEnum('work_order_cost_kind', ['issue', 'return', 'absorption', 'output', 'variance', 'job_work']);
 
 /** Append-only WIP ledger per work order: positive into WIP, negative out. A reversal negates its row. */
 export const workOrderCost = pgTable(
@@ -285,6 +287,8 @@ export const workOrderCost = pgTable(
     qty: qty('qty'),
     stockEntryId: uuid('stock_entry_id').references(() => stockEntry.id),
     jobCardId: uuid('job_card_id').references(() => jobCard.id),
+    /** job_work rows: the purchase invoice line that charged the processing (decision 047). */
+    purchaseInvoiceLineId: uuid('purchase_invoice_line_id'),
     reversalOf: uuid('reversal_of'),
     createdBy: text('created_by')
       .notNull()

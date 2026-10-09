@@ -36,13 +36,23 @@ The final main fetch remains95da60c0b61026eb5745c9890f22215c39f2fb1f. Main integ
 
 Integration: own branch `passkeys-implementation-20261008`, PR targetmain. Known GitHub GraphQL403 blocks automated PR/CI lookup; no identical retry without access-change evidence. [Open integration PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-implementation-20261008), require actual green CI before merging; no direct main push, deployment or remote CI claim. Audited impersonation design follows integration; PostgreSQL RLS is a separate design/migration task.
 
+## Manufacturing 2c integration — 2026-10-09
+
+The cloud shell returned automatically. Fresh explicit main fetch found1acf6c95235caaea04ab0a69bc6f8e1434357edc with job-work0029; completed passkey source e51822ae59b343799b045735ce49daa735c590d7 was not an ancestor of main. Reconcile the existing own branch, preserve manufacturing2c and its manufacturing2d design owner, and retain both sets of API registrations/schema exports. No new feature behavior or review cycle.
+
+All30 main SQL files and snapshots remain byte-identical; the30-entry journal prefix is exact. Reviewed passkey SQL moves byte-identically from0029/0030 to0030/0031. Generate the combined schema snapshot from published main, retain the original intermediate ceremony constraint in0030 metadata and the final bound in0031, bind each parent to its predecessor. All32 parents match and the generator reports no schema changes. An initial verification assertion incorrectly expected the entire extended journal to equal main; corrected it to compare the published prefix and all published SQL/snapshots separately. No application or SQL correction was required.
+
+Fresh current-tree checks:23 auth fixtures (8 passkeys,8 SSO,7 email), five actual full-Nest HTTP suites—serials59, genealogy53, manufacturing104, job work101, ITC-04 33—and three production browser runs—passkeys mobile9, HTTPS subdomain3, job work desktop/mobile—PASS. Root typecheck19/4 cached, build12/9 cached,180 unique units across11 uncached tasks (core88/auth19/compliance33/GSP10/email30) PASS; lint0 configured tasks. Copied populated invariance retains eight original book hashes/counts,537 saved activation rows,28 original SQL hashes and historical auth/audit bytes. Shared source remains read-only. This integration run does not repeat or claim the earlier25 HTTP runs/eight browsers/10,000-row bank test.
+
+[Selected fresh verification output](2026-10-09-passkeys-integration-verification.txt). All owned fixture services/databases closed; local Compose DB retained for development. Corrected cloud start_skill migration references saved as a draft requiring review/save/publication; no new snapshot publication or fresh-task restoration claim. Known GitHub API403, actual remote green CI and manual PR integration remain separate gates. No shared migration, email/IdP/passkey enablement, live device acceptance or deployment.
+
 ## Integration handoff
 
 PR title: `Add optional passkeys with native MFA and recovery`
 
-PR body: Existing users can enroll personal passkeys and explicitly sign in while keeping native TOTP, backup codes, trusted-device policy and password recovery. Immutable verified credential authority, private pending sessions and transactional consent/evidence prevent partial sign-in. Adds current-account mobile controls and atomic key/session revocation; fixes explicitly trusted subdomain ceremonies while retaining the fixed server RP and exact origin allowlist. Integrates manufacturing main95da60c, preserves its0028, and relocates unchanged passkey SQL to0029/0030 with coherent generated metadata.
+PR body: Existing users can enroll personal passkeys and explicitly sign in while keeping native TOTP, backup codes, trusted-device policy and password recovery. Immutable verified credential authority, private pending sessions and transactional consent/evidence prevent partial sign-in. Adds current-account mobile controls and atomic key/session revocation; fixes explicitly trusted subdomain ceremonies while retaining the fixed server RP and exact origin allowlist. Integrates manufacturing main1acf6c9, preserves its0028/0029 and all30 published migrations, and relocates unchanged passkey SQL to0030/0031 with coherent generated metadata.
 
-Validation:23 auth fixtures,25 HTTP runs/23 suites,8 production browsers, final typecheck19/build12/project171 units; earlier171 units were uncached. Lint has0 tasks. No shared migration/enablement/deployment; real HTTPS/device acceptance and actual remote green CI remain separate. Complete review/rulings above and below.
+Validation:23 auth fixtures,350 HTTP checks across five suites, three production browsers and final typecheck19/build12/180 uncached units. Lint has0 tasks. No shared migration/enablement/deployment; real HTTPS/device acceptance and actual remote green CI remain separate. Complete review/rulings above and below.
 
 ## Rulings I made
 
@@ -101,3 +111,5 @@ Validation:23 auth fixtures,25 HTTP runs/23 suites,8 production browsers, final 
 27. Assert the existing untrusted-origin503 unavailable response rather than an invented403, plus unchanged ceremony/session counts and no unrelated-origin cookies — the native boundary intentionally shares disabled/unavailable wording — cost if wrong: generic status hides the denial cause; exact no-authority assertions remain.
 
 28. Allow30 seconds for cold production-browser navigation instead of15 — genuine trusted-subdomain sign-in succeeded on the diagnostic run and native source-session identity is asserted — cost if wrong: a slow failure takes longer to surface; application ceremony/reauthentication deadlines stay unchanged.
+
+29. Reconcile newly published job-work0029 while retaining reviewed passkey SQL bytes and generating coherent intermediate/final snapshots after it — cost if wrong: pre-release fixture histories need recreation; preserve all published SQL/snapshots/journal prefix and verify genuine upgrade, native auth, populated invariance and both product browser flows. No shared passkey migration was applied.

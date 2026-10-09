@@ -20,6 +20,7 @@ import {
   workOrderCost,
   workOrderMaterial,
   workOrderOperation,
+  party,
 } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
@@ -484,9 +485,10 @@ export class WorkOrdersController {
         }))
       : [];
     const operations = await db
-      .select({ op: workOrderOperation, workCentre: workCentre.name, hourlyRate: workCentre.hourlyRate })
+      .select({ op: workOrderOperation, workCentre: workCentre.name, hourlyRate: workCentre.hourlyRate, supplier: party.name })
       .from(workOrderOperation)
-      .innerJoin(workCentre, eq(workCentre.id, workOrderOperation.workCentreId))
+      .leftJoin(workCentre, eq(workCentre.id, workOrderOperation.workCentreId))
+      .leftJoin(party, eq(party.id, workOrderOperation.supplierId))
       .where(eq(workOrderOperation.workOrderId, id))
       .orderBy(asc(workOrderOperation.seq));
     const cards = await this.cards(db, entityId, { workOrderId: id });
@@ -531,6 +533,7 @@ export class WorkOrdersController {
         ...o.op,
         workCentre: o.workCentre,
         hourlyRate: o.hourlyRate,
+        supplier: o.supplier,
         actualMinutes: cards.filter((c) => c.operationId === o.op.id && c.status === 'completed').reduce((s, c) => s.add(c.minutes ?? '0'), Dec.ZERO).toString(),
         goodQty: cards.filter((c) => c.operationId === o.op.id && c.status === 'completed').reduce((s, c) => s.add(c.goodQty ?? '0'), Dec.ZERO).toString(),
       })),
@@ -540,6 +543,7 @@ export class WorkOrdersController {
       cost: {
         material: sum('issue').add(sum('return')).toString(),
         absorbed: sum('absorption').toString(),
+        jobWork: sum('job_work').toString(),
         output: sum('output').neg().toString(),
         variance: sum('variance').neg().toString(),
         wip: wip.toString(),

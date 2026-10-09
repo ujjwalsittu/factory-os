@@ -1,5 +1,5 @@
 {
-  "id": "ff68bf68-9079-497a-a74b-09b7c3b47dd7",
+  "id": "945823bb-13ec-4bab-b4dd-3a6e03020f57",
   "prevId": "9568f0e2-2efe-41c8-aa09-654bf09e8c09",
   "version": "7",
   "dialect": "postgresql",
@@ -220,25 +220,6 @@
         },
         "sso_pending": {
           "name": "sso_pending",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "passkey_credential_id": {
-          "name": "passkey_credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_rp_id": {
-          "name": "passkey_rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_pending": {
-          "name": "passkey_pending",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
@@ -491,30 +472,6 @@
         },
         "sso_return_cipher": {
           "name": "sso_return_cipher",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_credential_id": {
-          "name": "passkey_credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_rp_id": {
-          "name": "passkey_rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_return_cipher": {
-          "name": "passkey_return_cipher",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_password_version": {
-          "name": "passkey_password_version",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -2032,6 +1989,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "job_work_exempt_tool": {
+          "name": "job_work_exempt_tool",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "drawing_no": {
           "name": "drawing_no",
           "type": "text",
@@ -2215,6 +2179,13 @@
         },
         "is_supplier": {
           "name": "is_supplier",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "is_job_worker": {
+          "name": "is_job_worker",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
@@ -5438,6 +5409,12 @@
         },
         "po_line_id": {
           "name": "po_line_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "job_work_receipt_id": {
+          "name": "job_work_receipt_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -23095,7 +23072,20 @@
           "name": "work_centre_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "outsourced": {
+          "name": "outsourced",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "supplier_id": {
+          "name": "supplier_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "setup_minutes": {
           "name": "setup_minutes",
@@ -23167,12 +23157,30 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "bom_operation_supplier_id_party_id_fk": {
+          "name": "bom_operation_supplier_id_party_id_fk",
+          "tableFrom": "bom_operation",
+          "tableTo": "party",
+          "columnsFrom": [
+            "supplier_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "bom_operation_centre_ck": {
+          "name": "bom_operation_centre_ck",
+          "value": "\"bom_operation\".\"outsourced\" or \"bom_operation\".\"work_centre_id\" is not null"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.job_card": {
@@ -24581,6 +24589,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "purchase_invoice_line_id": {
+          "name": "purchase_invoice_line_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "reversal_of": {
           "name": "reversal_of",
           "type": "uuid",
@@ -24864,7 +24878,20 @@
           "name": "work_centre_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "outsourced": {
+          "name": "outsourced",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "supplier_id": {
+          "name": "supplier_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "planned_minutes": {
           "name": "planned_minutes",
@@ -24928,6 +24955,144 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "work_order_operation_supplier_id_party_id_fk": {
+          "name": "work_order_operation_supplier_id_party_id_fk",
+          "tableFrom": "work_order_operation",
+          "tableTo": "party",
+          "columnsFrom": [
+            "supplier_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "work_order_operation_centre_ck": {
+          "name": "work_order_operation_centre_ck",
+          "value": "\"work_order_operation\".\"outsourced\" or \"work_order_operation\".\"work_centre_id\" is not null"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.itc04_setting": {
+      "name": "itc04_setting",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fy": {
+          "name": "fy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "frequency": {
+          "name": "frequency",
+          "type": "itc04_frequency",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "itc04_setting_uq": {
+          "name": "itc04_setting_uq",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "fy",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "itc04_setting_tenant_id_tenant_id_fk": {
+          "name": "itc04_setting_tenant_id_tenant_id_fk",
+          "tableFrom": "itc04_setting",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "itc04_setting_entity_id_legal_entity_id_fk": {
+          "name": "itc04_setting_entity_id_legal_entity_id_fk",
+          "tableFrom": "itc04_setting",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "itc04_setting_created_by_user_id_fk": {
+          "name": "itc04_setting_created_by_user_id_fk",
+          "tableFrom": "itc04_setting",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -24936,8 +25101,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.auth_passkey_action": {
-      "name": "auth_passkey_action",
+    "public.job_work_challan": {
+      "name": "job_work_challan",
       "schema": "",
       "columns": {
         "id": {
@@ -24947,50 +25112,101 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "kind": {
-          "name": "kind",
-          "type": "text",
+        "order_id": {
+          "name": "order_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "target_id": {
-          "name": "target_id",
+        "number": {
+          "name": "number",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "rp_id": {
-          "name": "rp_id",
-          "type": "text",
+        "status": {
+          "name": "status",
+          "type": "doc_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "posting_date": {
+          "name": "posting_date",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
-        "config_hash": {
-          "name": "config_hash",
+        "gst_registration_id": {
+          "name": "gst_registration_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "from_warehouse_id": {
+          "name": "from_warehouse_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stock_entry_id": {
+          "name": "stock_entry_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "interstate": {
+          "name": "interstate",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "place_of_supply_state_code": {
+          "name": "place_of_supply_state_code",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "password_version": {
-          "name": "password_version",
+        "eway_bill_no": {
+          "name": "eway_bill_no",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "nonce_hash": {
-          "name": "nonce_hash",
+        "vehicle_no": {
+          "name": "vehicle_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "remarks": {
+          "name": "remarks",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancel_reason": {
+          "name": "cancel_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -25001,397 +25217,26 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consumed_at": {
-          "name": "consumed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
-        "auth_passkey_action_nonce_uq": {
-          "name": "auth_passkey_action_nonce_uq",
+        "job_work_challan_number_uq": {
+          "name": "job_work_challan_number_uq",
           "columns": [
             {
-              "expression": "nonce_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "auth_passkey_action_expiry_idx": {
-          "name": "auth_passkey_action_expiry_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "auth_passkey_action_shape_ck": {
-          "name": "auth_passkey_action_shape_ck",
-          "value": "\"auth_passkey_action\".\"kind\" in ('register','rename','remove') and ((\"auth_passkey_action\".\"kind\"='register')=(\"auth_passkey_action\".\"target_id\" is null)) and \"auth_passkey_action\".\"nonce_hash\" ~ '^[a-f0-9]{64}$' and \"auth_passkey_action\".\"password_version\" ~ '^[a-f0-9]{64}$' and \"auth_passkey_action\".\"config_hash\" ~ '^[a-f0-9]{64}$' and \"auth_passkey_action\".\"expires_at\">\"auth_passkey_action\".\"created_at\" and \"auth_passkey_action\".\"expires_at\"<=\"auth_passkey_action\".\"created_at\"+interval '300 seconds' and (\"auth_passkey_action\".\"consumed_at\" is null or (\"auth_passkey_action\".\"consumed_at\">=\"auth_passkey_action\".\"created_at\" and \"auth_passkey_action\".\"consumed_at\"<\"auth_passkey_action\".\"expires_at\"))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.auth_passkey_ceremony": {
-      "name": "auth_passkey_ceremony",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "action_id": {
-          "name": "action_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "challenge_hash": {
-          "name": "challenge_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rp_id": {
-          "name": "rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_handle": {
-          "name": "user_handle",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "return_cipher": {
-          "name": "return_cipher",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_id": {
-          "name": "credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "password_version": {
-          "name": "password_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consumed_at": {
-          "name": "consumed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "auth_passkey_ceremony_challenge_uq": {
-          "name": "auth_passkey_ceremony_challenge_uq",
-          "columns": [
-            {
-              "expression": "challenge_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "auth_passkey_ceremony_expiry_idx": {
-          "name": "auth_passkey_ceremony_expiry_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "auth_passkey_ceremony_shape_ck": {
-          "name": "auth_passkey_ceremony_shape_ck",
-          "value": "\"auth_passkey_ceremony\".\"kind\" in ('register','signin') and \"auth_passkey_ceremony\".\"challenge_hash\" ~ '^[a-f0-9]{64}$' and ((\"auth_passkey_ceremony\".\"kind\"='register' and \"auth_passkey_ceremony\".\"user_id\" is not null and \"auth_passkey_ceremony\".\"session_id\" is not null and \"auth_passkey_ceremony\".\"action_id\" is not null and \"auth_passkey_ceremony\".\"user_handle\" is not null and \"auth_passkey_ceremony\".\"user_handle\" ~ '^[A-Za-z0-9_-]{43}$' and \"auth_passkey_ceremony\".\"credential_id\" is null and \"auth_passkey_ceremony\".\"password_version\" is null) or (\"auth_passkey_ceremony\".\"kind\"='signin' and \"auth_passkey_ceremony\".\"session_id\" is null and \"auth_passkey_ceremony\".\"action_id\" is null and \"auth_passkey_ceremony\".\"user_handle\" is null and ((\"auth_passkey_ceremony\".\"user_id\" is null and \"auth_passkey_ceremony\".\"credential_id\" is null and \"auth_passkey_ceremony\".\"password_version\" is null and \"auth_passkey_ceremony\".\"consumed_at\" is null) or (\"auth_passkey_ceremony\".\"user_id\" is not null and \"auth_passkey_ceremony\".\"credential_id\" is not null and \"auth_passkey_ceremony\".\"password_version\" is not null and \"auth_passkey_ceremony\".\"consumed_at\" is not null)))) and \"auth_passkey_ceremony\".\"expires_at\">\"auth_passkey_ceremony\".\"created_at\" and \"auth_passkey_ceremony\".\"expires_at\"<=\"auth_passkey_ceremony\".\"created_at\"+interval '300 seconds' and (\"auth_passkey_ceremony\".\"password_version\" is null or \"auth_passkey_ceremony\".\"password_version\" ~ '^[a-f0-9]{64}$') and (\"auth_passkey_ceremony\".\"consumed_at\" is null or (\"auth_passkey_ceremony\".\"consumed_at\">=\"auth_passkey_ceremony\".\"created_at\" and \"auth_passkey_ceremony\".\"consumed_at\"<\"auth_passkey_ceremony\".\"expires_at\"))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.auth_passkey_event": {
-      "name": "auth_passkey_event",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_id": {
-          "name": "credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rp_id": {
-          "name": "rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "code": {
-          "name": "code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "auth_passkey_event_owner_idx": {
-          "name": "auth_passkey_event_owner_idx",
-          "columns": [
-            {
-              "expression": "user_id",
+              "expression": "entity_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "created_at",
+              "expression": "gst_registration_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "auth_passkey_event_shape_ck": {
-          "name": "auth_passkey_event_shape_ck",
-          "value": "\"auth_passkey_event\".\"kind\" in ('enrolled','renamed','removed','signed_in','failed') and (\"auth_passkey_event\".\"code\" is null or \"auth_passkey_event\".\"code\" in ('credential_refused','consent_refused','mfa_refused','configuration_refused'))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.passkey": {
-      "name": "passkey",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_id": {
-          "name": "credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "public_key": {
-          "name": "public_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "counter": {
-          "name": "counter",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "device_type": {
-          "name": "device_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "backed_up": {
-          "name": "backed_up",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transports": {
-          "name": "transports",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "aaguid": {
-          "name": "aaguid",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rp_id": {
-          "name": "rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_handle": {
-          "name": "user_handle",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "registration_action_id": {
-          "name": "registration_action_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "registration_ceremony_id": {
-          "name": "registration_ceremony_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "last_used_at": {
-          "name": "last_used_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "passkey_credential_uq": {
-          "name": "passkey_credential_uq",
-          "columns": [
+            },
             {
-              "expression": "credential_id",
+              "expression": "number",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -25402,11 +25247,32 @@
           "method": "btree",
           "with": {}
         },
-        "passkey_owner_idx": {
-          "name": "passkey_owner_idx",
+        "job_work_challan_order_idx": {
+          "name": "job_work_challan_order_idx",
           "columns": [
             {
-              "expression": "user_id",
+              "expression": "order_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "job_work_challan_date_idx": {
+          "name": "job_work_challan_date_idx",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "posting_date",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -25419,17 +25285,95 @@
         }
       },
       "foreignKeys": {
-        "passkey_user_id_user_id_fk": {
-          "name": "passkey_user_id_user_id_fk",
-          "tableFrom": "passkey",
-          "tableTo": "user",
+        "job_work_challan_tenant_id_tenant_id_fk": {
+          "name": "job_work_challan_tenant_id_tenant_id_fk",
+          "tableFrom": "job_work_challan",
+          "tableTo": "tenant",
           "columnsFrom": [
-            "user_id"
+            "tenant_id"
           ],
           "columnsTo": [
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "job_work_challan_entity_id_legal_entity_id_fk": {
+          "name": "job_work_challan_entity_id_legal_entity_id_fk",
+          "tableFrom": "job_work_challan",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_challan_order_id_job_work_order_id_fk": {
+          "name": "job_work_challan_order_id_job_work_order_id_fk",
+          "tableFrom": "job_work_challan",
+          "tableTo": "job_work_order",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_challan_gst_registration_id_gst_registration_id_fk": {
+          "name": "job_work_challan_gst_registration_id_gst_registration_id_fk",
+          "tableFrom": "job_work_challan",
+          "tableTo": "gst_registration",
+          "columnsFrom": [
+            "gst_registration_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_challan_from_warehouse_id_warehouse_id_fk": {
+          "name": "job_work_challan_from_warehouse_id_warehouse_id_fk",
+          "tableFrom": "job_work_challan",
+          "tableTo": "warehouse",
+          "columnsFrom": [
+            "from_warehouse_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_challan_stock_entry_id_stock_entry_id_fk": {
+          "name": "job_work_challan_stock_entry_id_stock_entry_id_fk",
+          "tableFrom": "job_work_challan",
+          "tableTo": "stock_entry",
+          "columnsFrom": [
+            "stock_entry_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_challan_created_by_user_id_fk": {
+          "name": "job_work_challan_created_by_user_id_fk",
+          "tableFrom": "job_work_challan",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -25437,9 +25381,1182 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "passkey_shape_ck": {
-          "name": "passkey_shape_ck",
-          "value": "length(btrim(\"passkey\".\"name\")) between 1 and 80 and \"passkey\".\"name\"=btrim(\"passkey\".\"name\") and \"passkey\".\"counter\" between 0 and 4294967295 and \"passkey\".\"credential_id\" ~ '^[A-Za-z0-9_-]+$' and length(\"passkey\".\"credential_id\") between 1 and 1024 and length(\"passkey\".\"credential_id\")%4<>1 and \"passkey\".\"user_handle\" ~ '^[A-Za-z0-9_-]{43}$' and length(\"passkey\".\"rp_id\") between 1 and 253 and length(\"passkey\".\"public_key\")>0 and \"passkey\".\"device_type\" in ('singleDevice','multiDevice')"
+        "job_work_challan_number_len_ck": {
+          "name": "job_work_challan_number_len_ck",
+          "value": "\"job_work_challan\".\"number\" is null or length(\"job_work_challan\".\"number\") <= 16"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.job_work_challan_line": {
+      "name": "job_work_challan_line",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "challan_id": {
+          "name": "challan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "line_no": {
+          "name": "line_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qty": {
+          "name": "qty",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "goods_type": {
+          "name": "goods_type",
+          "type": "job_work_goods_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hsn_code": {
+          "name": "hsn_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_by": {
+          "name": "due_by",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "extended_due_by": {
+          "name": "extended_due_by",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "extension_ref": {
+          "name": "extension_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deemed_supply_invoice_no": {
+          "name": "deemed_supply_invoice_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deemed_supply_marked_by": {
+          "name": "deemed_supply_marked_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deemed_supply_marked_at": {
+          "name": "deemed_supply_marked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "job_work_challan_line_uq": {
+          "name": "job_work_challan_line_uq",
+          "columns": [
+            {
+              "expression": "challan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "line_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "job_work_challan_line_challan_id_job_work_challan_id_fk": {
+          "name": "job_work_challan_line_challan_id_job_work_challan_id_fk",
+          "tableFrom": "job_work_challan_line",
+          "tableTo": "job_work_challan",
+          "columnsFrom": [
+            "challan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "job_work_challan_line_item_id_item_id_fk": {
+          "name": "job_work_challan_line_item_id_item_id_fk",
+          "tableFrom": "job_work_challan_line",
+          "tableTo": "item",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_challan_line_batch_id_batch_id_fk": {
+          "name": "job_work_challan_line_batch_id_batch_id_fk",
+          "tableFrom": "job_work_challan_line",
+          "tableTo": "batch",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_challan_line_deemed_supply_marked_by_user_id_fk": {
+          "name": "job_work_challan_line_deemed_supply_marked_by_user_id_fk",
+          "tableFrom": "job_work_challan_line",
+          "tableTo": "user",
+          "columnsFrom": [
+            "deemed_supply_marked_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "job_work_challan_line_qty_ck": {
+          "name": "job_work_challan_line_qty_ck",
+          "value": "\"job_work_challan_line\".\"qty\" > 0 and \"job_work_challan_line\".\"value\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.job_work_consumption": {
+      "name": "job_work_consumption",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "receipt_id": {
+          "name": "receipt_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "challan_line_id": {
+          "name": "challan_line_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qty": {
+          "name": "qty",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "loss_qty": {
+          "name": "loss_qty",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "scrap_qty": {
+          "name": "scrap_qty",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "reversal_of": {
+          "name": "reversal_of",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "job_work_consumption_challan_idx": {
+          "name": "job_work_consumption_challan_idx",
+          "columns": [
+            {
+              "expression": "challan_line_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "job_work_consumption_receipt_idx": {
+          "name": "job_work_consumption_receipt_idx",
+          "columns": [
+            {
+              "expression": "receipt_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "job_work_consumption_reversal_uq": {
+          "name": "job_work_consumption_reversal_uq",
+          "columns": [
+            {
+              "expression": "reversal_of",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "job_work_consumption_tenant_id_tenant_id_fk": {
+          "name": "job_work_consumption_tenant_id_tenant_id_fk",
+          "tableFrom": "job_work_consumption",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "job_work_consumption_entity_id_legal_entity_id_fk": {
+          "name": "job_work_consumption_entity_id_legal_entity_id_fk",
+          "tableFrom": "job_work_consumption",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_consumption_receipt_id_job_work_receipt_id_fk": {
+          "name": "job_work_consumption_receipt_id_job_work_receipt_id_fk",
+          "tableFrom": "job_work_consumption",
+          "tableTo": "job_work_receipt",
+          "columnsFrom": [
+            "receipt_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_consumption_challan_line_id_job_work_challan_line_id_fk": {
+          "name": "job_work_consumption_challan_line_id_job_work_challan_line_id_fk",
+          "tableFrom": "job_work_consumption",
+          "tableTo": "job_work_challan_line",
+          "columnsFrom": [
+            "challan_line_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_consumption_created_by_user_id_fk": {
+          "name": "job_work_consumption_created_by_user_id_fk",
+          "tableFrom": "job_work_consumption",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.job_work_order": {
+      "name": "job_work_order",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "number": {
+          "name": "number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "job_work_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "job_work_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "supplier_id": {
+          "name": "supplier_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "work_order_id": {
+          "name": "work_order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "work_order_operation_id": {
+          "name": "work_order_operation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_item_id": {
+          "name": "target_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_qty": {
+          "name": "target_qty",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_warehouse_id": {
+          "name": "target_warehouse_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nature_of_work": {
+          "name": "nature_of_work",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expected_return_date": {
+          "name": "expected_return_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "remarks": {
+          "name": "remarks",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "close_reason": {
+          "name": "close_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "job_work_order_number_uq": {
+          "name": "job_work_order_number_uq",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "job_work_order_supplier_idx": {
+          "name": "job_work_order_supplier_idx",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "supplier_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "job_work_order_wo_idx": {
+          "name": "job_work_order_wo_idx",
+          "columns": [
+            {
+              "expression": "work_order_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "job_work_order_tenant_id_tenant_id_fk": {
+          "name": "job_work_order_tenant_id_tenant_id_fk",
+          "tableFrom": "job_work_order",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "job_work_order_entity_id_legal_entity_id_fk": {
+          "name": "job_work_order_entity_id_legal_entity_id_fk",
+          "tableFrom": "job_work_order",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_order_supplier_id_party_id_fk": {
+          "name": "job_work_order_supplier_id_party_id_fk",
+          "tableFrom": "job_work_order",
+          "tableTo": "party",
+          "columnsFrom": [
+            "supplier_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_order_work_order_id_work_order_id_fk": {
+          "name": "job_work_order_work_order_id_work_order_id_fk",
+          "tableFrom": "job_work_order",
+          "tableTo": "work_order",
+          "columnsFrom": [
+            "work_order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_order_work_order_operation_id_work_order_operation_id_fk": {
+          "name": "job_work_order_work_order_operation_id_work_order_operation_id_fk",
+          "tableFrom": "job_work_order",
+          "tableTo": "work_order_operation",
+          "columnsFrom": [
+            "work_order_operation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_order_target_item_id_item_id_fk": {
+          "name": "job_work_order_target_item_id_item_id_fk",
+          "tableFrom": "job_work_order",
+          "tableTo": "item",
+          "columnsFrom": [
+            "target_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_order_target_warehouse_id_warehouse_id_fk": {
+          "name": "job_work_order_target_warehouse_id_warehouse_id_fk",
+          "tableFrom": "job_work_order",
+          "tableTo": "warehouse",
+          "columnsFrom": [
+            "target_warehouse_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_order_created_by_user_id_fk": {
+          "name": "job_work_order_created_by_user_id_fk",
+          "tableFrom": "job_work_order",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "job_work_order_kind_ck": {
+          "name": "job_work_order_kind_ck",
+          "value": "(\"job_work_order\".\"kind\" = 'operation' and \"job_work_order\".\"work_order_id\" is not null and \"job_work_order\".\"work_order_operation_id\" is not null) or (\"job_work_order\".\"kind\" = 'conversion' and \"job_work_order\".\"target_item_id\" is not null and \"job_work_order\".\"target_qty\" > 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.job_work_order_line": {
+      "name": "job_work_order_line",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "line_no": {
+          "name": "line_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qty": {
+          "name": "qty",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "job_work_order_line_uq": {
+          "name": "job_work_order_line_uq",
+          "columns": [
+            {
+              "expression": "order_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "line_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "job_work_order_line_order_id_job_work_order_id_fk": {
+          "name": "job_work_order_line_order_id_job_work_order_id_fk",
+          "tableFrom": "job_work_order_line",
+          "tableTo": "job_work_order",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "job_work_order_line_item_id_item_id_fk": {
+          "name": "job_work_order_line_item_id_item_id_fk",
+          "tableFrom": "job_work_order_line",
+          "tableTo": "item",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "job_work_order_line_qty_ck": {
+          "name": "job_work_order_line_qty_ck",
+          "value": "\"job_work_order_line\".\"qty\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.job_work_receipt": {
+      "name": "job_work_receipt",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "number": {
+          "name": "number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "doc_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'submitted'"
+        },
+        "posting_date": {
+          "name": "posting_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job_worker_challan_no": {
+          "name": "job_worker_challan_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "job_worker_challan_date": {
+          "name": "job_worker_challan_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stock_entry_id": {
+          "name": "stock_entry_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "remarks": {
+          "name": "remarks",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancel_reason": {
+          "name": "cancel_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "job_work_receipt_number_uq": {
+          "name": "job_work_receipt_number_uq",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "job_work_receipt_order_idx": {
+          "name": "job_work_receipt_order_idx",
+          "columns": [
+            {
+              "expression": "order_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "job_work_receipt_date_idx": {
+          "name": "job_work_receipt_date_idx",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "posting_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "job_work_receipt_tenant_id_tenant_id_fk": {
+          "name": "job_work_receipt_tenant_id_tenant_id_fk",
+          "tableFrom": "job_work_receipt",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "job_work_receipt_entity_id_legal_entity_id_fk": {
+          "name": "job_work_receipt_entity_id_legal_entity_id_fk",
+          "tableFrom": "job_work_receipt",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_receipt_order_id_job_work_order_id_fk": {
+          "name": "job_work_receipt_order_id_job_work_order_id_fk",
+          "tableFrom": "job_work_receipt",
+          "tableTo": "job_work_order",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_receipt_stock_entry_id_stock_entry_id_fk": {
+          "name": "job_work_receipt_stock_entry_id_stock_entry_id_fk",
+          "tableFrom": "job_work_receipt",
+          "tableTo": "stock_entry",
+          "columnsFrom": [
+            "stock_entry_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_receipt_created_by_user_id_fk": {
+          "name": "job_work_receipt_created_by_user_id_fk",
+          "tableFrom": "job_work_receipt",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.job_work_receipt_line": {
+      "name": "job_work_receipt_line",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "receipt_id": {
+          "name": "receipt_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "line_no": {
+          "name": "line_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qty": {
+          "name": "qty",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rejected_qty": {
+          "name": "rejected_qty",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "value": {
+          "name": "value",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "warehouse_id": {
+          "name": "warehouse_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stock_entry_line_id": {
+          "name": "stock_entry_line_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "job_work_receipt_line_uq": {
+          "name": "job_work_receipt_line_uq",
+          "columns": [
+            {
+              "expression": "receipt_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "line_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "job_work_receipt_line_receipt_id_job_work_receipt_id_fk": {
+          "name": "job_work_receipt_line_receipt_id_job_work_receipt_id_fk",
+          "tableFrom": "job_work_receipt_line",
+          "tableTo": "job_work_receipt",
+          "columnsFrom": [
+            "receipt_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "job_work_receipt_line_item_id_item_id_fk": {
+          "name": "job_work_receipt_line_item_id_item_id_fk",
+          "tableFrom": "job_work_receipt_line",
+          "tableTo": "item",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_receipt_line_batch_id_batch_id_fk": {
+          "name": "job_work_receipt_line_batch_id_batch_id_fk",
+          "tableFrom": "job_work_receipt_line",
+          "tableTo": "batch",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_receipt_line_warehouse_id_warehouse_id_fk": {
+          "name": "job_work_receipt_line_warehouse_id_warehouse_id_fk",
+          "tableFrom": "job_work_receipt_line",
+          "tableTo": "warehouse",
+          "columnsFrom": [
+            "warehouse_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_work_receipt_line_stock_entry_line_id_stock_entry_line_id_fk": {
+          "name": "job_work_receipt_line_stock_entry_line_id_stock_entry_line_id_fk",
+          "tableFrom": "job_work_receipt_line",
+          "tableTo": "stock_entry_line",
+          "columnsFrom": [
+            "stock_entry_line_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "job_work_receipt_line_qty_ck": {
+          "name": "job_work_receipt_line_qty_ck",
+          "value": "\"job_work_receipt_line\".\"qty\" >= 0 and \"job_work_receipt_line\".\"rejected_qty\" >= 0 and \"job_work_receipt_line\".\"qty\" + \"job_work_receipt_line\".\"rejected_qty\" > 0"
         }
       },
       "isRLSEnabled": false
@@ -25574,7 +26691,9 @@
         "production_issue",
         "production_return",
         "production_output",
-        "cut"
+        "cut",
+        "job_work_out",
+        "job_work_in"
       ]
     },
     "public.warehouse_type": {
@@ -25697,7 +26816,8 @@
         "return",
         "absorption",
         "output",
-        "variance"
+        "variance",
+        "job_work"
       ]
     },
     "public.work_order_status": {
@@ -25707,6 +26827,40 @@
         "draft",
         "released",
         "completed",
+        "cancelled"
+      ]
+    },
+    "public.itc04_frequency": {
+      "name": "itc04_frequency",
+      "schema": "public",
+      "values": [
+        "half_yearly",
+        "annual"
+      ]
+    },
+    "public.job_work_goods_type": {
+      "name": "job_work_goods_type",
+      "schema": "public",
+      "values": [
+        "input",
+        "capital_good"
+      ]
+    },
+    "public.job_work_kind": {
+      "name": "job_work_kind",
+      "schema": "public",
+      "values": [
+        "operation",
+        "conversion"
+      ]
+    },
+    "public.job_work_status": {
+      "name": "job_work_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "open",
+        "closed",
         "cancelled"
       ]
     }

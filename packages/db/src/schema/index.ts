@@ -22,3 +22,4 @@ export * from './email.js';
 export * from './sso.js';
 export * from './manufacturing.js';
 export * from './passkeys.js';
+export * from './job-work.js';

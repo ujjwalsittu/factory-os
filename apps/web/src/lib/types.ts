@@ -153,6 +153,7 @@ export interface Item {
   hsnCode: string | null;
   revision: string | null;
   serialPrefix?: string | null;
+  jobWorkExemptTool?: boolean;
   drawingNo: string | null;
   shelfLifeDays: number | null;
   mslLevel: string | null;
@@ -168,6 +169,8 @@ export interface Party {
   name: string;
   isCustomer: boolean;
   isSupplier: boolean;
+  /** Supplier we send goods to for job work (decision 047). */
+  isJobWorker: boolean;
   gstTreatment: string;
   gstin: string | null;
   pan: string | null;
@@ -499,6 +502,8 @@ export interface PurchaseInvoiceRow {
 
 export interface PurchaseInvoiceLine {
   id: string;
+  /** Processing charge for a job work receipt (decision 047). */
+  jobWorkReceiptId?: string | null;
   lineNo: number;
   itemId: string;
   itemCode: string;
