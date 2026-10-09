@@ -31,6 +31,8 @@ async function bootstrap() {
   server.use('/api/accounts/bank-reconciliation/profiles/:profileId/matches', express.json({ limit: '2mb' }));
   // Opening evidence permits two such reasons per item, plus reference text.
   server.use('/api/accounts/bank-reconciliation/profiles/:profileId/baseline', express.json({ limit: '256mb' }));
+  // Attachment uploads (decision 048) arrive as the raw file body, up to 25 MB; only the upload route reads it.
+  server.post('/api/attachments', express.raw({ type: () => true, limit: '25mb' }));
   app.use(express.json({ limit: '1mb' }));
 
   app.setGlobalPrefix('api');
