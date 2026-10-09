@@ -154,6 +154,8 @@ assert.equal(rwo.revision, 'Rework');
 eq(rwo.cost.material, '500', 'the rework order issued the 1 kg from MRB at its FIFO cost');
 eq(await qtyIn(bar.id, mrb.id), '0', 'MRB is empty');
 eq(await qtyIn(bar.id, sto.id), '15', 'use-as-is returned 1 kg to stores (20 − 4 issued − 2 held + 1 = 15)');
+const rworkIssue = rwo.movements.find((m) => m.purpose === 'production_issue');
+await fail('POST', `/manufacturing/work-orders/${rwo.id}/movements/${rworkIssue.id}/cancel`, { reason: 'undo' }, 409, 'the rework order’s issue from MRB can’t be cancelled: its disposition is posted', /NCR disposition/);
 
 // ── Return to vendor: a purchased, invoiced lot ──
 const sup = await c.req('POST', '/parties', { code: 'ALCO', name: 'Alloy Co', isSupplier: true, gstin: gstin('27AAACL1234B1Z') }, 201);
@@ -184,6 +186,13 @@ const wipNcr = await c.req('GET', `/quality/ncrs/${ip.ncr.id}`);
 assert.equal(wipNcr.mrbWarehouseId, null);
 assert.equal(wipNcr.workOrder, wo.number);
 ok('an in-process failure raises an NCR on the work order, with no stock moved');
+await fail('POST', '/quality/ncrs', { itemId: bar.id, qty: '1', workOrderId: wo.id, description: 'Wrong item for this order' }, 400, 'an NCR’s work order must make its item', /does not make this item/);
+await fail('POST', '/quality/inspections', { stage: 'incoming', itemId: bar.id, qty: '1', sourceType: 'manual' }, 400, 'incoming inspections open from the receipt that holds the stock', /from the receipt/);
+let ip2 = await c.req('POST', '/quality/inspections', { stage: 'in_process', itemId: brk.id, qty: '1', sourceType: 'operation', workOrderId: wo.id, operationId: ops[0].id }, 201);
+ip2 = await c.req('POST', `/quality/inspections/${ip2.id}/results`, { results: [{ description: 'Mass after roughing', measured: '1.25' }] }, 201);
+assert.equal(ip2.results.at(-1).pass, true);
+ok('a measured value with no limits is recorded as conforming');
+await c.req('POST', `/quality/inspections/${ip2.id}/cancel`, { reason: 'smoke clean-up' }, 201);
 
 // ── Calibration failure lists the inspections that used the gauge ──
 const cal = await c.req('POST', `/quality/gauges/${mic.id}/calibrations`, { calibratedOn: today, result: 'fail', agency: 'NABL lab' }, 201);

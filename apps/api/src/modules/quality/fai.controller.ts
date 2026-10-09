@@ -1,7 +1,7 @@
 // FAI (AS9102) and certificate packs (decision 048).
 import { batch, type Database, fai, item, user } from '@factoryos/db';
 import { Body, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query, Res } from '@nestjs/common';
-import { and, desc, eq, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, type SQL } from 'drizzle-orm';
 import type { Response } from 'express';
 import { zipSync } from 'fflate';
 import { z } from 'zod';
@@ -69,7 +69,8 @@ export class FaiController {
       .leftJoin(batch, eq(batch.id, fai.batchId))
       .where(and(eq(fai.id, id), eq(fai.entityId, entityId)));
     if (!x) throw new NotFoundException('FAI not found');
-    const people = new Map((await this.db.select({ id: user.id, name: user.name }).from(user)).filter((u) => [x.f.createdBy, x.f.submittedBy, x.f.decidedBy].includes(u.id)).map((u) => [u.id, u.name]));
+    const ids = [x.f.createdBy, x.f.submittedBy, x.f.decidedBy].filter((v): v is string => !!v);
+    const people = new Map((await this.db.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, ids))).map((u) => [u.id, u.name]));
     return {
       ...x.f,
       itemCode: x.itemCode,

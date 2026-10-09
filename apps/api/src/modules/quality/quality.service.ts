@@ -282,6 +282,7 @@ export class QualityService {
       if (measured !== null) {
         if (!/^-?\d{1,12}(\.\d{1,6})?$/.test(measured)) throw issue('enter a number', `results.${i}.measured`);
         if (c && (c.lowerLimit !== null || c.upperLimit !== null)) pass = withinLimits(measured, c.lowerLimit, c.upperLimit);
+        else if (pass === null) pass = true; // a recorded value with no limits to judge against
       }
       if (pass === null) throw issue('record pass or fail', `results.${i}.pass`);
       if (c && sampleLimit(c.sampleSize, r.qty) < (m.sampleNo ?? 1)) throw issue(`only ${sampleLimit(c.sampleSize, r.qty)} samples are planned`, `results.${i}.sampleNo`);

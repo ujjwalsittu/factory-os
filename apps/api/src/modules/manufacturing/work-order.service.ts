@@ -289,6 +289,8 @@ export class WorkOrderService {
     } else {
       await this.assertNoOutput(tx, wo, 'Cancel the outputs first: their value was taken from this material');
       if (entry.reference === 'Backflush') throw new ConflictException('Backflush is cancelled with its output');
+      // Its NCR disposition is already posted; reversing the issue would strand the pieces in MRB (decision 048).
+      if (entry.reference?.startsWith('ncr:')) throw new ConflictException('This issue was posted by an NCR disposition; it stands');
       const [row] = await tx.select().from(workOrderCost).where(and(eq(workOrderCost.stockEntryId, entry.id), isNull(workOrderCost.reversalOf)));
       await this.posting.cancelIn(tx, ctx, entityId, entry.id, reason);
       await this.reverseCost(tx, ctx, row!);

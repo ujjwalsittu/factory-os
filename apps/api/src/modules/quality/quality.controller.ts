@@ -287,6 +287,8 @@ export class QualityController {
     const entityId = entityOf(ctx);
     const input = parse(recordInput, body);
     if (input.stage === 'final') throw new BadRequestException('Final inspections open automatically when output goes to Quarantine');
+    // A rejected quantity needs a stock location for its NCR: incoming records open from the receipt that holds the stock.
+    if (input.stage === 'incoming') throw new BadRequestException('Incoming inspections open from the receipt that holds the stock');
     const r = await this.quality.run(entityId, async (tx) => {
       let operationSeq: number | null = null;
       if (input.stage === 'in_process') {
@@ -381,6 +383,10 @@ export class QualityController {
       if (input.fromWarehouseId) {
         const [w] = await tx.select().from(warehouse).where(and(eq(warehouse.id, input.fromWarehouseId), eq(warehouse.entityId, entityId)));
         if (!w || ['at_job_worker', 'customer_owned'].includes(w.type)) throw new BadRequestException({ message: 'Choose one of our warehouses', issues: [{ path: 'fromWarehouseId', message: 'Not allowed' }] });
+      }
+      if (input.workOrderId) {
+        const [wo] = await tx.select({ id: workOrder.id, itemId: workOrder.itemId }).from(workOrder).where(and(eq(workOrder.id, input.workOrderId), eq(workOrder.entityId, entityId)));
+        if (!wo || wo.itemId !== it.id) throw new BadRequestException({ message: 'The work order does not make this item', issues: [{ path: 'workOrderId', message: 'Not found' }] });
       }
       return this.quality.raiseNcrIn(tx, ctx, entityId, input);
     });
