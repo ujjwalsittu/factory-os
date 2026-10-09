@@ -154,6 +154,10 @@ export interface Item {
   revision: string | null;
   serialPrefix?: string | null;
   jobWorkExemptTool?: boolean;
+  /** Decision 048: output goes to Quarantine until a final inspection passes. */
+  requiresFinalInspection?: boolean;
+  requiresFai?: boolean;
+  faiProcessChange?: boolean;
   drawingNo: string | null;
   shelfLifeDays: number | null;
   mslLevel: string | null;

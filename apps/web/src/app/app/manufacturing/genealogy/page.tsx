@@ -112,15 +112,34 @@ function TreeView({ batchId, direction, onDirection, onOpen }: { batchId: string
           title={t ? `${t.root.itemCode} · ${t.root.batchNo}` : 'Loading…'}
           description={t ? `${t.nodes} item${t.nodes === 1 ? '' : 's'} traced${t.truncated ? ' · truncated at the traversal limit' : ''}` : undefined}
           actions={
-            <div className="flex gap-1" role="tablist" aria-label="Direction">
-              {(['backward', 'forward'] as const).map((d) => (
-                <Button key={d} role="tab" aria-selected={direction === d} size="sm" variant={direction === d ? 'secondary' : 'ghost'} onClick={() => onDirection(d)}>
-                  {d === 'backward' ? 'Made from' : 'Went into'}
+            <div className="flex flex-wrap gap-1">
+              <div className="flex gap-1" role="tablist" aria-label="Direction">
+                {(['backward', 'forward'] as const).map((d) => (
+                  <Button key={d} role="tab" aria-selected={direction === d} size="sm" variant={direction === d ? 'secondary' : 'ghost'} onClick={() => onDirection(d)}>
+                    {d === 'backward' ? 'Made from' : 'Went into'}
+                  </Button>
+                ))}
+              </div>
+              {ws.can('quality.attachment.read') && t && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setExportError(null);
+                    downloadPack(batchId, t.root.batchNo, ws.scope).catch((err: unknown) => setExportError(err instanceof Error ? err.message : 'Download failed'));
+                  }}
+                >
+                  Certificate pack
                 </Button>
-              ))}
+              )}
             </div>
           }
         />
+        {exportError && direction === 'backward' && (
+          <div className="px-4 pt-3">
+            <Alert tone="danger">{exportError}</Alert>
+          </div>
+        )}
         {t && (
           <ul className="p-3">
             <NodeRow node={t.root} depth={0} onOpen={onOpen} />
@@ -188,6 +207,18 @@ async function download(batchId: string, scope: { tenantId?: string | null; enti
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `recall-${batchId.slice(0, 8)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/** Zip of every certificate, report and FAI along the lot's genealogy, with a manifest (decision 048). */
+async function downloadPack(batchId: string, batchNo: string, scope: { tenantId?: string | null; entityId?: string | null }) {
+  const res = await fetch(`/api/quality/certificate-pack/${batchId}?format=zip`, { headers: { ...(scope.tenantId ? { 'x-tenant-id': scope.tenantId } : {}), ...(scope.entityId ? { 'x-entity-id': scope.entityId } : {}) }, credentials: 'include' });
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `certificates-${batchNo.replace(/[^\w.-]+/g, '_')}.zip`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
