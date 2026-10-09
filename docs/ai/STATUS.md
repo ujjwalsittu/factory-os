@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-09 (Asia/Kolkata) · Manufacturing slice 2d merged (PR #11); 2e scheduling design awaiting review_
+_Last updated: 2026-10-09 (Asia/Kolkata) · Manufacturing slice 2d merged (PR #11); 2e scheduling approved and being built_
 
 ## Done
 - [x] **Manufacturing slice 2d: inspection, FAI, NCR and calibration** (decision 048, migration 0030_quality):
@@ -102,7 +102,7 @@ _Last updated: 2026-10-09 (Asia/Kolkata) · Manufacturing slice 2d merged (PR #1
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
-- **Manufacturing slice 2e: finite capacity scheduling (design)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-09 (Asia/Kolkata). User answered the four design questions (decision 049). [Spec](../superpowers/specs/2026-10-09-manufacturing-2e-design.md) and [eight-task plan](../superpowers/plans/2026-10-09-manufacturing-2e.md) written. Stopping point: user review of spec and plan; no product code until approved.
+- **Manufacturing slice 2e: finite capacity scheduling** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-09 (Asia/Kolkata). Decision 049; [spec](../superpowers/specs/2026-10-09-manufacturing-2e-design.md) and [eight-task plan](../superpowers/plans/2026-10-09-manufacturing-2e.md) approved by the user 2026-10-09. Building task 1 (core engine).
 
 - **Passkeys implementation — prerequisites merged 2026-10-08 (SSO #3, planning and claim PRs)** · owner: agent, Native continuation · started:2026-10-08 (Asia/Kolkata). Written spec/decision045 approved; user confirm approved the [eight-task plan](../superpowers/plans/2026-10-08-passkeys.md) on2026-10-08, Native inline selection preserved. Standalone STATUS-only claim committed as3741931 and pushed on `passkeys-claim-20261008` from main73de072; [open claim PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-claim-20261008). Exact stopping point: prerequisite gate before Task1; no dependency/product code/migration/configuration/runtime change. Latest fetched main still lacks SSO final corrections, approved planning docs and this claim. GitHub API403 remains a known automation blocker; no identical API retry without access-change evidence. Merge SSO completion, planning documents and this separate claim through green-CI PRs, then fetch main and execute all eight tasks inline without another approval request.
 
@@ -114,7 +114,7 @@ _Last updated: 2026-10-09 (Asia/Kolkata) · Manufacturing slice 2d merged (PR #1
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
 3. User review of completed accounting/settlement/customer/supplier and manufacturing workflows on dev. Shared books remain inactive until deliberate Finance cut-over.
 
-4. Manufacturing next: finite scheduling (claimed, see In progress; awaiting review of the design). Quality follow-ups from the 2d review: plans on 1b purchase-receipt inspections, a batch/serial page with attachments, CAPA and skill matrix (decision 048 deferred them).
+4. Manufacturing next: finite scheduling (claimed and being built, see In progress). Quality follow-ups from the 2d review: plans on 1b purchase-receipt inspections, a batch/serial page with attachments, CAPA and skill matrix (decision 048 deferred them).
 
 ## Blockers
 - Automatic TDS/TCS profile/source work: current official Act393/394/395/397/402 text retrieved and pinned, including scrap2% effective2026-04-01, but complete GST-base, PAN-operativity relief and lower/nil certificate applicability guidance is still missing. Original/lower-case legacy circular PDF paths returned404; generic document search did not produce verified guidance. [Evidence/requirements](../compliance/withholding-profile-evidence.md). Need reachable official primary URLs or authorized exported guidance plus applicability confirmation; optional source-URL question already asked. No numerical defaults enabled. Continue independent bank-reconciliation work while this gate remains closed.

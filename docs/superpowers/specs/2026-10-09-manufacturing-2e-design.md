@@ -1,6 +1,6 @@
 # Manufacturing slice 2e — finite capacity scheduling (design)
 
-Status: **awaiting user review**. User choices recorded 2026-10-09 as decision 049. Builds on:
+Status: **approved by the user 2026-10-09**. User choices recorded 2026-10-09 as decision 049. Builds on:
 - 2a work centres, machines, BOM routing (setup and run minutes), work orders and job cards;
 - 2c outsourced operations;
 - 2d rework orders.

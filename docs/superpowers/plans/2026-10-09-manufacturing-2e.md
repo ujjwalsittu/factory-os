@@ -1,7 +1,7 @@
 # Manufacturing slice 2e — implementation plan
 
-Design: [spec](../specs/2026-10-09-manufacturing-2e-design.md), decision 049. Status: awaiting user review of the
-spec and plan. No product code until both are approved.
+Design: [spec](../specs/2026-10-09-manufacturing-2e-design.md), decision 049. Status: approved by the user
+2026-10-09.
 
 | # | Task | Verify |
 |---|---|---|
