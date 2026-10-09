@@ -137,6 +137,8 @@ export class OperationalPostings {
     ctx: TenantRequestContext,
     entityId: string,
     invoice: typeof purchaseInvoice.$inferSelect,
+    /** Job work processing charges (decision 047): per invoice line, the roles that replace purchases. */
+    jobWork: Map<string, [string, string][]> = new Map(),
   ) {
     const settings = await this.gl.active(tx, entityId);
     if (!settings) return;
@@ -199,7 +201,9 @@ export class OperationalPostings {
           });
         }
       } else {
-        lines.add('purchases', Dec.of(line.taxableValue ?? '0').mul(rate));
+        const charge = jobWork.get(line.id);
+        if (charge) for (const [role, amount] of charge) lines.add(role, amount);
+        else lines.add('purchases', Dec.of(line.taxableValue ?? '0').mul(rate));
         if (!invoice.itcEligible)
           lines.add(
             'noncreditable_tax',

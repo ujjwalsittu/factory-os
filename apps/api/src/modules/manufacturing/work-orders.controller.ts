@@ -543,6 +543,7 @@ export class WorkOrdersController {
       cost: {
         material: sum('issue').add(sum('return')).toString(),
         absorbed: sum('absorption').toString(),
+        jobWork: sum('job_work').toString(),
         output: sum('output').neg().toString(),
         variance: sum('variance').neg().toString(),
         wip: wip.toString(),

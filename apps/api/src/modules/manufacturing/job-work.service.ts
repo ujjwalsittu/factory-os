@@ -32,6 +32,9 @@ import type { TenantRequestContext } from '../../common/access.js';
 import { AuditService } from '../../common/audit.service.js';
 import { DB } from '../../common/tokens.js';
 import { lockAccounting, type Tx } from '../accounting/accounting-lock.js';
+import { AcquisitionCostService } from '../accounting/acquisition-cost.service.js';
+import { seedChart } from '../accounting/chart.js';
+import { GlPostingService } from '../accounting/gl-posting.service.js';
 import { StockPostingService } from '../stock-posting.service.js';
 
 type Order = typeof jobWorkOrder.$inferSelect;
@@ -74,6 +77,8 @@ export class JobWorkService {
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly posting: StockPostingService,
+    private readonly cost: AcquisitionCostService,
+    private readonly gl: GlPostingService,
   ) {}
 
   run<T>(entityId: string, f: (tx: Tx) => Promise<T>) {
@@ -420,6 +425,96 @@ export class JobWorkService {
     if (order.status === 'closed') await tx.update(jobWorkOrder).set({ status: 'open', closeReason: null, updatedAt: new Date() }).where(eq(jobWorkOrder.id, order.id));
     await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'job_work.receipt_cancel', targetType: 'job_work_receipt', targetId: rc.id, reason }, tx);
     return after!;
+  }
+
+  // Processing charge ------------------------------------------------------------------------------------
+
+  /** A purchase invoice line may charge one live job work receipt of the same supplier, with a service item. */
+  async validateChargeLines(db: Database | Tx, entityId: string, supplierId: string, lines: { itemId: string; jobWorkReceiptId?: string | null }[]) {
+    for (const [i, l] of lines.entries()) {
+      if (!l.jobWorkReceiptId) continue;
+      const [r] = await db
+        .select({ receipt: jobWorkReceipt, supplierId: jobWorkOrder.supplierId })
+        .from(jobWorkReceipt)
+        .innerJoin(jobWorkOrder, eq(jobWorkOrder.id, jobWorkReceipt.orderId))
+        .where(and(eq(jobWorkReceipt.id, l.jobWorkReceiptId), eq(jobWorkReceipt.entityId, entityId)));
+      const issue = (message: string) => new BadRequestException({ message: `Line ${i + 1}: ${message}`, issues: [{ path: `lines.${i}.jobWorkReceiptId`, message }] });
+      if (!r) throw issue('unknown job work receipt');
+      if (r.receipt.status !== 'submitted') throw issue('that job work receipt is cancelled');
+      if (r.supplierId !== supplierId) throw issue('the job work receipt is from another job worker');
+      const [it] = await db.select({ isStockItem: item.isStockItem, code: item.code }).from(item).where(eq(item.id, l.itemId));
+      if (it?.isStockItem) throw issue(`${it.code} is a stock item; charge processing with a service item`);
+    }
+  }
+
+  /**
+   * Submit of a purchase invoice (decision 047): each line linked to a job work receipt adds its INR taxable value
+   * to cost. Operation orders: a job_work row in the work order's WIP ledger. Conversion orders: the returned
+   * batch's FIFO layers (on hand raises inventory, already consumed goes to production). Runs with books
+   * active or not; returns the GL roles each line posts instead of purchases.
+   */
+  async chargeIn(tx: Tx, ctx: TenantRequestContext, entityId: string, invoice: typeof purchaseInvoice.$inferSelect) {
+    const lines = await tx.select().from(purchaseInvoiceLine).where(eq(purchaseInvoiceLine.invoiceId, invoice.id)).orderBy(asc(purchaseInvoiceLine.lineNo));
+    const linked = lines.filter((l) => l.jobWorkReceiptId);
+    const postings = new Map<string, [string, string][]>();
+    if (!linked.length) return postings;
+    await this.validateChargeLines(tx, entityId, invoice.supplierId, linked);
+    if (await this.gl.active(tx, entityId)) await seedChart(tx, ctx, entityId);
+    for (const l of linked) {
+      const [dup] = await tx
+        .select({ number: purchaseInvoice.number })
+        .from(purchaseInvoiceLine)
+        .innerJoin(purchaseInvoice, eq(purchaseInvoice.id, purchaseInvoiceLine.invoiceId))
+        .where(and(eq(purchaseInvoiceLine.jobWorkReceiptId, l.jobWorkReceiptId!), eq(purchaseInvoice.status, 'submitted'), ne(purchaseInvoice.id, invoice.id)))
+        .limit(1);
+      if (dup) throw new ConflictException(`Line ${l.lineNo}: purchase invoice ${dup.number} already charges this job work receipt`);
+      const amount = Dec.of(l.taxableValue ?? '0').mul(invoice.exchangeRate);
+      const [rc] = await tx.select().from(jobWorkReceipt).where(eq(jobWorkReceipt.id, l.jobWorkReceiptId!)).for('update');
+      const [order] = await tx.select().from(jobWorkOrder).where(eq(jobWorkOrder.id, rc!.orderId));
+      if (order!.kind === 'operation') {
+        const [wo] = await tx.select().from(workOrder).where(eq(workOrder.id, order!.workOrderId!)).for('update');
+        if (wo!.status !== 'released') throw new ConflictException(`Line ${l.lineNo}: work order ${wo!.number} is ${wo!.status === 'completed' ? 'closed; reopen it' : wo!.status} to add the processing charge to its cost`);
+        await tx.insert(workOrderCost).values({ tenantId: ctx.tenant.tenantId, entityId, workOrderId: wo!.id, kind: 'job_work', postingDate: invoice.postingDate, amount: amount.toString(), purchaseInvoiceLineId: l.id, createdBy: ctx.user.id });
+        postings.set(l.id, [['wip', amount.toString()]]);
+      } else {
+        const got = await tx.select().from(jobWorkReceiptLine).where(eq(jobWorkReceiptLine.receiptId, rc!.id)).orderBy(asc(jobWorkReceiptLine.lineNo));
+        const total = got.reduce((s, g) => s.add(g.qty), Dec.ZERO);
+        let left = amount;
+        const allocations = got.map((g, k) => {
+          const share = k === got.length - 1 ? left : Dec.min(left, amount.mul(g.qty).div(total));
+          left = left.sub(share);
+          return { receiptLineId: g.stockEntryLineId!, amount: share.toString() };
+        });
+        const split = await this.cost.applyIn(tx, ctx, entityId, { type: 'job_work_charge', id: invoice.id, purpose: 'main' }, invoice.postingDate, allocations);
+        postings.set(l.id, [
+          ['inventory', split.inventory],
+          ['production', split.consumed],
+          ['rounding', split.rounding],
+        ]);
+      }
+    }
+    return postings;
+  }
+
+  /** Cancel of a purchase invoice: reverses the WIP rows and FIFO changes its job work lines made. */
+  async reverseChargeIn(tx: Tx, ctx: TenantRequestContext, entityId: string, invoiceId: string) {
+    const lines = await tx.select().from(purchaseInvoiceLine).where(eq(purchaseInvoiceLine.invoiceId, invoiceId));
+    const ids = lines.filter((l) => l.jobWorkReceiptId).map((l) => l.id);
+    if (!ids.length) return;
+    const rows = await tx.select().from(workOrderCost).where(and(inArray(workOrderCost.purchaseInvoiceLineId, ids), isNull(workOrderCost.reversalOf)));
+    for (const r of rows) {
+      const [wo] = await tx.select().from(workOrder).where(eq(workOrder.id, r.workOrderId)).for('update');
+      if (wo!.status !== 'released') throw new ConflictException(`Work order ${wo!.number} is ${wo!.status === 'completed' ? 'closed; reopen it' : wo!.status} before cancelling its processing charge`);
+      // A live output after the charge took a share of it.
+      const outputs = await tx
+        .select({ id: workOrderCost.id })
+        .from(workOrderCost)
+        .where(and(eq(workOrderCost.workOrderId, wo!.id), eq(workOrderCost.kind, 'output'), isNull(workOrderCost.reversalOf), gt(workOrderCost.createdAt, r.createdAt), sql`not exists (select 1 from work_order_cost x where x.reversal_of = ${workOrderCost.id})`))
+        .limit(1);
+      if (outputs.length) throw new ConflictException(`Output of work order ${wo!.number} already took this charge; cancel the later outputs first`);
+      await tx.insert(workOrderCost).values({ tenantId: r.tenantId, entityId: r.entityId, workOrderId: r.workOrderId, kind: r.kind, postingDate: r.postingDate, amount: Dec.of(r.amount).neg().toString(), purchaseInvoiceLineId: r.purchaseInvoiceLineId, reversalOf: r.id, createdBy: ctx.user.id });
+    }
+    await this.cost.reverseIn(tx, ctx, entityId, { type: 'job_work_charge', id: invoiceId, purpose: 'main' });
   }
 
   // Work-order gate ----------------------------------------------------------------------------------------

@@ -136,6 +136,26 @@ eq(vals[0], '9750', 'by quantity: 3 of 4 → ₹9,750');
 await c.req('POST', `/manufacturing/job-work/${order.id}/close`, { reason: 'All forgings back' }, 201);
 ok('order closed once nothing is at the job worker');
 
+// ── Processing charge on a conversion: the forger's service invoice adds to the forgings' FIFO value ──
+const service = await c.req('POST', '/items', { code: 'SVC-JW', name: 'Job work charges', type: 'service', isStockItem: false, stockUomId: u('NOS'), hsnCode: '998898' }, 201);
+const liveReceipt = order.receipts.find((r) => r.status === 'submitted');
+const invoice = (supplierId, no, lines) => c.req('POST', '/purchase-invoices', { supplierId, supplierInvoiceNo: no, supplierInvoiceDate: date, postingDate: date, lines }, 201);
+await fail('POST', '/purchase-invoices', { supplierId: plater.id, supplierInvoiceNo: 'X-1', supplierInvoiceDate: date, postingDate: date, lines: [{ itemId: service.id, qty: '1', rate: '2000', gstRate: '18', jobWorkReceiptId: liveReceipt.id }] }, 400, 'a processing charge must come from the same job worker', /another job worker/);
+await fail('POST', '/purchase-invoices', { supplierId: forger.id, supplierInvoiceNo: 'X-2', supplierInvoiceDate: date, postingDate: date, lines: [{ itemId: bar.id, qty: '1', rate: '2000', gstRate: '18', jobWorkReceiptId: liveReceipt.id }] }, 400, 'a processing charge uses a service item', /service item/);
+const pi = await invoice(forger.id, 'BFW-INV-1', [{ itemId: service.id, qty: '4', rate: '500', gstRate: '18', jobWorkReceiptId: liveReceipt.id }]);
+await c.req('POST', `/purchase-invoices/${pi.id}/submit`, {}, 201);
+tb = await balances();
+eq(tb.inventory, '87000', 'the ₹2,000 processing charge raises inventory: the forgings are still on hand');
+eq(tb.purchases ?? '0', '0', 'nothing goes to purchases');
+order = await c.req('GET', `/manufacturing/job-work/${order.id}`);
+eq(order.charged, '2000', 'the order shows ₹2,000 charged');
+const dup = await invoice(forger.id, 'BFW-INV-2', [{ itemId: service.id, qty: '1', rate: '100', gstRate: '18', jobWorkReceiptId: liveReceipt.id }]);
+await fail('POST', `/purchase-invoices/${dup.id}/submit`, {}, 409, 'one live invoice charges a receipt', /already charges/);
+await fail('POST', `/manufacturing/job-work/receipts/${liveReceipt.id}/cancel`, { reason: 'Wrong forgings' }, 409, 'a charged receipt cannot be cancelled', /charges this receipt/);
+await c.req('POST', `/purchase-invoices/${pi.id}/cancel`, { reason: 'Rate dispute' }, 201);
+tb = await balances();
+eq(tb.inventory, '85000', 'cancelling the invoice takes the charge back out exactly');
+
 // ── Same-item processing: heat-treat a heat; the batch keeps its number ──
 const ht = await c.req('POST', '/manufacturing/job-work', { supplierId: plater.id, targetItemId: bar.id, targetQty: '2', targetWarehouseId: sto.id, natureOfWork: 'Solution treatment and ageing', materials: [{ itemId: bar.id, qty: '2' }] }, 201);
 const ch2 = await c.req('POST', `/manufacturing/job-work/${ht.id}/challans`, { postingDate: date, fromWarehouseId: sto.id, lines: [{ itemId: bar.id, batchId: heat['HN-2'], qty: '2' }] }, 201);
@@ -191,5 +211,46 @@ ok('three brackets received from the work order');
 const opReceipt = (await c.req('GET', `/manufacturing/job-work/${jwState.orders[0].id}`)).receipts[0];
 await fail('POST', `/manufacturing/job-work/receipts/${opReceipt.id}/cancel`, { reason: 'Miscounted' }, 409, 'cannot cancel a job work receipt the output already counted', /cancel the later outputs/);
 await fail('POST', `/manufacturing/job-work/challans/${opCh.id}/cancel`, { reason: 'Wrong vendor' }, 409, 'cannot cancel a challan whose pieces came back', /receipts first/);
+
+// ── Processing charge on an outsourced operation goes into the work order's WIP ──
+let woView = await c.req('GET', `/manufacturing/work-orders/${wo.id}`);
+const wipBefore = woView.cost.wip;
+const tbBefore = await balances();
+const htInv = await invoice(plater.id, 'PHT-INV-9', [{ itemId: service.id, qty: '4', rate: '300', gstRate: '18', jobWorkReceiptId: opReceipt.id }]);
+await c.req('POST', `/purchase-invoices/${htInv.id}/submit`, {}, 201);
+woView = await c.req('GET', `/manufacturing/work-orders/${wo.id}`);
+eq(woView.cost.jobWork, '1200', 'the heat treater’s ₹1,200 is job work cost on the work order');
+eq(woView.cost.wip, Dec.of(wipBefore).add('1200'), 'WIP grows by ₹1,200');
+tb = await balances();
+eq(Dec.of(tb.wip).sub(tbBefore.wip), '1200', 'GL: WIP debited ₹1,200 instead of purchases');
+await c.req('POST', `/purchase-invoices/${htInv.id}/cancel`, { reason: 'Wrong invoice' }, 201);
+woView = await c.req('GET', `/manufacturing/work-orders/${wo.id}`);
+eq(woView.cost.jobWork, '0', 'cancelling the invoice reverses the WIP charge');
+
+// ── Books inactive (decision 034): stock value still moves, no GL ──
+{
+  const d = await new Client().init('JobWorkInactive');
+  const today = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+  await d.req('POST', `/entities/${d.entityId}/gst-registrations`, { gstin: gstin('27AAACA1234B1Z') }, 201);
+  const du = await d.req('GET', '/uoms');
+  const dU = (code) => du.find((x) => x.code === code).id;
+  const rod = await d.req('POST', '/items', { code: 'ROD', name: 'Rod', type: 'raw_material', tracking: 'none', stockUomId: dU('KG'), hsnCode: '76041010' }, 201);
+  const ring = await d.req('POST', '/items', { code: 'RING', name: 'Rolled ring', type: 'sub_assembly', tracking: 'none', stockUomId: dU('NOS'), hsnCode: '76041010' }, 201);
+  const svc = await d.req('POST', '/items', { code: 'SVC', name: 'Ring rolling', type: 'service', isStockItem: false, stockUomId: dU('NOS'), hsnCode: '998898' }, 201);
+  const st = await d.req('POST', '/warehouses', { code: 'STO', name: 'Stores', type: 'stores' }, 201);
+  const r0 = await d.req('POST', '/stock-entries', { purpose: 'receipt', postingDate: today, lines: [{ itemId: rod.id, qty: '10', toWarehouseId: st.id, rate: '100' }] }, 201);
+  await d.req('POST', `/stock-entries/${r0.id}/submit`, {}, 201);
+  const roller = await d.req('POST', '/parties', { code: 'RR', name: 'Ring Rollers', isSupplier: true, isJobWorker: true, gstin: gstin('27AAACR1234B1Z') }, 201);
+  const o = await d.req('POST', '/manufacturing/job-work', { supplierId: roller.id, targetItemId: ring.id, targetQty: '2', targetWarehouseId: st.id, materials: [{ itemId: rod.id, qty: '10' }] }, 201);
+  await d.req('POST', `/manufacturing/job-work/${o.id}/challans`, { postingDate: today, fromWarehouseId: st.id, lines: [{ itemId: rod.id, qty: '10' }] }, 201);
+  const rr = await d.req('POST', `/manufacturing/job-work/${o.id}/receipts`, { postingDate: today, consumed: [{ itemId: rod.id, qty: '10' }], received: [{ qty: '2' }] }, 201);
+  const inv = await d.req('POST', '/purchase-invoices', { supplierId: roller.id, supplierInvoiceNo: 'RR-1', supplierInvoiceDate: today, postingDate: today, lines: [{ itemId: svc.id, qty: '2', rate: '150', gstRate: '18', jobWorkReceiptId: rr.id }] }, 201);
+  await d.req('POST', `/purchase-invoices/${inv.id}/submit`, {}, 201);
+  const rings = (await d.req('GET', `/stock/balance?itemId=${ring.id}`)).rows ?? (await d.req('GET', `/stock/balance?itemId=${ring.id}`));
+  eq(rings.reduce((s, r) => s.add(r.value ?? '0'), Dec.ZERO), '1300', 'books inactive: two rings valued ₹1,000 of rod plus the ₹300 charge');
+  const journals = await d.raw('GET', '/accounts/reports/day-book');
+  assert.ok(journals.status !== 200 || (journals.data.rows ?? journals.data).length === 0);
+  ok('books inactive: no journal posted');
+}
 
 console.log(`\nJob work smoke passed (${c.checks} request checks).`);

@@ -29,6 +29,7 @@ import { Ctx, RequirePermission, type TenantRequestContext } from '../common/acc
 import { AuditService } from '../common/audit.service.js';
 import { DB } from '../common/tokens.js';
 import { parse } from '../common/validation.js';
+import { JobWorkService } from './manufacturing/job-work.service.js';
 import { StockPostingService } from './stock-posting.service.js';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -66,7 +67,7 @@ const poInput = z.object({
   lines: z.array(poLineInput).min(1).max(300),
 });
 
-const piLineInput = z.object({ itemId: z.string().uuid(), poLineId: z.string().uuid().nullable().optional(), qty: qtyString, rate: qtyString, gstRate: gstRate.optional() });
+const piLineInput = z.object({ itemId: z.string().uuid(), poLineId: z.string().uuid().nullable().optional(), jobWorkReceiptId: z.string().uuid().nullable().optional(), qty: qtyString, rate: qtyString, gstRate: gstRate.optional() });
 const piInput = z.object({
   supplierId: z.string().uuid(),
   gstRegistrationId: z.string().uuid().nullable().optional(),
@@ -114,6 +115,7 @@ export class BuyingController {
     private readonly accounting: OperationalPostings,
     private readonly gl: GlPostingService,
     private readonly posting: StockPostingService,
+    private readonly jobWork: JobWorkService,
   ) {}
 
   // ───────────────────────── Tax preview ─────────────────────────
@@ -677,7 +679,8 @@ export class BuyingController {
         .set({ status: 'submitted', number, submittedBy: ctx.user.id, submittedAt: new Date(), updatedAt: new Date() })
         .where(eq(purchaseInvoice.id, id))
         .returning();
-      await this.accounting.purchaseIn(tx, ctx, entityId, after!);
+      const jobWork = await this.jobWork.chargeIn(tx, ctx, entityId, after!);
+      await this.accounting.purchaseIn(tx, ctx, entityId, after!, jobWork);
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'purchase_invoice.submit', targetType: 'purchase_invoice', targetId: id, after: { number, grandTotal: inv.grandTotal, variances } }, tx);
       return after;
     });
@@ -697,6 +700,7 @@ export class BuyingController {
       const [noteDependency]=await tx.select().from(supplierNote).where(and(eq(supplierNote.entityId,entityId),eq(supplierNote.originalInvoiceId,id),eq(supplierNote.status,'submitted')));
       if(claimDependency||noteDependency)throw new ConflictException('Resolve and cancel dependent supplier claims/notes first');
       await this.accounting.cancelPurchaseIn(tx, ctx, entityId, id, reason);
+      await this.jobWork.reverseChargeIn(tx, ctx, entityId, id);
       const lines = await tx.select().from(purchaseInvoiceLine).where(eq(purchaseInvoiceLine.invoiceId, id));
       for (const l of lines.filter((x) => x.poLineId)) {
         await tx.update(purchaseOrderLine).set({ billedQty: sql`${purchaseOrderLine.billedQty} - ${l.qty}` }).where(eq(purchaseOrderLine.id, l.poLineId!));
@@ -816,6 +820,7 @@ export class BuyingController {
       throw new BadRequestException('Lines reference a purchase order that is not linked');
     }
     if (input.supplierInvoiceDate > input.postingDate) throw new BadRequestException({ message: 'The supplier invoice date is after the posting date', issues: [{ path: 'supplierInvoiceDate', message: 'Check the date' }] });
+    await this.jobWork.validateChargeLines(this.db, entityId, supplier.id, input.lines);
     const lines = await this.withRates(ctx, input.lines, input.supplierInvoiceDate);
     const t = this.tax(supplier, reg, lines, input.reverseCharge);
     // MSME: micro and small suppliers must be paid within 45 days of acceptance (Sec 43B(h)).
@@ -849,6 +854,7 @@ export class BuyingController {
       lines: lines.map((l, i) => ({
         itemId: l.itemId,
         poLineId: l.poLineId ?? null,
+        jobWorkReceiptId: l.jobWorkReceiptId ?? null,
         hsnCode: l.hsn,
         qty: l.qty,
         rate: l.rate,
