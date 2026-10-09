@@ -1,7 +1,7 @@
 // Production schedule (decision 049): run, view, move and pin, unpin, and work order priority.
-import { type Database, workOrder } from '@factoryos/db';
+import { type Database, jobCard, machine, user, workOrder, workOrderOperation } from '@factoryos/db';
 import { Body, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../../common/access.js';
 import { AuditService } from '../../common/audit.service.js';
@@ -46,6 +46,22 @@ export class SchedulingController {
   unpin(@Ctx() ctx: TenantRequestContext, @Param('operationId', ParseUUIDPipe) operationId: string) {
     const entityId = entityOf(ctx);
     return this.db.transaction((tx) => this.scheduling.unpinIn(tx, ctx, entityId, operationId));
+  }
+
+  /** Job cards started ahead of their machine's dispatch order, with the reasons given. */
+  @Get('schedule/out-of-sequence')
+  @RequirePermission('manufacturing.schedule.read')
+  outOfSequence(@Ctx() ctx: TenantRequestContext) {
+    return this.db
+      .select({ id: jobCard.id, reason: jobCard.outOfSequenceReason, startedAt: jobCard.createdAt, operator: user.name, machine: machine.code, number: workOrder.number, workOrderId: workOrder.id, seq: workOrderOperation.seq, operation: workOrderOperation.name })
+      .from(jobCard)
+      .innerJoin(workOrder, eq(workOrder.id, jobCard.workOrderId))
+      .innerJoin(workOrderOperation, eq(workOrderOperation.id, jobCard.operationId))
+      .innerJoin(user, eq(user.id, jobCard.operatorId))
+      .leftJoin(machine, eq(machine.id, jobCard.machineId))
+      .where(and(eq(jobCard.entityId, entityOf(ctx)), isNotNull(jobCard.outOfSequenceReason)))
+      .orderBy(desc(jobCard.createdAt))
+      .limit(200);
   }
 
   /** Priority changes at any time; the next run places the order accordingly. */

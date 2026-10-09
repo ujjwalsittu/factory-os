@@ -127,7 +127,8 @@ export class SchedulingService {
         id: wo.id,
         priority: wo.priority,
         dueAt: due ? zonedEpochMinutes(due, '23:59', tz) + 1 : null,
-        releasedAt: toEpochMinutes(wo.releasedAt ?? wo.createdAt),
+        // Milliseconds: orders released in the same minute keep their release order.
+        releasedAt: (wo.releasedAt ?? wo.createdAt).getTime(),
         earliestStart: wo.plannedStart ? zonedEpochMinutes(wo.plannedStart, '00:00', tz) : null,
         ops: [],
       };

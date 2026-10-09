@@ -126,16 +126,32 @@ s = await c.req('POST', '/manufacturing/schedule/run', {}, 201);
 assert.deepEqual(s.unscheduled.filter((x) => x.workOrderId === E.id).map((x) => [x.seq, x.reason]), [[10, 'No active machine in the work centre'], [20, 'A previous operation could not be scheduled']]);
 ok('an operation on a centre with no machines is listed as unscheduled, with what follows it');
 
-// ── Running job card and downtime ──
-const card = await c.req('POST', '/manufacturing/job-cards', { operationId: at(A, 10).operationId, machineId: m2.id }, 201);
+// ── Dispatch list, running job card and downtime ──
+const floor = await c.req('GET', '/manufacturing/shop-floor');
+const firstOnM1 = floor.operations.find((o) => o.scheduledMachineId === m1.id);
+const earliestOnM1 = s.bars.filter((b) => b.machineId === m1.id).sort((x, y) => min(x.startsAt) - min(y.startsAt))[0];
+assert.equal(firstOnM1.operationId, earliestOnM1.operationId);
+assert.ok(floor.operations.findIndex((o) => o.workOrderId === E.id) > floor.operations.findIndex((o) => o.scheduledStart));
+ok('the shop floor lists operations in schedule order, unscheduled last');
+const inSeq = await c.req('POST', '/manufacturing/job-cards', { operationId: firstOnM1.operationId, machineId: m1.id }, 201);
+assert.equal(inSeq.card?.outOfSequenceReason ?? null, null);
+await c.req('POST', `/manufacturing/job-cards/${inSeq.id ?? inSeq.card.id}/cancel`, { reason: 'started by mistake' }, 201);
+ok('the next job in a machine’s queue starts without a reason');
+const planned = at(A, 10).machineId === m1.id ? m1 : m2;
+const other = planned === m1 ? m2 : m1;
+await fail('POST', '/manufacturing/job-cards', { operationId: at(A, 10).operationId, machineId: other.id }, 409, 'starting on another machine than scheduled asks for a reason', new RegExp(`scheduled on ${planned.code}`));
+const card = await c.req('POST', '/manufacturing/job-cards', { operationId: at(A, 10).operationId, machineId: other.id, outOfSequenceReason: 'Tool change running long' }, 201);
+const oos = await c.req('GET', '/manufacturing/schedule/out-of-sequence');
+assert.deepEqual(oos.map((x) => [x.number, x.seq, x.machine, x.reason]), [[A.number, 10, other.code, 'Tool change running long']]);
+ok('the reason is logged and listed for planners');
 await c.req('POST', '/manufacturing/machine-blocks', { machineId: m1.id, kind: 'maintenance', startsAt: iso(t0), endsAt: iso(t0 + 600), reason: 'Ball screw replacement' }, 201);
 s = await c.req('POST', '/manufacturing/schedule/run', {}, 201);
 const t2 = min(s.run.runAt);
 const a10 = at(A, 10);
 assert.equal(a10.running, true);
-assert.equal(a10.machineId, m2.id);
+assert.equal(a10.machineId, other.id);
 assert.ok(min(a10.startsAt) <= t2 && min(a10.endsAt) >= t2 + 118);
-ok('the running job card anchors A’s milling on M2, where it started');
+ok('the running job card anchors A’s milling on the machine where it started');
 assert.ok(s.bars.filter((b) => b.machineId === m1.id).every((b) => min(b.startsAt) >= t0 + 600));
 ok('nothing is placed on M1 during its maintenance');
 await fail('POST', '/manufacturing/schedule/move', { operationId: a10.operationId, machineId: m1.id, start: iso(t2 + 700), runId: s.run.id }, 409, 'a running operation stays where it is', /running operation/);

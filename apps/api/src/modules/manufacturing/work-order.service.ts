@@ -21,6 +21,7 @@ import {
   workOrder,
   workOrderCost,
   workOrderMaterial,
+  scheduledOperation,
   workOrderOperation,
 } from '@factoryos/db';
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
@@ -332,7 +333,7 @@ export class WorkOrderService {
 
   // Job cards ---------------------------------------------------------------------------------------------
 
-  async startCardIn(tx: Tx, ctx: TenantRequestContext, entityId: string, wo: WorkOrder, operationId: string, machineId: string | null) {
+  async startCardIn(tx: Tx, ctx: TenantRequestContext, entityId: string, wo: WorkOrder, operationId: string, machineId: string | null, outOfSequenceReason: string | null = null) {
     this.assertOpen(wo);
     const [op] = await tx.select().from(workOrderOperation).where(and(eq(workOrderOperation.id, operationId), eq(workOrderOperation.workOrderId, wo.id)));
     if (!op) throw new NotFoundException('Operation not found on this work order');
@@ -344,13 +345,39 @@ export class WorkOrderService {
     }
     const [mine] = await tx.select({ id: jobCard.id }).from(jobCard).where(and(eq(jobCard.operatorId, ctx.user.id), inArray(jobCard.status, ['running', 'paused']))).limit(1);
     if (mine) throw new ConflictException('You already have a job card open; stop it before starting another');
+    const sequence = machineId ? await this.dispatchCheck(tx, entityId, operationId, machineId) : null;
+    if (sequence && !outOfSequenceReason)
+      throw new ConflictException({ message: `${sequence}. Give a reason to start this operation instead`, code: 'out_of_sequence', issues: [{ path: 'outOfSequenceReason', message: 'Reason required' }] });
+    const reason = sequence ? outOfSequenceReason : null;
     const [card] = await tx
       .insert(jobCard)
-      .values({ tenantId: ctx.tenant.tenantId, entityId, workOrderId: wo.id, operationId, machineId, operatorId: ctx.user.id, status: 'running' })
+      .values({ tenantId: ctx.tenant.tenantId, entityId, workOrderId: wo.id, operationId, machineId, operatorId: ctx.user.id, status: 'running', outOfSequenceReason: reason })
       .returning();
-    await tx.insert(jobCardEvent).values({ jobCardId: card!.id, kind: 'start', by: ctx.user.id });
+    await tx.insert(jobCardEvent).values({ jobCardId: card!.id, kind: 'start', by: ctx.user.id, reason: reason ? `Out of sequence: ${reason}` : null });
     await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'job_card.start', targetType: 'job_card', targetId: card!.id, after: { workOrder: wo.number, seq: op.seq } }, tx);
     return card!;
+  }
+
+  /**
+   * Advisory dispatch list (decision 049): when the machine has scheduled work, starting anything but the first
+   * waiting operation on it, or on another machine than scheduled, needs a reason. Null = in sequence.
+   */
+  private async dispatchCheck(tx: Tx, entityId: string, operationId: string, machineId: string): Promise<string | null> {
+    const [mine] = await tx.select({ machineId: scheduledOperation.machineId }).from(scheduledOperation).where(and(eq(scheduledOperation.operationId, operationId), eq(scheduledOperation.entityId, entityId)));
+    if (mine?.machineId && mine.machineId !== machineId) {
+      const [m] = await tx.select({ code: machine.code }).from(machine).where(eq(machine.id, mine.machineId));
+      return `This operation is scheduled on ${m?.code ?? 'another machine'}`;
+    }
+    const [next] = await tx
+      .select({ operationId: scheduledOperation.operationId, number: workOrder.number, seq: workOrderOperation.seq })
+      .from(scheduledOperation)
+      .innerJoin(workOrder, eq(workOrder.id, scheduledOperation.workOrderId))
+      .innerJoin(workOrderOperation, eq(workOrderOperation.id, scheduledOperation.operationId))
+      .where(and(eq(scheduledOperation.entityId, entityId), eq(scheduledOperation.machineId, machineId), eq(scheduledOperation.running, false), eq(workOrder.status, 'released')))
+      .orderBy(asc(scheduledOperation.startsAt))
+      .limit(1);
+    if (next && next.operationId !== operationId) return `Next on this machine is ${next.number} operation ${next.seq}`;
+    return null;
   }
 
   async lockCard(tx: Tx, entityId: string, id: string) {
