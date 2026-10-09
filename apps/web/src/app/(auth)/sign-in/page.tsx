@@ -6,6 +6,7 @@ import { type FormEvent, Suspense, useState } from 'react';
 import { authClient } from '@/lib/auth-client';
 import {safeNextPath} from '@/lib/safe-next';
 import {ProviderButtons} from '@/components/sso/provider-buttons';
+import {PasskeySignInButton} from '@/components/passkeys/sign-in-button';
 
 function SignInForm() {
   const router = useRouter();
@@ -39,6 +40,7 @@ function SignInForm() {
           Sign in
         </Button>
       </form>
+      <PasskeySignInButton next={next}/>
       <ProviderButtons next={next}/>
       <p className="mt-6 text-center text-[13px] text-muted">
         New to FactoryOS?{' '}

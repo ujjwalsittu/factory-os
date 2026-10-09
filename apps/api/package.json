@@ -17,6 +17,9 @@
     "typescript": "^5.9.0"
   },
   "dependencies": {
+    "@better-auth/core": "1.7.7",
+    "@better-auth/passkey": "1.7.7",
+    "@better-auth/utils": "0.4.2",
     "@aws-sdk/client-s3": "^3.1148.0",
     "@aws-sdk/s3-request-presigner": "^3.1148.0",
     "@factoryos/auth": "workspace:*",

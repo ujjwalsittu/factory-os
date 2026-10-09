@@ -80,8 +80,8 @@ export class AccessGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<Request & { ctx?: RequestContext }>();
     const session = await this.auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
     if (!session) throw new UnauthorizedException('Sign in required');
-    const [stored]=await this.db.select({pending:authSession.ssoPending}).from(authSession).where(eq(authSession.id,session.session.id));
-    if(!stored||stored.pending)throw new UnauthorizedException('Complete verification first');
+    const [stored]=await this.db.select({pending:authSession.ssoPending,passkeyPending:authSession.passkeyPending}).from(authSession).where(eq(authSession.id,session.session.id));
+    if(!stored||stored.pending||stored.passkeyPending)throw new UnauthorizedException('Complete verification first');
 
     const [admin] = await this.db
       .select({ level: platformAdmin.level })

@@ -1,19 +1,19 @@
-# Outstanding work — 2026-10-08
+# Outstanding work — 2026-10-09
 
 Current requested foundation/accounting/NIC sequence. Completed implementation and live enablement are separate states; roadmap items already delivered are not repeated as pending.
 
 | Item | Current state | Next concrete step |
 |---|---|---|
 | Google/Microsoft SSO | Software verified and merged to main (PR #3, 2026-10-08) | Live enablement separately (see below) |
-| Passkeys | Written spec/decision045 and eight-task plan approved; standalone claim pushed; not implemented | Execute approved [plan](../superpowers/plans/2026-10-08-passkeys.md) inline after prerequisites. [Open documentation PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-design-20261007) (API403); merge SSO/planning and the [standalone claim PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-claim-20261008) after green CI before product work |
-| Audited impersonation | Not implemented | Separate scoped SuperAdmin/support consent, expiry and audit design |
+| Passkeys | Eight tasks/final review and quality-main integration verified, byte-identical0031/0032 after published0030_quality; disabled by default | [Integration PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-implementation-20261008)/actual green CI, then separate HTTPS/device acceptance; [review](../superpowers/reviews/2026-10-08-passkeys-review.md) |
+| Audited support access | [Read-only written spec](../superpowers/specs/2026-10-09-support-access-design.md)/decision050 approved2026-10-09; [nine-task plan](../superpowers/plans/2026-10-09-support-access.md) approved2026-10-09; no product implementation | Native retained; passkey/planning actual green-CI merges and [queued claim478b870](https://github.com/ujjwalsittu/factory-os/pull/new/support-access-claim-20261009) merge; tenant consent/configuration/30-minute cap/two identities |
 | PostgreSQL RLS | Not implemented | Separate database role/context/transaction/pool and migration design; app tenancy checks stay authoritative |
 | Live SMTP | Email software complete; delivery disabled | Secure existing-service sender/credentials/payload key, DNS/TLS/connectivity and authorized real mailbox acceptance |
 | Live Google/Microsoft SSO | Software merged; providers disabled, no apps/credentials registered | Organization's OAuth apps, secure credentials, exact callbacks, Microsoft tenant UUID and local email verification |
 | NIC e-invoice/e-way bill wire adapter | Offline encrypted/mock foundation complete; verified protocol and live sandbox acceptance blocked | Reachable official NIC auth/schema/API contracts or authorized exports, then adapter implementation and real sandbox verification |
 | Automatic TDS/TCS | Evidence/engine/available charge scope complete; numerical profiles and source workflows blocked | Official GST-base/PAN-operative relief/lower-nil guidance plus applicability; then invoice/advice/advance recognition, settlement/TCS totals, remittances/corrections and tax UI |
 | Bank-charge replacement/later GST adjustment | Not implemented; cancelled original references intentionally reserved | Separate replacement provenance and evidence-only GST adjustment workflow design |
-| Finance review/cut-over | Shared old books not activated | User/Finance review of completed workflows and deliberate entity opening/cut-over using reviewed previews |
+| Finance review/cut-over | Existing shared activation states preserved | User/Finance review of completed workflows and deliberate entity opening/cut-over using reviewed previews |
 
 NIC connectivity states are the last recorded observations in STATUS, not a new live recheck. Evidence gate references: [NIC scope and requirements](../superpowers/specs/2026-10-06-nic-sandbox-design.md), [withholding requirements](../compliance/withholding-profile-evidence.md), [current handoff](STATUS.md).
 
@@ -29,7 +29,7 @@ No unresolved Critical/Important finding is recorded for the completed email/ban
 
 ## Broader roadmap after current sequence
 
-Manufacturing slice2a is now merged to main (decision044/migration0027); its BOM/work-centre/work-order/issue/job-card/actual-output flows are delivered in that branch history. [Review](../superpowers/reviews/2026-10-07-manufacturing-2a-review.md). Remaining manufacturing roadmap is later depth, including serials/genealogy/remnants and job work/quality/scheduling; this session made no manufacturing product changes.
+Manufacturing slice2a is now merged to main (decision044/migration0027); its BOM/work-centre/work-order/issue/job-card/actual-output flows are delivered in that branch history. [Review](../superpowers/reviews/2026-10-07-manufacturing-2a-review.md). Slices2b/2c/2d are now merged, including serials/genealogy/remnants, job work/ITC-04 and quality/FAI/NCR/calibration. Remaining depth includes finite scheduling and the explicitly deferred quality follow-ups; this session made no manufacturing product changes.
 
 Manufacturing/quality (BOM/routing/work orders/job cards/genealogy, job work/ITC-04, inspection/calibration, scheduling); services/resources/subscriptions/timesheets; accounting depth (cost centres, inter-company/consolidation) and GST returns/2B-IMS; IoT/edge/OEE and expanded EHS evidence; later maintenance/CAPA/customer portal/analytics/GSTR-9. [Roadmap](../09-roadmap.md) is a broad plan; STATUS and completed reviews override stale pending labels (for example sales/supplier notes, payments and bank reconciliation are already delivered).
 

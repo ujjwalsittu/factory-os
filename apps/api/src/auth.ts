@@ -1,32 +1,47 @@
 import type { Database } from '@factoryos/db';
-import { account, session, twoFactor, user, verification } from '@factoryos/db';
+import { account, passkey, session, twoFactor, user, verification } from '@factoryos/db';
 import { betterAuth } from 'better-auth';
-import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { twoFactor as twoFactorPlugin } from 'better-auth/plugins';
 import type { AppConfig } from './config.js';
 import {authEmailCallbacks} from './modules/email/auth-email.js';
 import type {EmailService} from './modules/email/email.service.js';
-import {APIError,createAuthMiddleware,isAPIError} from 'better-auth/api';
+import {APIError,createAuthMiddleware,getAuthoritativeSessionFromCtx,isAPIError} from 'better-auth/api';
 import {buildSsoOptions} from './modules/sso/sso.policy.js';
 import {withSsoMfa} from './modules/sso/sso.mfa.js';
 import {SsoStore} from './modules/sso/sso.store.js';
+import {createTransactionalAuthAdapter} from './modules/passkeys/passkeys.adapter.js';
+import {withPasskeyAuthority} from './modules/passkeys/passkeys.scope.js';
+import {createPasskeyPlugin} from './modules/passkeys/passkeys.native.js';
+import {and,eq} from 'drizzle-orm';
+import {getPasskeyFrame} from './modules/passkeys/passkeys.types.js';
+import {requirePasskeyTransaction} from './modules/passkeys/passkeys.adapter.js';
+import {withPasskeyMfa,passkeyVerificationData} from './modules/passkeys/passkeys.mfa.js';
+import {PasskeyStore} from './modules/passkeys/passkeys.store.js';
 
 export function createAuth(db: Database, config: AppConfig,email:EmailService) {
   const callbacks=authEmailCallbacks(db,config,email);
   const sso=buildSsoOptions(db,config);
+  const passkeys=new PasskeyStore(db,config);
+  const privateString={type:'string' as const,required:false,input:false,returned:false};
+  const privateVerification={passkeyCredentialId:privateString,passkeyRpId:privateString,passkeyReturnCipher:privateString,passkeyPasswordVersion:privateString};
   const mutationBefore=sso.hooks!.before!;
-  return betterAuth({
+  const auth=betterAuth({
     ...sso,
+    session:{...sso.session,additionalFields:{...sso.session?.additionalFields,passkeyCredentialId:privateString,passkeyRpId:privateString,passkeyPending:{type:'boolean',required:false,input:false,returned:false,defaultValue:false}}},
+    databaseHooks:{...sso.databaseHooks,verification:{...sso.databaseHooks?.verification,create:{...sso.databaseHooks?.verification?.create,before:async(data,ctx)=>await passkeyVerificationData(data,ctx,config)??await sso.databaseHooks?.verification?.create?.before?.(data,ctx)}},session:{...sso.databaseHooks?.session,create:{...sso.databaseHooks?.session?.create,before:async(data,ctx)=>{
+      const frame=getPasskeyFrame(ctx);if(frame?.mode==='signin'||frame?.mode==='mfa'){
+       if(frame.userId!==data.userId)throw new APIError('FORBIDDEN',{message:'Passkey session refused'});requirePasskeyTransaction();
+       return {data:{...data,passkeyCredentialId:frame.credentialId,passkeyRpId:frame.rpId,passkeyPending:true}};
+      }
+      return sso.databaseHooks?.session?.create?.before?.(data,ctx);
+    }}}},
     appName: 'FactoryOS',
     logger:{disabled:true},
     baseURL: config.BETTER_AUTH_URL,
     basePath: '/api/auth',
     secret: config.BETTER_AUTH_SECRET,
     trustedOrigins: [config.WEB_ORIGIN, ...config.EXTRA_TRUSTED_ORIGINS],
-    database: drizzleAdapter(db, {
-      provider: 'pg',
-      schema: { user, session, account, verification, twoFactor },
-    }),
+    database: createTransactionalAuthAdapter(db,{ user, session, account, verification, twoFactor,passkey }),
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 10,
@@ -37,6 +52,8 @@ export function createAuth(db: Database, config: AppConfig,email:EmailService) {
     emailVerification:{sendVerificationEmail:callbacks.sendVerificationEmail,sendOnSignUp:config.email.mode==='smtp',sendOnSignIn:false,expiresIn:3600},
     hooks:{...sso.hooks,before:createAuthMiddleware(async ctx=>{
       const merge=(headers:Headers)=>{headers.forEach((value,key)=>{if(key!=='set-cookie')ctx.setHeader(key,value);});for(const cookie of headers.getSetCookie())ctx.responseHeaders.append('set-cookie',cookie);};
+      const current=await getAuthoritativeSessionFromCtx({...ctx,query:{...ctx.query,disableRefresh:true}});
+      if(current){const [stored]=await db.select({pending:session.passkeyPending}).from(session).where(and(eq(session.id,current.session.id),eq(session.userId,current.user.id)));if(stored?.pending){ctx.context.session=null;if(ctx.path==='/get-session')return ctx.json(null);throw new APIError('UNAUTHORIZED',{message:'Complete verification first'});}}
       const outcome=await callbacks.before({...ctx,returnHeaders:true});
       if(!outcome||typeof outcome!=='object'||!('headers' in outcome)||!(outcome.headers instanceof Headers)||!('response' in outcome))throw new APIError('INTERNAL_SERVER_ERROR',{message:'Authentication is temporarily unavailable'});
       merge(outcome.headers);if(outcome.response)return outcome.response;
@@ -50,8 +67,9 @@ export function createAuth(db: Database, config: AppConfig,email:EmailService) {
       if(!isAPIError(error))throw new APIError('INTERNAL_SERVER_ERROR',{message:'Authentication is temporarily unavailable'});
     }},
     rateLimit: { enabled: config.NODE_ENV !== 'test', window: 60, max: 100 },
-    plugins: [withSsoMfa(twoFactorPlugin({ issuer: 'FactoryOS' }),new SsoStore(db,config),config,db)],
+    plugins: [withPasskeyMfa(withSsoMfa(twoFactorPlugin({ issuer: 'FactoryOS' }),new SsoStore(db,config),config,db),passkeys,config),{id:'factoryos-passkey-schema',schema:{verification:{fields:privateVerification}}},createPasskeyPlugin(db,config,passkeys)],
   });
+  return withPasskeyAuthority(auth,db);
 }
 
 export type Auth = ReturnType<typeof createAuth>;
