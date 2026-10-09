@@ -41,6 +41,8 @@ const itemInput = z.object({
   hsnCode: z.string().trim().regex(/^\d{4,8}$/).optional().nullable(),
   revision: z.string().trim().max(10).optional().nullable(),
   /** Serial-tracked items: prefix for generated serial numbers (decision 046). */
+  /** Sec 143: moulds and dies, jigs and fixtures, or tools sent as capital goods have no return limit (decision 047). */
+  jobWorkExemptTool: z.boolean().optional(),
   serialPrefix: z.string().trim().toUpperCase().regex(/^[A-Z0-9/-]{0,20}$/, 'Up to 20 letters, digits, - or /').optional().nullable(),
   drawingNo: z.string().trim().max(60).optional().nullable(),
   shelfLifeDays: z.number().int().positive().max(36500).optional().nullable(),
@@ -67,6 +69,7 @@ const partyInput = z
     name: z.string().trim().min(2).max(200),
     isCustomer: z.boolean().default(false),
     isSupplier: z.boolean().default(false),
+    isJobWorker: z.boolean().default(false),
     gstTreatment: z.enum(['registered', 'unregistered', 'composition', 'sez', 'overseas', 'deemed_export']).default('registered'),
     gstin: z.string().trim().toUpperCase().optional().nullable(),
     pan: z.string().trim().toUpperCase().optional().nullable(),
@@ -89,6 +92,7 @@ const partyInput = z
 
 /** GST rules for a party: registered/SEZ/composition need a valid GSTIN; state and PAN come from it. */
 function normaliseParty<T extends z.infer<typeof partyInput>>(p: T): T {
+  if (p.isJobWorker && !p.isSupplier) throw new BadRequestException({ message: 'A job worker is a supplier', issues: [{ path: 'isJobWorker', message: 'Mark as supplier too' }] });
   const needsGstin = ['registered', 'composition', 'sez'].includes(p.gstTreatment);
   if (needsGstin || p.gstin) {
     if (!p.gstin) throw new BadRequestException({ message: 'GSTIN is required', issues: [{ path: 'gstin', message: 'Required for this GST treatment' }] });
@@ -210,11 +214,12 @@ export class MastersController {
   @Get('parties')
   @RequirePermission('masters.party.read')
   parties(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
-    const { q, limit, offset, role } = parse(pageQuery.extend({ role: z.enum(['customer', 'supplier']).optional() }), query);
+    const { q, limit, offset, role } = parse(pageQuery.extend({ role: z.enum(['customer', 'supplier', 'job_worker']).optional() }), query);
     const where: SQL[] = [eq(party.tenantId, ctx.tenant.tenantId)];
     if (q) where.push(or(ilike(party.code, `%${q}%`), ilike(party.name, `%${q}%`), ilike(party.gstin, `%${q}%`))!);
     if (role === 'customer') where.push(eq(party.isCustomer, true));
     if (role === 'supplier') where.push(eq(party.isSupplier, true));
+    if (role === 'job_worker') where.push(eq(party.isJobWorker, true));
     return this.db.select().from(party).where(and(...where)).orderBy(asc(party.name)).limit(limit).offset(offset);
   }
 

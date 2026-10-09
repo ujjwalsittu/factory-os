@@ -184,6 +184,8 @@ export const purchaseInvoiceLine = pgTable(
       .notNull()
       .references(() => item.id),
     poLineId: uuid('po_line_id').references(() => purchaseOrderLine.id),
+    /** Processing charge for goods received back from job work (decision 047). */
+    jobWorkReceiptId: uuid('job_work_receipt_id'),
     hsnCode: text('hsn_code'),
     qty: qty('qty').notNull(),
     rate: qty('rate').notNull(),

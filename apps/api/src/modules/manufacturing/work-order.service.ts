@@ -98,6 +98,8 @@ export class WorkOrderService {
           seq: o.seq,
           name: o.name,
           workCentreId: o.workCentreId,
+          outsourced: o.outsourced,
+          supplierId: o.supplierId,
           plannedMinutes: Dec.of(o.setupMinutes).add(scaleBomQty(o.runMinutesPerUnit, '1', wo.plannedQty)).toString(),
           instructions: o.instructions,
         })),
@@ -287,6 +289,7 @@ export class WorkOrderService {
     this.assertOpen(wo);
     const [op] = await tx.select().from(workOrderOperation).where(and(eq(workOrderOperation.id, operationId), eq(workOrderOperation.workOrderId, wo.id)));
     if (!op) throw new NotFoundException('Operation not found on this work order');
+    if (op.outsourced) throw new BadRequestException(`Operation ${op.seq} is done by a job worker; send the pieces from the work order instead of starting a job card`);
     if (machineId) {
       const [m] = await tx.select().from(machine).where(and(eq(machine.id, machineId), eq(machine.entityId, entityId)));
       if (!m || m.workCentreId !== op.workCentreId) throw new BadRequestException('Choose a machine of the operation\'s work centre');
@@ -333,7 +336,7 @@ export class WorkOrderService {
     const events = await tx.select().from(jobCardEvent).where(eq(jobCardEvent.jobCardId, card.id)).orderBy(asc(jobCardEvent.at), asc(jobCardEvent.id));
     const minutes = runningMinutes(events, now);
     const [op] = await tx.select().from(workOrderOperation).where(eq(workOrderOperation.id, card.operationId));
-    const [centre] = await tx.select().from(workCentre).where(eq(workCentre.id, op!.workCentreId));
+    const [centre] = await tx.select().from(workCentre).where(eq(workCentre.id, op!.workCentreId!));
     const value = absorptionValue(minutes, centre!.hourlyRate);
     const postingDate = businessDate();
     const [after] = await tx

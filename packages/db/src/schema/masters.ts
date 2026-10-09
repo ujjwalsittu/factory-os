@@ -83,6 +83,8 @@ export const item = pgTable(
     revision: text('revision'),
     /** Serial-tracked items: prefix for numbers generated on production output (decision 046); empty = item code. */
     serialPrefix: text('serial_prefix'),
+    /** Sec 143: moulds and dies, jigs and fixtures, or tools have no job-work return limit as capital goods (decision 047). */
+    jobWorkExemptTool: boolean('job_work_exempt_tool').notNull().default(false),
     drawingNo: text('drawing_no'),
     shelfLifeDays: integer('shelf_life_days'),
     /** Moisture sensitivity level for SMT parts (1, 2, 2a, 3, 4, 5, 5a, 6). */
@@ -111,6 +113,8 @@ export const party = pgTable(
     name: text('name').notNull(),
     isCustomer: boolean('is_customer').notNull().default(false),
     isSupplier: boolean('is_supplier').notNull().default(false),
+    /** Supplier we send goods to for job work (decision 047). */
+    isJobWorker: boolean('is_job_worker').notNull().default(false),
     gstTreatment: gstTreatment('gst_treatment').notNull().default('registered'),
     gstin: text('gstin'),
     pan: text('pan'),
