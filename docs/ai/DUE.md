@@ -5,8 +5,8 @@ Current requested foundation/accounting/NIC sequence. Completed implementation a
 | Item | Current state | Next concrete step |
 |---|---|---|
 | Google/Microsoft SSO | Software verified and merged to main (PR #3, 2026-10-08) | Live enablement separately (see below) |
-| Passkeys | All8 tasks and final review/correction complete; integrated manufacturing2c/main1acf6c9 with byte-identical passkey0030/0031 and fresh regressions; disabled by default | [Integration PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-implementation-20261008), actual green CI, then separate HTTPS/RP/origin/device acceptance; [review](../superpowers/reviews/2026-10-08-passkeys-review.md) |
-| Audited impersonation | Not implemented | Separate scoped SuperAdmin/support consent, expiry and audit design |
+| Passkeys | Eight tasks/final review and quality-main integration verified, byte-identical0031/0032 after published0030_quality; disabled by default | [Integration PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-implementation-20261008)/actual green CI, then separate HTTPS/device acceptance; [review](../superpowers/reviews/2026-10-08-passkeys-review.md) |
+| Audited support access | Spec/nine-task plan approved2026-10-09; Native retained; Accepted050 on the planning branch, published scheduling049 preserved | Passkey/planning actual green-CI merges, then standalone support claim merged before Task1; no new support product code yet |
 | PostgreSQL RLS | Not implemented | Separate database role/context/transaction/pool and migration design; app tenancy checks stay authoritative |
 | Live SMTP | Email software complete; delivery disabled | Secure existing-service sender/credentials/payload key, DNS/TLS/connectivity and authorized real mailbox acceptance |
 | Live Google/Microsoft SSO | Software merged; providers disabled, no apps/credentials registered | Organization's OAuth apps, secure credentials, exact callbacks, Microsoft tenant UUID and local email verification |

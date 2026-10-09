@@ -32,6 +32,7 @@ import { Ctx, RequirePermission, type TenantRequestContext } from '../common/acc
 import { AuditService } from '../common/audit.service.js';
 import { DB } from '../common/tokens.js';
 import { parse } from '../common/validation.js';
+import { FaiService } from './quality/fai.service.js';
 import { StockPostingService } from './stock-posting.service.js';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -134,6 +135,7 @@ export class SellingController {
     private readonly gl: GlPostingService,
     private readonly posting: StockPostingService,
     private readonly bills: BillService,
+    private readonly fai: FaiService,
   ) {}
 
   // ───────────────────────── Tax preview & credit ─────────────────────────
@@ -627,6 +629,8 @@ export class SellingController {
 
       // Goods ship with the invoice; services don't touch stock.
       const items = new Map((await tx.select().from(item).where(inArray(item.id, [...new Set(lines.map((l) => l.itemId))]))).map((i) => [i.id, i]));
+      // Decision 048: items needing a first article inspection ship only once it is approved.
+      await this.fai.assertInvoiceable(tx, entityId, [...items.values()]);
       const stockLines = lines.filter((l) => items.get(l.itemId)?.isStockItem);
       let stockEntryId: string | null = null;
       if (stockLines.length) {

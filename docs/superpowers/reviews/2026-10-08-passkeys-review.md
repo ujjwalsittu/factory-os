@@ -113,3 +113,23 @@ Validation:23 auth fixtures,350 HTTP checks across five suites, three production
 28. Allow30 seconds for cold production-browser navigation instead of15 — genuine trusted-subdomain sign-in succeeded on the diagnostic run and native source-session identity is asserted — cost if wrong: a slow failure takes longer to surface; application ceremony/reauthentication deadlines stay unchanged.
 
 29. Reconcile newly published job-work0029 while retaining reviewed passkey SQL bytes and generating coherent intermediate/final snapshots after it — cost if wrong: pre-release fixture histories need recreation; preserve all published SQL/snapshots/journal prefix and verify genuine upgrade, native auth, populated invariance and both product browser flows. No shared passkey migration was applied.
+
+
+## 2026-10-09 quality-main integration
+
+Integrated main4374823 (quality2d/0030_quality plus other-owner scheduling049 claim) into the completed passkey branch. No native auth design or business behavior changed. Preserved all31 published migrations/snapshots and exact journal prefix, generated the combined schema snapshot, moved the two reviewed SQL files byte-identically to0031/0032 and proved all33 links/no further schema changes. Both quality/storage and passkey controller/provider registrations and main dependency versions remain intact.
+
+Fresh checks: root typecheck19/build12/186 unique uncached units PASS; lint0 configured tasks. All23 auth fixtures (8 passkey,8 SSO,7 email) PASS; seven counted manufacturing/quality suites total514 checks, plus attachments (eight HTTP suites); production passkey9, trusted HTTPS subdomain3, job-work desktop/mobile and quality desktop/390px PASS. [Selected actual output](2026-10-09-passkeys-quality-integration-verification.txt) includes the final command results. No second independent review: this integration retains the original one-review/correction workflow; source changes only compose existing registries/dependencies and the affected test harness.
+
+The protected populated source has32 old-branch migration entries including both reviewed passkey hashes, but lacks quality0030. Initial copied upgrade failed on an existing passkey table. Only an owned logical copy now verifies every recorded SQL hash, applies the missing published quality SQL and aligns the two already-applied unpublished passkey timestamps; ordinary/shared migration behavior is unchanged. The test proves actual quality presence and unchanged protected migration rows, original books/activations/native credentials/valid sessions/prior audit. Writable SSO invariance paths use an owned copy and explicit saved baseline. A missing legacy scratch baseline and one accidental4000 fixture overlap were orchestration failures; explicit baseline selection/sequential reruns passed.
+
+The first combined quality browser completed its workflow but reported one console404 without a captured request. Fresh diagnostic and standard runs passed, with no product change or suppression. Capture exact URL/status if it recurs; the cause remains unproven. Owned storage directories, TLS certs, fixture databases and services were closed; real R2/HTTPS devices/deployment are not claimed.
+
+Additional rulings:
+
+30. Preserve incoming published quality0030 and the scheduling049 claim; relocate only unmerged passkey SQL after that prefix — cost if wrong: fixture migration histories require recreation, never overwrite published migrations.
+31. Reconcile only a hash-verified owned logical copy of the pre-release passkey source — its old timestamps otherwise skip quality/replay passkey SQL — cost if wrong: this test-only staging does not establish a safe shared/deployment migration; those need explicit review.
+32. Align the owned HTTP/browser harness with the actual25MB raw upload parser and temporary local storage, defaulting storage disabled — cost if wrong: local storage proves no live R2 behavior; actual R2 acceptance stays separate.
+33. Select saved baselines explicitly and run writable SSO invariance against an owned copy — cost if wrong: the new synthetic auth flow tests copied data rather than any live identity/provider; protected source remains read-only.
+34. Treat the initial browser404 as an observed transient, not a fixed product defect; require fresh diagnostic and standard passes without suppressing errors — cost if wrong: an intermittent quality/browser issue could recur; record exact request next time.
+35. Retain the manual PR/actual green-CI gate after REST also returned Forbidden — cost if wrong: integration delay; no direct main push, inferred CI, shared migration or deployment.

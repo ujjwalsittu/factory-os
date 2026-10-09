@@ -1,3 +1,9 @@
+import { FaiController } from './modules/quality/fai.controller.js';
+import { FaiService } from './modules/quality/fai.service.js';
+import { QualityController } from './modules/quality/quality.controller.js';
+import { QualityService } from './modules/quality/quality.service.js';
+import { AttachmentsController } from './modules/storage/attachments.controller.js';
+import { StorageService } from './modules/storage/storage.service.js';
 import { Itc04Controller } from './modules/manufacturing/itc04.controller.js';
 import { JobWorkController } from './modules/manufacturing/job-work.controller.js';
 import { JobWorkService } from './modules/manufacturing/job-work.service.js';
@@ -75,8 +81,8 @@ import { SeriesController } from './modules/series.controller.js';
 import { WasteController } from './modules/waste.controller.js';
 
 @Module({
-  controllers: [Itc04Controller,JobWorkController,GenealogyController,ManufacturingMastersController,WorkOrdersController,SsoController,PasskeysController,EmailController,PlatformEmailController,BankReconciliationController,BankChargesController,WithholdingController,GstSandboxController,SupplierReturnsController,SalesNotesController,InvoiceBalancesController, AccountingReportsController, AccountingController, SettlementsController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
-  providers: [JobWorkService,GenealogyService,WorkOrderService,SsoService,PasskeysService,EmailService,BankReportService,BankAdjustmentService,BankMatchService,BankImportService,BankRegistryService,BankReconciliationGuard,BankChargeService,TaxPolicyService,SandboxConnectionsService,SandboxOperationsService,SandboxSourceService,SupplierReturnResolutionService,SupplierNoteService,SupplierNotePreviewService,SupplierNotePostingService,SupplierCreditApplicationService,SupplierReturnMovementService,SupplierReturnPolicyService,SupplierReturnClaimService,SalesNoteService, SalesReturnService, CreditApplicationService, SalesNotePostingService, SalesNotePreviewService,
+  controllers: [FaiController,QualityController,AttachmentsController,Itc04Controller,JobWorkController,GenealogyController,ManufacturingMastersController,WorkOrdersController,SsoController,PasskeysController,EmailController,PlatformEmailController,BankReconciliationController,BankChargesController,WithholdingController,GstSandboxController,SupplierReturnsController,SalesNotesController,InvoiceBalancesController, AccountingReportsController, AccountingController, SettlementsController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
+  providers: [FaiService,QualityService,StorageService,JobWorkService,GenealogyService,WorkOrderService,SsoService,PasskeysService,EmailService,BankReportService,BankAdjustmentService,BankMatchService,BankImportService,BankRegistryService,BankReconciliationGuard,BankChargeService,TaxPolicyService,SandboxConnectionsService,SandboxOperationsService,SandboxSourceService,SupplierReturnResolutionService,SupplierNoteService,SupplierNotePreviewService,SupplierNotePostingService,SupplierCreditApplicationService,SupplierReturnMovementService,SupplierReturnPolicyService,SupplierReturnClaimService,SalesNoteService, SalesReturnService, CreditApplicationService, SalesNotePostingService, SalesNotePreviewService,
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: DB, inject: [CONFIG], useFactory: (c: AppConfig) => createDb(c.DATABASE_URL) },
     { provide: AUTH, inject: [DB, CONFIG,EmailService], useFactory: (db: Database, c: AppConfig,email:EmailService) => createAuth(db, c,email) },

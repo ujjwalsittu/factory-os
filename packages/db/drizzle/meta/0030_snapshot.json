@@ -1,5 +1,5 @@
 {
-  "id": "d93cf1c3-7c16-4f4f-a67c-e555dc7556c1",
+  "id": "6dc9c7e7-3a8c-46f2-9be1-3067c472a47f",
   "prevId": "945823bb-13ec-4bab-b4dd-3a6e03020f57",
   "version": "7",
   "dialect": "postgresql",
@@ -220,25 +220,6 @@
         },
         "sso_pending": {
           "name": "sso_pending",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "passkey_credential_id": {
-          "name": "passkey_credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_rp_id": {
-          "name": "passkey_rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_pending": {
-          "name": "passkey_pending",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
@@ -491,30 +472,6 @@
         },
         "sso_return_cipher": {
           "name": "sso_return_cipher",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_credential_id": {
-          "name": "passkey_credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_rp_id": {
-          "name": "passkey_rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_return_cipher": {
-          "name": "passkey_return_cipher",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "passkey_password_version": {
-          "name": "passkey_password_version",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -2059,6 +2016,27 @@
         },
         "requires_incoming_inspection": {
           "name": "requires_incoming_inspection",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "requires_final_inspection": {
+          "name": "requires_final_inspection",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "requires_fai": {
+          "name": "requires_fai",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "fai_process_change": {
+          "name": "fai_process_change",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
@@ -6158,6 +6136,12 @@
         },
         "transfer_entry_id": {
           "name": "transfer_entry_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inspection_record_id": {
+          "name": "inspection_record_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -24246,7 +24230,7 @@
           "name": "bom_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "planned_qty": {
           "name": "planned_qty",
@@ -24275,6 +24259,12 @@
         },
         "sales_order_id": {
           "name": "sales_order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rework_of_ncr_id": {
+          "name": "rework_of_ncr_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -24562,6 +24552,10 @@
         "work_order_qty_ck": {
           "name": "work_order_qty_ck",
           "value": "\"work_order\".\"planned_qty\" > 0"
+        },
+        "work_order_bom_ck": {
+          "name": "work_order_bom_ck",
+          "value": "\"work_order\".\"bom_id\" is not null or \"work_order\".\"rework_of_ncr_id\" is not null"
         }
       },
       "isRLSEnabled": false
@@ -25020,514 +25014,6 @@
         "work_order_operation_centre_ck": {
           "name": "work_order_operation_centre_ck",
           "value": "\"work_order_operation\".\"outsourced\" or \"work_order_operation\".\"work_centre_id\" is not null"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.auth_passkey_action": {
-      "name": "auth_passkey_action",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_id": {
-          "name": "target_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rp_id": {
-          "name": "rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "config_hash": {
-          "name": "config_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "password_version": {
-          "name": "password_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nonce_hash": {
-          "name": "nonce_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consumed_at": {
-          "name": "consumed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "auth_passkey_action_nonce_uq": {
-          "name": "auth_passkey_action_nonce_uq",
-          "columns": [
-            {
-              "expression": "nonce_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "auth_passkey_action_expiry_idx": {
-          "name": "auth_passkey_action_expiry_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "auth_passkey_action_shape_ck": {
-          "name": "auth_passkey_action_shape_ck",
-          "value": "\"auth_passkey_action\".\"kind\" in ('register','rename','remove') and ((\"auth_passkey_action\".\"kind\"='register')=(\"auth_passkey_action\".\"target_id\" is null)) and \"auth_passkey_action\".\"nonce_hash\" ~ '^[a-f0-9]{64}$' and \"auth_passkey_action\".\"password_version\" ~ '^[a-f0-9]{64}$' and \"auth_passkey_action\".\"config_hash\" ~ '^[a-f0-9]{64}$' and \"auth_passkey_action\".\"expires_at\">\"auth_passkey_action\".\"created_at\" and \"auth_passkey_action\".\"expires_at\"<=\"auth_passkey_action\".\"created_at\"+interval '300 seconds' and (\"auth_passkey_action\".\"consumed_at\" is null or (\"auth_passkey_action\".\"consumed_at\">=\"auth_passkey_action\".\"created_at\" and \"auth_passkey_action\".\"consumed_at\"<\"auth_passkey_action\".\"expires_at\"))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.auth_passkey_ceremony": {
-      "name": "auth_passkey_ceremony",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "action_id": {
-          "name": "action_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "challenge_hash": {
-          "name": "challenge_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rp_id": {
-          "name": "rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_handle": {
-          "name": "user_handle",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "return_cipher": {
-          "name": "return_cipher",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_id": {
-          "name": "credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "password_version": {
-          "name": "password_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consumed_at": {
-          "name": "consumed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "auth_passkey_ceremony_challenge_uq": {
-          "name": "auth_passkey_ceremony_challenge_uq",
-          "columns": [
-            {
-              "expression": "challenge_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "auth_passkey_ceremony_expiry_idx": {
-          "name": "auth_passkey_ceremony_expiry_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "auth_passkey_ceremony_shape_ck": {
-          "name": "auth_passkey_ceremony_shape_ck",
-          "value": "\"auth_passkey_ceremony\".\"kind\" in ('register','signin') and \"auth_passkey_ceremony\".\"challenge_hash\" ~ '^[a-f0-9]{64}$' and ((\"auth_passkey_ceremony\".\"kind\"='register' and \"auth_passkey_ceremony\".\"user_id\" is not null and \"auth_passkey_ceremony\".\"session_id\" is not null and \"auth_passkey_ceremony\".\"action_id\" is not null and \"auth_passkey_ceremony\".\"user_handle\" is not null and \"auth_passkey_ceremony\".\"user_handle\" ~ '^[A-Za-z0-9_-]{43}$' and \"auth_passkey_ceremony\".\"credential_id\" is null and \"auth_passkey_ceremony\".\"password_version\" is null) or (\"auth_passkey_ceremony\".\"kind\"='signin' and \"auth_passkey_ceremony\".\"session_id\" is null and \"auth_passkey_ceremony\".\"action_id\" is null and \"auth_passkey_ceremony\".\"user_handle\" is null and ((\"auth_passkey_ceremony\".\"user_id\" is null and \"auth_passkey_ceremony\".\"credential_id\" is null and \"auth_passkey_ceremony\".\"password_version\" is null and \"auth_passkey_ceremony\".\"consumed_at\" is null) or (\"auth_passkey_ceremony\".\"user_id\" is not null and \"auth_passkey_ceremony\".\"credential_id\" is not null and \"auth_passkey_ceremony\".\"password_version\" is not null and \"auth_passkey_ceremony\".\"consumed_at\" is not null)))) and \"auth_passkey_ceremony\".\"expires_at\">\"auth_passkey_ceremony\".\"created_at\" and \"auth_passkey_ceremony\".\"expires_at\"<=\"auth_passkey_ceremony\".\"created_at\"+interval '300 seconds' and (\"auth_passkey_ceremony\".\"password_version\" is null or \"auth_passkey_ceremony\".\"password_version\" ~ '^[a-f0-9]{64}$') and (\"auth_passkey_ceremony\".\"consumed_at\" is null or (\"auth_passkey_ceremony\".\"consumed_at\">=\"auth_passkey_ceremony\".\"created_at\" and \"auth_passkey_ceremony\".\"consumed_at\"<\"auth_passkey_ceremony\".\"expires_at\"))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.auth_passkey_event": {
-      "name": "auth_passkey_event",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_id": {
-          "name": "credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rp_id": {
-          "name": "rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "code": {
-          "name": "code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "auth_passkey_event_owner_idx": {
-          "name": "auth_passkey_event_owner_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "auth_passkey_event_shape_ck": {
-          "name": "auth_passkey_event_shape_ck",
-          "value": "\"auth_passkey_event\".\"kind\" in ('enrolled','renamed','removed','signed_in','failed') and (\"auth_passkey_event\".\"code\" is null or \"auth_passkey_event\".\"code\" in ('credential_refused','consent_refused','mfa_refused','configuration_refused'))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.passkey": {
-      "name": "passkey",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_id": {
-          "name": "credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "public_key": {
-          "name": "public_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "counter": {
-          "name": "counter",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "device_type": {
-          "name": "device_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "backed_up": {
-          "name": "backed_up",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transports": {
-          "name": "transports",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "aaguid": {
-          "name": "aaguid",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rp_id": {
-          "name": "rp_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_handle": {
-          "name": "user_handle",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "registration_action_id": {
-          "name": "registration_action_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "registration_ceremony_id": {
-          "name": "registration_ceremony_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "last_used_at": {
-          "name": "last_used_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "passkey_credential_uq": {
-          "name": "passkey_credential_uq",
-          "columns": [
-            {
-              "expression": "credential_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "passkey_owner_idx": {
-          "name": "passkey_owner_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "passkey_user_id_user_id_fk": {
-          "name": "passkey_user_id_user_id_fk",
-          "tableFrom": "passkey",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "passkey_shape_ck": {
-          "name": "passkey_shape_ck",
-          "value": "length(btrim(\"passkey\".\"name\")) between 1 and 80 and \"passkey\".\"name\"=btrim(\"passkey\".\"name\") and \"passkey\".\"counter\" between 0 and 4294967295 and \"passkey\".\"credential_id\" ~ '^[A-Za-z0-9_-]+$' and length(\"passkey\".\"credential_id\") between 1 and 1024 and length(\"passkey\".\"credential_id\")%4<>1 and \"passkey\".\"user_handle\" ~ '^[A-Za-z0-9_-]{43}$' and length(\"passkey\".\"rp_id\") between 1 and 253 and length(\"passkey\".\"public_key\")>0 and \"passkey\".\"device_type\" in ('singleDevice','multiDevice')"
         }
       },
       "isRLSEnabled": false
@@ -27111,6 +26597,2262 @@
         }
       },
       "isRLSEnabled": false
+    },
+    "public.attachment": {
+      "name": "attachment",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_type": {
+          "name": "owner_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "attachment_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size": {
+          "name": "size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sha256": {
+          "name": "sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "withdrawn_at": {
+          "name": "withdrawn_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "withdrawn_by": {
+          "name": "withdrawn_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "withdraw_reason": {
+          "name": "withdraw_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "attachment_owner_idx": {
+          "name": "attachment_owner_idx",
+          "columns": [
+            {
+              "expression": "owner_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "owner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "attachment_object_uq": {
+          "name": "attachment_object_uq",
+          "columns": [
+            {
+              "expression": "object_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "attachment_tenant_id_tenant_id_fk": {
+          "name": "attachment_tenant_id_tenant_id_fk",
+          "tableFrom": "attachment",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "attachment_entity_id_legal_entity_id_fk": {
+          "name": "attachment_entity_id_legal_entity_id_fk",
+          "tableFrom": "attachment",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "attachment_withdrawn_by_user_id_fk": {
+          "name": "attachment_withdrawn_by_user_id_fk",
+          "tableFrom": "attachment",
+          "tableTo": "user",
+          "columnsFrom": [
+            "withdrawn_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "attachment_created_by_user_id_fk": {
+          "name": "attachment_created_by_user_id_fk",
+          "tableFrom": "attachment",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "attachment_size_ck": {
+          "name": "attachment_size_ck",
+          "value": "\"attachment\".\"size\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.calibration_event": {
+      "name": "calibration_event",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gauge_id": {
+          "name": "gauge_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calibrated_on": {
+          "name": "calibrated_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result": {
+          "name": "result",
+          "type": "calibration_result",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agency": {
+          "name": "agency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "certificate_no": {
+          "name": "certificate_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_due": {
+          "name": "next_due",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "calibration_event_gauge_idx": {
+          "name": "calibration_event_gauge_idx",
+          "columns": [
+            {
+              "expression": "gauge_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "calibrated_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "calibration_event_tenant_id_tenant_id_fk": {
+          "name": "calibration_event_tenant_id_tenant_id_fk",
+          "tableFrom": "calibration_event",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "calibration_event_entity_id_legal_entity_id_fk": {
+          "name": "calibration_event_entity_id_legal_entity_id_fk",
+          "tableFrom": "calibration_event",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "calibration_event_gauge_id_gauge_id_fk": {
+          "name": "calibration_event_gauge_id_gauge_id_fk",
+          "tableFrom": "calibration_event",
+          "tableTo": "gauge",
+          "columnsFrom": [
+            "gauge_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "calibration_event_created_by_user_id_fk": {
+          "name": "calibration_event_created_by_user_id_fk",
+          "tableFrom": "calibration_event",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.fai": {
+      "name": "fai",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "number": {
+          "name": "number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_revision": {
+          "name": "item_revision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "fai_reason",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "fai_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "inspection_record_id": {
+          "name": "inspection_record_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "forms": {
+          "name": "forms",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "remarks": {
+          "name": "remarks",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "submitted_by": {
+          "name": "submitted_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_by": {
+          "name": "decided_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision_note": {
+          "name": "decision_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "fai_number_uq": {
+          "name": "fai_number_uq",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "fai_item_idx": {
+          "name": "fai_item_idx",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fai_tenant_id_tenant_id_fk": {
+          "name": "fai_tenant_id_tenant_id_fk",
+          "tableFrom": "fai",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "fai_entity_id_legal_entity_id_fk": {
+          "name": "fai_entity_id_legal_entity_id_fk",
+          "tableFrom": "fai",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fai_item_id_item_id_fk": {
+          "name": "fai_item_id_item_id_fk",
+          "tableFrom": "fai",
+          "tableTo": "item",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fai_batch_id_batch_id_fk": {
+          "name": "fai_batch_id_batch_id_fk",
+          "tableFrom": "fai",
+          "tableTo": "batch",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fai_inspection_record_id_inspection_record_id_fk": {
+          "name": "fai_inspection_record_id_inspection_record_id_fk",
+          "tableFrom": "fai",
+          "tableTo": "inspection_record",
+          "columnsFrom": [
+            "inspection_record_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fai_submitted_by_user_id_fk": {
+          "name": "fai_submitted_by_user_id_fk",
+          "tableFrom": "fai",
+          "tableTo": "user",
+          "columnsFrom": [
+            "submitted_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fai_decided_by_user_id_fk": {
+          "name": "fai_decided_by_user_id_fk",
+          "tableFrom": "fai",
+          "tableTo": "user",
+          "columnsFrom": [
+            "decided_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fai_created_by_user_id_fk": {
+          "name": "fai_created_by_user_id_fk",
+          "tableFrom": "fai",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gauge": {
+      "name": "gauge",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "location": {
+          "name": "location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "interval_days": {
+          "name": "interval_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_calibrated": {
+          "name": "last_calibrated",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "gauge_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'in_service'"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "gauge_code_uq": {
+          "name": "gauge_code_uq",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "gauge_tenant_id_tenant_id_fk": {
+          "name": "gauge_tenant_id_tenant_id_fk",
+          "tableFrom": "gauge",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "gauge_entity_id_legal_entity_id_fk": {
+          "name": "gauge_entity_id_legal_entity_id_fk",
+          "tableFrom": "gauge",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "gauge_created_by_user_id_fk": {
+          "name": "gauge_created_by_user_id_fk",
+          "tableFrom": "gauge",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "gauge_interval_ck": {
+          "name": "gauge_interval_ck",
+          "value": "\"gauge\".\"interval_days\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.inspection_characteristic": {
+      "name": "inspection_characteristic",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "line_no": {
+          "name": "line_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "balloon": {
+          "name": "balloon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "characteristic_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nominal": {
+          "name": "nominal",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lower_limit": {
+          "name": "lower_limit",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "upper_limit": {
+          "name": "upper_limit",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unit": {
+          "name": "unit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "method": {
+          "name": "method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_key": {
+          "name": "is_key",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "sample_size": {
+          "name": "sample_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "inspection_characteristic_line_uq": {
+          "name": "inspection_characteristic_line_uq",
+          "columns": [
+            {
+              "expression": "plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "line_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "inspection_characteristic_plan_id_inspection_plan_id_fk": {
+          "name": "inspection_characteristic_plan_id_inspection_plan_id_fk",
+          "tableFrom": "inspection_characteristic",
+          "tableTo": "inspection_plan",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "inspection_characteristic_limits_ck": {
+          "name": "inspection_characteristic_limits_ck",
+          "value": "\"inspection_characteristic\".\"lower_limit\" is null or \"inspection_characteristic\".\"upper_limit\" is null or \"inspection_characteristic\".\"lower_limit\" <= \"inspection_characteristic\".\"upper_limit\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.inspection_measurement": {
+      "name": "inspection_measurement",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "record_id": {
+          "name": "record_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "characteristic_id": {
+          "name": "characteristic_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sample_no": {
+          "name": "sample_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "measured": {
+          "name": "measured",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pass": {
+          "name": "pass",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gauge_id": {
+          "name": "gauge_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gauge_due_date": {
+          "name": "gauge_due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "inspection_measurement_record_idx": {
+          "name": "inspection_measurement_record_idx",
+          "columns": [
+            {
+              "expression": "record_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inspection_measurement_gauge_idx": {
+          "name": "inspection_measurement_gauge_idx",
+          "columns": [
+            {
+              "expression": "gauge_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "inspection_measurement_record_id_inspection_record_id_fk": {
+          "name": "inspection_measurement_record_id_inspection_record_id_fk",
+          "tableFrom": "inspection_measurement",
+          "tableTo": "inspection_record",
+          "columnsFrom": [
+            "record_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_measurement_characteristic_id_inspection_characteristic_id_fk": {
+          "name": "inspection_measurement_characteristic_id_inspection_characteristic_id_fk",
+          "tableFrom": "inspection_measurement",
+          "tableTo": "inspection_characteristic",
+          "columnsFrom": [
+            "characteristic_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_measurement_created_by_user_id_fk": {
+          "name": "inspection_measurement_created_by_user_id_fk",
+          "tableFrom": "inspection_measurement",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.inspection_plan": {
+      "name": "inspection_plan",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stage": {
+          "name": "stage",
+          "type": "inspection_stage",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation_seq": {
+          "name": "operation_seq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "bom_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "remarks": {
+          "name": "remarks",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "inspection_plan_rev_uq": {
+          "name": "inspection_plan_rev_uq",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "stage",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"operation_seq\", 0)",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "revision",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inspection_plan_active_uq": {
+          "name": "inspection_plan_active_uq",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "stage",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"operation_seq\", 0)",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"inspection_plan\".\"status\" = 'active'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "inspection_plan_tenant_id_tenant_id_fk": {
+          "name": "inspection_plan_tenant_id_tenant_id_fk",
+          "tableFrom": "inspection_plan",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "inspection_plan_entity_id_legal_entity_id_fk": {
+          "name": "inspection_plan_entity_id_legal_entity_id_fk",
+          "tableFrom": "inspection_plan",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_plan_item_id_item_id_fk": {
+          "name": "inspection_plan_item_id_item_id_fk",
+          "tableFrom": "inspection_plan",
+          "tableTo": "item",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_plan_created_by_user_id_fk": {
+          "name": "inspection_plan_created_by_user_id_fk",
+          "tableFrom": "inspection_plan",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "inspection_plan_seq_ck": {
+          "name": "inspection_plan_seq_ck",
+          "value": "(\"inspection_plan\".\"stage\" = 'in_process') = (\"inspection_plan\".\"operation_seq\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.inspection_record": {
+      "name": "inspection_record",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "number": {
+          "name": "number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stage": {
+          "name": "stage",
+          "type": "inspection_stage",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "doc_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qty": {
+          "name": "qty",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "inspection_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "work_order_id": {
+          "name": "work_order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "operation_id": {
+          "name": "operation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hold_warehouse_id": {
+          "name": "hold_warehouse_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accept_warehouse_id": {
+          "name": "accept_warehouse_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "inspection_outcome",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qty_accepted": {
+          "name": "qty_accepted",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "qty_rejected": {
+          "name": "qty_rejected",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "transfer_entry_id": {
+          "name": "transfer_entry_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "remarks": {
+          "name": "remarks",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "submitted_by": {
+          "name": "submitted_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "inspection_record_number_uq": {
+          "name": "inspection_record_number_uq",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inspection_record_source_idx": {
+          "name": "inspection_record_source_idx",
+          "columns": [
+            {
+              "expression": "source_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inspection_record_item_idx": {
+          "name": "inspection_record_item_idx",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "stage",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "inspection_record_tenant_id_tenant_id_fk": {
+          "name": "inspection_record_tenant_id_tenant_id_fk",
+          "tableFrom": "inspection_record",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "inspection_record_entity_id_legal_entity_id_fk": {
+          "name": "inspection_record_entity_id_legal_entity_id_fk",
+          "tableFrom": "inspection_record",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_record_plan_id_inspection_plan_id_fk": {
+          "name": "inspection_record_plan_id_inspection_plan_id_fk",
+          "tableFrom": "inspection_record",
+          "tableTo": "inspection_plan",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_record_item_id_item_id_fk": {
+          "name": "inspection_record_item_id_item_id_fk",
+          "tableFrom": "inspection_record",
+          "tableTo": "item",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_record_batch_id_batch_id_fk": {
+          "name": "inspection_record_batch_id_batch_id_fk",
+          "tableFrom": "inspection_record",
+          "tableTo": "batch",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_record_work_order_id_work_order_id_fk": {
+          "name": "inspection_record_work_order_id_work_order_id_fk",
+          "tableFrom": "inspection_record",
+          "tableTo": "work_order",
+          "columnsFrom": [
+            "work_order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_record_operation_id_work_order_operation_id_fk": {
+          "name": "inspection_record_operation_id_work_order_operation_id_fk",
+          "tableFrom": "inspection_record",
+          "tableTo": "work_order_operation",
+          "columnsFrom": [
+            "operation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_record_hold_warehouse_id_warehouse_id_fk": {
+          "name": "inspection_record_hold_warehouse_id_warehouse_id_fk",
+          "tableFrom": "inspection_record",
+          "tableTo": "warehouse",
+          "columnsFrom": [
+            "hold_warehouse_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_record_accept_warehouse_id_warehouse_id_fk": {
+          "name": "inspection_record_accept_warehouse_id_warehouse_id_fk",
+          "tableFrom": "inspection_record",
+          "tableTo": "warehouse",
+          "columnsFrom": [
+            "accept_warehouse_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_record_transfer_entry_id_stock_entry_id_fk": {
+          "name": "inspection_record_transfer_entry_id_stock_entry_id_fk",
+          "tableFrom": "inspection_record",
+          "tableTo": "stock_entry",
+          "columnsFrom": [
+            "transfer_entry_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_record_submitted_by_user_id_fk": {
+          "name": "inspection_record_submitted_by_user_id_fk",
+          "tableFrom": "inspection_record",
+          "tableTo": "user",
+          "columnsFrom": [
+            "submitted_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inspection_record_created_by_user_id_fk": {
+          "name": "inspection_record_created_by_user_id_fk",
+          "tableFrom": "inspection_record",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "inspection_record_qty_ck": {
+          "name": "inspection_record_qty_ck",
+          "value": "\"inspection_record\".\"qty\" > 0 and \"inspection_record\".\"qty_accepted\" + \"inspection_record\".\"qty_rejected\" <= \"inspection_record\".\"qty\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.ncr": {
+      "name": "ncr",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "number": {
+          "name": "number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "ncr_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "inspection_record_id": {
+          "name": "inspection_record_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qty": {
+          "name": "qty",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_warehouse_id": {
+          "name": "from_warehouse_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mrb_warehouse_id": {
+          "name": "mrb_warehouse_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hold_entry_id": {
+          "name": "hold_entry_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "work_order_id": {
+          "name": "work_order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancel_reason": {
+          "name": "cancel_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ncr_number_uq": {
+          "name": "ncr_number_uq",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ncr_status_idx": {
+          "name": "ncr_status_idx",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ncr_tenant_id_tenant_id_fk": {
+          "name": "ncr_tenant_id_tenant_id_fk",
+          "tableFrom": "ncr",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ncr_entity_id_legal_entity_id_fk": {
+          "name": "ncr_entity_id_legal_entity_id_fk",
+          "tableFrom": "ncr",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ncr_inspection_record_id_inspection_record_id_fk": {
+          "name": "ncr_inspection_record_id_inspection_record_id_fk",
+          "tableFrom": "ncr",
+          "tableTo": "inspection_record",
+          "columnsFrom": [
+            "inspection_record_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ncr_item_id_item_id_fk": {
+          "name": "ncr_item_id_item_id_fk",
+          "tableFrom": "ncr",
+          "tableTo": "item",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ncr_batch_id_batch_id_fk": {
+          "name": "ncr_batch_id_batch_id_fk",
+          "tableFrom": "ncr",
+          "tableTo": "batch",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ncr_from_warehouse_id_warehouse_id_fk": {
+          "name": "ncr_from_warehouse_id_warehouse_id_fk",
+          "tableFrom": "ncr",
+          "tableTo": "warehouse",
+          "columnsFrom": [
+            "from_warehouse_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ncr_mrb_warehouse_id_warehouse_id_fk": {
+          "name": "ncr_mrb_warehouse_id_warehouse_id_fk",
+          "tableFrom": "ncr",
+          "tableTo": "warehouse",
+          "columnsFrom": [
+            "mrb_warehouse_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ncr_hold_entry_id_stock_entry_id_fk": {
+          "name": "ncr_hold_entry_id_stock_entry_id_fk",
+          "tableFrom": "ncr",
+          "tableTo": "stock_entry",
+          "columnsFrom": [
+            "hold_entry_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ncr_work_order_id_work_order_id_fk": {
+          "name": "ncr_work_order_id_work_order_id_fk",
+          "tableFrom": "ncr",
+          "tableTo": "work_order",
+          "columnsFrom": [
+            "work_order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ncr_created_by_user_id_fk": {
+          "name": "ncr_created_by_user_id_fk",
+          "tableFrom": "ncr",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "ncr_qty_ck": {
+          "name": "ncr_qty_ck",
+          "value": "\"ncr\".\"qty\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.ncr_disposition": {
+      "name": "ncr_disposition",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "ncr_id": {
+          "name": "ncr_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "line_no": {
+          "name": "line_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "ncr_disposition_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qty": {
+          "name": "qty",
+          "type": "numeric(24, 6)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "ncr_disposition_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'proposed'"
+        },
+        "concession_ref": {
+          "name": "concession_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "waste_category": {
+          "name": "waste_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "proposed_by": {
+          "name": "proposed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approved_by": {
+          "name": "approved_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stock_entry_id": {
+          "name": "stock_entry_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "work_order_id": {
+          "name": "work_order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "return_claim_id": {
+          "name": "return_claim_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "posted_at": {
+          "name": "posted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "ncr_disposition_line_uq": {
+          "name": "ncr_disposition_line_uq",
+          "columns": [
+            {
+              "expression": "ncr_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "line_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ncr_disposition_ncr_id_ncr_id_fk": {
+          "name": "ncr_disposition_ncr_id_ncr_id_fk",
+          "tableFrom": "ncr_disposition",
+          "tableTo": "ncr",
+          "columnsFrom": [
+            "ncr_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ncr_disposition_proposed_by_user_id_fk": {
+          "name": "ncr_disposition_proposed_by_user_id_fk",
+          "tableFrom": "ncr_disposition",
+          "tableTo": "user",
+          "columnsFrom": [
+            "proposed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ncr_disposition_approved_by_user_id_fk": {
+          "name": "ncr_disposition_approved_by_user_id_fk",
+          "tableFrom": "ncr_disposition",
+          "tableTo": "user",
+          "columnsFrom": [
+            "approved_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ncr_disposition_stock_entry_id_stock_entry_id_fk": {
+          "name": "ncr_disposition_stock_entry_id_stock_entry_id_fk",
+          "tableFrom": "ncr_disposition",
+          "tableTo": "stock_entry",
+          "columnsFrom": [
+            "stock_entry_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ncr_disposition_work_order_id_work_order_id_fk": {
+          "name": "ncr_disposition_work_order_id_work_order_id_fk",
+          "tableFrom": "ncr_disposition",
+          "tableTo": "work_order",
+          "columnsFrom": [
+            "work_order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "ncr_disposition_qty_ck": {
+          "name": "ncr_disposition_qty_ck",
+          "value": "\"ncr_disposition\".\"qty\" > 0"
+        }
+      },
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -27411,6 +29153,129 @@
       "values": [
         "draft",
         "open",
+        "closed",
+        "cancelled"
+      ]
+    },
+    "public.attachment_kind": {
+      "name": "attachment_kind",
+      "schema": "public",
+      "values": [
+        "mtc",
+        "coc",
+        "coa",
+        "fai",
+        "cmm",
+        "photo",
+        "calibration",
+        "drawing",
+        "other"
+      ]
+    },
+    "public.calibration_result": {
+      "name": "calibration_result",
+      "schema": "public",
+      "values": [
+        "pass",
+        "adjusted",
+        "fail"
+      ]
+    },
+    "public.characteristic_kind": {
+      "name": "characteristic_kind",
+      "schema": "public",
+      "values": [
+        "dimension",
+        "visual",
+        "functional",
+        "document"
+      ]
+    },
+    "public.fai_reason": {
+      "name": "fai_reason",
+      "schema": "public",
+      "values": [
+        "first_build",
+        "revision_change",
+        "process_change",
+        "lapse"
+      ]
+    },
+    "public.fai_status": {
+      "name": "fai_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "submitted",
+        "approved",
+        "rejected"
+      ]
+    },
+    "public.gauge_status": {
+      "name": "gauge_status",
+      "schema": "public",
+      "values": [
+        "in_service",
+        "out_of_service",
+        "failed"
+      ]
+    },
+    "public.inspection_outcome": {
+      "name": "inspection_outcome",
+      "schema": "public",
+      "values": [
+        "pass",
+        "fail",
+        "partial"
+      ]
+    },
+    "public.inspection_source": {
+      "name": "inspection_source",
+      "schema": "public",
+      "values": [
+        "receipt",
+        "job_work_receipt",
+        "operation",
+        "output",
+        "manual"
+      ]
+    },
+    "public.inspection_stage": {
+      "name": "inspection_stage",
+      "schema": "public",
+      "values": [
+        "incoming",
+        "in_process",
+        "final"
+      ]
+    },
+    "public.ncr_disposition_kind": {
+      "name": "ncr_disposition_kind",
+      "schema": "public",
+      "values": [
+        "use_as_is",
+        "rework",
+        "repair",
+        "scrap",
+        "return_to_vendor"
+      ]
+    },
+    "public.ncr_disposition_status": {
+      "name": "ncr_disposition_status",
+      "schema": "public",
+      "values": [
+        "proposed",
+        "approved",
+        "posted",
+        "cancelled"
+      ]
+    },
+    "public.ncr_status": {
+      "name": "ncr_status",
+      "schema": "public",
+      "values": [
+        "open",
+        "dispositioned",
         "closed",
         "cancelled"
       ]

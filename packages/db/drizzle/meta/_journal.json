@@ -215,15 +215,22 @@
     {
       "idx": 30,
       "version": "7",
-      "when": 1791538307771,
-      "tag": "0030_passkey_security",
+      "when": 1791538008244,
+      "tag": "0030_quality",
       "breakpoints": true
     },
     {
       "idx": 31,
       "version": "7",
-      "when": 1791538307772,
-      "tag": "0031_passkey_ceremony_bounds",
+      "when": 1791543942710,
+      "tag": "0031_passkey_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791543942711,
+      "tag": "0032_passkey_ceremony_bounds",
       "breakpoints": true
     }
   ]
