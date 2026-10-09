@@ -33,6 +33,7 @@ import { seedChart } from '../accounting/chart.js';
 import { GlPostingService } from '../accounting/gl-posting.service.js';
 import { OperationalPostings } from '../accounting/operational-postings.js';
 import { StockPostingService } from '../stock-posting.service.js';
+import { QualityService } from '../quality/quality.service.js';
 import { JobWorkService } from './job-work.service.js';
 
 type WorkOrder = typeof workOrder.$inferSelect;
@@ -53,6 +54,7 @@ export class WorkOrderService {
     private readonly accounting: OperationalPostings,
     private readonly gl: GlPostingService,
     private readonly jobWork: JobWorkService,
+    private readonly quality: QualityService,
   ) {}
 
   /** Every mutation: accounting lock first (the stock engine takes it too), then the work order row. */
@@ -116,6 +118,35 @@ export class WorkOrderService {
       .returning();
     await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'work_order.release', targetType: 'work_order', targetId: wo.id, after: { number, bomRevision: b.revision } }, tx);
     return after!;
+  }
+
+  /**
+   * Rework or repair of an NCR disposition (decision 048): a released, BOM-less work order that issues the
+   * nonconforming quantity from MRB, takes rework time on one operation and outputs the item again (through
+   * final inspection when the item needs it).
+   */
+  async createReworkIn(
+    tx: Tx,
+    ctx: TenantRequestContext,
+    entityId: string,
+    input: { ncrId: string; ncrNumber: string | null; kind: 'rework' | 'repair'; itemId: string; batchId: string | null; qty: string; mrbWarehouseId: string; targetWarehouseId: string; workCentreId: string },
+  ) {
+    const [centre] = await tx.select().from(workCentre).where(and(eq(workCentre.id, input.workCentreId), eq(workCentre.entityId, entityId)));
+    if (!centre?.isActive) throw new BadRequestException({ message: 'Choose an active work centre for the rework', issues: [{ path: 'workCentreId', message: 'Required' }] });
+    const [target] = await tx.select().from(warehouse).where(and(eq(warehouse.id, input.targetWarehouseId), eq(warehouse.entityId, entityId)));
+    if (!target || ['mrb', 'at_job_worker', 'customer_owned'].includes(target.type)) throw new BadRequestException({ message: 'Choose where reworked goods go', issues: [{ path: 'targetWarehouseId', message: 'Required' }] });
+    const date = businessDate();
+    const number = await this.posting.allocateNumber(tx, ctx.tenant.tenantId, entityId, 'work_order', date);
+    const [wo] = await tx
+      .insert(workOrder)
+      .values({ tenantId: ctx.tenant.tenantId, entityId, number, status: 'released', itemId: input.itemId, bomId: null, reworkOfNcrId: input.ncrId, plannedQty: input.qty, sourceWarehouseId: input.mrbWarehouseId, targetWarehouseId: target.id, remarks: `${input.kind === 'repair' ? 'Repair' : 'Rework'} for NCR ${input.ncrNumber}`, releasedBy: ctx.user.id, releasedAt: new Date(), createdBy: ctx.user.id })
+      .returning();
+    await tx.insert(workOrderMaterial).values({ workOrderId: wo!.id, lineNo: 1, itemId: input.itemId, qtyPerUnit: '1', requiredQty: input.qty, backflush: false });
+    await tx.insert(workOrderOperation).values({ workOrderId: wo!.id, seq: 10, name: input.kind === 'repair' ? 'Repair' : 'Rework', workCentreId: centre.id, plannedMinutes: '0' });
+    const issue = await this.movement(tx, ctx, entityId, wo!, 'production_issue', date, [{ itemId: input.itemId, qty: input.qty, batchId: input.batchId, from: input.mrbWarehouseId }], `ncr:${input.ncrId}`);
+    await this.cost(tx, ctx, entityId, wo!, 'issue', date, await this.entryValue(tx, issue.id), { stockEntryId: issue.id });
+    await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'work_order.rework', targetType: 'work_order', targetId: wo!.id, after: { number, ncr: input.ncrNumber, qty: input.qty } }, tx);
+    return wo!;
   }
 
   /** Only while nothing has been posted against it (or everything posted was reversed). */
@@ -188,7 +219,10 @@ export class WorkOrderService {
     }
     const value = outputValue({ wipBalance: await this.wip(tx, wo.id), outputQty: q.toString(), plannedQty: wo.plannedQty, producedQty: wo.producedQty });
     const outputs = await this.outputCount(tx, wo.id);
-    const to = input.warehouseId ?? wo.targetWarehouseId;
+    const destination = input.warehouseId ?? wo.targetWarehouseId;
+    // Decision 048: items needing final inspection wait in Quarantine until an inspection releases them.
+    const hold = it!.requiresFinalInspection ? await this.quality.holdWarehouse(tx, ctx, entityId, 'quarantine') : null;
+    const to = hold?.id ?? destination;
     let outLines: { itemId: string; qty: string; to: string; rate: string; newBatchNo: string | null }[];
     if (serial) {
       // Decision 046: one generated serial per unit, each carrying an equal share of the value (last takes the remainder).
@@ -206,6 +240,11 @@ export class WorkOrderService {
       outLines = [{ itemId: wo.itemId, qty: q.toString(), to, rate: Dec.of(value).div(q).toString(), newBatchNo: batchNo }];
     }
     const entry = await this.movement(tx, ctx, entityId, wo, 'production_output', postingDate, outLines, backflushEntryId ? `backflush:${backflushEntryId}` : null);
+    if (hold) {
+      const made = await tx.select().from(stockEntryLine).where(eq(stockEntryLine.entryId, entry.id)).orderBy(asc(stockEntryLine.lineNo));
+      for (const l of made)
+        await this.quality.openRecordIn(tx, ctx, entityId, { stage: 'final', itemId: l.itemId, batchId: l.batchId, qty: l.qty, sourceType: 'output', sourceId: l.id, workOrderId: wo.id, holdWarehouseId: hold.id, acceptWarehouseId: destination });
+    }
     if (asBuilt.length) {
       const made = await tx.select({ lineNo: stockEntryLine.lineNo, batchId: stockEntryLine.batchId }).from(stockEntryLine).where(eq(stockEntryLine.entryId, entry.id)).orderBy(asc(stockEntryLine.lineNo));
       const rows = asBuilt.flatMap((components, k) => components.map((componentBatchId) => ({ tenantId: ctx.tenant.tenantId, entityId, assemblyBatchId: made[k]!.batchId!, componentBatchId, workOrderId: wo.id, stockEntryId: entry.id, createdBy: ctx.user.id })));
@@ -233,6 +272,7 @@ export class WorkOrderService {
         .limit(1);
       if (latest?.id !== entry.id) throw new ConflictException('Cancel the later outputs first');
       const [row] = await tx.select().from(workOrderCost).where(and(eq(workOrderCost.stockEntryId, entry.id), isNull(workOrderCost.reversalOf)));
+      await this.quality.releaseHoldIn(tx, 'output', (await tx.select({ id: stockEntryLine.id }).from(stockEntryLine).where(eq(stockEntryLine.entryId, entry.id))).map((l) => l.id));
       await this.posting.cancelIn(tx, ctx, entityId, entry.id, reason);
       await this.reverseCost(tx, ctx, row!);
       // As-built rows of the cancelled assembly serials are reversed, which frees their components.

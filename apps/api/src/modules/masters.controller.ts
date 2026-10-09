@@ -48,6 +48,10 @@ const itemInput = z.object({
   shelfLifeDays: z.number().int().positive().max(36500).optional().nullable(),
   mslLevel: z.enum(['1', '2', '2a', '3', '4', '5', '5a', '6']).optional().nullable(),
   requiresIncomingInspection: z.boolean().default(false),
+  /** Decision 048: output waits in Quarantine for a final inspection; invoicing needs an approved FAI. */
+  requiresFinalInspection: z.boolean().default(false),
+  requiresFai: z.boolean().default(false),
+  faiProcessChange: z.boolean().default(false),
   exportControlled: z.boolean().default(false),
   reorderLevel: decimalString.optional().nullable(),
   attributes: z.record(z.string(), z.string().max(200)).default({}),

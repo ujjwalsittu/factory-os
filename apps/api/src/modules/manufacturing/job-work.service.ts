@@ -35,6 +35,7 @@ import { lockAccounting, type Tx } from '../accounting/accounting-lock.js';
 import { AcquisitionCostService } from '../accounting/acquisition-cost.service.js';
 import { seedChart } from '../accounting/chart.js';
 import { GlPostingService } from '../accounting/gl-posting.service.js';
+import { QualityService } from '../quality/quality.service.js';
 import { StockPostingService } from '../stock-posting.service.js';
 
 type Order = typeof jobWorkOrder.$inferSelect;
@@ -79,6 +80,7 @@ export class JobWorkService {
     private readonly posting: StockPostingService,
     private readonly cost: AcquisitionCostService,
     private readonly gl: GlPostingService,
+    private readonly quality: QualityService,
   ) {}
 
   run<T>(entityId: string, f: (tx: Tx) => Promise<T>) {
@@ -368,6 +370,10 @@ export class JobWorkService {
         return { itemId: target!.id, batchId: r.batchId ?? keep, newBatchNo: r.batchNo?.trim() || (target!.tracking !== 'none' && !(r.batchId ?? keep) ? `${order.number}-${i + 1}` : null), qty: r.qty, to };
       });
       for (const l of inLines) await this.ourWarehouse(tx, entityId, l.to, 'received');
+      // Decision 048: returned goods of items needing incoming inspection wait in Quarantine.
+      const hold = target!.requiresIncomingInspection ? await this.quality.holdWarehouse(tx, ctx, entityId, 'quarantine') : null;
+      const destination = new Map(inLines.map((l, i) => [i, l.to]));
+      if (hold) for (const l of inLines) l.to = hold.id;
       const [e] = await tx
         .insert(stockEntry)
         .values({ tenantId: ctx.tenant.tenantId, entityId, purpose: 'job_work_in', postingDate: input.postingDate, partyId: order.supplierId, systemGenerated: true, reference: order.number, remarks: `Job work ${order.number}`, createdBy: ctx.user.id })
@@ -380,6 +386,9 @@ export class JobWorkService {
       entryId = e!.id;
       const posted = await tx.select().from(stockEntryLine).where(and(eq(stockEntryLine.entryId, e!.id), isNull(stockEntryLine.fromWarehouseId))).orderBy(asc(stockEntryLine.lineNo));
       receiptLines = posted.map((p) => ({ itemId: p.itemId, batchId: p.batchId, qty: p.qty, rejectedQty: '0', value: p.value ?? '0', warehouseId: p.toWarehouseId, stockEntryLineId: p.id }));
+      if (hold)
+        for (const [k, p] of posted.entries())
+          await this.quality.openRecordIn(tx, ctx, entityId, { stage: 'incoming', itemId: p.itemId, batchId: p.batchId, qty: p.qty, sourceType: 'job_work_receipt', sourceId: p.id, holdWarehouseId: hold.id, acceptWarehouseId: destination.get(k)!, remarks: `Job work ${order.number}` });
     }
     const number = await this.posting.allocateNumber(tx, ctx.tenant.tenantId, entityId, 'job_work_receipt', input.postingDate);
     const [rc] = await tx
@@ -416,7 +425,10 @@ export class JobWorkService {
       .limit(1);
     if (invoiced) throw new ConflictException(`Purchase invoice ${invoiced.number ?? '(draft)'} charges this receipt; cancel or change it first`);
     if (order.kind === 'operation') await this.assertOutputGate(tx, order.workOrderOperationId!, rc.id);
-    if (rc.stockEntryId) await this.posting.cancelIn(tx, ctx, entityId, rc.stockEntryId, `Job work receipt ${rc.number} cancelled: ${reason}`);
+    if (rc.stockEntryId) {
+      await this.quality.releaseHoldIn(tx, 'job_work_receipt', (await tx.select({ id: stockEntryLine.id }).from(stockEntryLine).where(eq(stockEntryLine.entryId, rc.stockEntryId))).map((l) => l.id));
+      await this.posting.cancelIn(tx, ctx, entityId, rc.stockEntryId, `Job work receipt ${rc.number} cancelled: ${reason}`);
+    }
     const rows = await tx.select().from(jobWorkConsumption).where(and(eq(jobWorkConsumption.receiptId, rc.id), isNull(jobWorkConsumption.reversalOf)));
     if (rows.length)
       await tx.insert(jobWorkConsumption).values(
