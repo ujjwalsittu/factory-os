@@ -80,6 +80,7 @@ function PartiesPage() {
                     <div className="flex gap-1">
                       {p.isCustomer && <Badge tone="accent">Customer</Badge>}
                       {p.isSupplier && <Badge tone="info">Supplier</Badge>}
+                      {p.isJobWorker && <Badge tone="neutral">Job worker</Badge>}
                     </div>
                   </Td>
                   <Td className="font-mono text-[12px]">{p.gstin ?? <span className="text-subtle">{TREATMENTS.find(([k]) => k === p.gstTreatment)?.[1]}</span>}</Td>
@@ -105,6 +106,7 @@ function PartyDialog({ party, onClose }: { party: Party | null; onClose: () => v
     name: party?.name ?? '',
     isCustomer: party?.isCustomer ?? false,
     isSupplier: party?.isSupplier ?? true,
+    isJobWorker: party?.isJobWorker ?? false,
     gstTreatment: party?.gstTreatment ?? 'registered',
     gstin: party?.gstin ?? '',
     pan: party?.pan ?? '',
@@ -126,6 +128,7 @@ function PartyDialog({ party, onClose }: { party: Party | null; onClose: () => v
         name: f.name,
         isCustomer: f.isCustomer,
         isSupplier: f.isSupplier,
+        isJobWorker: f.isJobWorker,
         gstTreatment: f.gstTreatment,
         gstin: f.gstin || null,
         pan: needsGstin ? null : f.pan || null,
@@ -159,6 +162,7 @@ function PartyDialog({ party, onClose }: { party: Party | null; onClose: () => v
           {(
             [
               ['isSupplier', 'Supplier'],
+              ['isJobWorker', 'Job worker'],
               ['isCustomer', 'Customer'],
               ['isActive', 'Active'],
             ] as const
@@ -169,6 +173,7 @@ function PartyDialog({ party, onClose }: { party: Party | null; onClose: () => v
             </label>
           ))}
           {e.isCustomer && <span className="text-danger">{e.isCustomer}</span>}
+          {e.isJobWorker && <span className="text-danger">{e.isJobWorker}</span>}
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="GST treatment" error={e.gstTreatment}>

@@ -108,6 +108,29 @@ export class JobWorkController {
     }));
   }
 
+  /** Live receipts of a job worker, for charging processing on a purchase invoice. */
+  @Get('job-work-receipts')
+  @RequirePermission('manufacturing.job_work.read')
+  async receipts(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
+    const entityId = entityOf(ctx);
+    const { supplierId } = parse(z.object({ supplierId: z.uuid() }), query);
+    const rows = await this.db
+      .select({ id: jobWorkReceipt.id, number: jobWorkReceipt.number, postingDate: jobWorkReceipt.postingDate, orderNumber: jobWorkOrder.number, natureOfWork: jobWorkOrder.natureOfWork, kind: jobWorkOrder.kind })
+      .from(jobWorkReceipt)
+      .innerJoin(jobWorkOrder, eq(jobWorkOrder.id, jobWorkReceipt.orderId))
+      .where(and(eq(jobWorkReceipt.entityId, entityId), eq(jobWorkOrder.supplierId, supplierId), eq(jobWorkReceipt.status, 'submitted')))
+      .orderBy(desc(jobWorkReceipt.postingDate))
+      .limit(200);
+    const charged = rows.length
+      ? await this.db
+          .select({ receiptId: purchaseInvoiceLine.jobWorkReceiptId, number: purchaseInvoice.number })
+          .from(purchaseInvoiceLine)
+          .innerJoin(purchaseInvoice, eq(purchaseInvoice.id, purchaseInvoiceLine.invoiceId))
+          .where(and(inArray(purchaseInvoiceLine.jobWorkReceiptId, rows.map((r) => r.id)), eq(purchaseInvoice.status, 'submitted')))
+      : [];
+    return rows.map((r) => ({ ...r, chargedBy: charged.find((c) => c.receiptId === r.id)?.number ?? null }));
+  }
+
   @Post('job-work')
   @RequirePermission('manufacturing.job_work.create')
   create(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {

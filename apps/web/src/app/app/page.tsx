@@ -37,6 +37,12 @@ export default function HomePage() {
     enabled: canUsers,
   });
 
+  // Job work return deadlines (decision 047): lines due within 30 days or already past.
+  const jobWork = useQuery({
+    queryKey: ['itc04-deadlines', ws.entityId],
+    queryFn: () => api<{ soon: number }>('/compliance/itc04/deadlines', { scope: ws.scope }),
+    enabled: !!ws.entityId && ws.can('compliance.itc04.read'),
+  });
   const regs = entities.data?.flatMap((e) => e.gstRegistrations.map((r) => ({ ...r, entity: e.shortName }))) ?? [];
   const me = members.data?.find((m) => m.userId === ws.me.user.id);
   const steps = [
@@ -84,7 +90,19 @@ export default function HomePage() {
 
         <Card>
           <CardHeader title="Waiting on me" />
-          <EmptyState icon={<Inbox className="size-5" />} title="Nothing to approve" description="Approvals for POs, payments and GST returns will appear here from Phase 1." />
+          {jobWork.data && jobWork.data.soon > 0 ? (
+            <div className="p-4">
+              <Link href="/app/compliance/itc04" className="flex items-center justify-between rounded-lg border border-line p-3 text-[13px] hover:bg-surface-2">
+                <span>
+                  <CalendarClock className="mr-2 inline size-4 text-warning" />
+                  Job work goods due back or overdue
+                </span>
+                <Badge tone="warning">{jobWork.data.soon}</Badge>
+              </Link>
+            </div>
+          ) : (
+            <EmptyState icon={<Inbox className="size-5" />} title="Nothing to approve" description="Approvals for POs, payments and GST returns will appear here from Phase 1." />
+          )}
         </Card>
 
         {canEntities && (

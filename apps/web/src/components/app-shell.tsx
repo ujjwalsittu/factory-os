@@ -67,6 +67,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
       { href: '/app/manufacturing', label: 'Work orders', icon: Factory, permission: 'manufacturing.work_order.read', entityScoped: true },
       { href: '/app/manufacturing/shop-floor', label: 'Shop floor', icon: Timer, permission: 'manufacturing.job_card.read', entityScoped: true },
       { href: '/app/manufacturing/genealogy', label: 'Genealogy', icon: GitBranch, permission: 'manufacturing.genealogy.read', entityScoped: true },
+      { href: '/app/manufacturing/job-work', label: 'Job work', icon: Truck, permission: 'manufacturing.job_work.read', entityScoped: true },
       { href: '/app/manufacturing/boms', label: 'Bills of materials', icon: ListTree, permission: 'manufacturing.bom.read', entityScoped: true },
       { href: '/app/manufacturing/work-centres', label: 'Work centres', icon: Cog, permission: 'manufacturing.work_centre.read', entityScoped: true },
       { href: '/app/quality', label: 'Quality', icon: ClipboardCheck, phase: 2 },
@@ -114,6 +115,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
   {
     section: 'Finance',
     items: [
+      { href: '/app/compliance/itc04', label: 'ITC-04', icon: FileSpreadsheet, permission: 'compliance.itc04.read', entityScoped: true },
       { href: '/app/compliance/sandbox', label: 'Sandbox operations', icon: ReceiptText, permission: 'compliance.sandbox_operation.read', entityScoped: true },
       { href: '/app/accounts/setup', label: 'Accounting setup', icon: Landmark, permission: 'accounts.setup.read', entityScoped: true },
       { href: '/app/accounts/chart', label: 'Chart of accounts', icon: ScrollText, permission: 'accounts.account.read', entityScoped: true },

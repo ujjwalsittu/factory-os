@@ -122,6 +122,7 @@ function ItemDialog({ item, onClose }: { item: Item | null; onClose: () => void 
     reorderLevel: item?.reorderLevel ? String(Number(item.reorderLevel)) : '',
     requiresIncomingInspection: item?.requiresIncomingInspection ?? false,
     exportControlled: item?.exportControlled ?? false,
+    jobWorkExemptTool: item?.jobWorkExemptTool ?? false,
     isActive: item?.isActive ?? true,
   });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
@@ -141,6 +142,7 @@ function ItemDialog({ item, onClose }: { item: Item | null; onClose: () => void 
         reorderLevel: f.reorderLevel || null,
         requiresIncomingInspection: f.requiresIncomingInspection,
         exportControlled: f.exportControlled,
+        jobWorkExemptTool: f.jobWorkExemptTool,
         isActive: f.isActive,
       };
       return item
@@ -231,6 +233,7 @@ function ItemDialog({ item, onClose }: { item: Item | null; onClose: () => void 
             [
               ['requiresIncomingInspection', 'Incoming inspection required'],
               ['exportControlled', 'Export-controlled (SCOMET / restricted)'],
+              ['jobWorkExemptTool', 'Mould, die, jig, fixture or tool (no job-work return limit)'],
               ['isActive', 'Active'],
             ] as const
           ).map(([k, label]) => (
