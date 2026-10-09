@@ -165,7 +165,8 @@ export class JobWorkService {
   async closeIn(tx: Tx, ctx: TenantRequestContext, entityId: string, order: Order, reason: string) {
     if (order.status !== 'open') throw new ConflictException(`Only open orders can be closed (this one is ${order.status})`);
     const open = await this.openLines(tx, order.id);
-    if (open.some((l) => Dec.of(l.open).gt('0'))) throw new ConflictException('Goods are still at the job worker; receive them first, or record the deemed supply in ITC-04');
+    // Goods treated as supplied to the job worker (Sec 143(3)/(4)) no longer hold the order open.
+    if (open.some((l) => Dec.of(l.open).gt('0') && !l.deemedSupply)) throw new ConflictException('Goods are still at the job worker; receive them first, or record the deemed supply in ITC-04');
     const [after] = await tx.update(jobWorkOrder).set({ status: 'closed', closeReason: reason, updatedAt: new Date() }).where(eq(jobWorkOrder.id, order.id)).returning();
     await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'job_work.close', targetType: 'job_work_order', targetId: order.id, reason }, tx);
     return after!;
@@ -578,13 +579,14 @@ export class JobWorkService {
         itemId: jobWorkChallanLine.itemId,
         batchId: jobWorkChallanLine.batchId,
         qty: jobWorkChallanLine.qty,
+        deemed: jobWorkChallanLine.deemedSupplyInvoiceNo,
         used: sql<string>`coalesce((select sum(c.qty) from job_work_consumption c where c.challan_line_id = "job_work_challan_line"."id"), 0)`,
       })
       .from(jobWorkChallanLine)
       .innerJoin(jobWorkChallan, eq(jobWorkChallan.id, jobWorkChallanLine.challanId))
       .where(and(eq(jobWorkChallan.orderId, orderId), eq(jobWorkChallan.status, 'submitted')))
       .orderBy(asc(jobWorkChallan.postingDate), asc(jobWorkChallan.createdAt), asc(jobWorkChallanLine.lineNo));
-    return rows.map((r) => ({ id: r.id, itemId: r.itemId, batchId: r.batchId, open: Dec.of(r.qty).sub(r.used).toString() }));
+    return rows.map((r) => ({ id: r.id, itemId: r.itemId, batchId: r.batchId, deemedSupply: r.deemed, open: Dec.of(r.qty).sub(r.used).toString() }));
   }
 
   private allocate(qty: string, lines: { id: string; open: string }[], path: string) {
