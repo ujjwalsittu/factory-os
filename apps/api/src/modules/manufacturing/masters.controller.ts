@@ -1,6 +1,6 @@
 // Manufacturing masters (decision 044): work centres, machines and revisioned BOMs with operations.
 import { Dec, isWholeUnits } from '@factoryos/core';
-import { bom, bomMaterial, bomOperation, type Database, item, machine, party, uom, workCentre } from '@factoryos/db';
+import { bom, bomMaterial, bomOperation, type Database, item, machine, party, uom, workCalendar, workCentre } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -21,6 +21,8 @@ const centreInput = z.object({
   code: z.string().trim().toUpperCase().min(1).max(20),
   name: z.string().trim().min(1).max(120),
   hourlyRate: decimal(2),
+  /** Working calendar for scheduling; null = the entity's default (decision 049). */
+  calendarId: z.uuid().nullable().optional(),
   isActive: z.boolean().optional(),
 });
 const machineInput = z.object({
@@ -47,6 +49,8 @@ const bomInput = z.object({
         supplierId: z.uuid().nullable().optional(),
         setupMinutes: decimal(2).default('0'),
         runMinutesPerUnit: decimal(4).default('0'),
+        /** Outsourced: days at the job worker, for scheduling (decision 049). */
+        leadDays: z.number().int().min(1).max(365).nullable().optional(),
         instructions: z.string().trim().max(4000).nullable().optional(),
       }),
     )
@@ -76,9 +80,10 @@ export class ManufacturingMastersController {
     const entityId = entityOf(ctx);
     const input = parse(centreInput, body);
     return this.db.transaction(async (tx) => {
+      await this.assertCalendar(tx, entityId, input.calendarId);
       const [row] = await tx
         .insert(workCentre)
-        .values({ tenantId: ctx.tenant.tenantId, entityId, code: input.code, name: input.name, hourlyRate: input.hourlyRate, isActive: input.isActive ?? true, createdBy: ctx.user.id })
+        .values({ tenantId: ctx.tenant.tenantId, entityId, code: input.code, name: input.name, hourlyRate: input.hourlyRate, calendarId: input.calendarId ?? null, isActive: input.isActive ?? true, createdBy: ctx.user.id })
         .onConflictDoNothing()
         .returning();
       if (!row) throw new ConflictException(`Work centre ${input.code} already exists`);
@@ -95,15 +100,22 @@ export class ManufacturingMastersController {
     return this.db.transaction(async (tx) => {
       const [before] = await tx.select().from(workCentre).where(and(eq(workCentre.id, id), eq(workCentre.entityId, entityId))).for('update');
       if (!before) throw new NotFoundException('Work centre not found');
+      await this.assertCalendar(tx, entityId, input.calendarId);
       // The new rate applies to job cards completed from now on; completed cards keep their snapshot.
       const [row] = await tx
         .update(workCentre)
-        .set({ name: input.name, hourlyRate: input.hourlyRate, isActive: input.isActive ?? before.isActive, updatedAt: new Date() })
+        .set({ name: input.name, hourlyRate: input.hourlyRate, calendarId: input.calendarId === undefined ? before.calendarId : input.calendarId, isActive: input.isActive ?? before.isActive, updatedAt: new Date() })
         .where(eq(workCentre.id, id))
         .returning();
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'work_centre.update', targetType: 'work_centre', targetId: id, before: { name: before.name, hourlyRate: before.hourlyRate, isActive: before.isActive }, after: input }, tx);
       return row;
     });
+  }
+
+  private async assertCalendar(tx: Tx, entityId: string, calendarId: string | null | undefined) {
+    if (!calendarId) return;
+    const [c] = await tx.select({ id: workCalendar.id }).from(workCalendar).where(and(eq(workCalendar.id, calendarId), eq(workCalendar.entityId, entityId), eq(workCalendar.isActive, true)));
+    if (!c) throw new BadRequestException({ message: 'Unknown calendar', issues: [{ path: 'calendarId', message: 'Not an active calendar of this entity' }] });
   }
 
   @Post('work-centres/:id/machines')
@@ -280,7 +292,7 @@ export class ManufacturingMastersController {
       if (!row) throw new ConflictException(`Revision ${revision} already exists for this item`);
       await this.writeLines(tx, row.id, {
         materials: from.materials.map((m) => ({ itemId: m.itemId, qty: m.qty, backflush: m.backflush, remarks: m.remarks })),
-        operations: from.operations.map((o) => ({ seq: o.seq, name: o.name, workCentreId: o.workCentreId, outsourced: o.outsourced, supplierId: o.supplierId, setupMinutes: o.setupMinutes, runMinutesPerUnit: o.runMinutesPerUnit, instructions: o.instructions })),
+        operations: from.operations.map((o) => ({ seq: o.seq, name: o.name, workCentreId: o.workCentreId, outsourced: o.outsourced, supplierId: o.supplierId, setupMinutes: o.setupMinutes, runMinutesPerUnit: o.runMinutesPerUnit, leadDays: o.leadDays, instructions: o.instructions })),
       });
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'bom.copy', targetType: 'bom', targetId: row.id, after: { from: from.revision, revision } }, tx);
       return this.loadBom(tx, entityId, row.id);
@@ -336,7 +348,7 @@ export class ManufacturingMastersController {
       await tx.insert(bomMaterial).values(input.materials.map((m, i) => ({ bomId, lineNo: i + 1, itemId: m.itemId, qty: m.qty, backflush: m.backflush, remarks: m.remarks ?? null })));
     if (input.operations.length)
       await tx.insert(bomOperation).values(
-        input.operations.map((o) => ({ bomId, seq: o.seq, name: o.name, workCentreId: o.outsourced ? null : (o.workCentreId ?? null), outsourced: o.outsourced, supplierId: o.outsourced ? (o.supplierId ?? null) : null, setupMinutes: o.setupMinutes, runMinutesPerUnit: o.runMinutesPerUnit, instructions: o.instructions ?? null })),
+        input.operations.map((o) => ({ bomId, seq: o.seq, name: o.name, workCentreId: o.outsourced ? null : (o.workCentreId ?? null), outsourced: o.outsourced, supplierId: o.outsourced ? (o.supplierId ?? null) : null, setupMinutes: o.setupMinutes, runMinutesPerUnit: o.runMinutesPerUnit, leadDays: o.outsourced ? (o.leadDays ?? null) : null, instructions: o.instructions ?? null })),
       );
   }
 
@@ -383,5 +395,6 @@ const bomOperationCols = {
   supplierId: bomOperation.supplierId,
   setupMinutes: bomOperation.setupMinutes,
   runMinutesPerUnit: bomOperation.runMinutesPerUnit,
+  leadDays: bomOperation.leadDays,
   instructions: bomOperation.instructions,
 };

@@ -106,6 +106,7 @@ export class WorkOrderService {
           outsourced: o.outsourced,
           supplierId: o.supplierId,
           plannedMinutes: Dec.of(o.setupMinutes).add(scaleBomQty(o.runMinutesPerUnit, '1', wo.plannedQty)).toString(),
+          leadDays: o.leadDays,
           instructions: o.instructions,
         })),
       );

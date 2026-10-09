@@ -287,3 +287,20 @@ export function schedule(input: { now: number; orders: SchedOrder[]; machines: S
   }
   return result;
 }
+
+/** The first pair of shifts that overlap within the week (night shifts wrap into the next day, Sunday into Monday), or null. */
+export function overlappingShifts(shifts: Shift[]): [Shift, Shift] | null {
+  const week = 7 * 1440;
+  const spans = shifts.map((s) => {
+    const start = (s.weekday - 1) * 1440 + hm(s.start);
+    return { s, start, end: start + ((hm(s.end) - hm(s.start) + 1440) % 1440 || 1440) };
+  });
+  for (let i = 0; i < spans.length; i++)
+    for (let j = i + 1; j < spans.length; j++) {
+      const a = spans[i]!;
+      const b = spans[j]!;
+      // Compare b against a and against a shifted by a week either way, for the Sunday-night wrap.
+      if ([-week, 0, week].some((k) => b.start < a.end + k && a.start + k < b.end)) return [a.s, b.s];
+    }
+  return null;
+}

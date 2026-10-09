@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allocate, type CalendarSpec, localParts, schedule, type SchedOrder, subtract, workingIntervals, zonedEpochMinutes } from './scheduling.js';
+import { allocate, type CalendarSpec, localParts, overlappingShifts, schedule, type SchedOrder, subtract, workingIntervals, zonedEpochMinutes } from './scheduling.js';
 
 const IST = 'Asia/Kolkata';
 const at = (date: string, time: string) => zonedEpochMinutes(date, time, IST);
@@ -178,5 +178,15 @@ describe('schedule', () => {
   it('skips operations with nothing left to do', () => {
     const r = schedule({ now, machines, orders: [order('A', {}, [{ id: 'A10', seq: 10, workCentreId: 'GRIND', outsourced: false, minutes: 0 }])] });
     expect(r.placements).toEqual([]);
+  });
+});
+
+describe('overlappingShifts', () => {
+  it('accepts back-to-back shifts and a night shift ending at the morning shift', () => {
+    expect(overlappingShifts([{ weekday: 1, start: '06:00', end: '14:00' }, { weekday: 1, start: '14:00', end: '22:00' }, { weekday: 1, start: '22:00', end: '06:00' }, { weekday: 2, start: '06:00', end: '14:00' }])).toBeNull();
+  });
+  it('finds a night shift running into the next morning, including Sunday into Monday', () => {
+    expect(overlappingShifts([{ weekday: 1, start: '22:00', end: '07:00' }, { weekday: 2, start: '06:00', end: '14:00' }])).not.toBeNull();
+    expect(overlappingShifts([{ weekday: 7, start: '22:00', end: '07:00' }, { weekday: 1, start: '06:00', end: '14:00' }])).not.toBeNull();
   });
 });

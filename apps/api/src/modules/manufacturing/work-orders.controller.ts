@@ -48,6 +48,8 @@ const orderInput = z.object({
   salesOrderId: z.uuid().nullable().optional(),
   plannedStart: z.iso.date().nullable().optional(),
   plannedEnd: z.iso.date().nullable().optional(),
+  /** 1 = highest … 5 (decision 049). */
+  priority: z.number().int().min(1).max(5).optional(),
   remarks: z.string().trim().max(2000).nullable().optional(),
 });
 const movementInput = z.object({
@@ -96,6 +98,8 @@ export class WorkOrdersController {
         producedQty: workOrder.producedQty,
         plannedStart: workOrder.plannedStart,
         plannedEnd: workOrder.plannedEnd,
+        priority: workOrder.priority,
+        scheduledFinish: workOrder.scheduledFinish,
         salesOrder: salesOrder.number,
         createdAt: workOrder.createdAt,
         wip: sql<string>`(select coalesce(sum(c.amount), 0) from work_order_cost c where c.work_order_id = "work_order"."id")`,
@@ -407,6 +411,7 @@ export class WorkOrdersController {
       salesOrderId: input.salesOrderId ?? null,
       plannedStart: input.plannedStart ?? null,
       plannedEnd: input.plannedEnd ?? null,
+      priority: input.priority ?? 3,
       remarks: input.remarks ?? null,
     };
   }
