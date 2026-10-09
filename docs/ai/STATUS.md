@@ -8,7 +8,7 @@ _Last updated: 2026-10-09 (Asia/Kolkata) · Manufacturing slice 2e (finite capac
   - Reschedule places released work orders by priority, due date and release time, in routing order, on the machine that finishes each operation first, within working time; outsourced lead days; running job cards anchored; unscheduled operations listed with reasons.
   - Gantt per machine with drag to another time or machine (pinned, refused on overlap, downtime, routing order, the past or a stale run), unpin, late and unscheduled lists, phone list view.
   - Shop-floor dispatch order with a logged reason for out-of-sequence starts; work order priority and schedule panel; BOM lead days; work centre calendars.
-  - Verified: 113 core unit tests (19 scheduling), `smoke-calendar.mjs` 32, `smoke-scheduling.mjs` 58, manufacturing 104, job work 101, quality 112, `e2e:scheduling` desktop and 390 px, `e2e:manufacturing`, root typecheck 19, build 12, tests. Full API regression: run in progress at the time of this commit; result recorded before merge.
+  - Verified: 113 core unit tests (19 scheduling), `smoke-calendar.mjs` 32, `smoke-scheduling.mjs` 58, manufacturing 104, job work 101, quality 112, `e2e:scheduling` desktop and 390 px, `e2e:manufacturing`, root typecheck 19, build 12, tests. Full API regression: 74/74 suites.
   - [Self-review with six deviations and six limits](../superpowers/reviews/2026-10-09-manufacturing-2e-review.md). Review by a fresh agent recommended.
 - [x] **Manufacturing slice 2d: inspection, FAI, NCR and calibration** (decision 048, migration 0030_quality):
   - Certificate and report attachments in S3-compatible storage (Cloudflare R2; local driver for dev and tests only), append-only with withdraw-with-reason.

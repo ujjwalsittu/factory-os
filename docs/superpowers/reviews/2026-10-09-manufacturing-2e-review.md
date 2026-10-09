@@ -96,4 +96,4 @@ decision 049. Migration `0031_scheduling`. A review by a fresh agent or human is
 - `smoke-scheduling.mjs`: 58 checks. It covers exact placements on a round-the-clock calendar, moves and every refusal, pin and unpin, priority, stale runs, unscheduled operations, running job cards, downtime, dispatch order and the out-of-sequence reason.
 - `smoke-manufacturing` (104), `smoke-job-work` (101) and `smoke-quality` (112) still pass.
 - `e2e:scheduling` passes on desktop and at 390 px; `e2e:manufacturing` still passes.
-- Root typecheck (19 tasks), build (12) and tests pass. Full API regression: see STATUS.
+- Root typecheck (19 tasks), build (12) and tests pass. Full API regression: 74/74 suites.
