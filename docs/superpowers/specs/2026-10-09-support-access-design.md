@@ -1,6 +1,6 @@
 # Audited support access — approved design
 
-Date: 2026-10-09 (Asia/Kolkata). Status: **Written spec approved by user APPROVED on2026-10-09**. Decision: accepted049. Native inline execution remains the selected method. The [nine-task implementation plan](../plans/2026-10-09-support-access.md) awaits written review; prerequisite merges and the standalone product claim still precede implementation.
+Date: 2026-10-09 (Asia/Kolkata). Status: **Written spec approved by user APPROVED on2026-10-09**. Decision: accepted050. Native inline execution remains the selected method. The [nine-task implementation plan](../plans/2026-10-09-support-access.md) approved by user approved2026-10-09; prerequisite merges and the standalone product claim still precede implementation.
 
 ## Intent and scope
 
@@ -123,6 +123,6 @@ These are future implementation acceptance checks, not checks already run for th
 
 ## Delivery and remaining gates
 
-Written-spec review accepted these business/security choices on2026-10-09. The [implementation plan](../plans/2026-10-09-support-access.md) now awaits written review using the already selected Native inline method. Before product code, merge prerequisites and a standalone named-owner claim through green-CI PRs as required by [AGENTS.md](../../../AGENTS.md). Preserve other owners, fetch the latest journal and complete all approved work on an own branch; no direct main push.
+Written-spec review accepted these business/security choices on2026-10-09. The [implementation plan](../plans/2026-10-09-support-access.md) was approved by user approved2026-10-09 using the already selected Native inline method. Before product code, merge prerequisites and a standalone named-owner claim through green-CI PRs as required by [AGENTS.md](../../../AGENTS.md). Preserve other owners, fetch the latest journal and complete all approved work on an own branch; no direct main push.
 
 GitHub GraphQL403 is the known PR/CI automation blocker; do not repeat identical requests without evidence access changed. A pushed design or local software tests do not establish remote green CI, merge, deployment or live enablement. Real HTTPS/proxy/operator acceptance and explicit deployment/tenant enablement are separate. PostgreSQL RLS follows as its own database role/context/pool/transaction design.

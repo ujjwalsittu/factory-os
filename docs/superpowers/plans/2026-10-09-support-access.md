@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, NestJS, Better Auth 1.7.7 with the accepted SSO/passkey integration, Drizzle/PostgreSQL 16, Next.js, TanStack Query, existing `@factoryos/ui`, Node assertion fixtures and Playwright.
 
-**Spec:** [Approved written design](../specs/2026-10-09-support-access-design.md), accepted decision049. User APPROVED the written spec on2026-10-09. This nine-task plan awaits written review.
+**Spec:** [Approved written design](../specs/2026-10-09-support-access-design.md), accepted decision050. User APPROVED the written spec on2026-10-09. User approved this nine-task plan on2026-10-09; Native inline execution remains selected.
 
 **Execution method:** Native inline, already selected. Implement all tasks in this session using the preserved method, then one fresh independent whole-branch review and author correction pass. No per-task agents or repeat method selection. The generic skill header does not override that preference.
 
@@ -92,8 +92,8 @@ type SupportReadPool = {run<T>(fn:(tx:SupportExecutor)=>Promise<T>):Promise<T>;c
 
 ## Prerequisite gate before product work
 
-- [x] Written spec approved2026-10-09; decision049 Accepted; Native inline method retained.
-- [ ] User reviews this written plan. Record approval without another scope/method question.
+- [x] Written spec approved2026-10-09; decision050 Accepted; Native inline method retained.
+- [x] User approved this written plan2026-10-09; no repeated scope/method approval.
 - [ ] Fetch main explicitly and verify the passkey completion reconciled beyond a607949 against published0030_quality (current planning base mainc6cbe0d; original reviewed SQL bytes preserved, journal/snapshots coherent and affected verification repeated), both accepted auth integrations, this spec/plan/decision and immutable published journal are present. Known GraphQL403 is not grounds for identical API retries; use [passkeys PR handoff](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-implementation-20261008) with actual green CI. No software claim before prerequisites reach main.
 - [ ] Commit/push a STATUS-only named-owner/start-time support-access claim on its own branch from latest main; merge its separate small green-CI PR before Task1 under [AGENTS.md](../../../AGENTS.md). Preserve merged manufacturing2d/0030_quality and the accounting owner. This planning entry is not that merged product claim.
 - [ ] Start the implementation branch from freshly fetched main, using the existing isolated cloud checkout. Read installed framework docs before changing web/auth integration; capture a fresh migration/book/activation/auth/audit baseline from a protected read-only source and create an owned logical copy for migration tests. Never migrate the shared source or infer all saved activations are inactive.
@@ -285,4 +285,4 @@ Task2 creates `apps/api/scripts/support-access-test-helpers.mjs` with `startSupp
 
 - Spec scope/authority/durable evidence map to Tasks1–4; source lock order and restoration to Tasks2/9; five safe panels/purity to Task5; native/public/header/origin/pre-return audit to Task6; consent/history and isolated mobile cache to Tasks7–8; populated source/native regression, review and delivery gates to Task9.
 - Shared wire/private names above are consumed consistently; no target RequestContext, client proof or unspecified future route. All five Review Focus conditions have named tests; exact durations/pool/timeouts/permissions remain approved values.
-- Setup, scripts and docs travel with their deliverables. The plan specifies interfaces/assertions rather than full implementation bodies. Written-plan review and merged prerequisites/standalone claim still precede product code.
+- Setup, scripts and docs travel with their deliverables. The plan specifies interfaces/assertions rather than full implementation bodies. Written-plan review is complete; merged prerequisites/standalone claim still precede product code.
