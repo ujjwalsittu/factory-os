@@ -33,6 +33,8 @@ export const workCentre = pgTable(
     code: text('code').notNull(),
     name: text('name').notNull(),
     hourlyRate: qty('hourly_rate').notNull(),
+    /** Working calendar for scheduling; null = the entity's default (decision 049). */
+    calendarId: uuid('calendar_id'),
     isActive: boolean('is_active').notNull().default(true),
     ...stamps,
   },
@@ -119,6 +121,8 @@ export const bomOperation = pgTable(
     supplierId: uuid('supplier_id').references(() => party.id),
     setupMinutes: qty('setup_minutes').notNull().default('0'),
     runMinutesPerUnit: qty('run_minutes_per_unit').notNull().default('0'),
+    /** Outsourced: calendar days at the job worker, for scheduling (decision 049). */
+    leadDays: integer('lead_days'),
     instructions: text('instructions'),
   },
   (t) => [uniqueIndex('bom_operation_seq_uq').on(t.bomId, t.seq), check('bom_operation_centre_ck', sql`${t.outsourced} or ${t.workCentreId} is not null`)],
@@ -154,6 +158,10 @@ export const workOrder = pgTable(
     reworkOfNcrId: uuid('rework_of_ncr_id'),
     plannedStart: date('planned_start'),
     plannedEnd: date('planned_end'),
+    /** 1 = highest … 5; the scheduler places higher priority first (decision 049). */
+    priority: integer('priority').notNull().default(3),
+    /** Finish of the last operation in the latest schedule run. */
+    scheduledFinish: timestamp('scheduled_finish', { withTimezone: true }),
     remarks: text('remarks'),
     releasedBy: text('released_by').references(() => user.id),
     releasedAt: timestamp('released_at', { withTimezone: true }),
@@ -169,6 +177,7 @@ export const workOrder = pgTable(
     uniqueIndex('work_order_entity_number_uq').on(t.entityId, t.number),
     index('work_order_entity_status_idx').on(t.entityId, t.status),
     check('work_order_qty_ck', sql`${t.plannedQty} > 0`),
+    check('work_order_priority_ck', sql`${t.priority} between 1 and 5`),
     check('work_order_bom_ck', sql`${t.bomId} is not null or ${t.reworkOfNcrId} is not null`),
   ],
 );
@@ -206,6 +215,7 @@ export const workOrderOperation = pgTable(
     outsourced: boolean('outsourced').notNull().default(false),
     supplierId: uuid('supplier_id').references(() => party.id),
     plannedMinutes: qty('planned_minutes').notNull(),
+    leadDays: integer('lead_days'),
     instructions: text('instructions'),
   },
   (t) => [uniqueIndex('work_order_operation_seq_uq').on(t.workOrderId, t.seq), check('work_order_operation_centre_ck', sql`${t.outsourced} or ${t.workCentreId} is not null`)],
@@ -238,6 +248,8 @@ export const jobCard = pgTable(
     value: qty('value'),
     postingDate: date('posting_date'),
     remarks: text('remarks'),
+    /** Started ahead of this machine's dispatch order, or on another machine (decision 049). */
+    outOfSequenceReason: text('out_of_sequence_reason'),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     cancelledBy: text('cancelled_by').references(() => user.id),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),

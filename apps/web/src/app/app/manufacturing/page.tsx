@@ -11,6 +11,7 @@ import { ItemPicker } from '@/components/item-picker';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDate, formatMoney, formatQty } from '@/lib/format';
+import { PRIORITY } from '@/lib/scheduling';
 import { type BomRow, WO_STATUS, type WorkOrderDetail, type WorkOrderRow, type WorkOrderStatus } from '@/lib/manufacturing';
 import type { Item, Warehouse } from '@/lib/types';
 
@@ -105,7 +106,7 @@ function NewOrderDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const router = useRouter();
   const [item, setItem] = useState<Item | null>(null);
-  const [form, setForm] = useState({ bomId: '', plannedQty: '', sourceWarehouseId: '', targetWarehouseId: '', plannedStart: '', plannedEnd: '', remarks: '' });
+  const [form, setForm] = useState({ bomId: '', plannedQty: '', sourceWarehouseId: '', targetWarehouseId: '', plannedStart: '', plannedEnd: '', priority: '3', remarks: '' });
   const boms = useQuery({
     queryKey: ['boms', ws.entityId, item?.id, 'active'],
     queryFn: () => api<BomRow[]>(`/manufacturing/boms?itemId=${item!.id}&status=active`, { scope: ws.scope }),
@@ -126,6 +127,7 @@ function NewOrderDialog({ onClose }: { onClose: () => void }) {
           targetWarehouseId: form.targetWarehouseId,
           plannedStart: form.plannedStart || null,
           plannedEnd: form.plannedEnd || null,
+          priority: Number(form.priority),
           remarks: form.remarks || null,
         },
       }),
@@ -190,6 +192,17 @@ function NewOrderDialog({ onClose }: { onClose: () => void }) {
         </Field>
         <Field label="Due" error={err.plannedEnd}>
           {(f) => <Input {...f} type="date" value={form.plannedEnd} onChange={set('plannedEnd')} />}
+        </Field>
+        <Field label="Priority" error={err.priority} hint="The scheduler places higher priority first">
+          {(f) => (
+            <Select {...f} value={form.priority} onChange={set('priority')}>
+              {PRIORITY.map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </Select>
+          )}
         </Field>
       </div>
       <Field label="Remarks">

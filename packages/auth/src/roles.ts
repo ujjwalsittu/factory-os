@@ -82,7 +82,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'operator',
     name: 'Operator',
     description: 'Own job cards on the shop floor.',
-    permissions: ['manufacturing.job_card.read', 'manufacturing.job_card.update', 'manufacturing.job_card.submit'],
+    permissions: ['manufacturing.job_card.read', 'manufacturing.job_card.update', 'manufacturing.job_card.submit', 'manufacturing.schedule.read'],
   },
   {
     key: 'quality',

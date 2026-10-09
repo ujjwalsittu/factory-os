@@ -19,6 +19,7 @@ import {
   workOrder,
   workOrderCost,
   workOrderMaterial,
+  scheduledOperation,
   workOrderOperation,
   party,
 } from '@factoryos/db';
@@ -48,6 +49,8 @@ const orderInput = z.object({
   salesOrderId: z.uuid().nullable().optional(),
   plannedStart: z.iso.date().nullable().optional(),
   plannedEnd: z.iso.date().nullable().optional(),
+  /** 1 = highest … 5 (decision 049). */
+  priority: z.number().int().min(1).max(5).optional(),
   remarks: z.string().trim().max(2000).nullable().optional(),
 });
 const movementInput = z.object({
@@ -96,6 +99,8 @@ export class WorkOrdersController {
         producedQty: workOrder.producedQty,
         plannedStart: workOrder.plannedStart,
         plannedEnd: workOrder.plannedEnd,
+        priority: workOrder.priority,
+        scheduledFinish: workOrder.scheduledFinish,
         salesOrder: salesOrder.number,
         createdAt: workOrder.createdAt,
         wip: sql<string>`(select coalesce(sum(c.amount), 0) from work_order_cost c where c.work_order_id = "work_order"."id")`,
@@ -267,13 +272,18 @@ export class WorkOrdersController {
         plannedQty: workOrder.plannedQty,
         producedQty: workOrder.producedQty,
         goodQty: sql<string>`(select coalesce(sum(j.good_qty), 0) from job_card j where j.operation_id = "work_order_operation"."id" and j.status = 'completed')`,
+        // Dispatch order from the latest schedule (decision 049); unscheduled operations follow.
+        scheduledMachineId: scheduledOperation.machineId,
+        scheduledStart: scheduledOperation.startsAt,
+        scheduledEnd: scheduledOperation.endsAt,
       })
       .from(workOrderOperation)
       .innerJoin(workOrder, eq(workOrder.id, workOrderOperation.workOrderId))
       .innerJoin(item, eq(item.id, workOrder.itemId))
       .innerJoin(workCentre, eq(workCentre.id, workOrderOperation.workCentreId))
+      .leftJoin(scheduledOperation, eq(scheduledOperation.operationId, workOrderOperation.id))
       .where(and(eq(workOrder.entityId, entityId), eq(workOrder.status, 'released')))
-      .orderBy(asc(workOrder.plannedEnd), asc(workOrder.number), asc(workOrderOperation.seq))
+      .orderBy(sql`${scheduledOperation.startsAt} asc nulls last`, asc(workOrder.plannedEnd), asc(workOrder.number), asc(workOrderOperation.seq))
       .limit(500);
     const open = await this.cards(this.db, entityId, { open: true });
     const machines = await this.db.select({ id: machine.id, code: machine.code, name: machine.name, workCentreId: machine.workCentreId }).from(machine).where(and(eq(machine.entityId, entityId), eq(machine.isActive, true))).orderBy(asc(machine.code));
@@ -284,12 +294,12 @@ export class WorkOrdersController {
   @RequirePermission('manufacturing.job_card.update')
   start(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
     const entityId = entityOf(ctx);
-    const input = parse(z.object({ operationId: z.uuid(), machineId: z.uuid().nullable().optional() }), body);
+    const input = parse(z.object({ operationId: z.uuid(), machineId: z.uuid().nullable().optional(), outOfSequenceReason: z.string().trim().min(3, 'Give a reason').max(500).nullable().optional() }), body);
     return this.db.transaction(async (tx) => {
       const [op] = await tx.select({ workOrderId: workOrderOperation.workOrderId }).from(workOrderOperation).where(eq(workOrderOperation.id, input.operationId));
       if (!op) throw new NotFoundException('Operation not found');
       const wo = await this.orders.lock(tx, entityId, op.workOrderId);
-      const card = await this.orders.startCardIn(tx, ctx, entityId, wo, input.operationId, input.machineId ?? null);
+      const card = await this.orders.startCardIn(tx, ctx, entityId, wo, input.operationId, input.machineId ?? null, input.outOfSequenceReason ?? null);
       return (await this.cards(tx, entityId, { ids: [card.id] }))[0];
     });
   }
@@ -407,6 +417,7 @@ export class WorkOrdersController {
       salesOrderId: input.salesOrderId ?? null,
       plannedStart: input.plannedStart ?? null,
       plannedEnd: input.plannedEnd ?? null,
+      priority: input.priority ?? 3,
       remarks: input.remarks ?? null,
     };
   }

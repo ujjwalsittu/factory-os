@@ -7,7 +7,7 @@ import { EntityGate } from '@/components/entity-gate';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
 import { useWorkspace } from '@/components/workspace';
 import { api, ApiError } from '@/lib/api';
-import { formatQty } from '@/lib/format';
+import { formatDateTime, formatQty } from '@/lib/format';
 import { CARD_STATUS, formatMinutes, type JobCard, PAUSE_REASONS, type ShopFloor } from '@/lib/manufacturing';
 
 export default function ShopFloorPage() {
@@ -38,6 +38,9 @@ function Floor() {
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {operations.map((o) => {
             const busy = openCards.filter((c) => c.operationId === o.operationId);
+            // Operations come in schedule order: the first one on a machine is its next job.
+            const next = !!o.scheduledMachineId && operations.find((x) => x.scheduledMachineId === o.scheduledMachineId)?.operationId === o.operationId;
+            const scheduledOn = machines.find((m) => m.id === o.scheduledMachineId);
             return (
               <Card key={o.operationId} className="p-4">
                 <div className="flex items-start justify-between gap-2">
@@ -55,6 +58,18 @@ function Floor() {
                 <p className="mt-2 text-[13px] text-muted">
                   {formatQty(o.goodQty)} good of {formatQty(o.plannedQty)} · plan {formatMinutes(o.plannedMinutes)}
                 </p>
+                {o.scheduledStart && (
+                  <p className="mt-1 text-[13px]">
+                    {next && (
+                      <Badge tone="success" className="mr-1">
+                        Next on {scheduledOn?.code}
+                      </Badge>
+                    )}
+                    <span className="text-muted">
+                      {next ? '' : `On ${scheduledOn?.code ?? 'a machine'} · `}from {formatDateTime(o.scheduledStart)}
+                    </span>
+                  </p>
+                )}
                 {o.instructions && <p className="mt-1 text-[13px]">{o.instructions}</p>}
                 {busy.map((c) => (
                   <p key={c.id} className="mt-2 text-[13px]">
@@ -65,7 +80,7 @@ function Floor() {
                     {c.machine && <span className="font-mono"> · {c.machine}</span>}
                   </p>
                 ))}
-                {!mine && ws.can('manufacturing.job_card.update') && <StartButton operationId={o.operationId} label={`Start op ${o.seq} on ${o.number}`} machines={machines.filter((m) => m.workCentreId === o.workCentreId)} />}
+                {!mine && ws.can('manufacturing.job_card.update') && <StartButton operationId={o.operationId} label={`Start op ${o.seq} on ${o.number}`} machines={machines.filter((m) => m.workCentreId === o.workCentreId)} scheduledMachineId={o.scheduledMachineId} />}
               </Card>
             );
           })}
@@ -75,14 +90,25 @@ function Floor() {
   );
 }
 
-function StartButton({ operationId, label, machines }: { operationId: string; label: string; machines: ShopFloor['machines'] }) {
+function StartButton({ operationId, label, machines, scheduledMachineId }: { operationId: string; label: string; machines: ShopFloor['machines']; scheduledMachineId: string | null }) {
   const ws = useWorkspace();
   const qc = useQueryClient();
-  const [machineId, setMachineId] = useState(machines.length === 1 ? machines[0]!.id : '');
+  const [machineId, setMachineId] = useState(scheduledMachineId ?? (machines.length === 1 ? machines[0]!.id : ''));
+  // Set when the API says this start is out of the machine's dispatch order (decision 049).
+  const [reason, setReason] = useState<string | null>(null);
   const m = useMutation({
-    mutationFn: () => api('/manufacturing/job-cards', { method: 'POST', body: { operationId, machineId: machineId || null }, scope: ws.scope }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['shop-floor'] }),
+    mutationFn: () => api('/manufacturing/job-cards', { method: 'POST', body: { operationId, machineId: machineId || null, outOfSequenceReason: reason || null }, scope: ws.scope }),
+    onSuccess: () => {
+      setReason(null);
+      void qc.invalidateQueries({ queryKey: ['shop-floor'] });
+      void qc.invalidateQueries({ queryKey: ['out-of-sequence'] });
+      void qc.invalidateQueries({ queryKey: ['schedule'] });
+    },
+    onError: (e) => {
+      if (e instanceof ApiError && e.issues.some((i) => i.path === 'outOfSequenceReason') && reason === null) setReason('');
+    },
   });
+  const askReason = reason !== null;
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
       {machines.length > 0 && (
@@ -95,10 +121,11 @@ function StartButton({ operationId, label, machines }: { operationId: string; la
           ))}
         </Select>
       )}
-      <Button size="lg" aria-label={label} loading={m.isPending} onClick={() => m.mutate()}>
-        <Play className="size-4" /> Start
+      {askReason && <Input aria-label="Reason for starting out of sequence" className="w-full" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why this job first?" autoFocus />}
+      <Button size="lg" aria-label={label} loading={m.isPending} disabled={askReason && reason.trim().length < 3} onClick={() => m.mutate()}>
+        <Play className="size-4" /> {askReason ? 'Start anyway' : 'Start'}
       </Button>
-      {m.error instanceof ApiError && <p className="w-full text-[13px] text-danger">{m.error.message}</p>}
+      {m.error instanceof ApiError && <p className={`w-full text-[13px] ${askReason ? 'text-warning' : 'text-danger'}`}>{m.error.message}</p>}
     </div>
   );
 }

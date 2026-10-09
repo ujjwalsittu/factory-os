@@ -74,6 +74,8 @@ export const RESOURCES = [
   { module: 'manufacturing', resource: 'work_order', label: 'Work orders', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'manufacturing', resource: 'job_card', label: 'Job cards', actions: ['read', 'create', 'update', 'submit'] },
   { module: 'manufacturing', resource: 'job_work', label: 'Job work (challans and receipts)', actions: ['read', 'create', 'submit', 'cancel'] },
+  { module: 'manufacturing', resource: 'schedule', label: 'Production schedule (run, move, pin)', actions: ['read', 'update'] },
+  { module: 'manufacturing', resource: 'calendar', label: 'Working calendars and machine downtime', actions: ['read', 'update'] },
   { module: 'quality', resource: 'inspection', label: 'Inspections', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'quality', resource: 'plan', label: 'Inspection plans', actions: ['read', 'create', 'update', 'submit'] },
   { module: 'quality', resource: 'fai', label: 'First article inspection (AS9102)', actions: ['read', 'create', 'submit', 'approve'] },

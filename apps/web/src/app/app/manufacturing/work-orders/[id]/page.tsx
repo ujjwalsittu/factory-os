@@ -1,6 +1,6 @@
 'use client';
 import { Alert, Badge, Button, Card, CardHeader, Field, Input, Select } from '@factoryos/ui';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -9,9 +9,10 @@ import { fieldErrors, FormDialog } from '@/components/form-dialog';
 import { WorkOrderView } from '@/components/work-order-view';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
-import { formatQty } from '@/lib/format';
+import { formatDateTime, formatQty } from '@/lib/format';
 import type { WorkOrderDetail } from '@/lib/manufacturing';
 import { type InspectionDetail, type InspectionRow, OUTCOME, STAGE } from '@/lib/quality';
+import { PRIORITY, type ScheduleView } from '@/lib/scheduling';
 
 function Order() {
   const { id } = useParams<{ id: string }>();
@@ -32,6 +33,7 @@ function Order() {
         </Alert>
       )}
       <WorkOrderView wo={q.data} />
+      {ws.can('manufacturing.schedule.read') && q.data.status !== 'cancelled' && q.data.status !== 'completed' && <SchedulePanel wo={q.data} />}
       {ws.can('quality.inspection.read') && <Inspections wo={q.data} />}
     </>
   );
@@ -114,5 +116,69 @@ function InProcessCheck({ wo, ops, onClose }: { wo: WorkOrderDetail; ops: WorkOr
         </Field>
       </div>
     </FormDialog>
+  );
+}
+
+/** Priority, scheduled finish and where each operation is planned (decision 049). */
+function SchedulePanel({ wo }: { wo: WorkOrderDetail }) {
+  const ws = useWorkspace();
+  const qc = useQueryClient();
+  const from = new Date(Date.now() - 86400e3).toISOString();
+  const to = new Date(Date.now() + 60 * 86400e3).toISOString();
+  const q = useQuery({ queryKey: ['schedule', ws.entityId, 'wo', wo.id], queryFn: () => api<ScheduleView>(`/manufacturing/schedule?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { scope: ws.scope }) });
+  const prio = useMutation({
+    mutationFn: (priority: number) => api(`/manufacturing/work-orders/${wo.id}/priority`, { method: 'POST', scope: ws.scope, body: { priority } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['work-order', wo.id] });
+      void qc.invalidateQueries({ queryKey: ['schedule'] });
+    },
+  });
+  const bars = (q.data?.bars ?? []).filter((b) => b.workOrderId === wo.id).sort((a, b) => a.seq - b.seq);
+  const machines = new Map((q.data?.machines ?? []).map((m) => [m.id, m.code]));
+  const unscheduled = (q.data?.unscheduled ?? []).filter((u) => u.workOrderId === wo.id);
+  const late = q.data?.late.some((l) => l.id === wo.id);
+  return (
+    <Card className="mt-4">
+      <CardHeader
+        title="Schedule"
+        description={wo.scheduledFinish ? `Scheduled to finish ${formatDateTime(wo.scheduledFinish)}${late ? ' · late' : ''}` : wo.status === 'released' ? 'Not on the schedule yet: reschedule from Manufacturing → Schedule.' : 'Released orders are scheduled.'}
+        actions={
+          <Field label="Priority" className="w-40">
+            {(p) => (
+              <Select {...p} value={String(wo.priority ?? 3)} onChange={(e) => prio.mutate(Number(e.target.value))} disabled={!ws.can('manufacturing.schedule.update') || prio.isPending}>
+                {PRIORITY.map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        }
+      />
+      {prio.error && <Alert tone="danger" className="mx-4 mb-2">{prio.error.message}</Alert>}
+      {bars.length > 0 && (
+        <ul className="divide-y divide-line">
+          {bars.map((b) => (
+            <li key={b.operationId} className="flex flex-wrap items-center gap-2 px-4 py-2 text-[13px]">
+              <span className="font-medium">
+                {b.seq} {b.name}
+              </span>
+              <span className="font-mono text-muted">{b.machineId ? machines.get(b.machineId) : 'job worker'}</span>
+              <span className="text-muted">
+                {formatDateTime(b.startsAt)} → {formatDateTime(b.endsAt)}
+              </span>
+              {b.pinned && <Badge tone="info">Pinned</Badge>}
+              {b.running && <Badge tone="success">Running</Badge>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {unscheduled.map((u) => (
+        <p key={u.operationId} className="px-4 py-2 text-[13px] text-warning">
+          Operation {u.seq} not scheduled: {u.reason}
+        </p>
+      ))}
+    </Card>
   );
 }
