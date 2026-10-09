@@ -48,6 +48,9 @@ export const DEFAULT_SERIES: Record<string, string> = {
   /** Per GSTIN (doc type `job_work_challan:<gst registration id>`), ≤ 16 characters (rule 55, decision 047). */
   job_work_challan: 'JW/{FY}/{#####}',
   job_work_receipt: '{ENTITY}/JWR/{FY}/{#####}',
+  inspection_record: '{ENTITY}/IR/{FY}/{#####}',
+  ncr: '{ENTITY}/NCR/{FY}/{####}',
+  fai: '{ENTITY}/FAI/{FY}/{####}',
   credit_note: '{ENTITY}/CN/{FY}/{####}',
   debit_note: '{ENTITY}/DN/{FY}/{####}',
   customer_receipt: '{ENTITY}/RCT/{FY}/{#####}',
@@ -211,7 +214,9 @@ export class StockPostingService {
         }
         if (direction === 'out' || direction === 'transfer') {
           if (!from) throw new BadRequestException(`Line ${line.lineNo}: choose a source warehouse`);
-          if (CONSUMING.has(entry.purpose) && !from.availableForIssue) {
+          // An NCR's rework order issues the nonconforming stock from MRB (decision 048).
+          const reworkFromMrb = entry.purpose === 'production_issue' && entry.systemGenerated && entry.reference?.startsWith('ncr:') && from.type === 'mrb';
+          if (CONSUMING.has(entry.purpose) && !from.availableForIssue && !reworkFromMrb) {
             throw new BadRequestException(`Line ${line.lineNo}: ${from.name} is not available for issue (${from.type}). Transfer the stock out first.`);
           }
         }
