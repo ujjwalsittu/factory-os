@@ -78,7 +78,8 @@ decision 048. Migration `0030_quality`. A review by a fresh agent or human is st
 
 - Core unit tests: 94 pass (quality helpers: limits, gauge block, due dates, FAI requirement, outcome).
 - `smoke-attachments.mjs`: storage, owner checks, size and type limits, hash, append-only withdraw.
-- `smoke-quality.mjs`: 106 checks. Plans, gauges, final and incoming gates, partial results, all five dispositions, rework re-inspection, cancellation rules.
+- `smoke-quality.mjs`: 112 checks. Plans, gauges, final and incoming gates, partial results, all five dispositions, rework re-inspection, cancellation rules.
 - `smoke-fai.mjs`: 52 checks. Forms 1–3, maker-checker, invoice gate, process change, certificate pack zip.
 - `e2e:quality` passes on desktop and at 390 px, with no horizontal page scroll. It covers the item flag, plan, gauge calibration, Quarantine hold, partial final inspection, NCR scrap and close, the work order's inspections and an in-process check, FAI forms with an attachment and the Form 3 refusal, and the certificate pack zip.
-- Root typecheck, build and tests pass. Full API regression: see STATUS.
+- Root typecheck, build (12/12) and tests pass. Full API regression: 72/72 suites.
+- Automated PR review: six findings fixed before merge (rework issue from MRB can't be cancelled; an NCR's work order must be in the entity and make its item; incoming inspections open only from the receipt holding the stock; a reading without limits counts as conforming; the FAI detail loads only the people it names; FAI batch and certificate pack lookups scoped to tenant and entity). Orphan-object cleanup on a failed upload insert was not done: the insert is a single statement after the write, and a periodic sweep is the cheaper follow-up.

@@ -11,8 +11,8 @@ _Last updated: 2026-10-09 (Asia/Kolkata) · Manufacturing slice 2d (inspection, 
   - AS9102 FAI Forms 1–3 from item, BOM, genealogy, job work and the final inspection. Maker-checker approval; the sales invoice is refused until an FAI is approved (first build, revision or process change).
   - Certificate pack zip along genealogy. Quality nav section and item quality flags.
   - Fixed the item PATCH defaults trap (Zod 4 `.partial()` applied defaults: editing a tracked item was refused and omitted flags were reset).
-  - Verified: 94 core unit tests, `smoke-quality.mjs` 106, `smoke-fai.mjs` 52, `smoke-attachments.mjs`, `e2e:quality` desktop and 390 px, root typecheck, build and tests. Full API regression: REGRESSION_RESULT.
-  - [Self-review with four deviations and seven limits](../superpowers/reviews/2026-10-09-manufacturing-2d-review.md). Review by a fresh agent recommended.
+  - Verified: 94 core unit tests, `smoke-quality.mjs` 112, `smoke-fai.mjs` 52, `smoke-attachments.mjs`, `e2e:quality` desktop and 390 px, root typecheck, build (12/12) and tests. Full API regression: 72/72 suites (`smoke-quality` re-run after restarting the API with the review fixes, which its new checks cover).
+  - [Self-review with four deviations and seven limits](../superpowers/reviews/2026-10-09-manufacturing-2d-review.md). Automated review on the PR: six findings fixed (NCR rework issue can't be cancelled, NCR work order scoped, incoming inspections only from receipts, no-limit readings conform, FAI user lookup, tenant/entity scoping).
   - **R2 isn't set up on dev yet:** uploads are refused with a clear message until the bucket and credentials are in Coolify (steps in the PR).
 - [x] **Manufacturing slice 2c: job work and ITC-04** (decision 047, migration 0029_job_work):
   - Job workers get an automatic "At vendor" warehouse.
