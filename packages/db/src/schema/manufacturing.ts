@@ -151,6 +151,8 @@ export const workOrder = pgTable(
       .notNull()
       .references(() => warehouse.id),
     salesOrderId: uuid('sales_order_id').references(() => salesOrder.id),
+    /** Rework/repair order for an NCR disposition (decision 048). */
+    reworkOfNcrId: uuid('rework_of_ncr_id'),
     plannedStart: date('planned_start'),
     plannedEnd: date('planned_end'),
     remarks: text('remarks'),

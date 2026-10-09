@@ -119,6 +119,8 @@ export const qualityInspection = pgTable(
     remarks: text('remarks'),
     /** The transfer that moved the stock on submit. */
     transferEntryId: uuid('transfer_entry_id').references(() => stockEntry.id),
+    /** Characteristic results against an inspection plan (decision 048). */
+    inspectionRecordId: uuid('inspection_record_id'),
     inspectionDate: date('inspection_date').notNull(),
     ...audit,
   },
