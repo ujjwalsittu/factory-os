@@ -20,12 +20,12 @@ and assume a small team; we will re-plan after Phase 0.
 - **E-invoice + e-way bill** via GSP adapter (mock + first live provider).
 - **Exit**: Azeonics buys bar stock and sells parts with legal invoices, IRN and EWB.
 
-## Phase 2 — Manufacturing & Quality (in progress: 2a work orders, job cards, actual costing done 2026-10-07; 2b serials, remnants, as-built and genealogy done 2026-10-08; 2c job work and ITC-04 done 2026-10-09; 2d inspection, FAI, NCR/MRB, calibration and certificate attachments done 2026-10-09)
+## Phase 2 — Manufacturing & Quality (in progress: 2a work orders, job cards, actual costing done 2026-10-07; 2b serials, remnants, as-built and genealogy done 2026-10-08; 2c job work and ITC-04 done 2026-10-09; 2d inspection, FAI, NCR/MRB, calibration and certificate attachments done 2026-10-09; 2e finite capacity scheduling done 2026-10-09)
 - BOM & routing (revisioned), work centers/machines, work orders, reservations, pick/issue,
   job cards (shop-floor PWA), output with serials, remnants, genealogy explorer.
 - Job-work outward (subcontract and outsourced operations) + inward (customer material), **ITC-04** — done (decision 047); offline-tool CSV template match pending.
 - Inspection plans, FAI, NCR/MRB, calibration register.
-- Scheduler (finite capacity Gantt).
+- Scheduler (finite capacity Gantt) — done (decision 049): calendars, downtime, per-machine Gantt, dispatch list.
 - **Exit**: a satellite bracket traced from heat number to delivered serial with FAI and CoC pack.
 
 ## Phase 3 — Services
