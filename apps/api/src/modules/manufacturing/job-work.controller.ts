@@ -289,7 +289,7 @@ export class JobWorkController {
   }
 
   @Post('job-work/challan-lines/:id/extend')
-  @RequirePermission('compliance.itc04.update')
+  @RequirePermission('compliance.job_work_return.update')
   extend(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
     const entityId = entityOf(ctx);
     const input = parse(z.object({ extendedDueBy: isoDate, extensionRef: z.string().trim().min(3, 'Give the order reference').max(100) }), body);
@@ -297,7 +297,7 @@ export class JobWorkController {
   }
 
   @Post('job-work/challan-lines/:id/deemed-supply')
-  @RequirePermission('compliance.itc04.update')
+  @RequirePermission('compliance.job_work_return.update')
   deemed(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
     const entityId = entityOf(ctx);
     const { invoiceNo } = parse(z.object({ invoiceNo: z.string().trim().min(1, 'Enter the invoice number').max(16, 'At most 16 characters') }), body);

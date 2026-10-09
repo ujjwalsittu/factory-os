@@ -41,7 +41,7 @@ export default function HomePage() {
   const jobWork = useQuery({
     queryKey: ['itc04-deadlines', ws.entityId],
     queryFn: () => api<{ soon: number }>('/compliance/itc04/deadlines', { scope: ws.scope }),
-    enabled: !!ws.entityId && ws.can('compliance.itc04.read'),
+    enabled: !!ws.entityId && ws.can('compliance.job_work_return.read'),
   });
   const regs = entities.data?.flatMap((e) => e.gstRegistrations.map((r) => ({ ...r, entity: e.shortName }))) ?? [];
   const me = members.data?.find((m) => m.userId === ws.me.user.id);

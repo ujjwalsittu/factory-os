@@ -115,7 +115,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
   {
     section: 'Finance',
     items: [
-      { href: '/app/compliance/itc04', label: 'ITC-04', icon: FileSpreadsheet, permission: 'compliance.itc04.read', entityScoped: true },
+      { href: '/app/compliance/itc04', label: 'ITC-04', icon: FileSpreadsheet, permission: 'compliance.job_work_return.read', entityScoped: true },
       { href: '/app/compliance/sandbox', label: 'Sandbox operations', icon: ReceiptText, permission: 'compliance.sandbox_operation.read', entityScoped: true },
       { href: '/app/accounts/setup', label: 'Accounting setup', icon: Landmark, permission: 'accounts.setup.read', entityScoped: true },
       { href: '/app/accounts/chart', label: 'Chart of accounts', icon: ScrollText, permission: 'accounts.account.read', entityScoped: true },

@@ -73,14 +73,14 @@ export class Itc04Controller {
   ) {}
 
   @Get('settings')
-  @RequirePermission('compliance.itc04.read')
+  @RequirePermission('compliance.job_work_return.read')
   settings(@Ctx() ctx: TenantRequestContext) {
     return this.db.select().from(itc04Setting).where(eq(itc04Setting.entityId, entityOf(ctx))).orderBy(desc(itc04Setting.fy));
   }
 
   /** Rule 45(3): half-yearly when the previous FY's aggregate turnover exceeded ₹5 crore, else annual. */
   @Put('settings')
-  @RequirePermission('compliance.itc04.update')
+  @RequirePermission('compliance.job_work_return.update')
   async setFrequency(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
     const entityId = entityOf(ctx);
     const input = parse(z.object({ fy: fyLabel, frequency: z.enum(['half_yearly', 'annual']) }), body);
@@ -96,13 +96,13 @@ export class Itc04Controller {
   }
 
   @Get()
-  @RequirePermission('compliance.itc04.read')
+  @RequirePermission('compliance.job_work_return.read')
   async report(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
     return this.build(ctx.tenant.tenantId, entityOf(ctx), parse(periodQuery, query).period);
   }
 
   @Get('export.csv')
-  @RequirePermission('compliance.itc04.export')
+  @RequirePermission('compliance.job_work_return.export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async csv(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
     const r = await this.build(ctx.tenant.tenantId, entityOf(ctx), parse(periodQuery, query).period);
@@ -124,7 +124,7 @@ export class Itc04Controller {
 
   /** Open challan lines with their Sec 143 return deadline; `soon` counts those within 30 days or past it. */
   @Get('deadlines')
-  @RequirePermission('compliance.itc04.read')
+  @RequirePermission('compliance.job_work_return.read')
   async deadlines(@Ctx() ctx: TenantRequestContext) {
     const entityId = entityOf(ctx);
     const today = businessDate();

@@ -183,7 +183,7 @@ One document type, `job_work_order`, with two kinds.
   They have `tenant_id` and `entity_id`. Receipts and consumption rows are append-only, and
   cancellation writes reversal rows.
 - **Changes to existing tables:**
-  - `party.is_job_worker`, `item.job_work_exempt_tool`, and `legal_entity.itc04_frequency`;
+  - `party.is_job_worker` and `item.job_work_exempt_tool`; the ITC-04 frequency is an `itc04_setting` row per entity and FY, since it depends on the previous year's turnover;
   - `bom_operation` and `work_order_operation`: `outsourced` and `supplier_id`. `work_centre_id`
     becomes nullable, with a check that it's present unless the operation is outsourced;
   - stock purposes `job_work_out` and `job_work_in`;
@@ -216,7 +216,7 @@ One document type, `job_work_order`, with two kinds.
 
 - **New permissions:**
   - `manufacturing.job_work.read`, `create`, `submit`, `cancel`;
-  - `compliance.itc04.read`, `export`, `mark_deemed`.
+  - `compliance.job_work_return.read`, `export`, `update` (ITC-04; permission keys can't contain digits, and `update` covers extensions and deemed supply).
 - **Roles:**
   - Production Planner and Stores: job work;
   - Accounts: ITC-04 and deemed supply;

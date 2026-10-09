@@ -81,7 +81,7 @@ export const RESOURCES = [
   { module: 'accounts', resource: 'settlement', label: 'Customer receipts, supplier payments and allocations', actions: ['read', 'create', 'submit', 'cancel', 'export'] },
   { module: 'accounts', resource: 'voucher', label: 'Accounting vouchers', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'compliance', resource: 'gst_return', label: 'GST returns', actions: ['read', 'create', 'approve', 'file', 'export'] },
-  { module: 'compliance', resource: 'itc04', label: 'ITC-04 and job work deadlines', actions: ['read', 'export', 'update'] },
+  { module: 'compliance', resource: 'job_work_return', label: 'ITC-04 (job work return) and deadlines', actions: ['read', 'export', 'update'] },
   { module: 'compliance', resource: 'einvoice', label: 'E-invoice & e-way bill', actions: ['read', 'create', 'cancel'] },
 ] as const satisfies readonly ResourceDef[];
 

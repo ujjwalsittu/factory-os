@@ -97,14 +97,14 @@ function Return() {
           </p>
         )}
         <div className="ml-auto flex flex-wrap gap-2">
-          {ws.can('compliance.itc04.update') && (
+          {ws.can('compliance.job_work_return.update') && (
             <Select aria-label="Filing frequency for this year" value={r?.configuredFrequency ?? ''} onChange={(e) => e.target.value && save.mutate(e.target.value as 'half_yearly' | 'annual')}>
               <option value="">Frequency for {period.slice(0, 7)}…</option>
               <option value="half_yearly">Half-yearly (turnover above ₹5 crore last year)</option>
               <option value="annual">Annual</option>
             </Select>
           )}
-          {ws.can('compliance.itc04.export') && (
+          {ws.can('compliance.job_work_return.export') && (
             <Button variant="secondary" onClick={() => void download()}>
               Export CSV
             </Button>
@@ -213,7 +213,7 @@ function Deadlines() {
   const ws = useWorkspace();
   const [action, setAction] = useState<{ kind: 'extend' | 'deemed'; line: DeadlineLine } | null>(null);
   const q = useQuery({ queryKey: ['itc04-deadlines', ws.entityId], queryFn: () => api<{ today: string; soon: number; lines: DeadlineLine[] }>('/compliance/itc04/deadlines', { scope: ws.scope }) });
-  const can = ws.can('compliance.itc04.update');
+  const can = ws.can('compliance.job_work_return.update');
   return (
     <Card>
       <CardHeader title="Goods still at job workers" description="Inputs must come back within one year and capital goods within three (Section 143). After that they are treated as supplied on the challan date." />
