@@ -225,6 +225,20 @@
       "when": 1791543615576,
       "tag": "0031_scheduling",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791543942710,
+      "tag": "0032_passkey_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1791543942711,
+      "tag": "0033_passkey_ceremony_bounds",
+      "breakpoints": true
     }
   ]
 }

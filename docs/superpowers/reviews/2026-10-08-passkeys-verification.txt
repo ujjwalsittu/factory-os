@@ -1,0 +1,142 @@
+# Passkey integrated verification excerpts
+All commands completed exit0; these excerpts contain no cookies, credentials or raw book data.
+
+Auth fixture results
+PASS smoke-passkeys-config
+PASS smoke-passkeys-schema
+PASS smoke-passkeys-adapter
+PASS smoke-passkeys-actions
+PASS smoke-passkeys-native
+PASS smoke-passkeys-mfa
+PASS smoke-passkeys-barriers
+PASS smoke-passkeys-invariance
+PASS smoke-sso-config
+PASS smoke-sso-schema
+PASS smoke-sso-actions
+PASS smoke-sso-oauth
+PASS smoke-sso-mfa
+PASS smoke-sso-barriers
+PASS smoke-sso-invariance
+PASS smoke-sso-review-guards
+PASS smoke-email-schema
+PASS smoke-email-invitations
+PASS smoke-email-auth
+PASS smoke-email-worker
+PASS smoke-email-barriers
+PASS smoke-email-invariance
+PASS smoke-email-origin-upgrade
+
+Browser results
+PASS passkeys-subdomain
+PASS passkeys
+PASS sso
+PASS email-auth
+PASS email-delivery
+PASS genealogy
+PASS manufacturing
+PASS walkthrough
+Integrated production browsers8 PASS
+
+HTTPS native subdomain result
+Server allowed trusted subdomain; registration options200 with fixed parent RP
+PASS trusted HTTPS subdomain enrolls genuine credential for fixed parent RP
+PASS trusted HTTPS subdomain signs in with actual native WebAuthn verification
+PASS unrelated HTTPS origin refused by exact server origin allowlist
+
+HTTP results
+PASS smoke-serials.mjs
+PASS smoke-genealogy.mjs
+PASS smoke-manufacturing.mjs
+PASS smoke.sh
+PASS smoke-accounting.mjs
+PASS smoke-accounting-operations.mjs
+PASS smoke-accounting-opening-fx.mjs
+PASS smoke-accounting-review.mjs
+PASS smoke-imports.sh
+PASS smoke-settlements.mjs
+PASS smoke-settlement-improvements.mjs-duplicate
+PASS smoke-settlement-improvements.mjs-balance
+PASS smoke-settlement-improvements.mjs-historical
+PASS smoke-bank-charges.mjs
+PASS smoke-bank-reconciliation-imports.mjs
+PASS smoke-bank-reconciliation-inputs.mjs
+PASS smoke-bank-reconciliation-matches.mjs
+PASS smoke-bank-reconciliation-guards.mjs
+PASS smoke-bank-reconciliation-adjustments.mjs
+PASS smoke-bank-reconciliation-reports.mjs
+PASS smoke-bank-reconciliation-large-review.mjs
+PASS smoke-gst-sandbox-ewb.mjs
+PASS smoke-gst-sandbox-sources.mjs
+PASS smoke-gst-sandbox-roles.mjs
+PASS smoke-gst-sandbox-review-boundaries.mjs
+Disabled-provider HTTP regression 25 runs across23 suites plus native platform grant/revocation PASS; disposable API/database only
+
+Final typecheck
+ Tasks:    19 successful, 19 total
+Cached:    12 cached, 19 total
+
+Final build
+ Tasks:    12 successful, 12 total
+Cached:    9 cached, 12 total
+
+Final units
+@factoryos/core:test:       Tests  79 passed (79)
+@factoryos/auth:test:       Tests  19 passed (19)
+@factoryos/compliance-in:test:       Tests  33 passed (33)
+@factoryos/gsp:test:       Tests  10 passed (10)
+@factoryos/email:test:       Tests  30 passed (30)
+ Tasks:    11 successful, 11 total
+Cached:    10 cached, 11 total
+
+Final lint
+ Tasks:    0 successful, 0 total
+Cached:    0 cached, 0 total
+
+Earlier integrated forced units
+@factoryos/auth:test:       Tests  19 passed (19)
+@factoryos/core:test:       Tests  79 passed (79)
+@factoryos/compliance-in:test:       Tests  33 passed (33)
+@factoryos/gsp:test:       Tests  10 passed (10)
+@factoryos/email:test:       Tests  30 passed (30)
+ Tasks:    11 successful, 11 total
+Cached:    0 cached, 11 total
+
+Actual PostgreSQL race evidence
+Observed distinct PostgreSQL blocker/waiters: 248098,248099,248100
+PASS observed_passkey_authority_races: two native handlers consume one signed challenge once
+Observed distinct PostgreSQL blocker/waiters: 248098,248099,248100
+PASS duplicate credential additions preserve one immutable owner and event
+Observed distinct PostgreSQL blocker/waiters: 248098,248099,248100
+PASS last available per-owner credential slot cannot be exceeded concurrently
+Observed distinct PostgreSQL blocker/waiters: 248098,248099
+Observed distinct PostgreSQL blocker/waiters: 248098,248099,248102
+PASS remove versus signin serialized removal first
+Observed distinct PostgreSQL blocker/waiters: 248098,248102
+Observed distinct PostgreSQL blocker/waiters: 248098,248102,248099
+PASS remove versus signin serialized signin first
+Observed distinct PostgreSQL blocker/waiters: 248098,248099
+Observed distinct PostgreSQL blocker/waiters: 248098,248099,248100
+PASS remove versus native TOTP serialized removal first
+Observed distinct PostgreSQL blocker/waiters: 248098,248100
+Observed distinct PostgreSQL blocker/waiters: 248098,248100,248103
+PASS remove versus native TOTP serialized MFA first
+Observed distinct PostgreSQL blocker/waiters: 248098,248103
+Observed distinct PostgreSQL blocker/waiters: 248098,248103,248100
+PASS newer positive signature counter cannot be overwritten by a waiting older assertion
+Observed distinct PostgreSQL blocker/waiters: 248098,248100
+PASS auth_passkey_action expiry is checked after an actual row wait
+Observed distinct PostgreSQL blocker/waiters: 248098,248100
+PASS auth_passkey_ceremony expiry is checked after an actual row wait
+Observed distinct PostgreSQL blocker/waiters: 248098,248100
+Observed distinct PostgreSQL blocker/waiters: 248098,248100
+PASS signin deadline after owner and credential waits refuses authority
+Observed distinct PostgreSQL blocker/waiters: 248098,248100
+PASS MFA challenge expiry after native session insert wait rolls back proof and cookie
+Observed distinct PostgreSQL blocker/waiters: 248098,248100
+PASS actual native reset while passkey MFA waits invalidates private password version
+Observed distinct PostgreSQL blocker/waiters: 248098,248100
+Observed distinct PostgreSQL blocker/waiters: 248098,248100
+PASS disabled and changed RP during wait refuse signin but permit fresh locally proved removal
+Observed distinct PostgreSQL blocker/waiters: 248098,248100,248103
+PASS concurrent owners keep distinct frames and required evidence failure rolls back only its authority
+Passkeys observed barriers 15 cases PASS; exact book/activation/SQL/audit invariance

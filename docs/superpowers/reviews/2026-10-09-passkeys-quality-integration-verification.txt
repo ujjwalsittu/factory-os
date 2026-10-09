@@ -1,0 +1,187 @@
+Actual selected stdout from quality-main passkey integration,2026-10-09. Final runs exited0; initial failures/corrections/limitations are recorded in the linked review. Root tests were uncached. Local verification is not remote CI.
+
+COMMAND RESULT: build
+ Tasks:    12 successful, 12 total
+Cached:    3 cached, 12 total
+
+COMMAND RESULT: typecheck
+ Tasks:    19 successful, 19 total
+Cached:    10 cached, 19 total
+
+COMMAND RESULT: tests
+@factoryos/gsp:test:       Tests  10 passed (10)
+@factoryos/email:test:  Test Files  2 passed (2)
+@factoryos/email:test:       Tests  30 passed (30)
+ Tasks:    11 successful, 11 total
+Cached:    0 cached, 11 total
+
+COMMAND RESULT: lint
+ Tasks:    0 successful, 0 total
+Cached:    0 cached, 0 total
+
+COMMAND RESULT: passkeys-config
+PASS missing canonical origin in core trust refused
+PASS malformed canonical origin refused
+PASS disabled unused configuration does not enable routes
+PASS enabled capability has no RP or limit
+Passkeys config 43 checks PASS
+
+COMMAND RESULT: passkeys-schema
+PASS bounded cleanup retains permanent events
+PASS rename to the same label still consumes exact consent and records intent
+PASS completion provenance survives consumed signin ceremony deadline without permitting new counter verification
+Passkeys schema 17 cases PASS
+PASS historical auth/SSO upgrade exact prior rows and all original SQL hashes preserved
+
+COMMAND RESULT: passkeys-adapter
+PASS nested native transaction and consume use same SQL transaction
+PASS parallel request contexts cannot borrow transactions
+PASS whole HTTP call rolls back a returned error and strips authority cookies
+PASS native API wrapper preserves response envelopes and rolls back evidence failure
+Passkeys adapter 8 cases PASS
+
+COMMAND RESULT: passkeys-actions
+PASS 300-second-old session and changed credential version refuse proof without borrowing another grant
+PASS pending stored authority refuses personal list/proof and direct native security management
+PASS revoked native session cannot borrow another live session consent
+PASS last-key removal revokes all sourced rows/current cookie and preserves local password session
+Passkeys actions 13 cases PASS
+
+COMMAND RESULT: passkeys-native
+PASS TOTP origin has no authority before native MFA completion
+PASS required completion evidence failure rolls back counter/session and returns no authority cookie
+PASS real native API caller shares private enrollment and failed-cookie rollback
+PASS browser same-origin options GET without Origin uses bounded metadata, never verifier trust
+Passkeys native 22 cases PASS
+
+COMMAND RESULT: passkeys-mfa
+PASS WebAuthn signed-cookie swap cannot become a native MFA challenge
+PASS required evidence failure restores native backup-code consumption
+PASS actual password change invalidates earlier passkey MFA proof
+PASS actual framework password reset retains key and invalidates old pending version
+Passkeys MFA 17 cases PASS; real native TOTP/backup/trust/reset lifecycle
+
+COMMAND RESULT: passkeys-barriers
+PASS MFA challenge expiry after native session insert wait rolls back proof and cookie
+PASS actual native reset while passkey MFA waits invalidates private password version
+PASS disabled and changed RP during wait refuse signin but permit fresh locally proved removal
+PASS concurrent owners keep distinct frames and required evidence failure rolls back only its authority
+Passkeys observed barriers 15 cases PASS; exact book/activation/SQL/audit invariance
+
+COMMAND RESULT: passkeys-invariance
+Passkeys populated copied upgrade/invariance PASS {"gl_entry":5917,"journal_voucher":2481,"trade_bill":902,"trade_bill_effect":2163,"stock_ledger_entry":801,"stock_bin":276,"fifo_layer":328,"fifo_consumption":260}; saved activation records/original SQL hashes and historical pending/completed auth preserved; existing audit chain bytes unchanged; shared database read-only
+
+COMMAND RESULT: sso-config
+PASS unsafe return refused
+PASS unsafe return refused
+PASS unsafe return refused
+PASS fixed landing origin
+SSO config 33 checks PASS
+
+COMMAND RESULT: sso-schema
+PASS disconnect consumes correct target consent and freezes new session authority
+PASS own-user proof store and bounded operational cleanup
+SSO schema 10 cases PASS; original books/migrations invariant
+PASS duplicateProviderKeyUpgradeRefused original rows unchanged
+PASS historicalUpgradeNoInventedIdentity authorized legacy disconnect with provider disabled
+
+COMMAND RESULT: sso-actions
+PASS foreign disconnect target refused
+PASS native credential unlink and direct social mutation refused
+PASS disabled provider still disconnects with local proof
+PASS expired proof and failed evidence retain connection
+SSO actions 11 cases PASS
+
+COMMAND RESULT: sso-oauth
+PASS token/account metadata route blocked /get-access-token
+PASS token/account metadata route blocked /refresh-token
+PASS token/account metadata route blocked /account-info
+PASS token/account metadata route blocked /list-accounts
+SSO native OAuth 32 cases PASS; real PKCE and signed JWT verification; no live provider
+
+COMMAND RESULT: sso-mfa
+PASS original password TOTP challenge remains native and unbound
+PASS native revoke-other-sessions invalidates owned pending SSO challenges
+PASS forced sign-in evidence failure leaves no usable session
+PASS disconnected binding during pending challenge refuses new session
+SSO MFA 12 cases PASS; real native TOTP/backup/trusted-device lifecycle
+
+COMMAND RESULT: sso-barriers
+PASS disconnectVersusSessionCreation
+PASS sessionCommittedBeforeDisconnectRetainsExpiry
+PASS lateAccountSwitchCannotLink
+PASS eventFailureHasNoAuthorityAndNoSecretDiagnostics
+SSO barriers 12 cases PASS
+
+COMMAND RESULT: sso-invariance
+SSO populated shared GL/journals/bills/effects/stock/FIFO exact invariance PASS; original SQL and book activations unchanged; only fixture-owned auth mutations
+
+COMMAND RESULT: sso-review-guards
+PASS ordinarySessionRenewalKeepsCookieHeadersWhenProvidersDisabled
+PASS revokedDisconnectCannotBorrowAnotherSessionsConsent
+PASS twoDisconnectsConsumeOnlyCommittingRequestsGrant
+SSO independent-review guards 3 cases PASS
+
+COMMAND RESULT: email-schema
+Email schema/queue: scope, dedupe, unconfigured, lease, fencing, ambiguity, purge and retention PASS
+
+COMMAND RESULT: email-auth
+Email auth: actual known/unknown/failure/cooldown equality, no raw-link logs, framework single-use reset/session revocation and optional verification PASS
+
+COMMAND RESULT: email-invitations
+Email invitations: atomic rollback, disabled/manual flow, current role renewal, tenant/platform scope and stale-source recovery PASS
+
+COMMAND RESULT: email-worker
+Email worker: actual SMTP250/450/550/lost DATA ack, two contenders, wrong key/source cancellation, accepted crash fencing, delayed-source expiry and real framework JWT validation PASS
+
+COMMAND RESULT: email-barriers
+Email barriers: distinct PostgreSQL waiters for claim/retry/renew-revoke/double-renew; stale completion/old link/shutdown fences PASS
+
+COMMAND RESULT: email-invariance
+Email populated invariance PASS {"gl_entry":5917,"journal_voucher":2481,"trade_bill":902,"trade_bill_effect":2163,"stock_ledger_entry":801,"stock_bin":276,"fifo_layer":328,"fifo_consumption":260}
+
+COMMAND RESULT: email-origin-upgrade
+Email origin upgrade: retained/pruned original/replacement owner provenance, member separation and immutable bounded origin PASS
+
+COMMAND RESULT: serials
+Serials and remnants smoke passed: 59 checks
+
+COMMAND RESULT: genealogy
+Genealogy smoke passed: 53 checks
+
+COMMAND RESULT: manufacturing
+Manufacturing smoke passed: 104 checks
+
+COMMAND RESULT: job-work
+Job work smoke passed (101 request checks).
+
+COMMAND RESULT: itc04
+ITC-04 smoke passed (33 request checks).
+
+COMMAND RESULT: quality
+Quality smoke passed (112 request checks).
+
+COMMAND RESULT: fai
+✓ two lugs made, anodised by a job worker, final inspection passed into finished goods
+FAI smoke passed (52 request checks).
+
+COMMAND RESULT: attachments
+Attachments smoke passed.
+
+COMMAND RESULT: browser-job-work
+Job work walkthrough passed. Screenshots in /tmp/factoryos-passkeys-quality-integration-20261009/browser-job-work-shots
+
+COMMAND RESULT: browser-passkeys
+PASS held list and enrollment ceremony responses cannot cross accounts
+PASS maximum passkey label fits a mobile viewport
+PASS last-key removal clears current passkey session and keeps native local password/TOTP recovery
+PASS unsupported browser and dismissed authenticator leave password controls usable
+Passkeys production mobile browser 9 cases PASS; genuine native WebAuthn/MFA/ownership/recovery
+
+COMMAND RESULT: browser-passkeys-subdomain
+PASS trusted HTTPS subdomain enrolls genuine credential for fixed parent RP
+PASS trusted HTTPS subdomain signs in with actual native WebAuthn verification
+PASS unrelated HTTPS origin refused by exact server origin allowlist
+
+COMMAND RESULT: browser-quality
+Quality walkthrough passed. Screenshots in /tmp/factoryos-passkeys-quality-integration-20261009/browser-quality-shots

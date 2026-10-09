@@ -39,13 +39,23 @@ platform (FactoryOS installation)
 | Email verification & password reset | Durable encrypted SMTP queue when configured; reset links never logged | Verification remains optional; disabled mail retains private metadata only. Live sender/service configuration and inbox acceptance remain separate |
 | Sessions (HTTP-only secure cookie, rotation, list & revoke) | ✓ | |
 | MFA: TOTP + backup codes | ✓ | enforce per role/tenant |
-| Passkeys (WebAuthn) | | ✓ |
-| Google / Microsoft SSO | | ✓ (needs OAuth app credentials) |
+| Passkeys (WebAuthn) | Optional existing-account personal passkeys; disabled by default; native TOTP/backup recovery retained | Requires fixed HTTPS origin/RP and real personal-device acceptance |
+| Google / Microsoft SSO | Optional explicitly linked existing accounts; disabled by default; native TOTP retained | Requires OAuth app configuration and real provider acceptance |
 | Rate limiting on auth endpoints | ✓ | |
 | Invitation flow (tenant admin invites by email) | ✓ | |
 
 Better Auth is mounted in the NestJS API at `/api/auth/*`. The web app calls it via the Better Auth
 client. The API reads the session on every request.
+
+### Optional personal passkeys (decision 045)
+
+`PASSKEY_ENABLED=false` is the default. Set `PASSKEY_RP_ID` to the canonical web hostname and, when needed, `PASSKEY_ALLOWED_ORIGINS` to exact origins already trusted by auth. Production uses HTTPS; explicit localhost HTTP is restricted to development/test. The per-user limit is configurable from 1 to 20 (default 10).
+
+Enrollment, rename and removal require a current completed session younger than five minutes and actual password confirmation. The same single-use proof is sent on options GET and verification POST. Enrollment requires discoverable credentials and verified user verification; it creates no session and changes no profile. Explicit passkey sign-in applies the existing native TOTP, backup-code and trusted-device policy. Private pending sessions cannot authorize personal, tenant or platform operations; required evidence commits before authority/cookies.
+
+The security page shows only owned names and dates, handles current-account changes and keeps password recovery available. Disabled or old-RP credentials remain removable after fresh local proof. Removing a key revokes its pending/completed sourced sessions; losing the last key does not remove the password. Password reset retains keys and invalidates older pending MFA proof. Use your own phone/security key on a shared computer; no device-ownership certification is inferred.
+
+Additive migrations `0032_passkey_security` and `0033_passkey_ceremony_bounds` preserve historical password/SSO rows. Apply reviewed migrations before starting the new API against that database. Test fixtures use owned disposable databases and an original hash/count/activation baseline; software/browser fixtures are separate from live proxy/HTTPS/RP and real-device acceptance.
 
 ## 3. RBAC
 

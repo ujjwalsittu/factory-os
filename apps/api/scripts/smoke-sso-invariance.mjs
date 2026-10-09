@@ -4,7 +4,7 @@ import {readFile,readdir} from 'node:fs/promises';
 import {createDb} from '../../../packages/db/dist/index.js';
 import {runMigrations} from '../../../packages/db/dist/migrate.js';
 import {startSsoFixture} from './sso-test-helpers.mjs';
-const db=createDb(process.env.DATABASE_URL),baseline=JSON.parse(await readFile(new URL('../../../.superpowers/sdd/2026-10-07-sso/upgrade-baseline.json',import.meta.url),'utf8'));
+const db=createDb(process.env.DATABASE_URL),baseline=JSON.parse(await readFile(new URL(process.env.SSO_BASELINE_FILE??'../../../.superpowers/sdd/2026-10-07-sso/upgrade-baseline.json',import.meta.url),'utf8'));
 const tables=['gl_entry','journal_voucher','trade_bill','trade_bill_effect','stock_ledger_entry','stock_bin','fifo_layer','fifo_consumption'];
 async function snapshot(){const books={};for(const table of tables){const rows=(await db.$client.query(`select row_to_json(t)::text value from ${table} t order by row_to_json(t)::text`)).rows.map(r=>r.value);assert(rows.length>0);books[table]={count:rows.length,hash:createHash('sha256').update(JSON.stringify(rows)).digest('hex')};}return {books,activations:(await db.$client.query('select entity_id,active,cutover_date,activated_at,activated_by,opening_voucher_id from accounting_settings order by entity_id')).rows};}
 let f,user;

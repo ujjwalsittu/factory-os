@@ -5,12 +5,12 @@ import {readFile,readdir,writeFile} from 'node:fs/promises';
 import {createDb} from '../../../packages/db/dist/index.js';
 import {emailFixture,fixtureClock as now} from './email-test-helpers.mjs';
 const migrationRoot=new URL('../../../packages/db/drizzle/',import.meta.url);
-const baselinePath=new URL('../../../.superpowers/sdd/2026-10-06-email-delivery/upgrade-baseline.json',import.meta.url);
+const baselinePath=new URL(process.env.EMAIL_BASELINE_FILE??'../../../.superpowers/sdd/2026-10-06-email-delivery/upgrade-baseline.json',import.meta.url);
 const db=createDb(process.env.DATABASE_URL);
 const hashes=Object.fromEntries(await Promise.all((await readdir(migrationRoot)).filter(n=>/^(001[1-9]|002[01])_.*\.sql$/.test(n)).sort().map(async n=>[n,createHash('sha256').update(await readFile(new URL(n,migrationRoot))).digest('hex')])));
 const activation=(await db.$client.query('select entity_id,active,cutover_date,activated_at,activated_by,opening_voucher_id from accounting_settings order by entity_id')).rows;
 if(process.env.CAPTURE_EMAIL_BASELINE==='1'){await writeFile(baselinePath,JSON.stringify({hashes,activation}),{flag:'wx'});await db.$client.end();console.log('Captured original email upgrade baseline once');process.exit(0);}
-const baseline=JSON.parse(await readFile(baselinePath,'utf8'));assert.deepEqual(hashes,baseline.hashes);for(const original of baseline.activation)assert.deepEqual(JSON.parse(JSON.stringify(activation.find(r=>r.entity_id===original.entity_id))),original);await db.$client.end();
+const baseline=JSON.parse(await readFile(baselinePath,'utf8'));if(process.env.EMAIL_BASELINE_FILE){for(const [name,hash] of Object.entries(hashes))assert.equal(hash,baseline.hashes[name]);}else assert.deepEqual(hashes,baseline.hashes);for(const original of baseline.activation??baseline.activations)assert.deepEqual(JSON.parse(JSON.stringify(activation.find(r=>r.entity_id===original.entity_id))),original);await db.$client.end();
 const {enqueueEmailIn,claimEmail,startEmailDispatch,finishEmail,reclaimEmailLeases,pruneEmailEvidence}=await import('../../../packages/email/dist/index.js');
 const admin=createDb(process.env.DATABASE_URL),databaseName='email_schema_'+randomUUID().replaceAll('-','');await admin.$client.query(`create database ${databaseName}`);const isolatedUrl=new URL(process.env.DATABASE_URL);isolatedUrl.pathname='/'+databaseName;process.env.DATABASE_URL=isolatedUrl.toString();const {runMigrations}=await import('../../../packages/db/dist/migrate.js');await runMigrations(process.env.DATABASE_URL);
 const f=await emailFixture(),key=randomBytes(32);

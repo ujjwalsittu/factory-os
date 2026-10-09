@@ -22,7 +22,8 @@
     "e2e:quality": "node e2e/quality.mjs",
     "e2e:scheduling": "node e2e/scheduling.mjs",
     "e2e:bank-charges": "node e2e/bank-charges.mjs",
-    "e2e:bank-reconciliation": "node --env-file-if-exists=../../.env e2e/bank-reconciliation.mjs"
+    "e2e:bank-reconciliation": "node --env-file-if-exists=../../.env e2e/bank-reconciliation.mjs",
+    "e2e:passkeys": "node --env-file-if-exists=../../.env e2e/passkeys.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",
@@ -37,9 +38,11 @@
   },
   "dependencies": {
     "@factoryos/auth": "workspace:*",
+    "@factoryos/gsp": "workspace:*",
     "@factoryos/ui": "workspace:*",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@simplewebauthn/browser": "13.3.0",
     "@tanstack/react-query": "^5.104.1",
     "better-auth": "^1.7.7",
     "lucide-react": "^1.52.0",
@@ -47,6 +50,6 @@
     "qrcode": "^1.5.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "@factoryos/gsp": "workspace:*"
+    "zod": "4.6.5"
   }
 }
