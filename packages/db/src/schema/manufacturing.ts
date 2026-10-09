@@ -137,9 +137,8 @@ export const workOrder = pgTable(
     itemId: uuid('item_id')
       .notNull()
       .references(() => item.id),
-    bomId: uuid('bom_id')
-      .notNull()
-      .references(() => bom.id),
+    /** Null only for a rework order of an NCR (decision 048), which reworks the item itself. */
+    bomId: uuid('bom_id').references(() => bom.id),
     plannedQty: qty('planned_qty').notNull(),
     producedQty: qty('produced_qty').notNull().default('0'),
     /** Default for issues and backflush. */
@@ -151,6 +150,8 @@ export const workOrder = pgTable(
       .notNull()
       .references(() => warehouse.id),
     salesOrderId: uuid('sales_order_id').references(() => salesOrder.id),
+    /** Rework/repair order for an NCR disposition (decision 048). */
+    reworkOfNcrId: uuid('rework_of_ncr_id'),
     plannedStart: date('planned_start'),
     plannedEnd: date('planned_end'),
     remarks: text('remarks'),
@@ -168,6 +169,7 @@ export const workOrder = pgTable(
     uniqueIndex('work_order_entity_number_uq').on(t.entityId, t.number),
     index('work_order_entity_status_idx').on(t.entityId, t.status),
     check('work_order_qty_ck', sql`${t.plannedQty} > 0`),
+    check('work_order_bom_ck', sql`${t.bomId} is not null or ${t.reworkOfNcrId} is not null`),
   ],
 );
 

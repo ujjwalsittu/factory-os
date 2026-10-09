@@ -48,6 +48,10 @@ const itemInput = z.object({
   shelfLifeDays: z.number().int().positive().max(36500).optional().nullable(),
   mslLevel: z.enum(['1', '2', '2a', '3', '4', '5', '5a', '6']).optional().nullable(),
   requiresIncomingInspection: z.boolean().default(false),
+  /** Decision 048: output waits in Quarantine for a final inspection; invoicing needs an approved FAI. */
+  requiresFinalInspection: z.boolean().default(false),
+  requiresFai: z.boolean().default(false),
+  faiProcessChange: z.boolean().default(false),
   exportControlled: z.boolean().default(false),
   reorderLevel: decimalString.optional().nullable(),
   attributes: z.record(z.string(), z.string().max(200)).default({}),
@@ -195,7 +199,11 @@ export class MastersController {
   @Patch('items/:id')
   @RequirePermission('masters.item.update')
   async updateItem(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
-    const input = parse(itemInput.partial().omit({ code: true }), body);
+    const parsed = parse(itemInput.partial().omit({ code: true }), body);
+    // Zod 4 fills .default() values even in .partial(): keep only the fields the caller sent, so a PATCH
+    // neither resets omitted flags nor "changes" tracking to its default.
+    const sent = body && typeof body === 'object' ? body : {};
+    const input = Object.fromEntries(Object.entries(parsed).filter(([k]) => k in sent)) as Partial<typeof parsed>;
     const before = await this.getItem(ctx, id);
     if (input.stockUomId && input.stockUomId !== before.stockUomId) {
       throw new BadRequestException({ message: 'Stock unit cannot change once set', issues: [{ path: 'stockUomId', message: 'Create a new item instead' }] });

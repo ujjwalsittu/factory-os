@@ -125,7 +125,9 @@ export interface WorkOrderDetail {
   itemName: string;
   tracking: string;
   uom: string;
-  bomId: string;
+  /** Null on rework orders, which have no BOM (decision 048). */
+  bomId: string | null;
+  reworkOfNcrId?: string | null;
   revision: string;
   plannedQty: string;
   producedQty: string;

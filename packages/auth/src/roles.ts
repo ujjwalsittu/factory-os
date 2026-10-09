@@ -70,13 +70,13 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'stores',
     name: 'Stores',
     description: 'Stock receipts, issues, transfers, counts and the waste register.',
-    permissions: all((p) => p.startsWith('inventory.') || p.startsWith('ehs.') || ['compliance.sandbox_operation.read','compliance.sandbox_connection.read','compliance.sandbox_partb.create','compliance.sandbox_partb.update'].includes(p) || p === 'buying.return_claim.read' || p === 'buying.return_movement.read' || p === 'buying.return_movement.create' || ['manufacturing.job_work.read', 'manufacturing.job_work.create', 'manufacturing.job_work.submit'].includes(p) || p === 'masters.item.read' || p === 'masters.party.read'),
+    permissions: all((p) => p.startsWith('inventory.') || p.startsWith('ehs.') || ['compliance.sandbox_operation.read','compliance.sandbox_connection.read','compliance.sandbox_partb.create','compliance.sandbox_partb.update'].includes(p) || p === 'buying.return_claim.read' || p === 'buying.return_movement.read' || p === 'buying.return_movement.create' || ['manufacturing.job_work.read', 'manufacturing.job_work.create', 'manufacturing.job_work.submit', 'quality.ncr.read', 'quality.ncr.create', 'quality.attachment.read', 'quality.attachment.create'].includes(p) || p === 'masters.item.read' || p === 'masters.party.read'),
   },
   {
     key: 'production_planner',
     name: 'Production Planner',
     description: 'BOMs, routings, work orders and scheduling.',
-    permissions: all((p) => p.startsWith('manufacturing.') || p === 'masters.item.read' || p === 'inventory.stock_entry.read'),
+    permissions: all((p) => p.startsWith('manufacturing.') || ['quality.plan.read', 'quality.fai.read', 'quality.ncr.read', 'quality.ncr.create', 'quality.gauge.read', 'quality.attachment.read', 'quality.attachment.create', 'quality.inspection.read'].includes(p) || p === 'masters.item.read' || p === 'inventory.stock_entry.read'),
   },
   {
     key: 'operator',

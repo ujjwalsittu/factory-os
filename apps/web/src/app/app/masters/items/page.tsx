@@ -123,6 +123,9 @@ function ItemDialog({ item, onClose }: { item: Item | null; onClose: () => void 
     requiresIncomingInspection: item?.requiresIncomingInspection ?? false,
     exportControlled: item?.exportControlled ?? false,
     jobWorkExemptTool: item?.jobWorkExemptTool ?? false,
+    requiresFinalInspection: item?.requiresFinalInspection ?? false,
+    requiresFai: item?.requiresFai ?? false,
+    faiProcessChange: item?.faiProcessChange ?? false,
     isActive: item?.isActive ?? true,
   });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
@@ -143,6 +146,9 @@ function ItemDialog({ item, onClose }: { item: Item | null; onClose: () => void 
         requiresIncomingInspection: f.requiresIncomingInspection,
         exportControlled: f.exportControlled,
         jobWorkExemptTool: f.jobWorkExemptTool,
+        requiresFinalInspection: f.requiresFinalInspection,
+        requiresFai: f.requiresFai,
+        faiProcessChange: f.faiProcessChange,
         isActive: f.isActive,
       };
       return item
@@ -234,6 +240,9 @@ function ItemDialog({ item, onClose }: { item: Item | null; onClose: () => void 
               ['requiresIncomingInspection', 'Incoming inspection required'],
               ['exportControlled', 'Export-controlled (SCOMET / restricted)'],
               ['jobWorkExemptTool', 'Mould, die, jig, fixture or tool (no job-work return limit)'],
+              ['requiresFinalInspection', 'Final inspection before release (output held in Quarantine)'],
+              ['requiresFai', 'First article inspection before invoicing'],
+              ['faiProcessChange', 'Process changed: needs a new FAI'],
               ['isActive', 'Active'],
             ] as const
           ).map(([k, label]) => (

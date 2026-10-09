@@ -5,7 +5,7 @@ Current requested foundation/accounting/NIC sequence. Completed implementation a
 | Item | Current state | Next concrete step |
 |---|---|---|
 | Google/Microsoft SSO | Software verified and merged to main (PR #3, 2026-10-08) | Live enablement separately (see below) |
-| Passkeys | Eight tasks/final review/manufacturing2c integration complete on a607949; disabled by default | [Integration PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-implementation-20261008)/actual green CI before support product claim; HTTPS/device acceptance separately |
+| Passkeys | Eight tasks/final review verified on a607949 before newly merged quality2d/0030; disabled by default | Reconcile both passkey migrations with published0030_quality, preserve SQL bytes, repeat affected integration verification, then [integration PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-implementation-20261008)/actual green CI before support product claim; HTTPS/device acceptance separately |
 | Audited support access | [Read-only written spec](../superpowers/specs/2026-10-09-support-access-design.md)/decision049 approved2026-10-09; [nine-task plan](../superpowers/plans/2026-10-09-support-access.md) prepared; no product implementation | Written-plan review with Native retained, then passkey/planning green-CI merges and separate merged product claim; tenant consent/configuration/30-minute cap/two identities |
 | PostgreSQL RLS | Not implemented | Separate database role/context/transaction/pool and migration design; app tenancy checks stay authoritative |
 | Live SMTP | Email software complete; delivery disabled | Secure existing-service sender/credentials/payload key, DNS/TLS/connectivity and authorized real mailbox acceptance |
@@ -29,7 +29,7 @@ No unresolved Critical/Important finding is recorded for the completed email/ban
 
 ## Broader roadmap after current sequence
 
-Manufacturing slice2a is now merged to main (decision044/migration0027); its BOM/work-centre/work-order/issue/job-card/actual-output flows are delivered in that branch history. [Review](../superpowers/reviews/2026-10-07-manufacturing-2a-review.md). Remaining manufacturing roadmap is later depth, including serials/genealogy/remnants and job work/quality/scheduling; this session made no manufacturing product changes.
+Manufacturing slice2a is now merged to main (decision044/migration0027); its BOM/work-centre/work-order/issue/job-card/actual-output flows are delivered in that branch history. [Review](../superpowers/reviews/2026-10-07-manufacturing-2a-review.md). Slices2b/2c/2d are now merged, including serials/genealogy/remnants, job work/ITC-04 and quality/FAI/NCR/calibration. Remaining depth includes finite scheduling and the explicitly deferred quality follow-ups; this session made no manufacturing product changes.
 
 Manufacturing/quality (BOM/routing/work orders/job cards/genealogy, job work/ITC-04, inspection/calibration, scheduling); services/resources/subscriptions/timesheets; accounting depth (cost centres, inter-company/consolidation) and GST returns/2B-IMS; IoT/edge/OEE and expanded EHS evidence; later maintenance/CAPA/customer portal/analytics/GSTR-9. [Roadmap](../09-roadmap.md) is a broad plan; STATUS and completed reviews override stale pending labels (for example sales/supplier notes, payments and bank reconciliation are already delivered).
 

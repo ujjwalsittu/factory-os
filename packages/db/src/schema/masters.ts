@@ -90,6 +90,12 @@ export const item = pgTable(
     /** Moisture sensitivity level for SMT parts (1, 2, 2a, 3, 4, 5, 5a, 6). */
     mslLevel: text('msl_level'),
     requiresIncomingInspection: boolean('requires_incoming_inspection').notNull().default(false),
+    /** Decision 048: output goes to Quarantine until a final inspection passes. */
+    requiresFinalInspection: boolean('requires_final_inspection').notNull().default(false),
+    /** Decision 048: a lot or serial can't be invoiced until an FAI covering this revision is approved. */
+    requiresFai: boolean('requires_fai').notNull().default(false),
+    /** A process change since the last FAI (AS9102 trigger), cleared when an FAI is approved. */
+    faiProcessChange: boolean('fai_process_change').notNull().default(false),
     /** Export-controlled (SCOMET etc.); restricts visibility later (open question B5). */
     exportControlled: boolean('export_controlled').notNull().default(false),
     reorderLevel: qty('reorder_level'),
