@@ -6,7 +6,7 @@ Current requested foundation/accounting/NIC sequence. Completed implementation a
 |---|---|---|
 | Google/Microsoft SSO | Software verified and merged to main (PR #3, 2026-10-08) | Live enablement separately (see below) |
 | Passkeys | Eight tasks/final review/manufacturing2c integration complete on a607949; disabled by default | [Integration PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-implementation-20261008)/actual green CI before support product claim; HTTPS/device acceptance separately |
-| Audited impersonation | [Read-only written proposal](../superpowers/specs/2026-10-09-support-access-design.md)/proposed049 prepared; no product implementation | Written-spec review, then Native plan and separate merged product claim; tenant consent/configuration/30-minute cap/two identities |
+| Audited support access | [Read-only written spec](../superpowers/specs/2026-10-09-support-access-design.md)/decision049 approved2026-10-09; [nine-task plan](../superpowers/plans/2026-10-09-support-access.md) prepared; no product implementation | Written-plan review with Native retained, then passkey/planning green-CI merges and separate merged product claim; tenant consent/configuration/30-minute cap/two identities |
 | PostgreSQL RLS | Not implemented | Separate database role/context/transaction/pool and migration design; app tenancy checks stay authoritative |
 | Live SMTP | Email software complete; delivery disabled | Secure existing-service sender/credentials/payload key, DNS/TLS/connectivity and authorized real mailbox acceptance |
 | Live Google/Microsoft SSO | Software merged; providers disabled, no apps/credentials registered | Organization's OAuth apps, secure credentials, exact callbacks, Microsoft tenant UUID and local email verification |

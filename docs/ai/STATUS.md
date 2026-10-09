@@ -1,6 +1,6 @@
 # Status
 
-_Last updated:2026-10-09 (Asia/Kolkata) · Audited support-access written proposal prepared; review pending_
+_Last updated:2026-10-09 (Asia/Kolkata) · Support-access written spec approved; nine-task Native plan ready for review_
 
 ## Done
 - [x] **Manufacturing slice 2c: job work and ITC-04** (decision 047, migration 0029_job_work):
@@ -91,7 +91,7 @@ _Last updated:2026-10-09 (Asia/Kolkata) · Audited support-access written propos
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
-- **Audited support access (design only)** · owner: agent, Native continuation on `support-access-design-20261009` · started:2026-10-09 (Asia/Kolkata). [Written proposal](../superpowers/specs/2026-10-09-support-access-design.md), proposed decision049: tenant-initiated read-only consent, native actor retained,5–30-minute configurable limit, exact safe panels, authority revocation and both-identity audit. Native admin cookie swapping and GET bill synchronization are excluded. Stopping point: written-spec review before the implementation plan/product claim; no code/schema/secret/enablement changes. Read-only scope question remains an unanswered recommendation.
+- **Audited support access (planning only)** · owner: agent, Native continuation on `support-access-design-20261009` · started:2026-10-09 (Asia/Kolkata). User APPROVED the [written spec](../superpowers/specs/2026-10-09-support-access-design.md) on2026-10-09; decision049 Accepted, including read-only scope/conservative authority invalidation/data model. [Nine-task Native implementation plan](../superpowers/plans/2026-10-09-support-access.md) defines exact interfaces, native proof, additive authority triggers, five pure panels, separate read-only pool, pre-return audit, consent/inbox and isolated mobile cache, plus real concurrency/upgrade acceptance. Stopping point: written-plan review, then passkey/planning prerequisites and a separate STATUS-only product claim merged through actual green-CI PRs before code. This is not that standalone merged product claim; no product/schema/secret/runtime/enablement change.
 
 - **Manufacturing slice 2d: inspection, FAI, NCR and calibration (design)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-09 (Asia/Kolkata). User answered the four design questions (decision 048). [Spec](../superpowers/specs/2026-10-09-manufacturing-2d-design.md) and [nine-task plan](../superpowers/plans/2026-10-09-manufacturing-2d.md) written. Stopping point: user review of spec and plan; no product code until approved.
 
@@ -101,7 +101,7 @@ _Last updated:2026-10-09 (Asia/Kolkata) · Audited support-access written propos
 
 
 ## Next (user-authorized sequence; review each written design/plan)
-1. Review the [audited support-access written proposal](../superpowers/specs/2026-10-09-support-access-design.md)/proposed049, then write the implementation plan using the selected Native inline method. Integrate completed passkeys through their own green-CI PR before support product claim/build. PostgreSQL RLS follows separately; live email/IdP/passkey configuration and acceptance remain separate.
+1. Review the [nine-task support-access implementation plan](../superpowers/plans/2026-10-09-support-access.md); written spec/decision049 are already approved, Native inline method retained. Integrate completed passkeys and planning through their own actual green-CI PRs, then merge a standalone named-owner support claim before Task1. No repeated scope/method approval. PostgreSQL RLS follows separately; live email/IdP/passkey/support configuration and acceptance remain separate.
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
 3. User review of completed accounting/settlement/customer/supplier and manufacturing workflows on dev. Original shared activation states are preserved; cut-over remains a deliberate Finance action.
 

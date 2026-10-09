@@ -1,10 +1,10 @@
-# Audited support access — proposed design
+# Audited support access — approved design
 
-Date: 2026-10-09 (Asia/Kolkata). Status: **Proposed; written review required**. Decision: proposed049. Native inline execution remains the selected method; this document does not authorize product implementation.
+Date: 2026-10-09 (Asia/Kolkata). Status: **Written spec approved by user APPROVED on2026-10-09**. Decision: accepted049. Native inline execution remains the selected method. The [nine-task implementation plan](../plans/2026-10-09-support-access.md) awaits written review; prerequisite merges and the standalone product claim still precede implementation.
 
 ## Intent and scope
 
-Continue the requested foundation sequence after optional SSO and passkeys: let a platform operator troubleshoot the tenant's business data with explicit tenant consent, bounded time and attributable history. The first release is read-only. The user requested continued work and configurability; the earlier read-only-versus-business-edits question was unanswered. Read-only remains the recommended scope for this written review, rather than an accepted business/security choice.
+Continue the requested foundation sequence after optional SSO and passkeys: let a platform operator troubleshoot the tenant's business data with explicit tenant consent, bounded time and attributable history. The first release is read-only. The user's2026-10-09 approval accepts the complete written scope, including read-only access, configurability, conservative authority invalidation and this data model; the earlier scope question needs no repeated answer.
 
 Success means a tenant administrator can approve access for one known operator, one active target member and one legal entity; the operator can inspect permitted data while remaining signed in as themselves; expiry, revocation and authority changes prevent further access; tenant owners can see both identities and the reason. Existing password, TOTP, backup-code, trusted-device, SSO and passkey behavior remains authoritative.
 
@@ -30,7 +30,7 @@ Business edits, provisioning, target-user authentication, credential recovery on
 
 Choose the first approach. Reuse proven business SELECT helpers/components through explicit read interfaces, rather than duplicating a reporting engine or mounting existing edit forms.
 
-## Proposed authorization rules
+## Approved authorization rules
 
 1. Deployment `SUPPORT_ACCESS_ENABLED` defaults false. Each tenant's typed support policy also defaults disabled. Both must be enabled for grants/reads. There is no emergency bypass.
 2. Operators must have an existing current `platform_admin` record with level `superadmin` or `support`. A dedicated support controller/guard allows these two levels; it does not widen `@PlatformAdmin` or ordinary tenant membership.
@@ -54,7 +54,7 @@ Use additive tables; never modify published SQL or backfill privileged grants. M
 
 Native authority changes bump revisions in their original SQL transaction. Narrow triggers cover tenant status; membership status/identity/ownership; role permissions and assignments; selected-entity eligibility; platform role changes; local password, email/verification and verified factor authority changes. Native actor-session deletion invalidates grants bound to that exact session, not unrelated expired-session cleanup. Compare relevant fields; failed-factor counters, session renewal, names and descriptions do not invalidate access.
 
-The first release may invalidate every grant in a tenant on a relevant membership/role change. This is deliberately conservative and must be approved: unrelated user administration can require new consent. Do not rewrite native user/account/session rows or require foreign keys that block native cleanup. Historical identity references survive deletion; absence refuses access. Version bumps and actual invalidation remain committed with the source mutation. Relevant trigger/reader lock order must be consistent, bounded and proved under concurrent native and tenant mutations.
+The first release may invalidate every grant in a tenant on a relevant membership/role change. The user's written-spec approval accepts this conservative behavior: unrelated user administration can require new consent. Do not rewrite native user/account/session rows or require foreign keys that block native cleanup. Historical identity references survive deletion; absence refuses access. Version bumps and actual invalidation remain committed with the source mutation. Relevant trigger/reader lock order must be consistent, bounded and proved under concurrent native and tenant mutations.
 
 Native password confirmation occurs before holding support authority locks. Capture the user security epoch and a server-HMAC password version before invoking the native verifier; the grant transaction rechecks the same native session, versions, email/MFA state and current roles. No plaintext password or native credential hash is persisted in grant evidence, and no new encryption secret is required. Never accept a browser-supplied boolean, timestamp or password version as proof. A password/reset race refuses consent/start.
 
@@ -91,7 +91,7 @@ Only these panels are in scope; their readers must remain pure SELECT and pass c
 
 Invoice-balance endpoints, credit-status checks, bill synchronization, opening/activation, tax/provider/bank/email diagnostics, user/role/security settings, raw audit payloads, attachments, downloads/print/export and all business mutations are outside the catalog. Show an explicit unavailable-in-support message for excluded areas; do not automatically fall back to normal target APIs. The target's labels/permissions are visible as context, never their authentication/account rows.
 
-Proposed routes (names include no arbitrary forwarding endpoint):
+Approved routes (names include no arbitrary forwarding endpoint):
 
 - Tenant control: `GET/PATCH /support-access/policy`, `GET/POST /support-access/grants`, `POST /support-access/grants/:id/revoke`. Authenticated target self-stop uses `POST /support-access/grants/:id/stop` and an exact subject-ID check; it does not permit listing or administering other grants. POST creates the fully scoped approval after native proof; grants are tenant-initiated, avoiding a new global support directory. SMTP is unnecessary.
 - Operator control: `GET /support-access/operator/grants`, `POST /support-access/operator/grants/:id/start`, `POST /support-access/operator/grants/:id/stop`. Lists return only addressed consent. Start confirms native proof and consumes consent once; stop can close expired access and is idempotent for the same actor/grant.
@@ -123,6 +123,6 @@ These are future implementation acceptance checks, not checks already run for th
 
 ## Delivery and remaining gates
 
-Written-spec review accepts or changes these proposed business/security choices. Then prepare the written implementation plan for review using the already selected Native inline method. Before product code, merge prerequisites and a standalone named-owner claim through green-CI PRs as required by [AGENTS.md](../../../AGENTS.md). Preserve other owners, fetch the latest journal and complete all approved work on an own branch; no direct main push.
+Written-spec review accepted these business/security choices on2026-10-09. The [implementation plan](../plans/2026-10-09-support-access.md) now awaits written review using the already selected Native inline method. Before product code, merge prerequisites and a standalone named-owner claim through green-CI PRs as required by [AGENTS.md](../../../AGENTS.md). Preserve other owners, fetch the latest journal and complete all approved work on an own branch; no direct main push.
 
 GitHub GraphQL403 is the known PR/CI automation blocker; do not repeat identical requests without evidence access changed. A pushed design or local software tests do not establish remote green CI, merge, deployment or live enablement. Real HTTPS/proxy/operator acceptance and explicit deployment/tenant enablement are separate. PostgreSQL RLS follows as its own database role/context/pool/transaction design.
