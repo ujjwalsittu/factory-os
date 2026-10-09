@@ -76,4 +76,4 @@ still recommended.
 - `smoke-manufacturing`, `smoke-serials`, `smoke-genealogy`, `smoke-inventory` and `smoke-buying` still pass.
 - `e2e:job-work` passes on desktop and at 390 px mobile.
 - Root typecheck (19 tasks), build (12) and tests (11 tasks) all pass.
-- The full API regression result is recorded in STATUS.
+- Full API regression: all 69 suites pass.
