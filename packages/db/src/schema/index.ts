@@ -21,5 +21,6 @@ export * from './bank-reconciliation.js';
 export * from './email.js';
 export * from './sso.js';
 export * from './manufacturing.js';
+export * from './passkeys.js';
 export * from './job-work.js';
 export * from './quality.js';

@@ -218,6 +218,20 @@
       "when": 1791538008244,
       "tag": "0030_quality",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791543942710,
+      "tag": "0031_passkey_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791543942711,
+      "tag": "0032_passkey_ceremony_bounds",
+      "breakpoints": true
     }
   ]
 }

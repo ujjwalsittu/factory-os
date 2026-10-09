@@ -5,7 +5,7 @@ import {createDb} from '../../../packages/db/dist/index.js';
 import {isolatedSsoDatabase,seedSsoOwner,seedSsoAction,seedSsoBinding} from './sso-schema-helpers.mjs';
 import {SsoStore} from '../dist/modules/sso/sso.store.js';
 import {loadConfig} from '../dist/config.js';
-const root=new URL('../../../packages/db/drizzle/',import.meta.url),baselinePath=new URL('../../../.superpowers/sdd/2026-10-07-sso/upgrade-baseline.json',import.meta.url);
+const root=new URL('../../../packages/db/drizzle/',import.meta.url),baselinePath=new URL(process.env.SSO_BASELINE_FILE??'../../../.superpowers/sdd/2026-10-07-sso/upgrade-baseline.json',import.meta.url);
 const originals=(await readdir(root)).filter(n=>/^(001[1-9]|002[0-4])_.*\.sql$/.test(n)).sort();
 const hashes=Object.fromEntries(await Promise.all(originals.map(async n=>[n,createHash('sha256').update(await readFile(new URL(n,root))).digest('hex')])));
 const shared=createDb(process.env.DATABASE_URL);
@@ -14,7 +14,7 @@ const activations=(await shared.$client.query('select entity_id,active,cutover_d
 const books={};for(const table of tables){const rows=(await shared.$client.query(`select row_to_json(t)::text value from ${table} t order by row_to_json(t)::text`)).rows.map(r=>r.value);assert(rows.length>0);books[table]={count:rows.length,hash:createHash('sha256').update(JSON.stringify(rows)).digest('hex')};}
 await shared.$client.end();
 if(process.env.CAPTURE_SSO_BASELINE==='1'){await writeFile(baselinePath,JSON.stringify({hashes,activations,books}),{flag:'wx'});console.log('SSO original migration/activation/populated ledger baseline captured once');process.exit(0);}
-const baseline=JSON.parse(await readFile(baselinePath,'utf8'));assert.deepEqual(hashes,baseline.hashes);for(const original of baseline.activations)assert.deepEqual(JSON.parse(JSON.stringify(activations.find(r=>r.entity_id===original.entity_id))),original);assert.deepEqual(books,baseline.books);
+const baseline=JSON.parse(await readFile(baselinePath,'utf8'));if(process.env.SSO_BASELINE_FILE){for(const [name,hash] of Object.entries(hashes))assert.equal(hash,baseline.hashes[name]);}else assert.deepEqual(hashes,baseline.hashes);for(const original of baseline.activations)assert.deepEqual(JSON.parse(JSON.stringify(activations.find(r=>r.entity_id===original.entity_id))),original);assert.deepEqual(books,baseline.books);
 const f=await isolatedSsoDatabase();let n=0;
 const test=async(name,fn)=>{await fn();n++;console.log('PASS '+name);};
 try{
@@ -46,6 +46,8 @@ try{
  await legacy.db.$client.query((await readFile(new URL('0025_sso_account_security.sql',root),'utf8')).replaceAll('--> statement-breakpoint',''));
  await legacy.db.$client.query((await readFile(new URL('0026_sso_client_binding.sql',root),'utf8')).replaceAll('--> statement-breakpoint',''));
  const row=(await legacy.db.$client.query("select sso_issuer,sso_client_id from account where id='historical-link'")).rows[0];assert.deepEqual(row,{sso_issuer:null,sso_client_id:null});
+ // Exercise the current application only after the historical rows have upgraded to its schema.
+ for(const name of (await readdir(root)).filter(n=>/^\d{4}_.*\.sql$/.test(n)&&Number(n.slice(0,4))>26).sort())await legacy.db.$client.query((await readFile(new URL(name,root),'utf8')).replaceAll('--> statement-breakpoint',''));
  const config=loadConfig({NODE_ENV:'test',DATABASE_URL:legacy.url,BETTER_AUTH_URL:'http://localhost:3000',WEB_ORIGIN:'http://localhost:3000',BETTER_AUTH_SECRET:'synthetic-secret-over-thirty-two-characters'}),store=new SsoStore(legacy.db,config),ctx={user:{id:owner.userId,email:owner.email,name:'Synthetic'},sessionId:owner.sessionId};
  await assert.rejects(store.frameForBinding('historical-link',owner.userId,'https://accounts.google.com','signin','/app'));
  const proof=await store.createSsoAction(ctx,{provider:'google',kind:'unlink',targetAccountId:'historical-link'}),action=await store.validateSsoAction(ctx,proof.nonce,{provider:'google',kind:'unlink',targetAccountId:'historical-link'});await store.unlinkSsoAccount(ctx,action);assert.equal((await legacy.db.$client.query("select issuer from auth_sso_event where account_id='historical-link'")).rows[0].issuer,'unverified');console.log('PASS historicalUpgradeNoInventedIdentity authorized legacy disconnect with provider disabled');

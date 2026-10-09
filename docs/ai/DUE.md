@@ -5,7 +5,7 @@ Current requested foundation/accounting/NIC sequence. Completed implementation a
 | Item | Current state | Next concrete step |
 |---|---|---|
 | Google/Microsoft SSO | Software verified and merged to main (PR #3, 2026-10-08) | Live enablement separately (see below) |
-| Passkeys | Eight tasks/final review verified on a607949 before newly merged quality2d/0030; disabled by default | Reconcile both passkey migrations with published0030_quality, preserve SQL bytes, repeat affected integration verification, then [integration PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-implementation-20261008)/actual green CI before support product claim; HTTPS/device acceptance separately |
+| Passkeys | Eight tasks/final review and quality-main integration verified, byte-identical0031/0032 after published0030_quality; disabled by default | [Integration PR](https://github.com/ujjwalsittu/factory-os/pull/new/passkeys-implementation-20261008)/actual green CI, then separate HTTPS/device acceptance; [review](../superpowers/reviews/2026-10-08-passkeys-review.md) |
 | Audited support access | [Read-only written spec](../superpowers/specs/2026-10-09-support-access-design.md)/decision050 approved2026-10-09; [nine-task plan](../superpowers/plans/2026-10-09-support-access.md) approved2026-10-09; no product implementation | Native retained; passkey/planning green-CI merges and separate merged product claim; tenant consent/configuration/30-minute cap/two identities |
 | PostgreSQL RLS | Not implemented | Separate database role/context/transaction/pool and migration design; app tenancy checks stay authoritative |
 | Live SMTP | Email software complete; delivery disabled | Secure existing-service sender/credentials/payload key, DNS/TLS/connectivity and authorized real mailbox acceptance |
@@ -13,7 +13,7 @@ Current requested foundation/accounting/NIC sequence. Completed implementation a
 | NIC e-invoice/e-way bill wire adapter | Offline encrypted/mock foundation complete; verified protocol and live sandbox acceptance blocked | Reachable official NIC auth/schema/API contracts or authorized exports, then adapter implementation and real sandbox verification |
 | Automatic TDS/TCS | Evidence/engine/available charge scope complete; numerical profiles and source workflows blocked | Official GST-base/PAN-operative relief/lower-nil guidance plus applicability; then invoice/advice/advance recognition, settlement/TCS totals, remittances/corrections and tax UI |
 | Bank-charge replacement/later GST adjustment | Not implemented; cancelled original references intentionally reserved | Separate replacement provenance and evidence-only GST adjustment workflow design |
-| Finance review/cut-over | Shared old books not activated | User/Finance review of completed workflows and deliberate entity opening/cut-over using reviewed previews |
+| Finance review/cut-over | Existing shared activation states preserved | User/Finance review of completed workflows and deliberate entity opening/cut-over using reviewed previews |
 
 NIC connectivity states are the last recorded observations in STATUS, not a new live recheck. Evidence gate references: [NIC scope and requirements](../superpowers/specs/2026-10-06-nic-sandbox-design.md), [withholding requirements](../compliance/withholding-profile-evidence.md), [current handoff](STATUS.md).
 

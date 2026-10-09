@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import {loadPasskeyConfig,passkeyAvailability} from '../dist/modules/passkeys/passkeys.config.js';
+import {loadConfig} from '../dist/config.js';
+const base={webOrigin:'https://factory.example.test',trustedOrigins:['https://factory.example.test','https://extra.factory.example.test']};
+const enabled={NODE_ENV:'production',PASSKEY_ENABLED:'true',PASSKEY_RP_ID:'factory.example.test'};
+let count=0;
+function test(name,fn){fn();count++;console.log(`PASS ${name}`);}
+test('disabled_defaults_and_exact_origins',()=>assert.deepEqual(loadPasskeyConfig({},base),{enabled:false,rpId:null,origins:[],maxPerUser:10}));
+test('disabled capability has no account data',()=>assert.deepEqual(passkeyAvailability(loadPasskeyConfig({},base)),{enabled:false,rpName:'FactoryOS'}));
+test('canonical origin only, extras never inherited',()=>assert.deepEqual(loadPasskeyConfig(enabled,base),{enabled:true,rpId:'factory.example.test',origins:[base.webOrigin],maxPerUser:10}));
+test('exact explicitly trusted origin list',()=>assert.deepEqual(loadPasskeyConfig({...enabled,PASSKEY_ALLOWED_ORIGINS:base.trustedOrigins.join(',')},base).origins,base.trustedOrigins));
+for(const value of ['1','TRUE','yes',''])test(`invalid enabled ${JSON.stringify(value)}`,()=>assert.throws(()=>loadPasskeyConfig({...enabled,PASSKEY_ENABLED:value},base),/PASSKEY/));
+for(const rp of ['', 'example.test','*.example.test','factory.example.test:443','https://factory.example.test','api.example.test','factory.example.test/','Factory.Example.Test'])test(`invalid RP ${JSON.stringify(rp)}`,()=>assert.throws(()=>loadPasskeyConfig({...enabled,PASSKEY_RP_ID:rp},base),/PASSKEY/));
+for(const origin of ['', '*','https://*.factory.example.test','https://factory.example.test/','https://factory.example.test/path','https://factory.example.test?x=1','https://factory.example.test#fragment','https://user:pass@factory.example.test','http://factory.example.test','https://untrusted.factory.example.test','https://foreign.example.test','https://factory.example.test:443'])test(`invalid origin ${JSON.stringify(origin)}`,()=>assert.throws(()=>loadPasskeyConfig({...enabled,PASSKEY_ALLOWED_ORIGINS:origin},base),/PASSKEY/));
+for(const limit of ['0','21','1.5','NaN','Infinity',''])test(`invalid limit ${JSON.stringify(limit)}`,()=>assert.throws(()=>loadPasskeyConfig({...enabled,PASSKEY_MAX_PER_USER:limit},base),/PASSKEY/));
+for(const limit of [1,20])test(`valid limit ${limit}`,()=>assert.equal(loadPasskeyConfig({...enabled,PASSKEY_MAX_PER_USER:String(limit)},base).maxPerUser,limit));
+const localBase={webOrigin:'http://localhost:3000',trustedOrigins:['http://localhost:3000']};
+test('explicit development localhost, browser port differs from API',()=>{const config=loadConfig({NODE_ENV:'test',BETTER_AUTH_URL:'http://localhost:4000',WEB_ORIGIN:localBase.webOrigin,DATABASE_URL:'postgresql://localhost/synthetic',BETTER_AUTH_SECRET:'synthetic-secret-at-least-thirty-two-characters',PASSKEY_ENABLED:'true',PASSKEY_RP_ID:'localhost'});assert.deepEqual(config.passkeys,{enabled:true,rpId:'localhost',origins:[localBase.webOrigin],maxPerUser:10});assert.deepEqual(config.sso,{google:null,microsoft:null});assert.equal(config.email.mode,'disabled');});
+test('HTTP localhost forbidden in production',()=>assert.throws(()=>loadPasskeyConfig({...enabled,PASSKEY_RP_ID:'localhost'},localBase),/PASSKEY/));
+test('IP aliases refused',()=>assert.throws(()=>loadPasskeyConfig({PASSKEY_ENABLED:'true',PASSKEY_RP_ID:'127.0.0.1'},{webOrigin:'http://127.0.0.1:3000',trustedOrigins:['http://127.0.0.1:3000']}),/PASSKEY/));
+test('missing canonical origin in core trust refused',()=>assert.throws(()=>loadPasskeyConfig(enabled,{...base,trustedOrigins:[]}),/PASSKEY/));
+test('malformed canonical origin refused',()=>assert.throws(()=>loadPasskeyConfig(enabled,{...base,webOrigin:base.webOrigin+'/'}),/PASSKEY/));
+test('disabled unused configuration does not enable routes',()=>assert.deepEqual(loadPasskeyConfig({PASSKEY_ENABLED:'false',PASSKEY_RP_ID:'garbage',PASSKEY_ALLOWED_ORIGINS:'*'},base),{enabled:false,rpId:null,origins:[],maxPerUser:10}));
+test('enabled capability has no RP or limit',()=>assert.deepEqual(passkeyAvailability(loadPasskeyConfig(enabled,base)),{enabled:true,rpName:'FactoryOS'}));
+console.log(`Passkeys config ${count} checks PASS`);
