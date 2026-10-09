@@ -111,8 +111,11 @@ One document type, `job_work_order`, with two kinds.
 
 ## 3. Delivery challan
 
-- **What it is:** the challan is the job-work send document, numbered `JWC` per GSTIN and FY
-  (gapless, existing number-series engine).
+- **What it is:** the challan is the job-work send document, numbered per GSTIN and FY (gapless,
+  existing number-series engine).
+- **Number format:** default `JW/<FY>/<5 digits>`, for example `JW/26-27/00001`. Rule 55 caps
+  challan numbers at 16 characters, and a series that would exceed it is refused (see the
+  [evidence](../../compliance/itc04-evidence.md)).
 - **Print (Rule 55):**
   - our and the job worker's name, address and GSTIN;
   - date and number;
@@ -120,8 +123,9 @@ One document type, `job_work_order`, with two kinds.
   - place of supply;
   - "Goods sent for job work under Section 143 — not a supply";
   - signature block.
-- **Interstate:** the e-way bill number is required when the job worker is in another state,
-  whatever the value. The user types it in; the challan can't be submitted interstate without it.
+- **Interstate:** an interstate challan shows an e-way bill number field and a warning, but
+  submitting isn't blocked. The current rule 138 text couldn't be checked, so the requirement isn't
+  hard-coded (see the evidence file).
 - **Cancel:** allowed only while nothing has been received against the challan. It reverses the
   stock transfer exactly.
 
@@ -151,10 +155,10 @@ One document type, `job_work_order`, with two kinds.
   - **Table 5A (goods received back):** receipts dated in the period, each with its original
     challan number and date, plus quantities lost or returned as waste.
 - **Screen and exports:** Compliance → ITC-04, with period picker, the two tables and totals.
-  Export as CSV in the layout of the GST portal's ITC-04 offline tool.
+  Export as CSV in the field order of FORM GST ITC-04 (the offline-tool template couldn't be retrieved; see the evidence file).
 - **Deadline alerts:**
   - each open challan line shows the date it must be back by: 1 year for inputs, 3 years for
-    capital goods (Sec 143(1)(a)/(b));
+    capital goods (Sec 143(1)(a)/(b)). A Commissioner's extension (up to 1 or 2 more years) can be recorded on the line;
   - items flagged as moulds, dies, jigs, fixtures or tools are exempt from the time limit;
   - lines turn amber 30 days before the deadline and red after it;
   - after the deadline the screen states that the goods are treated as supplied on the original
