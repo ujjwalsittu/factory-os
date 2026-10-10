@@ -136,7 +136,7 @@ export async function readAccounting(db: SupportExecutor, scope: SupportScope, q
   }
   if (query.panel === 'ledger') {
     const lg = await accountLedger(db, scope, { ...query, accountId: query.accountId! });
-    if (!lg) throw new SupportError('SUPPORT_NOT_FOUND');
+    if (!lg) throw new SupportError('SUPPORT_NOT_FOUND', 'record');
     const result = table(LEDGER, lg.entries, query);
     return detail(
       [

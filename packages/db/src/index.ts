@@ -29,7 +29,9 @@ export function createReadOnlyDb(connectionString: string, opts: { max?: number;
         const pid = (await client.query<{ pid: number }>('select pg_backend_pid() as pid')).rows[0]!.pid;
         await client.query(`begin transaction read only; set local statement_timeout = ${deadlineMs}; set local lock_timeout = ${deadlineMs}; set local idle_in_transaction_session_timeout = ${deadlineMs}`);
         timer = setTimeout(() => {
-          const canceller = new pg.Client({ connectionString });
+          // Bounded and quiet: a stalled or dropped cancel connection must not hang the read or crash the process.
+          const canceller = new pg.Client({ connectionString, connectionTimeoutMillis: 2000, query_timeout: 2000 });
+          canceller.on('error', () => undefined);
           cancelling = canceller
             .connect()
             .then(() => canceller.query('select pg_cancel_backend($1)', [pid]))

@@ -84,7 +84,11 @@ function Workspace() {
           </div>
         </dl>
       </Card>
-      {verifying ? <p className="text-muted">Checking access…</p> : <SupportAccessPanels context={context} />}
+      {verifying && <p className="text-muted">Checking access…</p>}
+      {/* Hidden, not unmounted, while access is re-checked: tabs, drill-downs and pages survive a window switch. */}
+      <div hidden={verifying} aria-hidden={verifying}>
+        <SupportAccessPanels context={context} />
+      </div>
     </div>
   );
 }

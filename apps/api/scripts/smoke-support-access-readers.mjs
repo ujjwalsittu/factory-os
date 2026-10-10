@@ -73,7 +73,8 @@ try {
     assert.ok((await read(scopeOf(buys), 'purchase-invoices', { panel: 'list' })).table.rows.some((r) => r.number));
     const doc = await read(scopeOf(buys), 'purchase-invoices', { panel: 'detail', id });
     assert.ok(doc.detail.tables[0].table.rows.length > 0);
-    await assert.rejects(read(scopeOf(other), 'purchase-invoices', { panel: 'detail', id }), (e) => e.code === 'SUPPORT_NOT_FOUND');
+    const foreignBuys = (await q(`select id, tenant_id from legal_entity where id <> $1 limit 1`, [buys.id]))[0];
+    if (foreignBuys) await assert.rejects(read(scopeOf(foreignBuys), 'purchase-invoices', { panel: 'detail', id }), (e) => e.code === 'SUPPORT_NOT_FOUND' && e.reasonCode === 'record');
   });
   await test('work orders: list shows NCR rework orders (no BOM) and detail carries routing, job cards and WIP only', async () => {
     const list = await read(scopeOf(wos), 'work-orders', { panel: 'list' });

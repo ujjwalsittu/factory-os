@@ -103,7 +103,7 @@ export async function readSalesInvoices(db: SupportExecutor, scope: SupportScope
   if (query.area !== 'sales-invoices' || !scope.permissions.has('selling.sales_invoice.read')) throw new SupportError('SUPPORT_UNAVAILABLE', 'permission');
   if (query.panel === 'list') return table(LIST, await salesInvoiceList(db, scope, { status: query.status as 'draft' | 'submitted' | 'cancelled' | undefined }), query);
   const inv = await salesInvoiceDetail(db, scope, query.id!);
-  if (!inv) throw new SupportError('SUPPORT_NOT_FOUND');
+  if (!inv) throw new SupportError('SUPPORT_NOT_FOUND', 'record');
   return detail(
     [
       { label: 'Number', value: inv.number },

@@ -64,6 +64,7 @@ export function supportErrorText(error: unknown): string {
   if (error.code === 'SUPPORT_INVALID_INPUT') return 'Some details are not valid. Check them and try again.';
   if (error.code === 'SUPPORT_ENDED') return 'This support access has ended.';
   if (error.status === 503) return 'The server is busy. Try again in a moment.';
+  if (error.status === 404 && error.reason === 'record') return 'This record is not available in this support session.';
   return 'Support access is unavailable for this request.';
 }
 

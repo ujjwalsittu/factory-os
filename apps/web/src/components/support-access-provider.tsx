@@ -41,6 +41,7 @@ export function SupportAccessProvider({ grantId, children }: { grantId: string; 
   const generation = useRef(0);
   const controllers = useRef(new Set<AbortController>());
   const known = useRef<{ actor: string; session: string } | null>(null);
+  const checking = useRef(false);
   const [context, setContext] = useState<SupportWorkspaceContext | null>(null);
   const [ended, setEnded] = useState<SupportEnd | null>(null);
   const [verifying, setVerifying] = useState(true);
@@ -81,7 +82,9 @@ export function SupportAccessProvider({ grantId, children }: { grantId: string; 
   const endFor = useCallback(
     (error: unknown) => {
       // A busy server (503: read pool or deadline) is shown in the panel; authority answers end the workspace.
-      if (error instanceof SupportApiError && error.status !== 503) end(error.code === 'SUPPORT_ENDED' ? 'ended' : 'unavailable');
+      // A missing record inside the grant (stale detail link) also stays in its panel.
+      if (!(error instanceof SupportApiError) || error.status === 503 || (error.status === 404 && error.reason === 'record')) return;
+      end(error.code === 'SUPPORT_ENDED' ? 'ended' : 'unavailable');
     },
     [end],
   );
@@ -89,6 +92,7 @@ export function SupportAccessProvider({ grantId, children }: { grantId: string; 
   const verify = useCallback(async () => {
     if (ended || !userId || !sessionId) return;
     const g = generation.current;
+    checking.current = true;
     setVerifying(true);
     try {
       const ctx = await tracked((signal) => supportWorkspace<SupportWorkspaceContext>(grantId, 'context', undefined, signal));
@@ -105,6 +109,8 @@ export function SupportAccessProvider({ grantId, children }: { grantId: string; 
       if (g !== generation.current || (error instanceof DOMException && error.name === 'AbortError')) return;
       if (error instanceof SupportApiError) endFor(error);
       setVerifying(false);
+    } finally {
+      checking.current = false;
     }
   }, [ended, userId, sessionId, grantId, tracked, end, endFor]);
 
@@ -130,7 +136,8 @@ export function SupportAccessProvider({ grantId, children }: { grantId: string; 
   // Focus and visibility: hide data until the server confirms access again; a native account change ends it.
   useEffect(() => {
     const recheck = () => {
-      if (document.visibilityState !== 'visible') return;
+      // Focus and visibilitychange usually arrive together: one check (and one audit row) is enough.
+      if (document.visibilityState !== 'visible' || checking.current) return;
       void session.refetch();
       void verify();
     };

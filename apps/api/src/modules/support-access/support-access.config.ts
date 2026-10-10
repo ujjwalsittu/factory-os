@@ -18,7 +18,15 @@ function canonicalOrigin(raw: string): string {
 }
 
 export function loadSupportConfig(env: NodeJS.ProcessEnv, webOrigin: string): SupportConfig {
-  const flag = env.SUPPORT_ACCESS_ENABLED ?? 'false';
+  const raw = env.SUPPORT_ACCESS_ENABLED;
+  const flag = raw === undefined || raw === '' ? 'false' : raw;
   if (flag !== 'true' && flag !== 'false') throw invalid();
-  return { enabled: flag === 'true', maxDurationSeconds: SUPPORT_MAX_DURATION_SECONDS, origins: [canonicalOrigin(webOrigin)] };
+  if (flag === 'true') return { enabled: true, maxDurationSeconds: SUPPORT_MAX_DURATION_SECONDS, origins: [canonicalOrigin(webOrigin)] };
+  // Switched off, a WEB_ORIGIN the feature would reject must not stop the API from starting; control writes then
+  // simply have no accepted origin.
+  let origins: string[] = [];
+  try {
+    origins = [canonicalOrigin(webOrigin)];
+  } catch {}
+  return { enabled: false, maxDurationSeconds: SUPPORT_MAX_DURATION_SECONDS, origins };
 }

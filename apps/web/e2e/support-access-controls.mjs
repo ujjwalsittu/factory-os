@@ -165,12 +165,13 @@ try {
   await form.getByLabel('Reason').fill('Stock balance looks wrong after the GRN');
   await form.getByLabel('Your password').fill(PASSWORD);
   const approval = o.page.waitForResponse((r) => r.url().endsWith('/api/support-access/grants') && r.request().method() === 'POST');
+  const historyResponse = o.page.waitForResponse((r) => r.url().includes('/api/support-access/grants?') && r.status() === 200);
   await form.getByRole('button', { name: 'Approve' }).click();
   const approved = await (await approval).json();
   assert.equal(JSON.stringify(approved).includes(PASSWORD), false);
   await o.page.waitForSelector(`text=Approved for ${operator.email}`);
   assert.equal(await form.getByLabel('Your password').inputValue(), '', 'password cleared after success');
-  const history = await (await o.page.waitForResponse((r) => r.url().includes('/api/support-access/grants?') && r.status() === 200)).json();
+  const history = await (await historyResponse).json();
   for (const secret of ['passwordVersion', 'securityEpoch', PASSWORD, 'token']) assert.equal(JSON.stringify(history).includes(secret), false, secret);
   const row = o.page.locator('tr', { hasText: operator.email });
   await row.getByText('Approved', { exact: true }).waitFor();

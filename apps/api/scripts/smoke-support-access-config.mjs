@@ -22,6 +22,10 @@ for (const v of ['1', 'TRUE', 'yes', 'on', ' true'])
   test(`invalid SUPPORT_ACCESS_ENABLED ${JSON.stringify(v)}`, () => assert.throws(() => loadSupportConfig({ SUPPORT_ACCESS_ENABLED: v }, web), /SUPPORT_ACCESS/));
 for (const origin of ['http://user:pw@localhost:3000', 'http://localhost:3000/app', 'http://localhost:3000?x=1', 'http://localhost:3000#f', 'ftp://localhost', 'not a url'])
   test(`invalid web origin ${origin}`, () => assert.throws(() => loadSupportConfig({ SUPPORT_ACCESS_ENABLED: 'true' }, origin), /SUPPORT_ACCESS/));
+test('switched off (unset or empty), an origin the feature would reject never stops startup', () => {
+  assert.deepEqual(loadSupportConfig({ SUPPORT_ACCESS_ENABLED: '' }, 'https://App.example.test:443/app'), { enabled: false, maxDurationSeconds: 1800, origins: [] });
+  assert.equal(loadSupportConfig({}, 'not a url').enabled, false);
+});
 test('a trailing slash origin normalizes to the bare origin', () => assert.deepEqual(loadSupportConfig({}, 'https://factory.example.test/').origins, ['https://factory.example.test']));
 
 const approval = { operatorEmail: 'Ops@Example.com', targetMembershipId: uuid(), entityId: uuid(), areas: ['inventory', 'accounting'], durationSeconds: 1800, reason: 'Ticket 42: stock mismatch', password: 'Sup3r-secret-pw' };

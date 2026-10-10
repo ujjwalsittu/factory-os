@@ -44,7 +44,8 @@ No Critical finding.
 - **Work-order detail is support-only.** `workOrderFacts` omits user joins instead of reusing the ordinary detail.
 - **Completed SSO/passkey proof modes** are covered by their own suites (`smoke-sso-actions`, `smoke-passkeys-actions`,
   passkeys browser); the support fixtures use TOTP, backup-code and trusted-device completions.
-- **Deployment switch off** is observed at request time (every route refuses); it is not stored as an invalidation.
+- **Deployment switch.** It is checked at request time; every support route refuses while it is off. It is not stored
+  as an invalidation. While it is off, an unusable `WEB_ORIGIN` no longer stops the API from starting.
 - **Backup-code consumption** is not an epoch bump (failed-factor counters and code use do not change authority).
 - **Native renewal.** `verifyPassword` renews the native session (native behaviour, preserved); the deadline captured
   at start never extends.

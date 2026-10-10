@@ -75,7 +75,7 @@ export async function readPurchaseInvoices(db: SupportExecutor, scope: SupportSc
   if (query.area !== 'purchase-invoices' || !scope.permissions.has('buying.purchase_invoice.read')) throw new SupportError('SUPPORT_UNAVAILABLE', 'permission');
   if (query.panel === 'list') return table(LIST, await purchaseInvoiceList(db, scope, { status: query.status as 'draft' | 'submitted' | 'cancelled' | undefined }), query);
   const inv = await purchaseInvoiceDetail(db, scope, query.id!);
-  if (!inv) throw new SupportError('SUPPORT_NOT_FOUND');
+  if (!inv) throw new SupportError('SUPPORT_NOT_FOUND', 'record');
   return detail(
     [
       { label: 'Number', value: inv.number },

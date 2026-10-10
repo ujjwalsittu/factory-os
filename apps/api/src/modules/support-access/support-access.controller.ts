@@ -45,7 +45,10 @@ export class SupportExceptionFilter implements ExceptionFilter {
     const res = host.switchToHttp().getResponse<Response>();
     if (error instanceof SupportError) {
       const code = error.code === 'SUPPORT_NOT_FOUND' || error.code === 'SUPPORT_CONFLICT' ? 'SUPPORT_UNAVAILABLE' : error.code;
-      return res.status(STATUS[error.code]).json({ code, ...(error.code === 'SUPPORT_REAUTHENTICATE' && error.reasonCode ? { reason: error.reasonCode } : {}) });
+      // The reason is public only for re-authentication and for a missing record inside a known grant (a stale
+      // detail link), which the workspace shows in the panel instead of ending.
+      const reason = (error.code === 'SUPPORT_REAUTHENTICATE' && error.reasonCode) || (error.code === 'SUPPORT_NOT_FOUND' && error.reasonCode === 'record' ? 'record' : null);
+      return res.status(STATUS[error.code]).json({ code, ...(reason ? { reason } : {}) });
     }
     if (error instanceof SupportInputError) return res.status(400).json({ code: 'SUPPORT_INVALID_INPUT' });
     if (error instanceof HttpException) {

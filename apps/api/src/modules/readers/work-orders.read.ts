@@ -131,7 +131,7 @@ export async function readWorkOrders(db: SupportExecutor, scope: SupportScope, q
   if (query.area !== 'work-orders' || !scope.permissions.has('manufacturing.work_order.read')) throw new SupportError('SUPPORT_UNAVAILABLE', 'permission');
   if (query.panel === 'list') return table(LIST, await workOrderList(db, scope, { status: query.status as 'draft' | 'released' | 'completed' | 'cancelled' | undefined }), query);
   const wo = await workOrderFacts(db, scope, query.id!);
-  if (!wo) throw new SupportError('SUPPORT_NOT_FOUND');
+  if (!wo) throw new SupportError('SUPPORT_NOT_FOUND', 'record');
   const sub = (cols: typeof WIP, rows: readonly object[]) => presentTable(cols, project(cols, rows), null);
   return detail(
     [
