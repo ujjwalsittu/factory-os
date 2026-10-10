@@ -64,6 +64,7 @@ export default function PlatformPage() {
             </Link>
           )}
           <Link href="/platform/email" className={buttonClass('ghost','sm')}>Email delivery</Link>
+          <Link href="/platform/storage" className={buttonClass('ghost','sm')}>Storage</Link>
           <ThemeToggle />
         </div>
       </header>

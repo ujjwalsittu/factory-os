@@ -12,6 +12,8 @@ const schema = z.object({
   EMAIL_VERIFICATION_MAX_PER_HOUR:limit.default(5),
   EMAIL_VERIFICATION_COOLDOWN_SECONDS:z.coerce.number().int().min(0).max(3600).default(60),
   GSP_CREDENTIAL_KEY_V1: z.preprocess(v=>v===''?undefined:v,z.string().regex(/^[A-Za-z0-9+/]{43}=$/).optional()),
+  /** Seals the R2 secret saved on Platform → Storage (decision 051): base64 of 32 random bytes. */
+  STORAGE_CREDENTIAL_KEY_V1: z.preprocess(v=>v===''?undefined:v,z.string().regex(/^[A-Za-z0-9+/]{43}=$/).optional()),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(4000),
   DATABASE_URL: z.string().url(),

@@ -21,6 +21,7 @@
     "e2e:job-work": "node e2e/job-work.mjs",
     "e2e:quality": "node e2e/quality.mjs",
     "e2e:scheduling": "node e2e/scheduling.mjs",
+    "e2e:platform-storage": "node --env-file-if-exists=../../.env e2e/platform-storage.mjs",
     "e2e:bank-charges": "node e2e/bank-charges.mjs",
     "e2e:bank-reconciliation": "node --env-file-if-exists=../../.env e2e/bank-reconciliation.mjs",
     "e2e:passkeys": "node --env-file-if-exists=../../.env e2e/passkeys.mjs"
