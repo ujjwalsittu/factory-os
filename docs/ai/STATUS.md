@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-10 (Asia/Kolkata) · Platform storage settings built (decision 051)_
+_Last updated: 2026-10-10 (Asia/Kolkata) · R2 storage live on dev through Platform → Storage_
 
 ## Done
 - [x] **Platform storage settings** (decision 051, migration 0034_platform_storage):
@@ -9,7 +9,7 @@ _Last updated: 2026-10-10 (Asia/Kolkata) · Platform storage settings built (dec
   - The secret is sealed with AES-256-GCM under `STORAGE_CREDENTIAL_KEY_V1` (environment only), never returned, and can be kept by leaving it blank. Every change is audited without the secret.
   - `STORAGE_DRIVER`, when set, still overrides (the page says so). API instances re-read saved settings within 30 seconds.
   - Verified: `smoke-platform-storage.mjs` 16 checks against a fake S3 server (uploads land under the tenant/entity prefix), `e2e:platform-storage` desktop and 390 px, attachments/quality/FAI suites with the env override, root typecheck 19, build 12, tests 11.
-  - **To turn it on in dev:** add `STORAGE_CREDENTIAL_KEY_V1` to the API app in Coolify, redeploy, then fill in Platform → Storage.
+  - **Live on dev (2026-10-10):** `STORAGE_CREDENTIAL_KEY_V1` is set (runtime-only) on the API app in Coolify; the user saved the Cloudflare R2 bucket on Platform → Storage and the connection test passed.
 - [x] **Manufacturing slice 2e: finite capacity scheduling** (decision 049, migration 0031_scheduling):
   - Working calendars with weekly shifts (night shifts, overlaps refused), holidays and a default per entity; work centres may name their own. Machine downtime (maintenance, breakdown; `booking` reserved for Phase 3).
   - Reschedule places released work orders by priority, due date and release time, in routing order, on the machine that finishes each operation first, within working time; outsourced lead days; running job cards anchored; unscheduled operations listed with reasons.
@@ -28,7 +28,7 @@ _Last updated: 2026-10-10 (Asia/Kolkata) · Platform storage settings built (dec
   - Fixed the item PATCH defaults trap (Zod 4 `.partial()` applied defaults: editing a tracked item was refused and omitted flags were reset).
   - Verified: 94 core unit tests, `smoke-quality.mjs` 112, `smoke-fai.mjs` 52, `smoke-attachments.mjs`, `e2e:quality` desktop and 390 px, root typecheck, build (12/12) and tests. Full API regression: 72/72 suites (`smoke-quality` re-run after restarting the API with the review fixes, which its new checks cover).
   - [Self-review with four deviations and seven limits](../superpowers/reviews/2026-10-09-manufacturing-2d-review.md). Automated review on the PR: six findings fixed (NCR rework issue can't be cancelled, NCR work order scoped, incoming inspections only from receipts, no-limit readings conform, FAI user lookup, tenant/entity scoping).
-  - **R2 isn't set up on dev yet:** uploads are refused with a clear message until a SuperAdmin fills in Platform → Storage (decision 051).
+  - R2 storage is live on dev since 2026-10-10 (Platform → Storage, decision 051).
 - [x] **Manufacturing slice 2c: job work and ITC-04** (decision 047, migration 0029_job_work):
   - Job workers get an automatic "At vendor" warehouse.
   - Subcontract orders send stock on rule 55 challans (numbers at most 16 characters) and receive goods back at the exact FIFO value consumed; same-item processing keeps the heat.
