@@ -27,6 +27,7 @@ import {
   Home,
   KeyRound,
   Landmark,
+  LifeBuoy,
   LogOut,
   Menu,
   type LucideIcon,
@@ -163,6 +164,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
       { href: '/app/settings/users', label: 'Users', icon: Users, permission: 'settings.user.read' },
       { href: '/app/settings/roles', label: 'Roles', icon: KeyRound, permission: 'settings.role.read' },
       { href: '/app/settings/audit', label: 'Audit log', icon: ScrollText, permission: 'settings.audit.read' },
+      { href: '/app/settings/support-access', label: 'Support access', icon: LifeBuoy, permission: 'settings.support_access.read' },
       { href: '/app/settings/security', label: 'My security', icon: ShieldCheck },
     ],
   },
@@ -397,6 +399,11 @@ function UserMenu() {
           <Link href="/app/settings/security" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] hover:bg-surface-2">
             <ShieldCheck className="size-4 text-muted" /> Security & two-factor
           </Link>
+          {(ws.me.platformAdmin === 'superadmin' || ws.me.platformAdmin === 'support') && (
+            <Link href="/support" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] hover:bg-surface-2">
+              <LifeBuoy className="size-4 text-muted" /> Support inbox
+            </Link>
+          )}
           <button type="button" onClick={signOut} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] hover:bg-surface-2">
             <LogOut className="size-4 text-muted" /> Sign out
           </button>
