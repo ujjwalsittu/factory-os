@@ -2,6 +2,7 @@
 // handler and the real Nest guard and controllers. Nothing about authentication or authorization is mocked.
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 import { isolatedSsoDatabase } from './sso-schema-helpers.mjs';
 import { createAuth } from '../dist/auth.js';
 import { loadConfig } from '../dist/config.js';
@@ -13,6 +14,8 @@ import { NestFactory, APP_GUARD } from '@nestjs/core';
 import { AccessGuard } from '../dist/common/access.js';
 import { AUTH, CONFIG, DB } from '../dist/common/tokens.js';
 import { SupportAccessStore } from '../dist/modules/support-access/support-access.store.js';
+import { SupportAccessController } from '../dist/modules/support-access/support-access.controller.js';
+import { SupportProofService } from '../dist/modules/support-access/support-access.proof.js';
 
 export const PASSWORD = 'Synthetic-password-123';
 
@@ -37,9 +40,10 @@ export async function startSupportFixture(overrides = {}, extra = {}) {
     auth = createAuth(f.db, config, email);
   class FixtureModule {}
   Module({
-    controllers: extra.controllers ?? [],
+    controllers: [SupportAccessController, ...(extra.controllers ?? [])],
     providers: [
       SupportAccessStore,
+      SupportProofService,
       AuditService,
       ...(extra.providers ?? []),
       { provide: AUTH, useValue: auth },
@@ -97,7 +101,42 @@ export async function startSupportFixture(overrides = {}, extra = {}) {
     return { id, email, cookies, ctx: { user: { id, email, name }, sessionId: session.id, tenant: null, platformAdminLevel: null, ip: null, userAgent: null } };
   }
 
+  /**
+   * A user who completed a real native sign-in with a verified local TOTP factor: sign up, enrol TOTP through the
+   * native endpoints, sign out, sign in again (which demands the second factor) and finish it with `mode`.
+   */
+  async function completedUser(email, mode = 'totp', name = 'Synthetic user') {
+    const u = await localUser(email, name);
+    const enabled = await request('/two-factor/enable', { body: { password: PASSWORD }, cookies: u.cookies });
+    assert.equal(enabled.status, 200, JSON.stringify(enabled.data));
+    const secret = new URL(enabled.data.totpURI).searchParams.get('secret');
+    assert.equal((await request('/two-factor/verify-totp', { body: { code: totp(secret) }, cookies: u.cookies })).status, 200);
+    const signIn = async (cookies) => {
+      const r = await request('/sign-in/email', { body: { email, password: PASSWORD }, cookies });
+      assert.equal(r.status, 200, JSON.stringify(r.data));
+      return r;
+    };
+    let cookies = new Map();
+    const first = await signIn(cookies);
+    assert.equal(first.data.twoFactorRedirect, true, 'the native second factor is required');
+    if (mode === 'pending') return { ...u, cookies, secret, backupCodes: enabled.data.backupCodes };
+    let done;
+    if (mode === 'backup') done = await request('/two-factor/verify-backup-code', { body: { code: enabled.data.backupCodes[0] }, cookies });
+    else done = await request('/two-factor/verify-totp', { body: { code: totp(secret), ...(mode === 'trusted' ? { trustDevice: true } : {}) }, cookies });
+    assert.equal(done.status, 200, JSON.stringify(done.data));
+    if (mode === 'trusted') {
+      const trust = new Map([...cookies].filter(([key]) => key.includes('trust_device')));
+      assert.equal(trust.size, 1, 'trusted-device cookie issued');
+      const again = await signIn(trust);
+      assert.notEqual(again.data.twoFactorRedirect, true, 'a trusted device skips the second factor natively');
+      cookies = trust;
+    }
+    const session = (await f.db.$client.query('select id from session where user_id = $1 order by created_at desc limit 1', [u.id])).rows[0];
+    return { ...u, cookies, secret, backupCodes: enabled.data.backupCodes, ctx: { ...u.ctx, sessionId: session.id } };
+  }
+
   return {
+    completedUser,
     db: f.db,
     url: f.url,
     config,
@@ -134,3 +173,27 @@ export async function addMember(db, tenantId, userId, permissions, entityIds = n
 }
 
 const { ALL_PERMISSIONS: ALL } = await import('../../../packages/auth/dist/index.js');
+
+/** RFC 6238 TOTP for the fixture's own enrolled secret. */
+export function totp(secret, at = Date.now()) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = '';
+  for (const c of secret.replace(/=+$/, '')) bits += alphabet.indexOf(c).toString(2).padStart(5, '0');
+  const key = Buffer.from(bits.match(/.{8}/g).map((b) => parseInt(b, 2)));
+  const count = Buffer.alloc(8);
+  count.writeBigUInt64BE(BigInt(Math.floor(at / 30000)));
+  const h = createHmac('sha1', key).update(count).digest();
+  const offset = h.at(-1) & 15;
+  return ((h.readUInt32BE(offset) & 0x7fffffff) % 1000000).toString().padStart(6, '0');
+}
+
+/** Waits until a backend of this database is blocked on a lock held by `blockerPid` (a real PostgreSQL wait). */
+export async function waitForLockWaiter(db, blockerPid, timeoutMs = 5000) {
+  const until = Date.now() + timeoutMs;
+  while (Date.now() < until) {
+    const rows = (await db.$client.query(`select pid from pg_stat_activity where datname = current_database() and $1 = any(pg_blocking_pids(pid))`, [blockerPid])).rows;
+    if (rows.length) return rows[0].pid;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw new Error('no backend waited on the held lock');
+}
