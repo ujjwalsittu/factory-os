@@ -31,6 +31,7 @@ import { DB } from '../common/tokens.js';
 import { parse } from '../common/validation.js';
 import { JobWorkService } from './manufacturing/job-work.service.js';
 import { StockPostingService } from './stock-posting.service.js';
+import { purchaseInvoiceDetail, purchaseInvoiceList } from './readers/purchase-invoices.read.js';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 type Party = typeof party.$inferSelect;
@@ -527,54 +528,16 @@ export class BuyingController {
   async listInvoices(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
     const entityId = entityOf(ctx);
     const { status } = parse(z.object({ status: z.enum(['draft', 'submitted', 'cancelled']).optional() }), query);
-    const where: SQL[] = [eq(purchaseInvoice.entityId, entityId)];
-    if (status) where.push(eq(purchaseInvoice.status, status));
-    return this.db
-      .select({
-        id: purchaseInvoice.id,
-        number: purchaseInvoice.number,
-        status: purchaseInvoice.status,
-        supplierName: party.name,
-        supplierInvoiceNo: purchaseInvoice.supplierInvoiceNo,
-        supplierInvoiceDate: purchaseInvoice.supplierInvoiceDate,
-        postingDate: purchaseInvoice.postingDate,
-        dueDate: purchaseInvoice.dueDate,
-        msmeCategory: purchaseInvoice.msmeCategory,
-        reverseCharge: purchaseInvoice.reverseCharge,
-        taxableValue: purchaseInvoice.taxableValue,
-        totalTax: purchaseInvoice.totalTax,
-        grandTotal: purchaseInvoice.grandTotal,
-        currency: purchaseInvoice.currency,
-        poNumber: purchaseOrder.number,
-      })
-      .from(purchaseInvoice)
-      .innerJoin(party, eq(party.id, purchaseInvoice.supplierId))
-      .leftJoin(purchaseOrder, eq(purchaseOrder.id, purchaseInvoice.purchaseOrderId))
-      .where(and(...where))
-      .orderBy(desc(purchaseInvoice.createdAt))
-      .limit(500);
+    return purchaseInvoiceList(this.db, { tenantId: ctx.tenant.tenantId, entityId }, { status });
   }
 
   @Get('purchase-invoices/:id')
   @RequirePermission('buying.purchase_invoice.read')
   async getInvoice(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
     const entityId = entityOf(ctx);
-    const [inv] = await this.db
-      .select({ inv: purchaseInvoice, supplierName: party.name, supplierGstin: party.gstin, poNumber: purchaseOrder.number })
-      .from(purchaseInvoice)
-      .innerJoin(party, eq(party.id, purchaseInvoice.supplierId))
-      .leftJoin(purchaseOrder, eq(purchaseOrder.id, purchaseInvoice.purchaseOrderId))
-      .where(and(eq(purchaseInvoice.id, id), eq(purchaseInvoice.entityId, entityId)));
+    const inv = await purchaseInvoiceDetail(this.db, { tenantId: ctx.tenant.tenantId, entityId }, id);
     if (!inv) throw new NotFoundException('Purchase invoice not found');
-    const lines = await this.db
-      .select({ line: purchaseInvoiceLine, itemCode: item.code, itemName: item.name, uomCode: uom.code, poRate: purchaseOrderLine.rate })
-      .from(purchaseInvoiceLine)
-      .innerJoin(item, eq(item.id, purchaseInvoiceLine.itemId))
-      .innerJoin(uom, eq(uom.id, item.stockUomId))
-      .leftJoin(purchaseOrderLine, eq(purchaseOrderLine.id, purchaseInvoiceLine.poLineId))
-      .where(eq(purchaseInvoiceLine.invoiceId, id))
-      .orderBy(asc(purchaseInvoiceLine.lineNo));
-    return { ...inv.inv, supplierName: inv.supplierName, supplierGstin: inv.supplierGstin, poNumber: inv.poNumber, lines: lines.map((l) => ({ ...l.line, itemCode: l.itemCode, itemName: l.itemName, uomCode: l.uomCode, poRate: l.poRate })) };
+    return inv;
   }
 
   @Post('purchase-invoices')

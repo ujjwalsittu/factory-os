@@ -1,13 +1,14 @@
 import { Dec } from '@factoryos/core';
-import { batch, type Database, fifoLayer, item, party, stockBin, stockEntry, stockEntryLine, stockLedgerEntry, uom, user, warehouse } from '@factoryos/db';
+import { batch, type Database, item, party, stockBin, stockEntry, stockEntryLine, uom, user, warehouse } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, ne, type SQL, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../common/access.js';
 import { AuditService } from '../common/audit.service.js';
 import { DB } from '../common/tokens.js';
 import { parse } from '../common/validation.js';
 import { StockPostingService } from './stock-posting.service.js';
+import { stockBalance, stockLedger } from './readers/inventory.read.js';
 
 const WAREHOUSE_TYPES = ['stores', 'quarantine', 'mrb', 'wip', 'dry_cabinet', 'cleanroom', 'finished_goods', 'scrap', 'customer_owned', 'at_job_worker', 'transit'] as const;
 /** Stock in these locations can't be issued to production until it's moved out (docs/03 §2). */
@@ -354,57 +355,7 @@ export class InventoryController {
       z.object({ itemId: z.string().uuid().optional(), warehouseId: z.string().uuid().optional(), owner: z.union([z.literal('company'), z.literal('customers'), z.string().uuid()]).optional() }),
       query,
     );
-    const where: SQL[] = [eq(stockBin.entityId, entityId), ne(stockBin.qty, '0')];
-    if (itemId) where.push(eq(stockBin.itemId, itemId));
-    if (warehouseId) where.push(eq(stockBin.warehouseId, warehouseId));
-    if (owner === 'company') where.push(isNull(stockBin.ownerPartyId));
-    else if (owner === 'customers') where.push(isNotNull(stockBin.ownerPartyId));
-    else if (owner) where.push(eq(stockBin.ownerPartyId, owner));
-    const rows = await this.db
-      .select({
-        itemId: stockBin.itemId,
-        itemCode: item.code,
-        itemName: item.name,
-        uomCode: uom.code,
-        reorderLevel: item.reorderLevel,
-        warehouseId: stockBin.warehouseId,
-        warehouseCode: warehouse.code,
-        warehouseName: warehouse.name,
-        warehouseType: warehouse.type,
-        batchId: stockBin.batchId,
-        batchNo: batch.batchNo,
-        heatNo: batch.heatNo,
-        expiryDate: batch.expiryDate,
-        ownerPartyId: stockBin.ownerPartyId,
-        ownerName: party.name,
-        qty: stockBin.qty,
-      })
-      .from(stockBin)
-      .innerJoin(item, eq(item.id, stockBin.itemId))
-      .innerJoin(uom, eq(uom.id, item.stockUomId))
-      .innerJoin(warehouse, eq(warehouse.id, stockBin.warehouseId))
-      .leftJoin(batch, eq(batch.id, stockBin.batchId))
-      .leftJoin(party, eq(party.id, stockBin.ownerPartyId))
-      .where(and(...where))
-      .orderBy(asc(item.code), sql`${party.name} nulls first`, asc(warehouse.code), asc(batch.batchNo));
-
-    // FIFO value per (item, batch) from open layers; allocate to warehouses by owned quantity.
-    const itemIds = [...new Set(rows.map((r) => r.itemId))];
-    const layers = itemIds.length
-      ? await this.db
-          .select({ itemId: fifoLayer.itemId, batchId: fifoLayer.batchId, qty: sql<string>`sum(${fifoLayer.qtyRemaining})`, value: sql<string>`sum(${fifoLayer.qtyRemaining} * ${fifoLayer.rate})` })
-          .from(fifoLayer)
-          .where(and(eq(fifoLayer.entityId, entityId), inArray(fifoLayer.itemId, itemIds), gt(fifoLayer.qtyRemaining, '0')))
-          .groupBy(fifoLayer.itemId, fifoLayer.batchId)
-      : [];
-    const key = (i: string, b: string | null) => `${i}:${b ?? ''}`;
-    const valued = new Map(layers.map((l) => [key(l.itemId, l.batchId), { qty: Dec.of(l.qty), value: Dec.of(l.value) }]));
-    return rows.map((r) => {
-      const v = valued.get(key(r.itemId, r.batchId));
-      const owned = r.ownerPartyId === null;
-      const value = owned && v && v.qty.gt(Dec.ZERO) ? v.value.mul(Dec.of(r.qty).div(v.qty)) : Dec.ZERO;
-      return { ...r, ownership: owned ? 'company' : 'customer', value: value.toFixed(2) };
-    });
+    return stockBalance(this.db, { tenantId: ctx.tenant.tenantId, entityId }, { itemId, warehouseId, owner });
   }
 
   /** Movements of one item with a running balance (optionally per warehouse / date range). */
@@ -416,38 +367,7 @@ export class InventoryController {
       z.object({ itemId: z.string().uuid(), warehouseId: z.string().uuid().optional(), batchId: z.string().uuid().optional(), from: z.string().date().optional(), to: z.string().date().optional() }),
       query,
     );
-    const where: SQL[] = [eq(stockLedgerEntry.entityId, entityId), eq(stockLedgerEntry.itemId, q.itemId)];
-    if (q.warehouseId) where.push(eq(stockLedgerEntry.warehouseId, q.warehouseId));
-    if (q.batchId) where.push(eq(stockLedgerEntry.batchId, q.batchId));
-    if (q.to) where.push(lte(stockLedgerEntry.postingDate, q.to));
-    const rows = await this.db
-      .select({
-        seq: stockLedgerEntry.seq,
-        postingDate: stockLedgerEntry.postingDate,
-        warehouseCode: warehouse.code,
-        batchNo: batch.batchNo,
-        heatNo: batch.heatNo,
-        ownerName: party.name,
-        qty: stockLedgerEntry.qty,
-        rate: stockLedgerEntry.rate,
-        value: stockLedgerEntry.value,
-        isReversal: stockLedgerEntry.isReversal,
-        voucherType: stockLedgerEntry.voucherType,
-        voucherId: stockLedgerEntry.voucherId,
-        voucherNumber: sql<string | null>`coalesce(${stockEntry.number}, (select v.number from landed_cost_voucher v where v.id = "stock_ledger_entry"."voucher_id"))`,
-        purpose: stockEntry.purpose,
-        balanceQty: sql<string>`sum(${stockLedgerEntry.qty}) over (order by ${stockLedgerEntry.postingDate}, ${stockLedgerEntry.seq})`,
-        balanceValue: sql<string>`sum(${stockLedgerEntry.value}) over (order by ${stockLedgerEntry.postingDate}, ${stockLedgerEntry.seq})`,
-      })
-      .from(stockLedgerEntry)
-      .innerJoin(warehouse, eq(warehouse.id, stockLedgerEntry.warehouseId))
-      .leftJoin(batch, eq(batch.id, stockLedgerEntry.batchId))
-      .leftJoin(stockEntry, eq(stockEntry.id, stockLedgerEntry.voucherId))
-      .leftJoin(party, eq(party.id, stockLedgerEntry.ownerPartyId))
-      .where(and(...where))
-      .orderBy(asc(stockLedgerEntry.postingDate), asc(stockLedgerEntry.seq));
-    // Running totals include earlier movements; the date filter only trims what's shown.
-    return q.from ? rows.filter((r) => r.postingDate >= q.from!) : rows;
+    return stockLedger(this.db, { tenantId: ctx.tenant.tenantId, entityId }, q);
   }
 
   /** Items, warehouses, batches and parties on a document must belong to this tenant/entity. */
