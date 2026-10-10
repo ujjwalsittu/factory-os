@@ -14,7 +14,7 @@ import { NestFactory, APP_GUARD } from '@nestjs/core';
 import { AccessGuard } from '../dist/common/access.js';
 import { AUTH, CONFIG, DB } from '../dist/common/tokens.js';
 import { SupportAccessStore } from '../dist/modules/support-access/support-access.store.js';
-import { SupportAccessController } from '../dist/modules/support-access/support-access.controller.js';
+import { SupportAccessController, SupportOperatorController } from '../dist/modules/support-access/support-access.controller.js';
 import { SupportProofService } from '../dist/modules/support-access/support-access.proof.js';
 
 export const PASSWORD = 'Synthetic-password-123';
@@ -40,7 +40,7 @@ export async function startSupportFixture(overrides = {}, extra = {}) {
     auth = createAuth(f.db, config, email);
   class FixtureModule {}
   Module({
-    controllers: [SupportAccessController, ...(extra.controllers ?? [])],
+    controllers: [SupportAccessController, SupportOperatorController, ...(extra.controllers ?? [])],
     providers: [
       SupportAccessStore,
       SupportProofService,

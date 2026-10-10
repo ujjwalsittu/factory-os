@@ -18,10 +18,11 @@ import {
   type SupportListQuery,
   type SupportPolicy,
   type SupportState,
+  type SupportWorkspaceContext,
 } from '@factoryos/auth';
 import { type Database, supportAccessEvent, supportAccessGrant, supportAccessPolicy } from '@factoryos/db';
 import { Inject, Injectable } from '@nestjs/common';
-import { sql } from 'drizzle-orm';
+import { type SQL, sql } from 'drizzle-orm';
 import type { RequestContext, TenantRequestContext } from '../../common/access.js';
 import type { AuditService } from '../../common/audit.service.js';
 import { CONFIG, DB } from '../../common/tokens.js';
@@ -396,18 +397,112 @@ export class SupportAccessStore {
     });
   }
 
-  /** Tenant history: grants (newest first, keyset cursor) and their lifecycle evidence. */
+  // ── operator lifecycle ──
+
+  /** The operator's inbox: only consent addressed to this operator. */
+  async listOperator(actor: RequestContext, query: SupportListQuery): Promise<SupportGrantPage> {
+    return this.listWhere(sql`${supportAccessGrant.operatorUserId} = ${actor.user.id}`, query, null);
+  }
+
+  /**
+   * Consumes an approved consent exactly once and binds it to the operator's current native session. The deadline is
+   * the earliest of the approved duration and that session's own expiry, from database time after every wait;
+   * renewing the native session later never extends it.
+   */
+  async start(actor: RequestContext, grantId: string, proof: SupportProof, audit: AuditService): Promise<SupportWorkspaceContext> {
+    if (!this.config.supportAccess.enabled) throw new SupportError('SUPPORT_UNAVAILABLE', 'deployment-disabled');
+    if (proof.userId !== actor.user.id || proof.sessionId !== actor.sessionId) throw new SupportError('SUPPORT_REAUTHENTICATE', 'session-mismatch');
+    return this.control(async (tx, budget) => {
+      const row = await this.lockGrant(tx, grantId, budget);
+      if (!row || row.operatorUserId !== actor.user.id) throw new SupportError('SUPPORT_NOT_FOUND');
+      const assessed = await this.assess(tx, row);
+      if (assessed.state === 'active' || (row.startedAt && !row.endedAt)) throw new SupportError('SUPPORT_CONFLICT', 'already-started');
+      if (assessed.state !== 'approved') {
+        await this.observeTerminal(tx, row, assessed);
+        throw new SupportError('SUPPORT_ENDED', assessed.reasonCode);
+      }
+      await this.checkProof(tx, proof);
+      const [op] = rows<{ n: number }>(await tx.execute(sql`select count(*)::int as n from platform_admin where user_id = ${actor.user.id} and level in ('superadmin', 'support')`));
+      if (!op!.n) throw new SupportError('SUPPORT_UNAVAILABLE', 'operator');
+      const scope = await this.currentScope(tx, row.subjectMembershipId, row.tenantId, row.entityId);
+      if (scope.subjectUserId !== row.subjectUserId) throw new SupportError('SUPPORT_ENDED', 'subject-changed');
+      const effective = (row.areas as SupportArea[]).filter((a) => scope.permissions.has(SUPPORT_READ_CATALOG[a]));
+      if (!effective.length) throw new SupportError('SUPPORT_ENDED', 'no-readable-area');
+      const [started] = await tx
+        .update(supportAccessGrant)
+        .set({
+          startedAt: sql`statement_timestamp()`,
+          actorSessionId: actor.sessionId,
+          expiresAt: sql`least(statement_timestamp() + make_interval(secs => ${row.durationSeconds}), (select expires_at from session where id = ${actor.sessionId} and user_id = ${actor.user.id}))`,
+        })
+        .where(
+          sql`${supportAccessGrant.id} = ${row.id} and ${supportAccessGrant.startedAt} is null and ${supportAccessGrant.endedAt} is null and statement_timestamp() <= ${supportAccessGrant.startBy}
+              and (select expires_at from session where id = ${actor.sessionId} and user_id = ${actor.user.id}) > statement_timestamp()`,
+        )
+        .returning();
+      if (!started) throw new SupportError('SUPPORT_ENDED', 'not-startable');
+      await this.appendEvent(tx, actor, row.id, row.tenantId, scope, { kind: 'started', area: null, reasonCode: null, operatorUserId: actor.user.id });
+      const summary = await this.summary(tx, started, { state: 'active', reasonCode: null });
+      await audit.record(
+        actor,
+        { action: 'support_access.grant.start', targetType: 'support_access_grant', targetId: row.id, tenantId: row.tenantId, entityId: row.entityId, after: { subjectUserId: row.subjectUserId, areas: effective, expiresAt: summary.expiresAt } },
+        tx,
+      );
+      return this.context(tx, actor, summary, effective);
+    });
+  }
+
+  async context(tx: SupportTx, actor: RequestContext, grant: SupportGrantSummary, effectiveAreas: SupportArea[]): Promise<SupportWorkspaceContext> {
+    const [now] = rows<{ now: string }>(await tx.execute(sql`select clock_timestamp() as now`));
+    return {
+      grant,
+      actor: { id: actor.user.id, name: actor.user.name, email: actor.user.email },
+      actorSessionId: actor.sessionId,
+      effectiveAreas,
+      serverNow: new Date(now!.now).toISOString(),
+      expiresAt: grant.expiresAt!,
+    };
+  }
+
+  /**
+   * Stop (operator or subject) or revoke (tenant). Scoped to the caller's role in the grant; repeating it, or stopping
+   * a grant that has already expired, is a no-op for the same participant. Unknown or foreign grants are not found.
+   */
+  async end(actor: RequestContext, grantId: string, kind: 'stop' | 'revoke', mode: 'operator' | 'subject' | 'tenant', audit: AuditService): Promise<{ state: SupportState }> {
+    return this.control(async (tx, budget) => {
+      const row = await this.lockGrant(tx, grantId, budget);
+      const allowed =
+        row &&
+        ((mode === 'operator' && row.operatorUserId === actor.user.id) ||
+          (mode === 'subject' && row.subjectUserId === actor.user.id) ||
+          (mode === 'tenant' && actor.tenant?.tenantId === row.tenantId));
+      if (!row || !allowed) throw new SupportError('SUPPORT_NOT_FOUND');
+      const assessed = await this.assess(tx, row);
+      if (row.endedAt) return { state: assessed.state };
+      if (assessed.state === 'expired' || assessed.state === 'invalidated') {
+        await this.observeTerminal(tx, row, assessed);
+        return { state: assessed.state };
+      }
+      const state: SupportState = kind === 'revoke' ? 'revoked' : 'stopped';
+      await tx.execute(sql`update support_access_grant set ended_at = clock_timestamp(), end_kind = ${state}, end_reason = ${mode}, ended_by = ${actor.user.id} where id = ${row.id} and ended_at is null`);
+      await this.appendEvent(tx, actor, row.id, row.tenantId, null, { kind: state, area: null, reasonCode: mode, operatorUserId: row.operatorUserId, subjectUserId: row.subjectUserId });
+      await audit.record(actor, { action: `support_access.grant.${kind}`, targetType: 'support_access_grant', targetId: row.id, tenantId: row.tenantId, entityId: row.entityId, after: { state, by: mode } }, tx);
+      return { state };
+    });
+  }
+
+  /** Tenant history: grants (newest first, keyset cursor) and their lifecycle evidence, including policy changes. */
   async listTenant(tenantId: string, query: SupportListQuery): Promise<SupportGrantPage> {
+    return this.listWhere(sql`${supportAccessGrant.tenantId} = ${tenantId}`, query, tenantId);
+  }
+
+  private async listWhere(where: SQL, query: SupportListQuery, policyTenantId: string | null): Promise<SupportGrantPage> {
     return this.db.transaction(async (tx) => {
       const after = decodeCursor(query.cursor);
       const page = await tx
         .select()
         .from(supportAccessGrant)
-        .where(
-          after
-            ? sql`${supportAccessGrant.tenantId} = ${tenantId} and (${supportAccessGrant.approvedAt}, ${supportAccessGrant.id}) < (${after.at}::timestamptz, ${after.id}::uuid)`
-            : sql`${supportAccessGrant.tenantId} = ${tenantId}`,
-        )
+        .where(after ? sql`${where} and (${supportAccessGrant.approvedAt}, ${supportAccessGrant.id}) < (${after.at}::timestamptz, ${after.id}::uuid)` : where)
         .orderBy(sql`${supportAccessGrant.approvedAt} desc, ${supportAccessGrant.id} desc`)
         .limit(query.limit + 1);
       const more = page.length > query.limit;
@@ -415,18 +510,16 @@ export class SupportAccessStore {
       const grants = [];
       for (const row of shown) grants.push(await this.summary(tx, row));
       const ids = shown.map((g) => g.id);
+      const byGrant = ids.length ? sql`${supportAccessEvent.grantId} = any(${uuidArray(ids)})` : sql`false`;
+      const policyEvents = policyTenantId ? sql`(${supportAccessEvent.tenantId} = ${policyTenantId} and ${supportAccessEvent.grantId} is null)` : sql`false`;
       const events = await tx
         .select()
         .from(supportAccessEvent)
-        .where(ids.length ? sql`${supportAccessEvent.tenantId} = ${tenantId} and (${supportAccessEvent.grantId} = any(${uuidArray(ids)}) or ${supportAccessEvent.grantId} is null)` : sql`${supportAccessEvent.tenantId} = ${tenantId} and ${supportAccessEvent.grantId} is null`)
+        .where(sql`${byGrant} or ${policyEvents}`)
         .orderBy(sql`${supportAccessEvent.occurredAt} desc`)
         .limit(500);
       const last = shown.at(-1);
-      return {
-        grants,
-        events: events.map(historyEntry),
-        nextCursor: more && last ? encodeCursor(last.approvedAt, last.id) : null,
-      };
+      return { grants, events: events.map(historyEntry), nextCursor: more && last ? encodeCursor(last.approvedAt, last.id) : null };
     });
   }
 

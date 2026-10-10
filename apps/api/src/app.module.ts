@@ -4,7 +4,7 @@ import { QualityController } from './modules/quality/quality.controller.js';
 import { QualityService } from './modules/quality/quality.service.js';
 import { AttachmentsController } from './modules/storage/attachments.controller.js';
 import { StorageService } from './modules/storage/storage.service.js';
-import { SupportAccessController } from './modules/support-access/support-access.controller.js';
+import { SupportAccessController, SupportOperatorController } from './modules/support-access/support-access.controller.js';
 import { SupportProofService } from './modules/support-access/support-access.proof.js';
 import { SupportAccessStore } from './modules/support-access/support-access.store.js';
 import { StorageSettingsService } from './modules/storage/storage-settings.service.js';
@@ -89,7 +89,7 @@ import { SeriesController } from './modules/series.controller.js';
 import { WasteController } from './modules/waste.controller.js';
 
 @Module({
-  controllers: [SupportAccessController,PlatformStorageController,CalendarController,SchedulingController,FaiController,QualityController,AttachmentsController,Itc04Controller,JobWorkController,GenealogyController,ManufacturingMastersController,WorkOrdersController,SsoController,PasskeysController,EmailController,PlatformEmailController,BankReconciliationController,BankChargesController,WithholdingController,GstSandboxController,SupplierReturnsController,SalesNotesController,InvoiceBalancesController, AccountingReportsController, AccountingController, SettlementsController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
+  controllers: [SupportAccessController,SupportOperatorController,PlatformStorageController,CalendarController,SchedulingController,FaiController,QualityController,AttachmentsController,Itc04Controller,JobWorkController,GenealogyController,ManufacturingMastersController,WorkOrdersController,SsoController,PasskeysController,EmailController,PlatformEmailController,BankReconciliationController,BankChargesController,WithholdingController,GstSandboxController,SupplierReturnsController,SalesNotesController,InvoiceBalancesController, AccountingReportsController, AccountingController, SettlementsController, HealthController, MeController, EntitiesController, MembersController, RolesController, PlatformController, MastersController, InventoryController, WasteController, BuyingController, LandedCostController, SellingController, SeriesController],
   providers: [SupportAccessStore,SupportProofService,StorageSettingsService,SchedulingService,FaiService,QualityService,StorageService,JobWorkService,GenealogyService,WorkOrderService,SsoService,PasskeysService,EmailService,BankReportService,BankAdjustmentService,BankMatchService,BankImportService,BankRegistryService,BankReconciliationGuard,BankChargeService,TaxPolicyService,SandboxConnectionsService,SandboxOperationsService,SandboxSourceService,SupplierReturnResolutionService,SupplierNoteService,SupplierNotePreviewService,SupplierNotePostingService,SupplierCreditApplicationService,SupplierReturnMovementService,SupplierReturnPolicyService,SupplierReturnClaimService,SalesNoteService, SalesReturnService, CreditApplicationService, SalesNotePostingService, SalesNotePreviewService,
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: DB, inject: [CONFIG], useFactory: (c: AppConfig) => createDb(c.DATABASE_URL) },
