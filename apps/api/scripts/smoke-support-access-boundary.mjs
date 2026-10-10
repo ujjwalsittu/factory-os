@@ -139,6 +139,13 @@ try {
     const stop = (headers) => fetch(base + `/api/support-access/operator/grants/${grant}/stop`, { method: 'POST', headers: { cookie: cookieOf(operator), 'content-type': 'application/json', ...headers } }).then((r) => r.status);
     assert.equal(await stop({}), 403, 'no Origin');
     assert.equal(await stop({ origin: 'http://evil.example' }), 403);
+    // Routing ignores case and decodes nothing the check would miss: other spellings of the path are held to it too.
+    for (const path of [`/api/Support-Access/operator/grants/${grant}/stop`, `/API/SUPPORT-ACCESS/operator/grants/${grant}/stop`, `/api/support-access/operator/grants/${grant}/stop/`]) {
+      const r = await fetch(base + path, { method: 'POST', headers: { cookie: cookieOf(operator), 'content-type': 'application/json' } });
+      assert.equal(r.status, 403, path);
+    }
+    // Without the selector, other spellings of a workspace path are refused before any handler.
+    assert.equal((await fetch(base + '/api/Support-Access/Workspace/context', { headers: { cookie: cookieOf(operator), origin: WEB } })).status, 400);
   });
   await test('unknown and foreign grants are a generic 404; another operator cannot use the selector', async () => {
     assert.deepEqual(await ws('/api/support-access/workspace/context', { 'x-factoryos-support-access': crypto.randomUUID() }), { status: 404, data: { code: 'SUPPORT_UNAVAILABLE' } });

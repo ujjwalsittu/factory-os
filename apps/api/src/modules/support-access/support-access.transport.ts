@@ -21,6 +21,18 @@ function originOf(value: string | undefined): string | null {
   }
 }
 
+/**
+ * Routing ignores case and repeated or trailing slashes, so the checks that guard ordinary routes compare a normalised
+ * spelling. (The selector header itself is only accepted on the exact canonical workspace paths.)
+ */
+function normalise(path: string): string {
+  let p = path;
+  try {
+    p = decodeURIComponent(path);
+  } catch {}
+  return p.toLowerCase().replace(/\/{2,}/g, '/').replace(/\/+$/, '');
+}
+
 /** Exact configured origin; when a browser omits Origin on a GET, same-origin Fetch Metadata plus an exact Referer. */
 export function allowedOrigin(req: Request, origins: string[], method: 'GET' | 'WRITE'): boolean {
   const origin = req.get('origin');
@@ -43,9 +55,10 @@ export function supportTransport(config: SupportConfig): RequestHandler {
       if (!allowedOrigin(req, config.origins, 'GET')) return refuse(res);
       return next();
     }
-    if (WORKSPACE.test(path) || path.startsWith('/api/support-access/workspace')) return refuse(res, 400, 'SUPPORT_INVALID_INPUT');
+    const loose = normalise(path);
+    if (loose.startsWith('/api/support-access/workspace')) return refuse(res, 400, 'SUPPORT_INVALID_INPUT');
     // Support controls change consent; they need the exact web origin, not just a cookie.
-    if (CONTROL.test(path) && req.method !== 'GET' && !allowedOrigin(req, config.origins, 'WRITE')) return refuse(res);
+    if (CONTROL.test(loose) && req.method !== 'GET' && !allowedOrigin(req, config.origins, 'WRITE')) return refuse(res);
     return next();
   };
 }

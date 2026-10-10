@@ -80,7 +80,8 @@ export function SupportAccessProvider({ grantId, children }: { grantId: string; 
 
   const endFor = useCallback(
     (error: unknown) => {
-      if (error instanceof SupportApiError) end(error.code === 'SUPPORT_ENDED' ? 'ended' : 'unavailable');
+      // A busy server (503: read pool or deadline) is shown in the panel; authority answers end the workspace.
+      if (error instanceof SupportApiError && error.status !== 503) end(error.code === 'SUPPORT_ENDED' ? 'ended' : 'unavailable');
     },
     [end],
   );
@@ -103,7 +104,7 @@ export function SupportAccessProvider({ grantId, children }: { grantId: string; 
     } catch (error) {
       if (g !== generation.current || (error instanceof DOMException && error.name === 'AbortError')) return;
       if (error instanceof SupportApiError) endFor(error);
-      else setVerifying(false);
+      setVerifying(false);
     }
   }, [ended, userId, sessionId, grantId, tracked, end, endFor]);
 

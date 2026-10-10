@@ -21,10 +21,11 @@ export const PASSWORD = 'Synthetic-password-123';
 
 /**
  * @param overrides environment overrides (SUPPORT_ACCESS_ENABLED defaults to true here)
- * @param extra { controllers, providers, configure(app,{config,auth,db}) } added by later support tasks
+ * @param extra { controllers, providers, configure(app,{config,auth,db}), database } added by later support tasks
  */
 export async function startSupportFixture(overrides = {}, extra = {}) {
-  const f = await isolatedSsoDatabase();
+  // extra.database ({db, url, close}) runs the fixture on an owned copy instead of a fresh database.
+  const f = extra.database ?? (await isolatedSsoDatabase());
   const config = loadConfig({
     NODE_ENV: 'test',
     DATABASE_URL: f.url,
@@ -196,4 +197,38 @@ export async function waitForLockWaiter(db, blockerPid, timeoutMs = 5000) {
     await new Promise((r) => setTimeout(r, 20));
   }
   throw new Error('no backend waited on the held lock');
+}
+
+/**
+ * Three real backends of the fixture database: `first` and `second` for the competing work, `observer` to watch locks.
+ * Verifies they are distinct PostgreSQL processes; `waiters(n)` waits until n backends of this database are blocked
+ * on a lock and returns their pids together with the pids blocking them (pg_blocking_pids, not a sleep).
+ */
+export async function withObservedBlocker(url, run) {
+  const { createDb } = await import('../../../packages/db/dist/index.js');
+  const db = createDb(url, 3);
+  const first = await db.$client.connect(),
+    second = await db.$client.connect(),
+    observer = await db.$client.connect();
+  try {
+    const pid = async (c) => (await c.query('select pg_backend_pid() as pid')).rows[0].pid;
+    const pids = { first: await pid(first), second: await pid(second), observer: await pid(observer) };
+    assert.equal(new Set(Object.values(pids)).size, 3, 'three distinct backends');
+    async function waiters(n, timeoutMs = 5000) {
+      const until = Date.now() + timeoutMs;
+      while (Date.now() < until) {
+        const rows = (await observer.query(`select pid, pg_blocking_pids(pid) as blockers from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`)).rows;
+        if (rows.length >= n) return { pids: rows.map((r) => r.pid), blockers: rows.flatMap((r) => r.blockers) };
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      throw new Error(`expected ${n} lock waiters`);
+    }
+    await run({ first, second, observer, pids, waiters });
+  } finally {
+    for (const c of [first, second, observer]) {
+      await c.query('rollback').catch(() => {});
+      c.release();
+    }
+    await db.$client.end();
+  }
 }

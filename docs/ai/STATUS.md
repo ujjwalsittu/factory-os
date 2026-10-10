@@ -1,8 +1,13 @@
 # Status
 
-_Last updated: 2026-10-10 (Asia/Kolkata) · Support access implementation claimed by this session_
+_Last updated: 2026-10-11 (Asia/Kolkata) · Support access implementation complete on `claude/zealous-allen-35g1vm`, PR to main_
 
 ## Done
+- [x] **Audited read-only support access** (decision 050, migration 0035_support_access). Disabled by default (`SUPPORT_ACCESS_ENABLED=false`, tenant policy off).
+  - Settings → Support access: a tenant-wide administrator turns the policy on (5–30 min cap, allowed areas) and approves one operator, one member to view as, one entity and areas, with their own password and a sign-in under five minutes old with TOTP. History shows approvals, starts, views and ends; revoke ends access at once.
+  - `/support` inbox for platform operators (SuperAdmin or support level) lists only approvals addressed to them; start once within 10 minutes with their own password. The read-only workspace shows inventory, sales/purchase invoices, work orders and accounting reports as the chosen member, with who/as whom/why/countdown/Stop always visible, in its own cache that is cleared on any account or grant change.
+  - Every view writes a support event and a tenant audit row with the member as actor and the operator as impersonator before data leaves. Any change to people, roles, tenant, entity, platform role, password, email or TOTP ends consent for good.
+  - Verified: eight support API suites (config 23, schema 33, consent 17, lifecycle 16, readers 12, boundary 12, barriers 9, invariance 5), two production browsers desktop/390 px, SSO/passkeys/email suites, 12 ordinary API suites through the new transport, typecheck 19, build 12, tests 11. Review: 1 Important (case-variant control path skipped the origin check) and 1 Minor fixed. [Review and evidence](../superpowers/reviews/2026-10-09-support-access-review.md).
 - [x] **Platform storage settings** (decision 051, migration 0034_platform_storage):
   - Platform → Storage lets a SuperAdmin set the deployment's Cloudflare R2 endpoint, bucket, region and API token. Support-level operators and tenant users are refused.
   - Test connection writes, reads back and deletes a probe object, and reports the store's own error (NoSuchBucket, InvalidAccessKeyId…). Every save runs the same test first and stores nothing if it fails.
@@ -117,7 +122,6 @@ _Last updated: 2026-10-10 (Asia/Kolkata) · Support access implementation claime
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
-- **Audited support access implementation (decision 050)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-10 19:57 UTC. Taken over with the user's approval from the 2026-10-09 claim on `support-access-claim-20261009`, idle for over 24 hours. Prerequisites (passkeys, planning) merged in PR #14. Building the [nine-task plan](../superpowers/plans/2026-10-09-support-access.md) in order.
 
 
 
@@ -126,14 +130,13 @@ _Last updated: 2026-10-10 (Asia/Kolkata) · Support access implementation claime
 
 
 ## Next (user-authorized sequence; review each written design/plan)
-1. Execute the approved [nine-task support-access implementation plan](../superpowers/plans/2026-10-09-support-access.md) after prerequisites; spec/plan/decision050 approved2026-10-09, Native inline method retained. Integrate completed passkeys and planning through their own actual green-CI PRs, then merge the [queued STATUS-only support claim](https://github.com/ujjwalsittu/factory-os/pull/new/support-access-claim-20261009)478b870 before Task1. No repeated scope/method approval. PostgreSQL RLS follows separately; live email/IdP/passkey/support configuration and acceptance remain separate.
+1. Support access live enablement (needs the user): set `SUPPORT_ACCESS_ENABLED=true` on the API app in Coolify only when wanted, then a tenant administrator turns the policy on and a real operator acceptance over HTTPS is done. PostgreSQL RLS is a separate design.
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
 3. User review of completed accounting/settlement/customer/supplier and manufacturing workflows on dev. Original shared activation states are preserved; cut-over remains a deliberate Finance action.
 
 4. Manufacturing next (needs a design and user choices): quality and scheduling follow-ups from the 2d/2e reviews (plans on 1b receipt inspections, batch page with attachments, zero-duration operations flagged on the Gantt), then Phase 3 services with MaaS bookings on the machine calendar. Quality follow-ups from the 2d review: plans on 1b purchase-receipt inspections, a batch/serial page with attachments, CAPA and skill matrix (decision 048 deferred them).
 
 ## Blockers
-- **Support product-work gate:** spec/plan/Native method approved, passkey prerequisite verified45e4180, planning and queued claim478b870 pushed; none yet merged to current main4374823. GraphQL and REST Forbidden prevents PR/actual-CI inspection and merge automation. Saved environment draft now includes exact api.github.com plus corrected startup guidance; saving did not publish/apply it. Review/save/publish environment settings, then retry only with access-change evidence, or merge prepared PRs manually after actual green CI. [Concrete PR bodies/order](../superpowers/reviews/2026-10-09-support-access-handoff.md). AGENTS section5 still requires the standalone claim reach main before new support product code; do not request another feature approval or push main directly.
 - Automatic TDS/TCS profile/source work: current official Act393/394/395/397/402 text retrieved and pinned, including scrap2% effective2026-04-01, but complete GST-base, PAN-operativity relief and lower/nil certificate applicability guidance is still missing. Original/lower-case legacy circular PDF paths returned404; generic document search did not produce verified guidance. [Evidence/requirements](../compliance/withholding-profile-evidence.md). Need reachable official primary URLs or authorized exported guidance plus applicability confirmation; optional source-URL question already asked. No numerical defaults enabled. Continue independent bank-reconciliation work while this gate remains closed.
 - NIC provider protocol verification: after user added NIC allowed domains and the cloud environment restarted on 2026-10-06, public `einvoice6.gst.gov.in/content/kb/` returns200, but NIC `einv-apisandbox.nic.in` (home/API help/schema pages), `einvoice1.gst.gov.in` and `ewaybillgst.gov.in` return503 with upstream connection timeout. `docs.ewaybillgst.gov.in` returns403 with CDN Access Denied, rather than the earlier tunnel denial. Domain allowlist access improved, but current NIC contracts remain unavailable. Need reachable official documentation or authorized exported copies before wire/auth implementation; do not substitute another IRP's protocol. User subsequently confirmed all five exact domains allowed; fresh recheck still shows the same503/CDN403 results with public KB200. Further allowlist additions are not justified by these responses. Offline work is authorized, implemented and verified; provider work remains separately blocked. Real acceptance additionally needs NIC access/IP whitelist/secure credentials.
 

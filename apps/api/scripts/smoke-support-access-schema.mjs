@@ -235,6 +235,9 @@ if (busy) {
         h[name] = createHash('sha256').update(await readFile(new URL(`../../../packages/db/drizzle/${name}`, import.meta.url))).digest('hex');
       return h;
     };
+    // Grants already in the source (from earlier local walkthroughs) are kept; the upgrade itself creates none.
+    const grants = async () => (await db.$client.query(`select case when to_regclass('support_access_grant') is null then 0 else (select count(*)::int from support_access_grant) end as n`)).rows[0].n;
+    const grantsBefore = await grants();
     const beforeRows = await snapshot();
     const beforeSql = await hashes();
     await runMigrations(url.toString());
@@ -242,7 +245,7 @@ if (busy) {
     assert.deepEqual(await hashes(), beforeSql);
     const now = (await db.$client.query('select count(*)::int n from drizzle.__drizzle_migrations')).rows[0].n;
     assert.ok(now >= applied);
-    assert.equal((await db.$client.query('select count(*)::int n from support_access_grant')).rows[0].n, 0);
+    assert.equal(await grants(), grantsBefore, 'no consent is backfilled by the upgrade');
     pass(`upgrade of a copy of the local database (${applied} → ${now} migrations) leaves native credentials, tenancy, books and audit unchanged`);
   } finally {
     await db.$client.end();
