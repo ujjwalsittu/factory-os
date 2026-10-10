@@ -43,6 +43,14 @@ export class SupportError extends Error {
 }
 
 type Assessed = { state: SupportState; reasonCode: string | null };
+
+/**
+ * Returned from a control transaction when evidence written in it (an observed ending, a denial) must be kept even
+ * though the request is refused: the transaction commits first, then the error is raised.
+ */
+export class CommitThenThrow {
+  constructor(readonly error: SupportError) {}
+}
 const rows = <T>(r: unknown) => (r as { rows: T[] }).rows;
 /** A text[] parameter: drizzle would otherwise expand a JS array into a parameter list. */
 const uuidArray = (values: string[]) => sql`array[${sql.join(values.map((v) => sql`${v}`), sql`, `)}]::uuid[]`;
@@ -59,9 +67,9 @@ export class SupportAccessStore {
    * A bounded control transaction: lock and statement waits never exceed what is left of the overall budget, so
    * several statements cannot add up past it either. Callers re-read the database clock after any wait.
    */
-  async control<T>(fn: (tx: SupportTx, budget: () => Promise<void>) => Promise<T>): Promise<T> {
+  async control<T>(fn: (tx: SupportTx, budget: () => Promise<void>) => Promise<T | CommitThenThrow>): Promise<T> {
     const deadline = Date.now() + CONTROL_BUDGET_MS;
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const budget = async () => {
         const left = deadline - Date.now();
         if (left <= 50) throw new SupportError('SUPPORT_UNAVAILABLE', 'timeout');
@@ -70,22 +78,40 @@ export class SupportAccessStore {
       await budget();
       return fn(tx, budget);
     });
+    if (result instanceof CommitThenThrow) throw result.error;
+    return result;
   }
 
-  /** Locks a grant and everything it depends on, in the canonical order, and checks it is usable right now. */
-  async withAuthority<T>(actor: RequestContext, grantId: string, fn: (tx: SupportTx, authority: SupportReadAuthority) => Promise<T>): Promise<T> {
-    return this.control(async (tx, budget) => {
+  /**
+   * Locks a grant and everything it depends on, in the canonical order, and checks it is usable right now. `fn`
+   * runs under those locks; afterwards the state is assessed again on the database clock, so a wait inside `fn`
+   * (the read pool, the audit chain lock) that crosses the deadline releases nothing.
+   */
+  async withAuthority<T>(actor: RequestContext, grantId: string, fn: (tx: SupportTx, authority: SupportReadAuthority, budget: () => Promise<void>) => Promise<T | CommitThenThrow>): Promise<T> {
+    return this.control<T>(async (tx, budget) => {
       const row = await this.lockGrant(tx, grantId, budget);
       if (!row || row.operatorUserId !== actor.user.id) throw new SupportError('SUPPORT_NOT_FOUND');
       const assessed = await this.assess(tx, row);
       if (assessed.state !== 'active') {
         await this.observeTerminal(tx, row, assessed);
-        throw new SupportError('SUPPORT_ENDED', assessed.reasonCode);
+        return new CommitThenThrow(new SupportError('SUPPORT_ENDED', assessed.reasonCode));
       }
       if (row.actorSessionId !== actor.sessionId) throw new SupportError('SUPPORT_REAUTHENTICATE', 'session-mismatch');
-      const scope = await this.currentScope(tx, row.subjectMembershipId, row.tenantId, row.entityId);
-      if (scope.subjectUserId !== row.subjectUserId) throw new SupportError('SUPPORT_ENDED', 'subject-changed');
-      return fn(tx, { grant: await this.summary(tx, row, assessed), scope, actorSessionId: row.actorSessionId! });
+      const scope = await this.currentScope(tx, row.subjectMembershipId, row.tenantId, row.entityId).catch(async (e: unknown) => {
+        if (e instanceof SupportError && e.code === 'SUPPORT_ENDED') return null;
+        throw e;
+      });
+      if (!scope || scope.subjectUserId !== row.subjectUserId) {
+        const ended = { state: 'invalidated' as const, reasonCode: 'subject-unavailable' };
+        await this.observeTerminal(tx, row, ended);
+        return new CommitThenThrow(new SupportError('SUPPORT_ENDED', ended.reasonCode));
+      }
+      const result = await fn(tx, { grant: await this.summary(tx, row, assessed), scope, actorSessionId: row.actorSessionId! }, budget);
+      if (result instanceof CommitThenThrow) return result;
+      await budget();
+      const after = await this.assess(tx, row);
+      if (after.state !== 'active') throw new SupportError('SUPPORT_ENDED', after.reasonCode);
+      return result;
     });
   }
 
@@ -135,7 +161,7 @@ export class SupportAccessStore {
       if (epochs.get(id) !== String(captured)) return { state: 'invalidated', reasonCode: 'security-changed' };
     if (!row.startedAt) return { state: 'approved', reasonCode: null };
     const [session] = rows<{ ok: boolean }>(
-      await tx.execute(sql`select expires_at > clock_timestamp() as ok from session where id = ${row.actorSessionId} and user_id = ${row.operatorUserId}`),
+      await tx.execute(sql`select expires_at > clock_timestamp() and not sso_pending and not passkey_pending as ok from session where id = ${row.actorSessionId} and user_id = ${row.operatorUserId}`),
     );
     if (!session?.ok) return { state: 'invalidated', reasonCode: 'actor-session-ended' };
     return { state: 'active', reasonCode: null };
@@ -419,7 +445,7 @@ export class SupportAccessStore {
       if (assessed.state === 'active' || (row.startedAt && !row.endedAt)) throw new SupportError('SUPPORT_CONFLICT', 'already-started');
       if (assessed.state !== 'approved') {
         await this.observeTerminal(tx, row, assessed);
-        throw new SupportError('SUPPORT_ENDED', assessed.reasonCode);
+        return new CommitThenThrow(new SupportError('SUPPORT_ENDED', assessed.reasonCode));
       }
       await this.checkProof(tx, proof);
       const [op] = rows<{ n: number }>(await tx.execute(sql`select count(*)::int as n from platform_admin where user_id = ${actor.user.id} and level in ('superadmin', 'support')`));

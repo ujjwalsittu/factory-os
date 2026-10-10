@@ -9,6 +9,7 @@ import { bootstrapSuperadmin, syncOnStartup } from './bootstrap.js';
 import type { Auth } from './auth.js';
 import { AUTH } from './common/tokens.js';
 import { loadConfig } from './config.js';
+import { supportTransport } from './modules/support-access/support-access.transport.js';
 
 async function bootstrap() {
   const config = loadConfig();
@@ -21,6 +22,9 @@ async function bootstrap() {
   const server = app.getHttpAdapter().getInstance() as express.Express;
   server.set('trust proxy', 1);
   server.disable('x-powered-by');
+  // Support access (decision 050): the selector header is refused on every route except workspace GETs, before
+  // native auth or any other handler runs.
+  server.use(supportTransport(config.supportAccess));
   server.all('/api/auth/{*path}', (req,_res,next)=>{
     // Overwrite caller-supplied values with Express authority under the existing one-hop proxy policy.
     req.headers['x-factoryos-mail-origin']=req.ip??req.socket.remoteAddress??'unknown';next();
