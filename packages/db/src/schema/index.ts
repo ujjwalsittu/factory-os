@@ -25,3 +25,4 @@ export * from './passkeys.js';
 export * from './job-work.js';
 export * from './quality.js';
 export * from './scheduling.js';
+export * from './storage.js';

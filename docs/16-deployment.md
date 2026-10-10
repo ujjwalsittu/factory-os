@@ -41,6 +41,9 @@ See `.env.example` in the repo root. Required in Coolify (all runtime-only):
 - API: `DATABASE_URL`, `BETTER_AUTH_SECRET` (32+ random bytes), `BETTER_AUTH_URL` and `WEB_ORIGIN`
   (both the public web URL), `MIGRATE_ON_START`; optional `EXTRA_TRUSTED_ORIGINS`,
   `ALLOW_SELF_SERVE_TENANTS` (false on shared hosts), `BOOTSTRAP_SUPERADMIN_EMAIL`.
+- Attachments storage (decision 051): set `STORAGE_CREDENTIAL_KEY_V1` on the API (`openssl rand -base64 32`), then a
+  SuperAdmin enters the Cloudflare R2 endpoint, bucket and API token on **Platform → Storage**; saving tests the
+  bucket first. Leave `STORAGE_DRIVER` unset: when set, it and the `S3_*` variables override the saved settings.
 - Web: `API_INTERNAL_URL`.
 - DNS: keep the Cloudflare record **DNS-only** (grey cloud). Proxied mode returned 526 because
   Cloudflare rejected the origin certificate.

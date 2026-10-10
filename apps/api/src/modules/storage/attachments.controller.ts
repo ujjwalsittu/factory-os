@@ -57,7 +57,7 @@ export class AttachmentsController {
       .from(attachment)
       .where(and(eq(attachment.entityId, entityId), eq(attachment.ownerType, ownerType), eq(attachment.ownerId, ownerId)))
       .orderBy(asc(attachment.createdAt));
-    return { storage: this.storage.enabled, rows: rows.map(({ objectKey: _key, ...r }) => r) };
+    return { storage: await this.storage.available(), rows: rows.map(({ objectKey: _key, ...r }) => r) };
   }
 
   @Post()

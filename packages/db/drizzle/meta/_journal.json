@@ -239,6 +239,13 @@
       "when": 1791543942711,
       "tag": "0033_passkey_ceremony_bounds",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791656826723,
+      "tag": "0034_platform_storage",
+      "breakpoints": true
     }
   ]
 }
