@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-09 (Asia/Kolkata) · Passkeys and support-access planning merged with scheduling; passkey migrations renumbered to 0032/0033_
+_Last updated: 2026-10-10 (Asia/Kolkata) · Claimed platform storage settings (decision 051)_
 
 ## Done
 - [x] **Manufacturing slice 2e: finite capacity scheduling** (decision 049, migration 0031_scheduling):
@@ -110,6 +110,7 @@ _Last updated: 2026-10-09 (Asia/Kolkata) · Passkeys and support-access planning
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
+- **Platform storage settings (decision 051)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-10 18:25 UTC. Platform → Storage page for the R2 bucket with an encrypted secret, test connection and audit; environment variables still override.
 - **Audited support access (planning only)** · owner: agent, Native continuation on `support-access-design-20261009` · started:2026-10-09 (Asia/Kolkata). User APPROVED the [written spec](../superpowers/specs/2026-10-09-support-access-design.md) on2026-10-09; decision050 Accepted (unmerged support049 renumbered; published scheduling049 retained), including read-only scope/conservative authority invalidation/data model. [Nine-task Native implementation plan](../superpowers/plans/2026-10-09-support-access.md) defines exact interfaces, native proof, additive authority triggers, five pure panels, separate read-only pool, pre-return audit, consent/inbox and isolated mobile cache, plus real concurrency/upgrade acceptance. User approved the written plan2026-10-09; passkeys quality-main reconciliation verified/pushed45e4180. Queued STATUS-only claim478b870 is pushed on support-access-claim-20261009, clean merge-tree against verified planning. Stopping point: actual passkey/planning prerequisites and a separate STATUS-only product claim merged through actual green-CI PRs before code. This is not that standalone merged product claim; no product/schema/secret/runtime/enablement change.
 
 
