@@ -114,6 +114,7 @@ const BALANCE = [
   { key: 'qty', label: 'Quantity' },
   { key: 'uomCode', label: 'Unit' },
   { key: 'value', label: 'Value' },
+  { key: 'itemId', label: 'Item reference' }, // reference for opening the detail; hidden by the support UI
 ];
 const LEDGER = [
   { key: 'postingDate', label: 'Date' },

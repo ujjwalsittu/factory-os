@@ -269,6 +269,9 @@ function History({ tenantId, canRevoke }: { tenantId: string; canRevoke: boolean
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) => supportControl<SupportGrantPage>(`/grants?limit=50${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`, { tenantId, signal }),
     getNextPageParam: (last) => last.nextCursor,
+    // Starts, reads and ends happen elsewhere: always ask the server when the history is shown.
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
   const revoke = useMutation({
     mutationFn: (id: string) => supportControl(`/grants/${id}/revoke`, { method: 'POST', tenantId }),

@@ -85,9 +85,7 @@ async function seed(owner, subject, viewer) {
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 const errors = [];
 const open = [];
-let expected = 0;
-// The workspace route arrives with the support workspace task; until then its 404 is expected (navigation and link prefetch) for the rest of the operator flow.
-let workspaceRouteMissing = false; // refusals provoked on purpose (wrong password, stale sign-in, support-level platform console)
+let expected = 0; // refusals provoked on purpose (wrong password, stale sign-in, support-level platform console)
 
 async function signedIn(u, label, viewport = { width: 1280, height: 900 }) {
   const ctx = await browser.newContext({ viewport });
@@ -96,7 +94,7 @@ async function signedIn(u, label, viewport = { width: 1280, height: 900 }) {
   const requests = [];
   page.on('request', (r) => requests.push({ url: r.url(), method: r.method(), body: r.postData() ?? '' }));
   page.on('pageerror', (e) => errors.push(`${label} pageerror: ${e.message}`));
-  page.on('console', (m) => m.type() === 'error' && !(expected && /status of (403|401)/.test(m.text()) && expected--) && !(label === 'operator' && workspaceRouteMissing && /status of 404/.test(m.text())) && errors.push(`${label} console: ${m.text()}`));
+  page.on('console', (m) => m.type() === 'error' && !(expected && /status of (403|401)/.test(m.text()) && expected--) && errors.push(`${label} console: ${m.text()}`));
   await signIn(page, u);
   return { ctx, page, requests };
 }
@@ -218,19 +216,19 @@ try {
   await op.page.goto(`${B}/platform`);
   await op.page.waitForSelector('text=Platform administrators only');
 
-  step('operator: wrong password refused, real password starts it and opens the workspace route');
+  step('operator: wrong password refused, real password starts it and opens the workspace');
   await op.page.goto(`${B}/support`);
   await op.page.getByLabel('Your password').fill('wrong-' + run);
   expected = 1;
   await op.page.getByRole('button', { name: 'Start read-only support' }).click();
   await op.page.waitForSelector('text=That password is not correct.');
   assert.equal(await op.page.getByLabel('Your password').inputValue(), '');
+  assert.equal(op.requests.some((r) => r.url.includes('/api/support-access/workspace')), false, 'no workspace call from the inbox');
   await op.page.getByLabel('Your password').fill(PASSWORD);
-  workspaceRouteMissing = true;
   await op.page.getByRole('button', { name: 'Start read-only support' }).click();
   await op.page.waitForURL(`**/support/workspace/${approved.id}`);
+  await op.page.getByText('Viewing as').waitFor();
   await leaksNothing(op.page, op.requests, PASSWORD);
-  assert.equal(op.requests.some((r) => r.url.includes('/api/support-access/workspace')), false, 'no workspace call from the inbox');
 
   step('operator: the inbox shows it active and stops it');
   await op.page.goto(`${B}/support`);

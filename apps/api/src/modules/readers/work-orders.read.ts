@@ -93,6 +93,7 @@ const LIST = [
   { key: 'producedQty', label: 'Produced' },
   { key: 'plannedEnd', label: 'Due' },
   { key: 'wip', label: 'WIP' },
+  { key: 'id', label: 'Reference' }, // reference for opening the detail; hidden by the support UI
 ];
 const MATERIALS = [
   { key: 'lineNo', label: '#' },

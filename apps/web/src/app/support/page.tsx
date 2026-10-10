@@ -38,6 +38,9 @@ function OperatorInbox({ userId }: { userId: string }) {
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) => supportControl<SupportGrantPage>(`/operator/grants?limit=50${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`, { signal }),
     getNextPageParam: (last) => last.nextCursor,
+    // Grant states change elsewhere (workspace, tenant, expiry): always ask the server when the inbox is shown.
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
   const grants = pages.data?.pages.flatMap((p) => p.grants) ?? [];
   return (

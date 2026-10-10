@@ -81,6 +81,7 @@ const LIST = [
   { key: 'taxableValue', label: 'Taxable' },
   { key: 'totalTax', label: 'Tax' },
   { key: 'grandTotal', label: 'Total' },
+  { key: 'id', label: 'Reference' }, // reference for opening the detail; hidden by the support UI
 ];
 export const INVOICE_LINES = [
   { key: 'lineNo', label: '#' },

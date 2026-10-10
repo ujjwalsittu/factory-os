@@ -50,7 +50,7 @@ try {
     const bal = await read(scopeOf(inv), 'inventory', { panel: 'balance' });
     assert.equal(bal.kind, 'table');
     assert.ok(bal.table.rows.length > 0);
-    assert.deepEqual(bal.table.columns.map((c) => c.key), ['itemCode', 'itemName', 'warehouseCode', 'batchNo', 'heatNo', 'ownerName', 'qty', 'uomCode', 'value']);
+    assert.deepEqual(bal.table.columns.map((c) => c.key), ['itemCode', 'itemName', 'warehouseCode', 'batchNo', 'heatNo', 'ownerName', 'qty', 'uomCode', 'value', 'itemId']);
     const [{ item_id }] = await q(`select item_id from stock_ledger_entry where entity_id = $1 group by item_id order by count(*) desc limit 1`, [inv.id]);
     const full = await read(scopeOf(inv), 'inventory', { panel: 'ledger', itemId: item_id, limit: '500' });
     assert.ok(full.table.rows.length >= 2, 'an item with at least two movements');

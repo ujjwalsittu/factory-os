@@ -91,6 +91,7 @@ const TRIAL = [
   { key: 'debit', label: 'Debit' },
   { key: 'credit', label: 'Credit' },
   { key: 'balance', label: 'Balance' },
+  { key: 'id', label: 'Reference' }, // reference for opening the detail; hidden by the support UI
 ];
 const LEDGER = [
   { key: 'postingDate', label: 'Date' },
