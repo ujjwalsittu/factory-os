@@ -29,6 +29,7 @@ const LABELS: Record<string, string> = {
   project: 'Project',
   subscription: 'Subscription',
   billing_run: 'Billing run',
+  capa: 'CAPA',
   custody_return: 'Custody return challan',
 };
 

@@ -76,7 +76,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'production_planner',
     name: 'Production Planner',
     description: 'BOMs, routings, work orders and scheduling.',
-    permissions: all((p) => p.startsWith('manufacturing.') || p === 'services.booking.read' || ['quality.plan.read', 'quality.fai.read', 'quality.ncr.read', 'quality.ncr.create', 'quality.gauge.read', 'quality.attachment.read', 'quality.attachment.create', 'quality.inspection.read'].includes(p) || p === 'masters.item.read' || p === 'inventory.stock_entry.read'),
+    permissions: all((p) => p.startsWith('manufacturing.') || p === 'services.booking.read' || ['quality.plan.read', 'quality.fai.read', 'quality.ncr.read', 'quality.ncr.create', 'quality.capa.read', 'quality.gauge.read', 'quality.attachment.read', 'quality.attachment.create', 'quality.inspection.read'].includes(p) || p === 'masters.item.read' || p === 'inventory.stock_entry.read'),
   },
   {
     key: 'operator',

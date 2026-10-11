@@ -228,3 +228,64 @@ export async function downloadCertificatePack(batchId: string, batchNo: string, 
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+/** CAPA (decision 061). */
+export const CAPA_STATUS: Record<'open' | 'in_action' | 'verifying' | 'closed' | 'cancelled', { label: string; tone: BadgeTone }> = {
+  open: { label: 'Open', tone: 'warning' },
+  in_action: { label: 'In action', tone: 'info' },
+  verifying: { label: 'Awaiting check', tone: 'info' },
+  closed: { label: 'Closed', tone: 'success' },
+  cancelled: { label: 'Cancelled', tone: 'neutral' },
+};
+export const CAPA_SOURCE: Record<'ncr' | 'audit' | 'complaint' | 'other', string> = { ncr: 'NCR', audit: 'Audit finding', complaint: 'Customer complaint', other: 'Other' };
+export const CAPA_ACTION_KIND: Record<'containment' | 'corrective' | 'preventive', string> = { containment: 'Containment', corrective: 'Corrective', preventive: 'Preventive' };
+
+export interface CapaRow {
+  id: string;
+  number: string;
+  source: keyof typeof CAPA_SOURCE;
+  title: string;
+  problem: string;
+  severity: 'minor' | 'major';
+  ownerUserId: string;
+  ownerName: string;
+  verifyAfterDays: number;
+  status: keyof typeof CAPA_STATUS;
+  verifyDueOn: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  openActions: number;
+  nextDue: string | null;
+  overdue: boolean;
+  verificationDue: boolean;
+}
+export interface CapaAction {
+  id: string;
+  kind: keyof typeof CAPA_ACTION_KIND;
+  description: string;
+  ownerUserId: string;
+  ownerName: string;
+  dueOn: string;
+  status: 'open' | 'done' | 'cancelled';
+  doneOn: string | null;
+  doneNote: string | null;
+  doneByName: string | null;
+  cancelReason: string | null;
+  overdue: boolean;
+}
+export interface CapaDetail extends Omit<CapaRow, 'openActions' | 'nextDue' | 'overdue'> {
+  whys: string[];
+  rootCause: string | null;
+  team: string | null;
+  containment: string | null;
+  recognition: string | null;
+  cancelReason: string | null;
+  ncrs: { id: string; number: string | null; status: keyof typeof NCR_STATUS; description: string; itemCode: string; itemName: string }[];
+  actions: CapaAction[];
+  verifications: { id: string; effective: boolean; note: string; verifiedByName: string; verifiedAt: string }[];
+  today: string;
+}
+export interface CapaPerson {
+  id: string;
+  name: string;
+}
