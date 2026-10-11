@@ -64,6 +64,7 @@ export const DEFAULT_SERIES: Record<string, string> = {
   test_campaign: '{ENTITY}/TC/{FY}/{####}',
   project: '{ENTITY}/PRJ/{FY}/{####}',
   subscription: '{ENTITY}/SUB/{FY}/{####}',
+  billing_run: '{ENTITY}/BR/{FY}/{####}',
   custody_return: '{ENTITY}/RDC/{FY}/{####}',
 };
 

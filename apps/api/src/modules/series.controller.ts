@@ -28,6 +28,7 @@ const LABELS: Record<string, string> = {
   test_campaign: 'Test campaign',
   project: 'Project',
   subscription: 'Subscription',
+  billing_run: 'Billing run',
   custody_return: 'Custody return challan',
 };
 
