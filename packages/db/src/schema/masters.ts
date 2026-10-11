@@ -129,6 +129,8 @@ export const party = pgTable(
     /** MSME (Sec 43B(h)): Udyam number and category drive 45-day payment tracking (docs/05 §6). */
     msmeUdyam: text('msme_udyam'),
     msmeCategory: text('msme_category'),
+    /** Decision 055: a studio member gets the member rate on machine-hour bookings. */
+    maasMember: boolean('maas_member').notNull().default(false),
     creditDays: integer('credit_days'),
     /** Rupees; null = no credit check (decision 032). */
     creditLimit: numeric('credit_limit', { precision: 18, scale: 2 }),
