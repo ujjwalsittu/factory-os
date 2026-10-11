@@ -51,7 +51,8 @@ User choices, 2026-10-11:
 
 - **Plans:** created and stopped like membership plans; codes are unique per entity.
 - **Subscribe:**
-  - customer, plan, AOI and a start date (today or later);
+  - customer, plan, AOI and a start date (up to a year back, for a subscription agreed before it is entered; each
+    past period then falls due in turn);
   - one active subscription per customer per AOI name.
 - **Periods:**
   - The fee for a period uses the plan in force at its start.
