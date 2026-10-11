@@ -18,7 +18,7 @@ export default function BookingPage() {
   const ws = useWorkspace();
   const qc = useQueryClient();
   const router = useRouter();
-  const [dialog, setDialog] = useState<'edit' | 'cancel' | 'usage' | null>(null);
+  const [dialog, setDialog] = useState<'edit' | 'cancel' | 'usage' | 'unbill' | null>(null);
   const q = useQuery({ queryKey: ['booking', ws.entityId, id], queryFn: () => api<BookingDetail>(`/services/bookings/${id}`, { scope: ws.scope }), enabled: !!ws.entityId });
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['booking'] });
@@ -30,10 +30,11 @@ export default function BookingPage() {
     onSuccess: refresh,
   });
   const invoice = useMutation({
-    mutationFn: () => api<{ invoiceId: string }>(`/services/bookings/${id}/invoice`, { method: 'POST', scope: ws.scope, body: {} }),
+    mutationFn: () => api<{ invoiceId: string | null }>(`/services/bookings/${id}/bill`, { method: 'POST', scope: ws.scope, body: {} }),
     onSuccess: (r) => {
       refresh();
-      router.push(`/app/selling/invoices/${r.invoiceId}`);
+      void qc.invalidateQueries({ queryKey: ['memberships'] });
+      if (r.invoiceId) router.push(`/app/selling/invoices/${r.invoiceId}`);
     },
   });
   const b = q.data;
@@ -67,14 +68,19 @@ export default function BookingPage() {
                   Stop machine
                 </Button>
               )}
-              {(b.status === 'in_use' || b.status === 'completed') && can('services.usage.create') && !(b.invoiceStatus === 'draft' || b.invoiceStatus === 'submitted') && (
+              {(b.status === 'in_use' || b.status === 'completed') && can('services.usage.create') && !b.billed && (
                 <Button variant="secondary" onClick={() => setDialog('usage')}>
                   Record usage
                 </Button>
               )}
-              {b.billable && can('services.billing.create') && can('selling.sales_invoice.create') && (
+              {b.billable && can('services.billing.create') && (b.split?.overageMinutes === 0 || can('selling.sales_invoice.create')) && (
                 <Button loading={invoice.isPending} onClick={() => invoice.mutate()}>
-                  Create invoice
+                  {b.split && b.split.overageMinutes === 0 ? 'Bill to membership' : 'Create invoice'}
+                </Button>
+              )}
+              {b.drawnMinutes > 0 && !(b.invoiceStatus === 'draft' || b.invoiceStatus === 'submitted') && can('services.billing.create') && (
+                <Button variant="ghost" onClick={() => setDialog('unbill')}>
+                  Reverse billing
                 </Button>
               )}
               {open && can('services.booking.update') && (
@@ -162,12 +168,25 @@ export default function BookingPage() {
                           {formatMinutes(b.charge.billableMinutes)} = {b.charge.hours} h
                         </Detail>
                         <Detail label={b.charge.memberRate ? 'Member rate' : 'Rate'}>{formatMoney(b.charge.rate)}/h</Detail>
-                        <Detail label="Amount before GST">
+                        <Detail label={b.membership ? 'Value of the hours' : 'Amount before GST'}>
                           <span className="font-mono font-medium">{formatMoney(b.charge.amount)}</span>
                         </Detail>
                       </>
                     )}
                   </dl>
+                )}
+                {b.membership && (
+                  <p className="mt-3">
+                    Membership{' '}
+                    <Link href={`/app/services/memberships/${b.membership.id}`} className="font-mono font-medium hover:text-accent">
+                      {b.membership.number}
+                    </Link>
+                    {b.drawnMinutes > 0
+                      ? `: ${formatMinutes(b.drawnMinutes)} drawn for this booking.`
+                      : b.split
+                        ? `: ${formatMinutes(b.membership.remainingMinutes)} left until ${formatDate(b.membership.endsOn)}. Billing draws ${formatMinutes(b.split.coveredMinutes)}${b.split.overageMinutes ? ` and invoices ${b.split.overageHours} h (${formatMoney(b.split.overageAmount)}) beyond it.` : '; nothing to invoice.'}`
+                        : '.'}
+                  </p>
                 )}
                 {b.salesInvoiceId && b.invoiceStatus !== 'cancelled' && (
                   <p className="mt-3">
@@ -185,6 +204,7 @@ export default function BookingPage() {
       {dialog === 'edit' && b && <BookingDialog booking={b} onClose={() => setDialog(null)} />}
       {dialog === 'cancel' && b && <CancelDialog id={b.id} number={b.number} onClose={() => setDialog(null)} onDone={refresh} />}
       {dialog === 'usage' && b && <UsageDialog id={b.id} onClose={() => setDialog(null)} onDone={refresh} />}
+      {dialog === 'unbill' && b && <UnbillDialog id={b.id} onClose={() => setDialog(null)} onDone={() => { refresh(); void qc.invalidateQueries({ queryKey: ['memberships'] }); }} />}
     </>
   );
 }
@@ -239,6 +259,26 @@ function UsageDialog({ id, onClose, onDone }: { id: string; onClose: () => void;
           {(p) => <Input {...p} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} required placeholder="Operator log sheet" />}
         </Field>
       </div>
+    </FormDialog>
+  );
+}
+
+function UnbillDialog({ id, onClose, onDone }: { id: string; onClose: () => void; onDone: () => void }) {
+  const ws = useWorkspace();
+  const [reason, setReason] = useState('');
+  const m = useMutation({
+    mutationFn: () => api(`/services/bookings/${id}/unbill`, { method: 'POST', scope: ws.scope, body: { reason } }),
+    onSuccess: () => {
+      onDone();
+      onClose();
+    },
+  });
+  const err = fieldErrors(m.error);
+  return (
+    <FormDialog title="Reverse billing" description="The hours go back to the membership (kept as a reversal entry) and the booking can be corrected and billed again." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Reverse">
+      <Field label="Reason" error={err.reason}>
+        {(p) => <Input {...p} value={reason} onChange={(e) => setReason(e.target.value)} required autoFocus />}
+      </Field>
     </FormDialog>
   );
 }
