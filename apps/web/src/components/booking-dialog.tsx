@@ -14,7 +14,7 @@ export function BookingDialog({ booking, onClose, onSaved }: { booking: Booking 
   const ws = useWorkspace();
   const qc = useQueryClient();
   const centres = useQuery({ queryKey: ['work-centres', ws.entityId], queryFn: () => api<WorkCentre[]>('/manufacturing/work-centres', { scope: ws.scope }) });
-  const parties = useQuery({ queryKey: ['parties'], queryFn: () => api<Party[]>('/parties', { scope: ws.scope }) });
+  const parties = useQuery({ queryKey: ['parties', ws.tenantId, 'all'], queryFn: () => api<Party[]>('/parties', { scope: ws.scope }) });
   const hour = new Date();
   hour.setMinutes(0, 0, 0);
   const [f, setF] = useState({

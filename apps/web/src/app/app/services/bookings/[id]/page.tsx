@@ -233,7 +233,7 @@ function UsageDialog({ id, onClose, onDone }: { id: string; onClose: () => void;
     <FormDialog title="Record usage" description="Minutes the machine ran, from a log sheet. Enter a negative number to correct an earlier entry." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Record">
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Minutes" error={err.minutes}>
-          {(p) => <Input {...p} value={f.minutes} onChange={(e) => setF({ ...f, minutes: e.target.value })} inputMode="numeric" required autoFocus />}
+          {(p) => <Input {...p} type="number" step={1} value={f.minutes} onChange={(e) => setF({ ...f, minutes: e.target.value })} required autoFocus />}
         </Field>
         <Field label="Note" error={err.note} className="sm:col-span-2">
           {(p) => <Input {...p} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} required placeholder="Operator log sheet" />}

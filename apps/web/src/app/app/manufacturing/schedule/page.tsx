@@ -264,7 +264,7 @@ function Queues({ view, onSelect }: { view: ScheduleView; onSelect: (b: Bar) => 
                   <Link href={`/app/services/bookings/${k.id}`} className="font-mono font-medium hover:text-accent">
                     {k.number}
                   </Link>{' '}
-                  · {k.customerName} <Badge tone="info">{k.status === 'tentative' ? 'Tentative booking' : 'Reserved'}</Badge>
+                  · {k.customerName} <Badge tone={k.status === 'completed' ? 'success' : 'info'}>{k.status === 'tentative' ? 'Tentative booking' : k.status === 'completed' ? 'Completed booking' : 'Reserved'}</Badge>
                   <span className="block text-muted">
                     {formatDateTime(k.startsAt)} → {formatDateTime(k.endsAt)}
                   </span>

@@ -68,7 +68,7 @@ ALTER TABLE "maas_rate_card" ADD CONSTRAINT "maas_rate_card_entity_id_legal_enti
 ALTER TABLE "maas_rate_card" ADD CONSTRAINT "maas_rate_card_machine_id_machine_id_fk" FOREIGN KEY ("machine_id") REFERENCES "public"."machine"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "maas_rate_card" ADD CONSTRAINT "maas_rate_card_service_item_id_item_id_fk" FOREIGN KEY ("service_item_id") REFERENCES "public"."item"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "maas_rate_card" ADD CONSTRAINT "maas_rate_card_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "maas_usage" ADD CONSTRAINT "maas_usage_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "maas_usage" ADD CONSTRAINT "maas_usage_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "maas_usage" ADD CONSTRAINT "maas_usage_booking_id_maas_booking_id_fk" FOREIGN KEY ("booking_id") REFERENCES "public"."maas_booking"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "maas_usage" ADD CONSTRAINT "maas_usage_recorded_by_user_id_fk" FOREIGN KEY ("recorded_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "maas_booking_number_uq" ON "maas_booking" USING btree ("entity_id","number");--> statement-breakpoint

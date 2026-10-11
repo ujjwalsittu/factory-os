@@ -61,6 +61,17 @@ One adversarial pass over the diff. One finding fixed:
     harmless; a reschedule clears it.
   - The rate card is chosen by the booking's start date in IST, the business day used across the app.
 
+## Automated review (CodeRabbit) round
+
+- **Fixed:**
+  - `maas_usage`'s tenant FK was `ON DELETE cascade`, but the append-only trigger rejects every delete, so the cascade
+    could never complete. It is now `no action`, like the other append-only ledgers (`trade_bill`). The migration
+    hasn't been deployed, so `0036_maas` was corrected in place.
+  - The phone schedule list labels completed bookings "Completed booking" instead of "Reserved".
+  - The rate-card and booking dialogs key their item and customer caches by tenant.
+  - The usage field is numeric. The API already refuses zero and fractional minutes.
+  - The walkthrough's single-invoice check waits for the page to load before counting buttons.
+
 ## Evidence
 
 | Check | Result |

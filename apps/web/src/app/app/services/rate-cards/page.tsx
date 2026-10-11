@@ -90,7 +90,7 @@ function RateCardDialog({ onClose }: { onClose: () => void }) {
   const ws = useWorkspace();
   const qc = useQueryClient();
   const centres = useQuery({ queryKey: ['work-centres', ws.entityId], queryFn: () => api<WorkCentre[]>('/manufacturing/work-centres', { scope: ws.scope }) });
-  const items = useQuery({ queryKey: ['items'], queryFn: () => api<Item[]>('/items', { scope: ws.scope }) });
+  const items = useQuery({ queryKey: ['items', ws.tenantId, 'all'], queryFn: () => api<Item[]>('/items', { scope: ws.scope }) });
   const [f, setF] = useState({ machineId: '', serviceItemId: '', standardRate: '', memberRate: '', minimumMinutes: '0', roundingMinutes: '15', validFrom: today(), validTo: '' });
   const m = useMutation({
     mutationFn: () =>

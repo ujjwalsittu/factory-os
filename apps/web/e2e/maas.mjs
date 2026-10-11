@@ -139,7 +139,8 @@ try {
   await page.waitForFunction(() => [...document.querySelectorAll('input,textarea')].some((e) => e.value.includes('324 min used, 330 min billed at member rate')));
   await shot('04-invoice');
   await page.goto(bookingUrl);
-  await page.getByText('Invoice', { exact: true }).waitFor().catch(() => null);
+  await page.locator('h1', { hasText: number }).waitFor();
+  await page.getByRole('link', { name: 'Draft invoice' }).waitFor();
   expect((await page.getByRole('button', { name: 'Create invoice' }).count()) === 0, 'an invoiced booking offers no second invoice');
 
   step('phone width');

@@ -101,9 +101,10 @@ export const maasUsage = pgTable(
   'maas_usage',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    // No cascade: usage is append-only, so (like other ledgers) it keeps its tenant rather than vanishing with it.
     tenantId: uuid('tenant_id')
       .notNull()
-      .references(() => tenant.id, { onDelete: 'cascade' }),
+      .references(() => tenant.id),
     bookingId: uuid('booking_id')
       .notNull()
       .references(() => maasBooking.id),

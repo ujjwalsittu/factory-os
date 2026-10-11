@@ -31470,7 +31470,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "maas_usage_booking_id_maas_booking_id_fk": {
