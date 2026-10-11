@@ -351,6 +351,7 @@ export class CampaignsController {
       if (!(await this.invoiceLive(tx, c.salesInvoiceId))) throw new ConflictException('Invoice the campaign before closing it');
       const [h] = await tx.select({ n: sql<number>`count(*)::int` }).from(custodyItem).where(and(eq(custodyItem.campaignId, id), isNull(custodyItem.returnedAt)));
       if (h?.n) throw new ConflictException(`${h.n} item${h.n === 1 ? ' is' : 's are'} still in custody; return the payload first`);
+      await this.noOpenBookings(tx, id);
       await tx.update(testCampaign).set({ status: 'closed', closedAt: new Date(), updatedAt: new Date() }).where(eq(testCampaign.id, id));
     });
     return { ok: true };
@@ -364,6 +365,7 @@ export class CampaignsController {
       if (c.status !== 'draft' && c.status !== 'active') throw new ConflictException(`A ${c.status} campaign can’t be cancelled`);
       const [h] = await tx.select({ n: sql<number>`count(*)::int` }).from(custodyItem).where(and(eq(custodyItem.campaignId, id), isNull(custodyItem.returnedAt)));
       if (h?.n) throw new ConflictException('Return the payload in custody before cancelling');
+      await this.noOpenBookings(tx, id);
       if (await this.invoiceLive(tx, c.salesInvoiceId)) throw new ConflictException('Delete or cancel the campaign’s invoice first');
       await tx.update(testCampaign).set({ status: 'cancelled', cancelReason: reason, updatedAt: new Date() }).where(eq(testCampaign.id, id));
     }, { reason });
@@ -380,6 +382,16 @@ export class CampaignsController {
       await fn(tx, c);
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action, targetType: 'test_campaign', targetId: id, after }, tx);
     });
+  }
+
+  /** A campaign can't end while one of its chamber bookings is still open (it would keep the chamber reserved). */
+  private async noOpenBookings(tx: Tx, id: string) {
+    const [b] = await tx
+      .select({ number: maasBooking.number, status: maasBooking.status })
+      .from(maasBooking)
+      .where(and(eq(maasBooking.campaignId, id), inArray(maasBooking.status, ['tentative', 'confirmed', 'in_use'])))
+      .limit(1);
+    if (b) throw new ConflictException(`Chamber booking ${b.number} is still ${b.status.replace('_', ' ')}; complete or cancel it first`);
   }
 
   private editable(c: typeof testCampaign.$inferSelect) {
