@@ -10,7 +10,7 @@ import {
   inspectionRecord,
   jobWorkReceipt,
   ncr,
-  qualityInspection, testCampaign } from '@factoryos/db';
+  qualityInspection, testCampaign, project } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Query, Req, Res } from '@nestjs/common';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { Request, Response } from 'express';
@@ -22,7 +22,7 @@ import { parse } from '../../common/validation.js';
 import { entityOf } from '../accounting/accounting-lock.js';
 import { ALLOWED_TYPES, MAX_ATTACHMENT_BYTES, StorageService } from './storage.service.js';
 
-export const OWNER_TYPES = ['batch', 'inspection_record', 'quality_inspection', 'fai', 'ncr', 'gauge', 'calibration_event', 'job_work_receipt', 'test_campaign'] as const;
+export const OWNER_TYPES = ['batch', 'inspection_record', 'quality_inspection', 'fai', 'ncr', 'gauge', 'calibration_event', 'job_work_receipt', 'test_campaign', 'project'] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 const KINDS = ['mtc', 'coc', 'coa', 'fai', 'cmm', 'photo', 'calibration', 'drawing', 'other'] as const;
 
@@ -139,6 +139,8 @@ export async function assertOwner(db: Database, ctx: TenantRequestContext, entit
                   ? await one(db.select({ id: calibrationEvent.id }).from(calibrationEvent).where(and(eq(calibrationEvent.id, id), eq(calibrationEvent.entityId, entityId))))
                   : type === 'test_campaign'
                     ? await one(db.select({ id: testCampaign.id }).from(testCampaign).where(and(eq(testCampaign.id, id), eq(testCampaign.entityId, entityId))))
-                    : await one(db.select({ id: jobWorkReceipt.id }).from(jobWorkReceipt).where(and(eq(jobWorkReceipt.id, id), eq(jobWorkReceipt.entityId, entityId))));
+                    : type === 'project'
+                      ? await one(db.select({ id: project.id }).from(project).where(and(eq(project.id, id), eq(project.entityId, entityId))))
+                      : await one(db.select({ id: jobWorkReceipt.id }).from(jobWorkReceipt).where(and(eq(jobWorkReceipt.id, id), eq(jobWorkReceipt.entityId, entityId))));
   if (!found) throw new NotFoundException('The document to attach to was not found in this entity');
 }

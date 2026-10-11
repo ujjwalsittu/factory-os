@@ -156,6 +156,8 @@ export const workOrder = pgTable(
     salesOrderId: uuid('sales_order_id').references(() => salesOrder.id),
     /** Rework/repair order for an NCR disposition (decision 048). */
     reworkOfNcrId: uuid('rework_of_ncr_id'),
+    /** Decision 058: the project whose cost this order carries (FK added in migration 0039). */
+    projectId: uuid('project_id'),
     plannedStart: date('planned_start'),
     plannedEnd: date('planned_end'),
     /** 1 = highest … 5; the scheduler places higher priority first (decision 049). */
