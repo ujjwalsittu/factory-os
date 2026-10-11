@@ -1,7 +1,7 @@
 // Phase 3c test campaigns (decision 057): a test service order quoted as a lump sum plus extras, with the customer's
 // payload in a custody register (not stock), test steps with results, a quality sign-off, and one invoice at the end.
 import { Dec } from '@factoryos/core';
-import { attachment, custodyItem, item, machine, maasBooking, party, salesInvoice, testCampaign, testCampaignExtra, testCampaignStep, type Database, user } from '@factoryos/db';
+import { attachment, custodyItem, item, machine, maasBooking, party, project, salesInvoice, testCampaign, testCampaignExtra, testCampaignStep, type Database, user } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
@@ -12,6 +12,7 @@ import { DB } from '../../common/tokens.js';
 import { parse } from '../../common/validation.js';
 import { businessDate, entityOf, type Tx } from '../accounting/accounting-lock.js';
 import { SellingController } from '../selling.controller.js';
+import { ProjectsController } from './projects.controller.js';
 import { StockPostingService } from '../stock-posting.service.js';
 
 const money = z
@@ -25,6 +26,8 @@ const campaignInput = z.object({
   customerRef: z.string().trim().max(100).nullable().optional(),
   serviceItemId: z.uuid(),
   quotedAmount: money,
+  /** Decision 058: a campaign for a project of the same customer is billed through its milestones. */
+  projectId: z.uuid().nullable().optional(),
 });
 const stepInput = z.object({ name: z.string().trim().min(2).max(200), requirement: z.string().trim().max(1000).nullable().optional(), seq: z.number().int().min(1).max(9999).optional() });
 const resultInput = z.object({ result: z.enum(['pending', 'pass', 'fail', 'na']), measured: z.string().trim().max(200).nullable().optional(), notes: z.string().trim().max(2000).nullable().optional() });
@@ -90,10 +93,11 @@ export class CampaignsController {
     const entityId = entityOf(ctx);
     const approver = alias(user, 'approver');
     const [r] = await this.db
-      .select({ c: testCampaign, customerName: party.name, itemCode: item.code, itemName: item.name, approvedByName: approver.name, invoiceNumber: salesInvoice.number, invoiceStatus: salesInvoice.status })
+      .select({ c: testCampaign, customerName: party.name, itemCode: item.code, itemName: item.name, approvedByName: approver.name, invoiceNumber: salesInvoice.number, invoiceStatus: salesInvoice.status, projectNumber: project.number })
       .from(testCampaign)
       .innerJoin(party, eq(party.id, testCampaign.customerId))
       .innerJoin(item, eq(item.id, testCampaign.serviceItemId))
+      .leftJoin(project, eq(project.id, testCampaign.projectId))
       .leftJoin(approver, eq(approver.id, testCampaign.reportApprovedBy))
       .leftJoin(salesInvoice, eq(salesInvoice.id, testCampaign.salesInvoiceId))
       .where(and(eq(testCampaign.id, id), eq(testCampaign.entityId, entityId)));
@@ -132,6 +136,7 @@ export class CampaignsController {
       itemCode: r.itemCode,
       itemName: r.itemName,
       approvedByName: r.approvedByName,
+      projectNumber: r.projectNumber,
       invoiceNumber: r.invoiceNumber,
       invoiceStatus: r.invoiceStatus,
       steps: steps.map((s) => ({ ...s.s, recordedByName: s.recordedByName })),
@@ -153,10 +158,11 @@ export class CampaignsController {
     await this.customerIn(ctx, input.customerId);
     await this.serviceItemIn(ctx, input.serviceItemId);
     return this.db.transaction(async (tx) => {
+      if (input.projectId) await ProjectsController.assertLinkable(tx, entityId, input.projectId, input.customerId);
       const number = await this.posting.allocateNumber(tx, ctx.tenant.tenantId, entityId, 'test_campaign', businessDate());
       const [c] = await tx
         .insert(testCampaign)
-        .values({ tenantId: ctx.tenant.tenantId, entityId, number, customerId: input.customerId, title: input.title, scope: input.scope ?? null, customerRef: input.customerRef ?? null, serviceItemId: input.serviceItemId, quotedAmount: input.quotedAmount, createdBy: ctx.user.id })
+        .values({ tenantId: ctx.tenant.tenantId, entityId, number, customerId: input.customerId, title: input.title, scope: input.scope ?? null, customerRef: input.customerRef ?? null, serviceItemId: input.serviceItemId, quotedAmount: input.quotedAmount, projectId: input.projectId ?? null, createdBy: ctx.user.id })
         .returning();
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'test_campaign.create', targetType: 'test_campaign', targetId: c!.id, after: { number, ...input } }, tx);
       return c!;
@@ -174,6 +180,7 @@ export class CampaignsController {
       const c = await this.lock(tx, entityId, id);
       if (c.status !== 'draft' && c.status !== 'active') throw new ConflictException(`A ${c.status} campaign can’t be changed`);
       if (c.status === 'active' && input.customerId !== c.customerId) throw new ConflictException('The customer is fixed once the campaign is accepted');
+      if (c.projectId && input.customerId !== c.customerId) throw new ConflictException('A project campaign stays with the project’s customer');
       await tx
         .update(testCampaign)
         .set({ customerId: input.customerId, title: input.title, scope: input.scope ?? null, customerRef: input.customerRef ?? null, serviceItemId: input.serviceItemId, quotedAmount: input.quotedAmount, updatedAt: new Date() })
@@ -322,6 +329,7 @@ export class CampaignsController {
     const entityId = entityOf(ctx);
     const input = parse(invoiceInput, body);
     const d = await this.get(ctx, id);
+    if (d.projectId) throw new ConflictException(`Billed through project ${d.projectNumber ?? ''}`.trim());
     if (d.status !== 'reported' && d.status !== 'closed') throw new ConflictException('Invoice the campaign once its report is approved');
     if (LIVE(d.invoiceStatus)) throw new ConflictException(`Already invoiced on ${d.invoiceNumber ?? 'a draft invoice'}`);
     const lines = [
@@ -335,7 +343,7 @@ export class CampaignsController {
       { customerId: d.customerId, invoiceDate: input.invoiceDate ?? businessDate(), gstRegistrationId: input.gstRegistrationId ?? null, customerPoNo: d.customerRef ?? null, remarks: `Test campaign ${d.number}`, lines },
       async (tx, invoiceId) => {
         const c = await this.lock(tx, entityId, id);
-        if ((c.status !== 'reported' && c.status !== 'closed') || (await this.invoiceLive(tx, c.salesInvoiceId))) throw new ConflictException('The campaign changed; reload');
+        if ((c.status !== 'reported' && c.status !== 'closed') || c.projectId || (await this.invoiceLive(tx, c.salesInvoiceId))) throw new ConflictException('The campaign changed; reload');
         await tx.update(testCampaign).set({ salesInvoiceId: invoiceId, updatedAt: new Date() }).where(eq(testCampaign.id, id));
         await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'test_campaign.invoice', targetType: 'test_campaign', targetId: id, after: { invoiceId, total: d.totalAmount } }, tx);
       },
@@ -348,7 +356,8 @@ export class CampaignsController {
   async close(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
     await this.transition(ctx, id, 'test_campaign.close', async (tx, c) => {
       if (c.status !== 'reported') throw new ConflictException(c.status === 'closed' ? 'Already closed' : 'Close a campaign once its report is approved');
-      if (!(await this.invoiceLive(tx, c.salesInvoiceId))) throw new ConflictException('Invoice the campaign before closing it');
+      // A project campaign is billed through the project's milestones, so it closes without its own invoice.
+      if (!c.projectId && !(await this.invoiceLive(tx, c.salesInvoiceId))) throw new ConflictException('Invoice the campaign before closing it');
       const [h] = await tx.select({ n: sql<number>`count(*)::int` }).from(custodyItem).where(and(eq(custodyItem.campaignId, id), isNull(custodyItem.returnedAt)));
       if (h?.n) throw new ConflictException(`${h.n} item${h.n === 1 ? ' is' : 's are'} still in custody; return the payload first`);
       await this.noOpenBookings(tx, id);
@@ -438,5 +447,6 @@ export class CampaignsController {
     if (!c) throw new NotFoundException('Campaign not found');
     if (c.status !== 'draft' && c.status !== 'active') throw new ConflictException(`Campaign ${c.number} is ${c.status}`);
     if (c.customerId !== customerId) throw new BadRequestException(`Campaign ${c.number} is for another customer`);
+    return c;
   }
 }
