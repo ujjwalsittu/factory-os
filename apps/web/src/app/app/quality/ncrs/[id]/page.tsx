@@ -8,11 +8,12 @@ import { useState } from 'react';
 import { AttachmentsPanel } from '@/components/attachments-panel';
 import { EntityGate } from '@/components/entity-gate';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
+import { RaiseCapaDialog } from '@/components/raise-capa-dialog';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatQty } from '@/lib/format';
 import type { WorkCentre } from '@/lib/manufacturing';
-import { DISPOSITION, type Disposition, NCR_STATUS, type NcrDetail } from '@/lib/quality';
+import { CAPA_STATUS, type CapaRow, DISPOSITION, type Disposition, NCR_STATUS, type NcrDetail } from '@/lib/quality';
 import type { Warehouse } from '@/lib/types';
 
 const WASTE = ['rejected_parts', 'metal_swarf', 'metal_offcut', 'metal_powder', 'e_waste', 'coolant_oil', 'solvent', 'packaging', 'other'];
@@ -117,11 +118,49 @@ function View() {
           </Table>
         )}
       </Card>
+      {ws.can('quality.capa.read') && <CapaCard n={n} />}
       <AttachmentsPanel ownerType="ncr" ownerId={n.id} defaultKind="photo" title="Photos and evidence" />
       {dialog === 'propose' && <Propose n={n} onClose={() => setDialog(null)} />}
       {dialog === 'approve' && <Approve n={n} onClose={() => setDialog(null)} />}
       {dialog === 'cancel' && <CancelNcr n={n} onClose={() => setDialog(null)} />}
     </>
+  );
+}
+
+/** The CAPAs this NCR feeds (decision 061); raising one is optional. */
+function CapaCard({ n }: { n: NcrDetail }) {
+  const ws = useWorkspace();
+  const [raising, setRaising] = useState(false);
+  const q = useQuery({ queryKey: ['capas', ws.entityId, 'ncr', n.id], queryFn: () => api<CapaRow[]>(`/quality/capas?ncrId=${n.id}`, { scope: ws.scope }) });
+  return (
+    <Card className="mb-4">
+      <CardHeader
+        title="CAPA"
+        description="When the cause should be found and removed, raise a CAPA; repeat NCRs link to the same one."
+        actions={
+          ws.can('quality.capa.create') && (
+            <Button size="sm" variant="secondary" onClick={() => setRaising(true)}>
+              Raise CAPA
+            </Button>
+          )
+        }
+      />
+      {q.data?.length ? (
+        <ul className="divide-y divide-line">
+          {q.data.map((c) => (
+            <li key={c.id} className="px-5 py-2 text-[13px]">
+              <Link className="font-mono font-medium hover:text-accent" href={`/app/quality/capas/${c.id}`}>
+                {c.number}
+              </Link>{' '}
+              <Badge tone={CAPA_STATUS[c.status].tone}>{CAPA_STATUS[c.status].label}</Badge> <span className="text-muted">{c.title} · {c.ownerName}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="px-5 py-4 text-[13px] text-muted">{q.isLoading ? 'Loading…' : 'None linked.'}</p>
+      )}
+      {raising && <RaiseCapaDialog ncr={n} onClose={() => setRaising(false)} />}
+    </Card>
   );
 }
 

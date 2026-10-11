@@ -9,7 +9,7 @@ import { api } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import { type Attachment, ATTACHMENT_KIND } from '@/lib/quality';
 
-type OwnerType = 'batch' | 'inspection_record' | 'quality_inspection' | 'fai' | 'ncr' | 'gauge' | 'calibration_event' | 'job_work_receipt' | 'test_campaign' | 'project';
+type OwnerType = 'batch' | 'inspection_record' | 'quality_inspection' | 'fai' | 'ncr' | 'gauge' | 'calibration_event' | 'job_work_receipt' | 'test_campaign' | 'project' | 'capa';
 
 const size = (n: number) => (n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 

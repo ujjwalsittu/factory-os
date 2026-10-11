@@ -42,6 +42,7 @@ import {
   Recycle,
   ScrollText,
   Search,
+  SearchCheck,
   ShieldCheck,
   ShoppingCart,
   Truck,
@@ -107,6 +108,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     items: [
       { href: '/app/quality/inspections', label: 'Inspections', icon: ClipboardCheck, permission: 'quality.inspection.read', entityScoped: true },
       { href: '/app/quality/ncrs', label: 'NCR / MRB', icon: OctagonAlert, permission: 'quality.ncr.read', entityScoped: true },
+      { href: '/app/quality/capas', label: 'CAPA', icon: SearchCheck, permission: 'quality.capa.read', entityScoped: true },
       { href: '/app/quality/fai', label: 'First article', icon: FileCheck2, permission: 'quality.fai.read', entityScoped: true },
       { href: '/app/quality/plans', label: 'Inspection plans', icon: ListChecks, permission: 'quality.plan.read', entityScoped: true },
       { href: '/app/quality/gauges', label: 'Gauges', icon: Gauge, permission: 'quality.gauge.read', entityScoped: true },
