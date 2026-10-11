@@ -62,6 +62,7 @@ export const DEFAULT_SERIES: Record<string, string> = {
   maas_booking: '{ENTITY}/MB/{FY}/{#####}',
   maas_membership: '{ENTITY}/MM/{FY}/{#####}',
   test_campaign: '{ENTITY}/TC/{FY}/{####}',
+  project: '{ENTITY}/PRJ/{FY}/{####}',
   custody_return: '{ENTITY}/RDC/{FY}/{####}',
 };
 

@@ -32,7 +32,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'finance_controller',
     name: 'Finance Controller',
     description: 'All accounts and compliance, including filing GST returns.',
-    permissions: all((p) => inModule('accounts', 'compliance')(p) || p.startsWith('selling.sales_note.') || /^buying\.(supplier_note|return_claim|return_resolution|return_policy)\./.test(p) || p === 'buying.return_movement.cancel' || readOnly(p)),
+    permissions: all((p) => inModule('accounts', 'compliance')(p) || ['services.project.approve', 'services.cost_rate.read', 'services.cost_rate.update'].includes(p) || p.startsWith('selling.sales_note.') || /^buying\.(supplier_note|return_claim|return_resolution|return_policy)\./.test(p) || p === 'buying.return_movement.cancel' || readOnly(p)),
   },
   {
     key: 'accountant',
@@ -88,7 +88,13 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'services_coordinator',
     name: 'Services coordinator',
     description: 'Machine-hour rate cards, bookings, usage and their invoices (decision 055).',
-    permissions: all((p) => (p.startsWith('services.') && p !== 'services.campaign.approve') || ['masters.party.read', 'masters.item.read', 'selling.sales_invoice.read', 'selling.sales_invoice.create', 'manufacturing.schedule.read', 'manufacturing.work_centre.read', 'quality.attachment.read', 'quality.attachment.create'].includes(p)),
+    permissions: all((p) => (p.startsWith('services.') && !['services.campaign.approve', 'services.project.approve', 'services.cost_rate.read', 'services.cost_rate.update'].includes(p)) || ['masters.party.read', 'masters.item.read', 'selling.sales_invoice.read', 'selling.sales_invoice.create', 'manufacturing.schedule.read', 'manufacturing.work_centre.read', 'quality.attachment.read', 'quality.attachment.create'].includes(p)),
+  },
+  {
+    key: 'project_member',
+    name: 'Project member',
+    description: 'Reads projects and records own hours on them (decision 058).',
+    permissions: ['services.project.read', 'services.timesheet.read', 'services.timesheet.create'],
   },
   {
     key: 'quality',
@@ -100,6 +106,6 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'auditor',
     name: 'Auditor (read-only)',
     description: 'Read and export everything. No changes.',
-    permissions: all((p) => readOnly(p) || p.endsWith('.export')),
+    permissions: all((p) => (readOnly(p) || p.endsWith('.export')) && p !== 'services.cost_rate.read'),
   },
 ];

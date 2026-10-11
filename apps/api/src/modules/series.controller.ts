@@ -26,6 +26,7 @@ const LABELS: Record<string, string> = {
   maas_booking: 'Machine booking',
   maas_membership: 'Studio membership',
   test_campaign: 'Test campaign',
+  project: 'Project',
   custody_return: 'Custody return challan',
 };
 

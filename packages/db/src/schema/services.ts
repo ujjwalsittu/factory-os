@@ -88,6 +88,8 @@ export const maasBooking = pgTable(
     billedAt: timestamp('billed_at', { withTimezone: true }),
     /** Decision 057: a chamber booked for a test campaign is billed with the campaign, never by the hour. */
     campaignId: uuid('campaign_id'),
+    /** Decision 058: a booking for a project is billed through the project's milestones. */
+    projectId: uuid('project_id').references(() => project.id),
     ...stamps,
   },
   (t) => [
@@ -240,6 +242,8 @@ export const testCampaign = pgTable(
     reportApprovedAt: timestamp('report_approved_at', { withTimezone: true }),
     salesInvoiceId: uuid('sales_invoice_id').references(() => salesInvoice.id, { onDelete: 'set null' }),
     closedAt: timestamp('closed_at', { withTimezone: true }),
+    /** Decision 058: a campaign for a project is billed through the project's milestones. */
+    projectId: uuid('project_id').references(() => project.id),
     ...stamps,
   },
   (t) => [
@@ -317,4 +321,164 @@ export const custodyItem = pgTable(
     returnedAt: timestamp('returned_at', { withTimezone: true }),
   },
   (t) => [index('custody_item_campaign_idx').on(t.campaignId), check('custody_item_qty_ck', sql`${t.qty} > 0`)],
+);
+
+// Phase 3d (decision 058): projects billed by milestones (full tax invoices) with retention withheld by the customer;
+// actual cost from linked work orders, purchase invoice lines, bookings and approved timesheets.
+
+export const projectStatus = pgEnum('project_status', ['draft', 'active', 'completed', 'closed', 'cancelled']);
+
+export const project = pgTable(
+  'project',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ...scope,
+    number: text('number').notNull(),
+    customerId: uuid('customer_id')
+      .notNull()
+      .references(() => party.id),
+    title: text('title').notNull(),
+    description: text('description'),
+    /** The customer's PO, work order or letter of award. */
+    customerRef: text('customer_ref'),
+    managerUserId: text('manager_user_id').references(() => user.id),
+    /** Service item (SAC) of the milestone invoices. */
+    serviceItemId: uuid('service_item_id')
+      .notNull()
+      .references(() => item.id),
+    /** Before GST; the milestones add up to it. */
+    contractValue: money('contract_value').notNull(),
+    retentionPct: numeric('retention_pct', { precision: 5, scale: 2 }).notNull().default('0'),
+    /** Defect liability period: retention falls due this many months after completion. */
+    dlpMonths: integer('dlp_months').notNull().default(0),
+    startDate: date('start_date'),
+    endDate: date('end_date'),
+    status: projectStatus('status').notNull().default('draft'),
+    cancelReason: text('cancel_reason'),
+    completedOn: date('completed_on'),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    ...stamps,
+  },
+  (t) => [
+    uniqueIndex('project_number_uq').on(t.entityId, t.number),
+    index('project_customer_idx').on(t.customerId),
+    check('project_value_ck', sql`${t.contractValue} > 0`),
+    check('project_retention_ck', sql`${t.retentionPct} between 0 and 50`),
+    check('project_dlp_ck', sql`${t.dlpMonths} between 0 and 60`),
+  ],
+);
+
+export const projectCostCategory = pgEnum('project_cost_category', ['material', 'machine', 'labour', 'bought_in', 'other']);
+
+export const projectBudget = pgTable(
+  'project_budget',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    category: projectCostCategory('category').notNull(),
+    amount: money('amount').notNull(),
+  },
+  (t) => [uniqueIndex('project_budget_uq').on(t.projectId, t.category), check('project_budget_ck', sql`${t.amount} >= 0`)],
+);
+
+export const projectMilestone = pgTable(
+  'project_milestone',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    name: text('name').notNull(),
+    dueDate: date('due_date'),
+    /** Before GST. */
+    amount: money('amount').notNull(),
+    achievedOn: date('achieved_on'),
+    acceptanceRef: text('acceptance_ref'),
+    achievedBy: text('achieved_by').references(() => user.id),
+    /** The milestone counts as invoiced while this invoice is live; a deleted draft frees it. */
+    salesInvoiceId: uuid('sales_invoice_id').references(() => salesInvoice.id, { onDelete: 'set null' }),
+  },
+  (t) => [uniqueIndex('project_milestone_seq_uq').on(t.projectId, t.seq), check('project_milestone_amount_ck', sql`${t.amount} > 0`)],
+);
+
+/** Retention the customer withholds from a milestone invoice; it counts while that invoice is live. */
+export const projectRetention = pgTable(
+  'project_retention',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id),
+    milestoneId: uuid('milestone_id')
+      .notNull()
+      .references(() => projectMilestone.id),
+    salesInvoiceId: uuid('sales_invoice_id').notNull(),
+    amount: money('amount').notNull(),
+    releasedOn: date('released_on'),
+    releaseRef: text('release_ref'),
+    releasedBy: text('released_by').references(() => user.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('project_retention_invoice_uq').on(t.salesInvoiceId), index('project_retention_project_idx').on(t.projectId), check('project_retention_ck', sql`${t.amount} > 0`)],
+);
+
+/** Hourly cost of a member's time from a date; append-only (a new rate is a new row). Salary-sensitive. */
+export const projectCostRate = pgTable(
+  'project_cost_rate',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ...scope,
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id),
+    hourlyRate: money('hourly_rate').notNull(),
+    effectiveFrom: date('effective_from').notNull(),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('project_cost_rate_uq').on(t.entityId, t.userId, t.effectiveFrom), check('project_cost_rate_ck', sql`${t.hourlyRate} >= 0`)],
+);
+
+export const timesheetStatus = pgEnum('timesheet_status', ['draft', 'submitted', 'approved']);
+
+export const timesheetEntry = pgTable(
+  'timesheet_entry',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ...scope,
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id),
+    milestoneId: uuid('milestone_id').references(() => projectMilestone.id, { onDelete: 'set null' }),
+    workDate: date('work_date').notNull(),
+    /** Quarter hours; negative only on a reversal of an approved entry. */
+    hours: numeric('hours', { precision: 6, scale: 2 }).notNull(),
+    notes: text('notes'),
+    status: timesheetStatus('status').notNull().default('draft'),
+    rejectReason: text('reject_reason'),
+    approvedBy: text('approved_by').references(() => user.id),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    /** Snapshotted at approval from the rate effective on the work date. */
+    costRate: money('cost_rate'),
+    costAmount: money('cost_amount'),
+    reversalOf: uuid('reversal_of'),
+    ...stamps,
+  },
+  (t) => [
+    index('timesheet_entry_user_idx').on(t.entityId, t.userId, t.workDate),
+    index('timesheet_entry_project_idx').on(t.projectId),
+    uniqueIndex('timesheet_entry_reversal_uq').on(t.reversalOf),
+    check('timesheet_entry_hours_ck', sql`${t.hours} <> 0 and abs(${t.hours}) <= 24 and mod(${t.hours} * 4, 1) = 0`),
+  ],
 );

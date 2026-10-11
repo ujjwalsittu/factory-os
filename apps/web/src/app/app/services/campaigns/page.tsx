@@ -10,7 +10,7 @@ import { fieldErrors, FormDialog } from '@/components/form-dialog';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDate, formatMoney } from '@/lib/format';
-import { CAMPAIGN_STATUS, type Campaign } from '@/lib/services';
+import { CAMPAIGN_STATUS, type Campaign, type Project } from '@/lib/services';
 import type { Item, Party } from '@/lib/types';
 
 /** Test campaigns: quoted test services with the customer's payload in custody (decision 057). */
@@ -77,9 +77,11 @@ function CampaignDialog({ onClose, onSaved }: { onClose: () => void; onSaved: (i
   const qc = useQueryClient();
   const parties = useQuery({ queryKey: ['parties', ws.tenantId, 'all'], queryFn: () => api<Party[]>('/parties', { scope: ws.scope }) });
   const items = useQuery({ queryKey: ['items', ws.tenantId, 'all'], queryFn: () => api<Item[]>('/items', { scope: ws.scope }) });
-  const [f, setF] = useState({ customerId: '', title: '', scope: '', customerRef: '', serviceItemId: '', quotedAmount: '' });
+  const projects = useQuery({ queryKey: ['projects', ws.entityId], queryFn: () => api<Project[]>('/services/projects', { scope: ws.scope }), enabled: ws.can('services.project.read') });
+  const [f, setF] = useState({ customerId: '', title: '', scope: '', customerRef: '', serviceItemId: '', quotedAmount: '', projectId: '' });
+  const open = projects.data?.filter((p) => p.customerId === f.customerId && (p.status === 'draft' || p.status === 'active')) ?? [];
   const m = useMutation({
-    mutationFn: () => api<{ id: string }>('/services/campaigns', { method: 'POST', scope: ws.scope, body: { ...f, scope: f.scope || null, customerRef: f.customerRef || null } }),
+    mutationFn: () => api<{ id: string }>('/services/campaigns', { method: 'POST', scope: ws.scope, body: { ...f, scope: f.scope || null, customerRef: f.customerRef || null, projectId: f.projectId || null } }),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ['campaigns'] });
       onClose();
@@ -93,7 +95,7 @@ function CampaignDialog({ onClose, onSaved }: { onClose: () => void; onSaved: (i
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Customer" error={err.customerId}>
           {(p) => (
-            <Select {...p} value={f.customerId} onChange={set('customerId')} required autoFocus>
+            <Select {...p} value={f.customerId} onChange={(e) => setF({ ...f, customerId: e.target.value, projectId: '' })} required autoFocus>
               <option value="">Choose…</option>
               {parties.data?.filter((c) => c.isCustomer && c.isActive).map((c) => (
                 <option key={c.id} value={c.id}>
@@ -119,6 +121,20 @@ function CampaignDialog({ onClose, onSaved }: { onClose: () => void; onSaved: (i
           )}
         </Field>
         <Field label="Quoted amount (₹)" error={err.quotedAmount}>{(p) => <Input {...p} value={f.quotedAmount} onChange={set('quotedAmount')} inputMode="decimal" required />}</Field>
+        {open.length > 0 && (
+          <Field label="Project" hint="Billed through the project's milestones instead of its own invoice" error={err.projectId} className="sm:col-span-2">
+            {(p) => (
+              <Select {...p} value={f.projectId} onChange={set('projectId')}>
+                <option value="">None: invoice the campaign itself</option>
+                {open.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.number} · {x.title}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        )}
       </div>
     </FormDialog>
   );

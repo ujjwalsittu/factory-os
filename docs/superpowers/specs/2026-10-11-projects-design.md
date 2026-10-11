@@ -81,7 +81,8 @@ User choices, 2026-10-11:
   - Needs every milestone achieved, and no open linked bookings or campaigns.
   - Sets `completed_on`.
   - Retention falls due `dlp_months` after `completed_on`.
-- **Close** (completed → closed): needs every milestone invoiced on a live invoice and all retention released.
+- **Close** (completed → closed): needs every milestone invoiced on a live invoice, all retention released and no
+  hours awaiting approval. Hours are not approved on a closed project, so its cost is final.
 - **Cancel** (draft or active, with a reason):
   - Needs no live milestone invoice and no open linked bookings.
   - Linked work orders and campaigns are left as they are.
@@ -186,11 +187,11 @@ Booking, campaign, work order and purchase invoice create/update accept an optio
     - linked bookings, campaigns, work orders and purchase lines;
     - the team's hours and files.
 - **Services → Timesheets:** my week (grid of projects × days, submit), and Approvals for approvers.
-- **Settings → Cost rates** (with `services.cost_rate.read`).
-- "Project" selector on:
-  - the booking dialog and the new-campaign dialog;
-  - the work order form;
-  - purchase invoice lines.
+- **Services → Cost rates** (with `services.cost_rate.read`).
+- A "Project" choice in the new-campaign dialog, and "Book machine" from the project page.
+- Work orders, purchase invoice lines, existing bookings and campaigns are linked from the project page ("Link
+  document"), so the work order and purchase invoice forms are unchanged. *(Changed while building: one place to
+  link, and purchase lines can be tagged after the invoice is submitted without touching it.)*
 
 ## Not in this slice
 

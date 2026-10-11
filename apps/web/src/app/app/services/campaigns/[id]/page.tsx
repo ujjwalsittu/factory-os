@@ -70,7 +70,7 @@ export default function CampaignPage() {
                   Test report
                 </Link>
               )}
-              {c.status === 'reported' && !invoiced && can('services.billing.create') && can('selling.sales_invoice.create') && (
+              {c.status === 'reported' && !invoiced && !c.projectId && can('services.billing.create') && can('selling.sales_invoice.create') && (
                 <Button loading={invoice.isPending} onClick={() => invoice.mutate()}>
                   Create invoice
                 </Button>
@@ -102,8 +102,12 @@ export default function CampaignPage() {
                   {formatMoney(c.quotedAmount)} quoted{c.extras.length > 0 && ` · ${formatMoney(c.totalAmount)} with extras`}
                 </Detail>
                 <Detail label="Customer reference">{c.customerRef ?? '—'}</Detail>
-                <Detail label="Invoice">
-                  {c.salesInvoiceId && invoiced ? (
+                <Detail label={c.projectId ? 'Billed through' : 'Invoice'}>
+                  {c.projectId ? (
+                    <Link href={`/app/services/projects/${c.projectId}`} className="font-mono hover:text-accent">
+                      Project {c.projectNumber}
+                    </Link>
+                  ) : c.salesInvoiceId && invoiced ? (
                     <Link href={`/app/selling/invoices/${c.salesInvoiceId}`} className="hover:text-accent">
                       {c.invoiceNumber ?? 'Draft invoice'}
                     </Link>
@@ -119,7 +123,7 @@ export default function CampaignPage() {
                 )}
                 {c.cancelReason && <Detail label="Cancelled because">{c.cancelReason}</Detail>}
               </dl>
-              {c.status === 'reported' && !invoiced && <p className="px-4 pb-4 text-[12px] text-subtle">Report approved. Invoice the campaign and return the payload to close it.</p>}
+              {c.status === 'reported' && !invoiced && <p className="px-4 pb-4 text-[12px] text-subtle">{c.projectId ? 'Report approved. Return the payload to close the campaign; it is billed through the project.' : 'Report approved. Invoice the campaign and return the payload to close it.'}</p>}
             </Card>
 
             <Card>
@@ -279,7 +283,7 @@ export default function CampaignPage() {
               <Card>
                 <CardHeader
                   title="Extras"
-                  description="Added to the invoice after the quoted amount."
+                  description={c.projectId ? 'Recorded for the project; billed through its milestones.' : 'Added to the invoice after the quoted amount.'}
                   actions={
                     c.status !== 'closed' &&
                     c.status !== 'cancelled' &&
