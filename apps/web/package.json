@@ -31,7 +31,8 @@
     "e2e:batch-page": "node e2e/batch-page.mjs",
     "e2e:schedule-no-time": "node e2e/schedule-no-time.mjs",
     "e2e:maas": "node e2e/maas.mjs",
-    "e2e:maas-memberships": "node e2e/maas-memberships.mjs"
+    "e2e:maas-memberships": "node e2e/maas-memberships.mjs",
+    "e2e:test-campaigns": "node e2e/test-campaigns.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",

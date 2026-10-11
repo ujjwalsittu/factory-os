@@ -1,7 +1,7 @@
 // Phase 3a machine-hour MaaS (decision 055): rate cards, bookings, usage and a draft invoice for a completed booking.
 // A confirmed booking holds a `booking` machine block, which the scheduler already treats as unavailable time.
 import { Dec, maasCharge, maasHours, maasMembershipSplit, maasTermsError } from '@factoryos/core';
-import { item, machine, machineBlock, maasBooking, maasMembership, maasMembershipDraw, maasRateCard, maasUsage, party, salesInvoice, scheduledOperation, type Database, user, workCentre } from '@factoryos/db';
+import { item, machine, machineBlock, maasBooking, maasMembership, maasMembershipDraw, maasRateCard, maasUsage, party, salesInvoice, scheduledOperation, testCampaign, type Database, user, workCentre } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, ne, or, sql, sum } from 'drizzle-orm';
 import { z } from 'zod';
@@ -12,6 +12,7 @@ import { parse } from '../../common/validation.js';
 import { businessDate, entityOf, type Tx } from '../accounting/accounting-lock.js';
 import { SellingController } from '../selling.controller.js';
 import { StockPostingService } from '../stock-posting.service.js';
+import { CampaignsController } from './campaigns.controller.js';
 import { bookingDrawn, membershipDrawn, membershipOn } from './memberships.js';
 
 const money = z
@@ -34,6 +35,8 @@ const bookingInput = z.object({
   startsAt: z.iso.datetime({ offset: true }),
   endsAt: z.iso.datetime({ offset: true }),
   purpose: z.string().trim().max(500).nullable().optional(),
+  /** Decision 057: a chamber booked for a test campaign of the same customer. */
+  campaignId: z.uuid().nullable().optional(),
 });
 const listQuery = z.object({
   status: z.enum(['tentative', 'confirmed', 'in_use', 'completed', 'cancelled']).optional(),
@@ -179,6 +182,8 @@ export class MaasController {
     const member = r.member || !!ms;
     const charge = card ? maasCharge(Math.max(0, usedMinutes), card, member) : null;
     const drawnMinutes = await bookingDrawn(this.db, id);
+    const [camp] = r.b.campaignId ? await this.db.select({ number: testCampaign.number }).from(testCampaign).where(eq(testCampaign.id, r.b.campaignId)) : [];
+    const campaignNumber = camp?.number ?? null;
     const billed = drawnMinutes > 0 || this.invoiceHolds(r.invoiceStatus);
     const remainingMinutes = ms ? ms.includedMinutes - (await membershipDrawn(this.db, ms.id)) : null;
     const split = charge && !billed ? maasMembershipSplit(charge.billableMinutes, remainingMinutes ?? 0) : null;
@@ -199,7 +204,8 @@ export class MaasController {
       rateCard: card ? { id: card.id, standardRate: card.standardRate, memberRate: card.memberRate, minimumMinutes: card.minimumMinutes, roundingMinutes: card.roundingMinutes, validFrom: card.validFrom, validTo: card.validTo } : null,
       charge,
       billed,
-      billable: r.b.status === 'completed' && !billed && !!card,
+      campaignNumber,
+      billable: r.b.status === 'completed' && !billed && !!card && !r.b.campaignId,
     };
   }
 
@@ -211,10 +217,11 @@ export class MaasController {
     await this.customerIn(ctx, input.customerId);
     return this.db.transaction(async (tx) => {
       await this.machineIn(tx, entityId, input.machineId);
+      if (input.campaignId) await CampaignsController.assertBookable(tx, entityId, input.campaignId, input.customerId);
       const number = await this.posting.allocateNumber(tx, ctx.tenant.tenantId, entityId, 'maas_booking', businessDate());
       const [b] = await tx
         .insert(maasBooking)
-        .values({ tenantId: ctx.tenant.tenantId, entityId, number, customerId: input.customerId, machineId: input.machineId, startsAt: input.start, endsAt: input.end, purpose: input.purpose ?? null, createdBy: ctx.user.id })
+        .values({ tenantId: ctx.tenant.tenantId, entityId, number, customerId: input.customerId, machineId: input.machineId, startsAt: input.start, endsAt: input.end, purpose: input.purpose ?? null, campaignId: input.campaignId ?? null, createdBy: ctx.user.id })
         .returning();
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.create', targetType: 'maas_booking', targetId: b!.id, after: { number, ...input } }, tx);
       return b!;
@@ -232,6 +239,7 @@ export class MaasController {
       await this.lockSchedule(tx, entityId);
       const b = await this.lock(tx, entityId, id);
       if (b.status !== 'tentative' && b.status !== 'confirmed') throw new ConflictException(`A booking that is ${label(b.status)} can’t be changed`);
+      if (b.campaignId && input.customerId !== b.customerId) throw new ConflictException('A campaign booking stays with the campaign’s customer');
       await this.machineIn(tx, entityId, input.machineId);
       if (b.status === 'confirmed') {
         await this.checkClashes(tx, input.machineId, input.start, input.end, b.machineBlockId);
@@ -353,6 +361,7 @@ export class MaasController {
     const entityId = entityOf(ctx);
     const input = parse(invoiceInput, body);
     const d = await this.booking(ctx, id);
+    if (d.campaignId) throw new ConflictException(`Billed with test campaign ${d.campaignNumber ?? ''}`.trim());
     if (d.status !== 'completed') throw new ConflictException('Only completed bookings are billed');
     if (d.billed) throw new ConflictException(d.invoiceNumber || d.salesInvoiceId ? `Already invoiced on ${d.invoiceNumber ?? 'a draft invoice'}` : 'Already billed to the membership');
     if (!d.rateCard || !d.charge || !d.split) throw new BadRequestException(`No rate card for ${d.machineCode} on ${istDate(d.startsAt)}`);
