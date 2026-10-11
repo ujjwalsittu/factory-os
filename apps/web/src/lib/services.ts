@@ -355,3 +355,31 @@ export interface SubscriptionDetail extends Omit<Subscription, 'planName' | 'pla
   changes: { id: string; fromPlan: string; toPlan: string; effectiveOn: string; prorationAmount: string; salesInvoiceId: string | null; prorationInvoiced: boolean; createdAt: string }[];
   deliveries: { id: string; kind: 'report' | 'alert'; deliveredOn: string; title: string; reference: string | null; reversalOf: string | null; reversed: boolean; recordedBy: string; createdAt: string }[];
 }
+
+/** Decision 060: billing runs — one draft invoice per customer and PO across the service sources. */
+export type BillableKind = 'subscription' | 'booking' | 'milestone' | 'campaign';
+export const BILLABLE_KIND: Record<BillableKind, string> = { subscription: 'Subscriptions', booking: 'Machine bookings', milestone: 'Project milestones', campaign: 'Test campaigns' };
+export type BillingItem = { kind: BillableKind; sourceId: string; label: string; amount: string };
+
+export interface BillingPreview {
+  groups: { customerId: string; customerName: string; customerRef: string | null; amount: string; items: BillingItem[] }[];
+  skipped: { kind: BillableKind; sourceId: string; label: string; message: string }[];
+  total: string;
+}
+
+export interface BillingRun {
+  id: string;
+  number: string;
+  asOf: string;
+  kinds: BillableKind[];
+  failures: { customerId: string; customerName: string; customerRef: string | null; items: string[]; message: string }[];
+  createdByName: string;
+  createdAt: string;
+  invoices?: number;
+  drafts?: number;
+  total?: string;
+}
+
+export interface BillingRunDetail extends Omit<BillingRun, 'invoices'> {
+  invoices: { id: string; salesInvoiceId: string | null; customerId: string; customerName: string; customerRef: string | null; items: BillingItem[]; amount: string; submitError: string | null; invoiceNumber: string | null; invoiceStatus: 'draft' | 'submitted' | 'cancelled' | 'deleted' | null; grandTotal: string | null }[];
+}
