@@ -89,14 +89,14 @@ New ones:
 
 - `services.rate_card.read|update`;
 - `services.booking.read|create|update` (create, move, confirm, cancel);
-- `services.usage.record` (start, stop, manual usage);
+- `services.usage.create` (start, stop, manual usage; the catalog's fixed actions have no `record`);
 - `services.billing.create` (create the invoice; also needs `selling.sales_invoice.create`).
 
 Role templates:
 
 - A new **Services coordinator** gets all of `services.*`, `masters.party.read`, `masters.item.read` and
   `selling.sales_invoice.read|create`.
-- **Operator** gets `services.booking.read` and `services.usage.record`.
+- **Operator** gets `services.booking.read` and `services.usage.create`.
 - **Production Planner** gets `services.booking.read`.
 
 ## Screens
