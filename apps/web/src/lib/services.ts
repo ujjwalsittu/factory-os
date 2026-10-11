@@ -111,3 +111,57 @@ export const formatMinutes = (m: number) => {
   const r = Math.abs(m) % 60;
   return `${m < 0 ? '−' : ''}${h ? `${h} h` : ''}${h && r ? ' ' : ''}${r || !h ? `${r} min` : ''}`;
 };
+
+/** Decision 057: test campaigns. */
+export type CampaignStatus = 'draft' | 'active' | 'reported' | 'closed' | 'cancelled';
+export type StepResult = 'pending' | 'pass' | 'fail' | 'na';
+
+export const CAMPAIGN_STATUS: Record<CampaignStatus, { label: string; tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'accent' }> = {
+  draft: { label: 'Draft', tone: 'neutral' },
+  active: { label: 'In test', tone: 'accent' },
+  reported: { label: 'Report approved', tone: 'info' },
+  closed: { label: 'Closed', tone: 'success' },
+  cancelled: { label: 'Cancelled', tone: 'danger' },
+};
+
+export const STEP_RESULT: Record<StepResult, { label: string; tone: 'neutral' | 'success' | 'danger' | 'warning' }> = {
+  pending: { label: 'Pending', tone: 'neutral' },
+  pass: { label: 'Pass', tone: 'success' },
+  fail: { label: 'Fail', tone: 'danger' },
+  na: { label: 'N/A', tone: 'warning' },
+};
+
+export interface Campaign {
+  id: string;
+  number: string;
+  customerId: string;
+  customerName: string;
+  title: string;
+  scope: string | null;
+  customerRef: string | null;
+  serviceItemId: string;
+  quotedAmount: string;
+  status: CampaignStatus;
+  cancelReason: string | null;
+  salesInvoiceId: string | null;
+  invoiceNumber: string | null;
+  invoiceStatus: 'draft' | 'submitted' | 'cancelled' | null;
+  inCustody: number;
+  createdAt: string;
+}
+
+export interface CampaignDetail extends Campaign {
+  itemCode: string;
+  itemName: string;
+  reportSummary: string | null;
+  reportApprovedAt: string | null;
+  approvedByName: string | null;
+  closedAt: string | null;
+  steps: { id: string; seq: number; name: string; requirement: string | null; result: StepResult; measured: string | null; notes: string | null; recordedByName: string | null; recordedAt: string | null }[];
+  custody: { id: string; description: string; serialNo: string | null; qty: number; inwardChallanNo: string; receivedCondition: string; receivedAt: string; receivedByName: string; outwardChallanNo: string | null; returnCondition: string | null; returnedAt: string | null; returnedByName: string | null }[];
+  extras: { id: string; description: string; qty: string; rate: string; amount: string }[];
+  bookings: { id: string; number: string; status: BookingStatus; startsAt: string; endsAt: string; machineCode: string }[];
+  files: { id: string; fileName: string; kind: string }[];
+  totalAmount: string;
+  pendingSteps: number;
+}
