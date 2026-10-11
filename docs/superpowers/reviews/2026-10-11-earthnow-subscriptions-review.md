@@ -1,7 +1,7 @@
 # Phase 3e EarthNow subscriptions — review and evidence (decision 059)
 
-[Design](../specs/2026-10-11-earthnow-subscriptions-design.md). Closes open decision B12. Migration
-`0040_subscriptions`.
+[Design](../specs/2026-10-11-earthnow-subscriptions-design.md). Closes open decision B12. Migrations
+`0040_subscriptions` and `0041_subscription_active_aoi`.
 
 ## What changed
 
@@ -52,7 +52,11 @@
 
 ## Review
 
-One adversarial pass over the diff. Two findings fixed while building:
+One adversarial pass over the diff, then the PR bot review. Three findings fixed:
+
+- **Fixed (PR review):** the one-active-subscription-per-customer-and-AOI check locked no rows when none existed, so
+  concurrent requests could both create one. A partial unique index (migration `0041`) now enforces it, and its
+  violation answers 409 like the check. The smoke races three creates: one wins.
 
 - **Fixed:** one invoice row per invoice couldn't record overage for more than one ended period, so a back-dated
   subscription's first invoice would have lost one. Rows are now one per item, and migration `0040` was regenerated
@@ -74,7 +78,7 @@ One adversarial pass over the diff. Two findings fixed while building:
 | Check | Result |
 |---|---|
 | `subscriptions.test.ts` (core) | 4 PASS |
-| `smoke-subscriptions.mjs` (new) | 81 request checks PASS |
+| `smoke-subscriptions.mjs` (new) | 82 request checks PASS |
 | `e2e:subscriptions` (new, desktop + 390 px) | PASS |
 | `smoke-projects` / `smoke-maas-memberships` / `smoke-maas` / `smoke-test-campaigns` / `smoke-selling.sh` | 141 / 76 / 93 / 74 / PASS |
 | `e2e:maas-memberships` / `e2e:projects` / `e2e:test-campaigns` / `e2e:selling` | PASS |

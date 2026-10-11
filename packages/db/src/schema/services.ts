@@ -542,7 +542,13 @@ export const subscription = pgTable(
     cancelReason: text('cancel_reason'),
     ...stamps,
   },
-  (t) => [uniqueIndex('subscription_number_uq').on(t.entityId, t.number), index('subscription_customer_idx').on(t.customerId), check('subscription_aoi_ck', sql`${t.aoiHectares} is null or ${t.aoiHectares} > 0`)],
+  (t) => [
+    uniqueIndex('subscription_number_uq').on(t.entityId, t.number),
+    // One active subscription per customer and AOI, also under concurrent requests.
+    uniqueIndex('subscription_active_aoi_uq').on(t.entityId, t.customerId, t.aoiName).where(sql`${t.status} = 'active'`),
+    index('subscription_customer_idx').on(t.customerId),
+    check('subscription_aoi_ck', sql`${t.aoiHectares} is null or ${t.aoiHectares} > 0`),
+  ],
 );
 
 /** Append-only plan history. An upgrade carries its prorated charge until an invoice takes it. */

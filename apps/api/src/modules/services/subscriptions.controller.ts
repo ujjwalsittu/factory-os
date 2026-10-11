@@ -57,6 +57,14 @@ const LIVE = (s: string | null | undefined) => s === 'draft' || s === 'submitted
 type Plan = typeof subscriptionPlan.$inferSelect;
 type Sub = typeof subscription.$inferSelect;
 
+/** A PostgreSQL unique violation (23505) on `constraint`, as raised directly or wrapped by the query builder. */
+const uniqueViolation = (e: unknown, constraint: string): boolean => {
+  const err = e as { code?: string; constraint?: string; constraint_name?: string; cause?: unknown } | null;
+  if (!err || typeof err !== 'object') return false;
+  if (err.code === '23505' && (err.constraint ?? err.constraint_name) === constraint) return true;
+  return err.cause ? uniqueViolation(err.cause, constraint) : false;
+};
+
 const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86400e3).toISOString().slice(0, 10);
 
 @Controller('services')
@@ -171,6 +179,7 @@ export class SubscriptionsController {
     if (!c.isCustomer) throw new BadRequestException(`${c.name} is not a customer`);
     // Back-dating covers a subscription agreed before it is entered; each past period then falls due in turn.
     if (input.startDate < addDays(businessDate(), -366)) throw new BadRequestException('A subscription starts at most a year back');
+    const duplicate = () => new ConflictException(`${c.name} already subscribes for ${input.aoiName}`);
     return this.db.transaction(async (tx) => {
       const plan = await this.planIn(tx, entityId, input.planId);
       if (!plan.isActive) throw new ConflictException(`Plan ${plan.code} is no longer offered`);
@@ -187,6 +196,10 @@ export class SubscriptionsController {
         .returning();
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'subscription.create', targetType: 'subscription', targetId: s!.id, after: { number, ...input } }, tx);
       return s!;
+    }).catch((e: unknown) => {
+      // A concurrent request for the same customer and AOI won the unique index.
+      if (uniqueViolation(e, 'subscription_active_aoi_uq')) throw duplicate();
+      throw e;
     });
   }
 

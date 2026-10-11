@@ -51,6 +51,11 @@ await fail('POST', '/services/subscriptions', { ...sub, startDate: '2020-01-01' 
 const s = await c.req('POST', '/services/subscriptions', sub, 201);
 assert.match(s.number, /\/SUB\//);
 await fail('POST', '/services/subscriptions', sub, 409, 'one active subscription per customer and AOI', /already subscribes/);
+const race = await Promise.all([1, 2, 3].map(() => c.raw('POST', '/services/subscriptions', { ...sub, aoiName: 'Nashik vineyards block C' })));
+assert.deepEqual(race.map((r) => r.status).sort(), [201, 409, 409], JSON.stringify(race.map((r) => r.data)));
+assert.ok(race.filter((r) => r.status === 409).every((r) => /already subscribes/.test(JSON.stringify(r.data))));
+c.checks++;
+ok('three concurrent subscriptions for one AOI: one wins, the others get 409');
 let d = await c.req('GET', `/services/subscriptions/${s.id}`);
 assert.deepEqual(d.periods.map((p) => p.start).slice(0, 3), [P(0), P(1), P(2)]);
 assert.deepEqual([d.next.start, d.next.due], [P(0), true]);
