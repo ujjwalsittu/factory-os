@@ -170,6 +170,78 @@ export class InventoryController {
     return rows.map((r) => ({ ...r.batch, qty: r.qty })).filter((r) => inStock !== 'true' || Dec.of(r.qty).gt(Dec.ZERO));
   }
 
+  /** Decision 053: find a lot, serial or remnant by its number, heat or item code; quantity in this entity. */
+  @Get('batches/search')
+  @RequirePermission('inventory.batch.read')
+  async searchBatches(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
+    const entityId = entityOf(ctx);
+    const { q } = parse(z.object({ q: z.string().trim().max(60).optional() }), query);
+    const like = q ? `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
+    const rows = await this.db.execute<Record<string, string | null>>(sql`
+      select b.id, b.batch_no, b.heat_no, b.kind, b.created_at, i.id as item_id, i.code as item_code, i.name as item_name, u.code as uom_code,
+             coalesce((select sum(sb.qty) from stock_bin sb where sb.entity_id = ${entityId} and sb.batch_id = b.id), 0)::text as qty
+      from batch b join item i on i.id = b.item_id join uom u on u.id = i.stock_uom_id
+      where b.tenant_id = ${ctx.tenant.tenantId}
+        ${like ? sql`and (b.batch_no ilike ${like} or b.heat_no ilike ${like} or i.code ilike ${like})` : sql``}
+      order by b.created_at desc, b.batch_no
+      limit 100`);
+    return rows.rows.map((r) => ({ id: r.id, batchNo: r.batch_no, heatNo: r.heat_no, kind: r.kind, createdAt: r.created_at, itemId: r.item_id, itemCode: r.item_code, itemName: r.item_name, uomCode: r.uom_code, qty: r.qty }));
+  }
+
+  /** Decision 053: one lot, serial or remnant — details, stock by warehouse here, and the quality records the caller may read. */
+  @Get('batches/:id')
+  @RequirePermission('inventory.batch.read')
+  async batchDetail(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
+    const entityId = entityOf(ctx);
+    const [b] = await this.db.execute<Record<string, string | null>>(sql`
+      select b.*, i.code as item_code, i.name as item_name, i.tracking, u.code as uom_code, s.name as supplier_name, pb.batch_no as parent_batch_no
+      from batch b join item i on i.id = b.item_id join uom u on u.id = i.stock_uom_id
+      left join party s on s.id = b.supplier_id left join batch pb on pb.id = b.parent_batch_id
+      where b.id = ${id} and b.tenant_id = ${ctx.tenant.tenantId}`).then((r) => r.rows);
+    if (!b) throw new NotFoundException('Batch not found');
+    const stock = await this.db.execute<Record<string, string | null>>(sql`
+      select w.id as warehouse_id, w.code as warehouse_code, w.name as warehouse_name, w.type as warehouse_type, o.name as owner_name, sb.qty::text as qty
+      from stock_bin sb join warehouse w on w.id = sb.warehouse_id left join party o on o.id = sb.owner_party_id
+      where sb.entity_id = ${entityId} and sb.batch_id = ${id} and sb.qty <> 0
+      order by w.code`);
+    const can = (p: string) => ctx.tenant.permissions.has(p);
+    const rows = async (q: SQL) => (await this.db.execute<Record<string, string | null>>(q)).rows;
+    const inspections = can('quality.inspection.read')
+      ? await rows(sql`
+          select r.id, r.number, r.stage::text, r.status::text, r.outcome::text as result, r.qty::text as qty, r.created_at, 'record' as source from inspection_record r
+          where r.entity_id = ${entityId} and r.batch_id = ${id} and r.status <> 'cancelled'
+          union all
+          select q.id, q.number, 'incoming', q.status::text, q.result::text, q.qty_inspected::text, q.created_at, 'receipt' from quality_inspection q
+          where q.entity_id = ${entityId} and q.batch_id = ${id} and q.inspection_record_id is null and q.status <> 'cancelled'
+          order by created_at desc`)
+      : null;
+    const ncrs = can('quality.ncr.read') ? await rows(sql`select id, number, status::text, qty::text as qty, description, created_at from ncr where entity_id = ${entityId} and batch_id = ${id} order by created_at desc`) : null;
+    const fais = can('quality.fai.read') ? await rows(sql`select id, number, status::text, created_at from fai where entity_id = ${entityId} and batch_id = ${id} order by created_at desc`) : null;
+    return {
+      id: b.id,
+      batchNo: b.batch_no,
+      kind: b.kind,
+      heatNo: b.heat_no,
+      supplierBatchNo: b.supplier_batch_no,
+      supplierName: b.supplier_name,
+      mfgDate: b.mfg_date,
+      expiryDate: b.expiry_date,
+      lengthMm: b.length_mm,
+      parentBatchId: b.parent_batch_id,
+      parentBatchNo: b.parent_batch_no,
+      createdAt: b.created_at,
+      itemId: b.item_id,
+      itemCode: b.item_code,
+      itemName: b.item_name,
+      tracking: b.tracking,
+      uomCode: b.uom_code,
+      stock: stock.rows.map((r) => ({ warehouseId: r.warehouse_id, warehouseCode: r.warehouse_code, warehouseName: r.warehouse_name, warehouseType: r.warehouse_type, ownerName: r.owner_name, qty: r.qty })),
+      inspections: inspections?.map((r) => ({ id: r.id, number: r.number, stage: r.stage, status: r.status, result: r.result, qty: r.qty, source: r.source, createdAt: r.created_at })) ?? null,
+      ncrs: ncrs?.map((r) => ({ id: r.id, number: r.number, status: r.status, qty: r.qty, description: r.description, createdAt: r.created_at })) ?? null,
+      fais: fais?.map((r) => ({ id: r.id, number: r.number, status: r.status, createdAt: r.created_at })) ?? null,
+    };
+  }
+
   // ---- Remnants (decision 046) ----
   /** Cut part of a bar (batch) into a remnant piece with a length. Posts at once; cancel like any stock entry. */
   @Post('stock/cuts')
