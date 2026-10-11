@@ -136,6 +136,7 @@ function SchedulePanel({ wo }: { wo: WorkOrderDetail }) {
   const bars = (q.data?.bars ?? []).filter((b) => b.workOrderId === wo.id).sort((a, b) => a.seq - b.seq);
   const machines = new Map((q.data?.machines ?? []).map((m) => [m.id, m.code]));
   const unscheduled = (q.data?.unscheduled ?? []).filter((u) => u.workOrderId === wo.id);
+  const noTime = (q.data?.noTime ?? []).filter((n) => n.workOrderId === wo.id);
   const late = q.data?.late.some((l) => l.id === wo.id);
   return (
     <Card className="mt-4">
@@ -177,6 +178,11 @@ function SchedulePanel({ wo }: { wo: WorkOrderDetail }) {
       {unscheduled.map((u) => (
         <p key={u.operationId} className="px-4 py-2 text-[13px] text-warning">
           Operation {u.seq} not scheduled: {u.reason}
+        </p>
+      ))}
+      {noTime.map((n) => (
+        <p key={n.operationId} className="px-4 py-2 text-[13px] text-warning">
+          Operation {n.seq} has no set-up or run time, so it is not on the schedule
         </p>
       ))}
     </Card>

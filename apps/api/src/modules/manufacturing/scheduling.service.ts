@@ -256,6 +256,34 @@ export class SchedulingService {
       .innerJoin(item, eq(item.id, workOrder.itemId))
       .leftJoin(salesOrder, eq(salesOrder.id, workOrder.salesOrderId))
       .where(and(eq(workOrder.entityId, entityId), eq(workOrder.status, 'released')));
+    // Decision 054: in-house operations with no planned time still to make take no machine time, so they are listed.
+    const noTime = await this.db
+      .select({
+        operationId: workOrderOperation.id,
+        seq: workOrderOperation.seq,
+        name: workOrderOperation.name,
+        workOrderId: workOrder.id,
+        number: workOrder.number,
+        rework: sql<boolean>`${workOrder.reworkOfNcrId} is not null`,
+        itemCode: item.code,
+        workCentre: workCentre.code,
+      })
+      .from(workOrderOperation)
+      .innerJoin(workOrder, eq(workOrder.id, workOrderOperation.workOrderId))
+      .innerJoin(item, eq(item.id, workOrder.itemId))
+      .leftJoin(workCentre, eq(workCentre.id, workOrderOperation.workCentreId))
+      .where(
+        and(
+          eq(workOrder.entityId, entityId),
+          eq(workOrder.status, 'released'),
+          eq(workOrderOperation.outsourced, false),
+          sql`${workOrderOperation.plannedMinutes} = 0`,
+          sql`not exists (select 1 from ${jobCard} jc where jc.operation_id = ${workOrderOperation.id} and jc.status in ('running', 'paused'))`,
+          sql`coalesce((select sum(jc.good_qty) from ${jobCard} jc where jc.operation_id = ${workOrderOperation.id} and jc.status = 'completed'), 0) < ${workOrder.plannedQty}`,
+        ),
+      )
+      .orderBy(asc(workOrder.number), asc(workOrderOperation.seq));
+    const noTimeOrders = new Set(noTime.map((n) => n.workOrderId));
     // Out of date when released work has changed since the run.
     const stale =
       !run ||
@@ -295,9 +323,11 @@ export class SchedulingService {
           late: !!(due && b.scheduledFinish && b.scheduledFinish > due),
           noMaterial: !b.issued,
           conflict: conflictIds.includes(b.s.operationId),
+          noTime: noTimeOrders.has(b.s.workOrderId),
         };
       }),
       unscheduled: run ? run.details.unscheduled.map((u) => ({ ...u, ...named.find((n) => n.id === u.operationId) })) : [],
+      noTime,
       conflicts: run ? run.details.conflicts.map((c) => ({ ...c, ...named.find((n) => n.id === c.operationId) })) : [],
       late: late
         .map((w) => ({ ...w, dueAt: dueAt(w) }))

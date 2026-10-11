@@ -242,6 +242,10 @@ export function BomEditor({ bom }: { bom: BomDetail | null }) {
                         </Select>
                       )}
                       {centre && <p className="mt-1 text-[12px] text-subtle">{formatMoney(centre.hourlyRate)}/h</p>}
+                      {/* Decision 054: in-house work with no time is planned but takes no machine time; warn, don't refuse. */}
+                      {!o.outsourced && o.workCentreId && !(Number(o.setupMinutes) > 0) && !(Number(o.runMinutesPerUnit) > 0) && (
+                        <p className="mt-1 text-[12px] text-warning">Not scheduled: no set-up or run time</p>
+                      )}
                     </Td>
                     <Td>
                       {o.outsourced ? (
