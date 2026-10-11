@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-11 (Asia/Kolkata) · Schedule warnings for operations without routing time built (PR open)_
+_Last updated: 2026-10-11 (Asia/Kolkata) · Phase 3a machine-hour MaaS claimed by this session_
 
 ## Done
 - [x] **Operations without routing time on the schedule** (decision 054, no migration). In-house operations with 0 planned minutes are still planned as before but listed under "No routing time" on Manufacturing → Schedule (with their orders' bars marked) and on the work order's Schedule panel; the BOM routing editor warns on such rows without refusing the save. Verified: new smoke 32 checks and browser walkthrough (desktop/390 px), scheduling 58, manufacturing 104, quality 112, scheduling and manufacturing browsers, typecheck 19, build 12, tests 11. [Review](../superpowers/reviews/2026-10-11-schedule-no-time-review.md).
@@ -125,6 +125,7 @@ _Last updated: 2026-10-11 (Asia/Kolkata) · Schedule warnings for operations wit
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
+- **Phase 3a: machine-hour MaaS (decision 055)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-11 06:12 UTC. [Design](../superpowers/specs/2026-10-11-maas-machine-hours-design.md); six tasks.
 
 
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
@@ -136,7 +137,7 @@ _Last updated: 2026-10-11 (Asia/Kolkata) · Schedule warnings for operations wit
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
 3. User review of completed accounting/settlement/customer/supplier and manufacturing workflows on dev. Original shared activation states are preserved; cut-over remains a deliberate Finance action.
 
-4. Manufacturing next (needs a design and user choices): Phase 3 services with MaaS bookings on the machine calendar. Deferred quality follow-ups (decision 048): CAPA and skill matrix.
+4. After Phase 3a (decision 055), further Phase 3 slices need designs and user choices: test campaigns with customer custody, memberships with credits, EarthNow subscriptions (open decision B12), projects, billing runs, IoT metering. Deferred quality follow-ups (decision 048): CAPA and skill matrix.
 
 ## Blockers
 - Automatic TDS/TCS profile/source work: current official Act393/394/395/397/402 text retrieved and pinned, including scrap2% effective2026-04-01, but complete GST-base, PAN-operativity relief and lower/nil certificate applicability guidance is still missing. Original/lower-case legacy circular PDF paths returned404; generic document search did not produce verified guidance. [Evidence/requirements](../compliance/withholding-profile-evidence.md). Need reachable official primary URLs or authorized exported guidance plus applicability confirmation; optional source-URL question already asked. No numerical defaults enabled. Continue independent bank-reconciliation work while this gate remains closed.
