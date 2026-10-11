@@ -108,7 +108,7 @@ await page.click('nav >> text=Purchase orders'); await page.waitForSelector('tex
 
 step('mobile');
 await page.setViewportSize({ width: 390, height: 844 });
-await page.goto(`${B}/app/buying/inspections`); await page.waitForSelector('text=Inspections'); await shot('14-mobile-inspections');
+await page.goto(`${B}/app/buying/inspections`); await page.waitForSelector('main >> text=Waiting for inspection'); await shot('14-mobile-inspections');
 
 await browser.close();
 const unexpected = errors.filter((e) => !e.includes('400 (Bad Request)')); // the rate-variance step returns 400 on purpose

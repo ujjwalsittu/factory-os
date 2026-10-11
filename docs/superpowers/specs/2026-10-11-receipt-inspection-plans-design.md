@@ -14,7 +14,7 @@ inspection (`quality_inspection`) does not use inspection plans yet. User choice
 
 - **Pending list** (`GET /inspections/pending`) adds, per receipt line, whether the item has an active incoming plan
   and the quantity already in open (draft) plan inspections. Pending = received − submitted − open drafts.
-- **Start** (`POST /inspections/plan-records`, `quality.inspection.submit`): for a company-owned, submitted receipt
+- **Start** (`POST /quality/inspections/receipt`, `quality.inspection.create`): for a company-owned, submitted receipt
   line in quarantine whose item has an active incoming plan. Takes the quantity (≤ pending) and an optional stores
   warehouse (default: first active stores warehouse). Opens a draft `inspection_record` (stage `incoming`, source
   `receipt`, source id = receipt line, hold = the quarantine warehouse, accept = stores, the active plan frozen on

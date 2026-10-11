@@ -463,6 +463,9 @@ export interface PendingInspection {
   warehouseCode: string;
   qty: string;
   inspected: string;
+  /** Decision 052: active incoming plan revision (company-owned lines only) and quantity in open plan inspections. */
+  planRevision: string | null;
+  inProgress: string;
   pending: string;
 }
 
@@ -483,6 +486,8 @@ export interface InspectionRow {
   batchNo: string | null;
   receiptNumber: string;
   transferEntryId: string | null;
+  /** Set when the results were recorded against an inspection plan (decision 052). */
+  inspectionRecordId: string | null;
   inspectorName: string;
 }
 

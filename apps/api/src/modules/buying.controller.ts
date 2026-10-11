@@ -30,6 +30,7 @@ import { AuditService } from '../common/audit.service.js';
 import { DB } from '../common/tokens.js';
 import { parse } from '../common/validation.js';
 import { JobWorkService } from './manufacturing/job-work.service.js';
+import { QualityService } from './quality/quality.service.js';
 import { StockPostingService } from './stock-posting.service.js';
 import { purchaseInvoiceDetail, purchaseInvoiceList } from './readers/purchase-invoices.read.js';
 
@@ -117,6 +118,7 @@ export class BuyingController {
     private readonly gl: GlPostingService,
     private readonly posting: StockPostingService,
     private readonly jobWork: JobWorkService,
+    private readonly quality: QualityService,
   ) {}
 
   // ───────────────────────── Tax preview ─────────────────────────
@@ -331,7 +333,10 @@ export class BuyingController {
       select l.id as receipt_line_id, e.id as receipt_id, e.number as receipt_number, e.posting_date, e.reference,
              p.name as supplier_name, o.name as owner_name, i.id as item_id, i.code as item_code, i.name as item_name, u.code as uom_code,
              b.batch_no, b.heat_no, w.id as warehouse_id, w.code as warehouse_code, l.qty,
-             coalesce((select sum(q.qty_inspected) from quality_inspection q where q.receipt_line_id = l.id and q.status = 'submitted'), 0) as inspected
+             coalesce((select sum(q.qty_inspected) from quality_inspection q where q.receipt_line_id = l.id and q.status = 'submitted'), 0) as inspected,
+             coalesce((select sum(r.qty) from inspection_record r where r.source_type = 'receipt' and r.source_id = l.id and r.status = 'draft'), 0) as drafts,
+             (select p2.revision from inspection_plan p2 where p2.entity_id = e.entity_id and p2.item_id = l.item_id and p2.stage = 'incoming' and p2.status = 'active' limit 1) as plan_revision,
+             l.owner_party_id
       from stock_entry_line l
       join stock_entry e on e.id = l.entry_id
       join item i on i.id = l.item_id
@@ -362,7 +367,10 @@ export class BuyingController {
         warehouseCode: r.warehouse_code,
         qty: r.qty,
         inspected: r.inspected,
-        pending: Dec.of(r.qty!).sub(r.inspected!).toFixed(6),
+        // Decision 052: company-owned lines of items with an active incoming plan are inspected against it.
+        planRevision: r.owner_party_id ? null : (r.plan_revision ?? null),
+        inProgress: r.drafts,
+        pending: Dec.of(r.qty!).sub(r.inspected!).sub(r.drafts!).toFixed(6),
       }))
       .filter((r) => Dec.of(r.pending).gt('0'));
   }
@@ -389,6 +397,7 @@ export class BuyingController {
         batchNo: batch.batchNo,
         receiptNumber: sql<string>`(select e.number from stock_entry_line l join stock_entry e on e.id = l.entry_id where l.id = "quality_inspection"."receipt_line_id")`,
         transferEntryId: qualityInspection.transferEntryId,
+        inspectionRecordId: qualityInspection.inspectionRecordId,
         inspectorName: user.name,
       })
       .from(qualityInspection)
@@ -422,11 +431,10 @@ export class BuyingController {
         .for('update', { of: stockEntryLine });
       if (!rl || rl.entry.status !== 'submitted' || rl.entry.purpose !== 'receipt') throw new BadRequestException('Not a submitted receipt line of this entity');
       if (rl.wh.type !== 'quarantine') throw new BadRequestException('Only stock received into quarantine is inspected here');
-      const [done] = await tx
-        .select({ q: sql<string>`coalesce(sum(${qualityInspection.qtyInspected}), 0)` })
-        .from(qualityInspection)
-        .where(and(eq(qualityInspection.receiptLineId, input.receiptLineId), eq(qualityInspection.status, 'submitted')));
-      const pending = Dec.of(rl.line.qty).sub(done!.q);
+      if (!rl.line.ownerPartyId && (await this.quality.activePlan(tx, entityId, rl.line.itemId, 'incoming')))
+        throw new BadRequestException('This item has an incoming inspection plan; record its results');
+      const taken = await this.quality.receiptLineTaken(tx, input.receiptLineId);
+      const pending = Dec.of(rl.line.qty).sub(taken.submitted).sub(taken.drafts);
       if (inspected.gt(pending)) throw new BadRequestException({ message: `Only ${pending.toFixed(3)} is waiting for inspection`, issues: [{ path: 'qtyAccepted', message: `At most ${pending.toFixed(3)} in total` }] });
 
       const pick = async (id: string | null | undefined, type: string, label: string) => {
@@ -513,6 +521,8 @@ export class BuyingController {
       const [qi] = await tx.select().from(qualityInspection).where(and(eq(qualityInspection.id, id), eq(qualityInspection.entityId, entityId))).for('update');
       if (!qi) throw new NotFoundException('Inspection not found');
       if (qi.status !== 'submitted') throw new ConflictException('Only submitted inspections can be cancelled');
+      // Decision 052: results recorded against a plan stand, as in-process and final ones do; the NCR corrects them.
+      if (qi.inspectionRecordId) throw new ConflictException('This inspection was recorded against a plan; correct it through its NCR');
       // Moves the stock back to quarantine; refused if it has already been issued from stores/MRB.
       if (qi.transferEntryId) await this.posting.cancelIn(tx, ctx, entityId, qi.transferEntryId, `Inspection ${qi.number} cancelled: ${reason}`);
       await tx.update(qualityInspection).set({ status: 'cancelled', cancelledBy: ctx.user.id, cancelledAt: new Date(), cancelReason: reason, updatedAt: new Date() }).where(eq(qualityInspection.id, id));

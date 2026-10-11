@@ -18,7 +18,7 @@ import {
   workOrderOperation,
 } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../../common/access.js';
 import { DB } from '../../common/tokens.js';
@@ -92,6 +92,7 @@ const measureInput = z.object({
     .min(1)
     .max(2000),
 });
+const receiptRecordInput = z.object({ receiptLineId: z.uuid(), qty: positive, acceptWarehouseId: z.uuid().nullable().optional() });
 const submitInput = z.object({ qtyAccepted: quantity, qtyRejected: quantity, ncrDescription: z.string().trim().max(2000).nullable().optional(), remarks: z.string().trim().max(1000).nullable().optional() });
 const ncrInput = z.object({ itemId: z.uuid(), batchId: z.uuid().nullable().optional(), qty: positive, fromWarehouseId: z.uuid().nullable().optional(), workOrderId: z.uuid().nullable().optional(), description: z.string().trim().min(5).max(2000) });
 const dispositionsInput = z.object({
@@ -261,6 +262,10 @@ export class QualityController {
     const latest = await this.quality.latestResults(this.db, id);
     const history = await this.db.select().from(inspectionMeasurement).where(eq(inspectionMeasurement.recordId, id)).orderBy(asc(inspectionMeasurement.createdAt));
     const [raised] = await this.db.select({ id: ncr.id, number: ncr.number }).from(ncr).where(eq(ncr.inspectionRecordId, id));
+    const receipt =
+      x.r.sourceType === 'receipt' && x.r.sourceId
+        ? ((await this.db.execute<{ id: string; number: string; supplier: string | null }>(sql`select e.id, e.number, p.name as supplier from stock_entry_line l join stock_entry e on e.id = l.entry_id left join party p on p.id = e.party_id where l.id = ${x.r.sourceId} and e.entity_id = ${x.r.entityId}`)).rows[0] ?? null)
+        : null;
     const wh = [x.r.holdWarehouseId, x.r.acceptWarehouseId].filter((w): w is string => !!w);
     const whs = wh.length ? await this.db.select({ id: warehouse.id, name: warehouse.name }).from(warehouse).where(inArray(warehouse.id, wh)) : [];
     return {
@@ -278,6 +283,7 @@ export class QualityController {
       results: latest,
       history,
       ncr: raised ?? null,
+      receipt,
     };
   }
 
@@ -301,6 +307,16 @@ export class QualityController {
       }
       return this.quality.openRecordIn(tx, ctx, entityId, { ...input, sourceType: input.stage === 'in_process' ? 'operation' : input.sourceType, sourceId: input.stage === 'in_process' ? input.operationId : input.sourceId, operationSeq });
     });
+    return this.inspection(ctx, r.id);
+  }
+
+  /** Decision 052: an incoming inspection against the item's active plan, for part of a received line in quarantine. */
+  @Post('inspections/receipt')
+  @RequirePermission('quality.inspection.create')
+  async openReceiptInspection(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const input = parse(receiptRecordInput, body);
+    const r = await this.quality.run(entityId, (tx) => this.quality.openReceiptRecordIn(tx, ctx, entityId, input));
     return this.inspection(ctx, r.id);
   }
 

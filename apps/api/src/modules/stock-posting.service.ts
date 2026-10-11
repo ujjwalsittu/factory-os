@@ -1,4 +1,4 @@
-import { acquisitionCostChange, receiptInvoiceAllocation } from '@factoryos/db';
+import { acquisitionCostChange, inspectionRecord, receiptInvoiceAllocation } from '@factoryos/db';
 import { OperationalPostings } from './accounting/operational-postings.js';
 import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
@@ -379,6 +379,12 @@ export class StockPostingService {
         .where(and(eq(landedCostReceipt.receiptId, entryId), eq(landedCostVoucher.status, 'submitted')))
         .limit(1);
       if (lcv) throw new ConflictException(`Landed cost voucher ${lcv.number} covers this receipt. Cancel it first.`);
+      // Decision 052: draft plan inspections of this receipt's lines move nothing yet; they are withdrawn with it.
+      if (entry.purpose === 'receipt')
+        await tx
+          .update(inspectionRecord)
+          .set({ status: 'cancelled', remarks: 'Receipt cancelled' })
+          .where(and(eq(inspectionRecord.sourceType, 'receipt'), eq(inspectionRecord.status, 'draft'), sql`${inspectionRecord.sourceId} in (select id from stock_entry_line where entry_id = ${entryId})`));
       if (entry.purchaseOrderId) {
         const lines = await tx.select().from(stockEntryLine).where(eq(stockEntryLine.entryId, entryId));
         const allocations = await tx.select().from(receiptInvoiceAllocation).where(and(eq(receiptInvoiceAllocation.entityId, entityId), inArray(receiptInvoiceAllocation.receiptLineId, lines.map(l => l.id))));
