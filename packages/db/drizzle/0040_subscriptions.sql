@@ -106,7 +106,7 @@ CREATE INDEX "subscription_customer_idx" ON "subscription" USING btree ("custome
 CREATE INDEX "subscription_delivery_sub_idx" ON "subscription_delivery" USING btree ("subscription_id","delivered_on");--> statement-breakpoint
 CREATE UNIQUE INDEX "subscription_delivery_reversal_uq" ON "subscription_delivery" USING btree ("reversal_of");--> statement-breakpoint
 CREATE INDEX "subscription_invoice_sub_idx" ON "subscription_invoice" USING btree ("subscription_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "subscription_invoice_si_uq" ON "subscription_invoice" USING btree ("sales_invoice_id");--> statement-breakpoint
+CREATE INDEX "subscription_invoice_si_idx" ON "subscription_invoice" USING btree ("sales_invoice_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "subscription_plan_code_uq" ON "subscription_plan" USING btree ("entity_id","code");--> statement-breakpoint
 CREATE INDEX "subscription_plan_change_sub_idx" ON "subscription_plan_change" USING btree ("subscription_id","effective_on");--> statement-breakpoint
 CREATE OR REPLACE FUNCTION subscription_delivery_immutable() RETURNS trigger LANGUAGE plpgsql AS $$

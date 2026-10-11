@@ -1,5 +1,5 @@
 {
-  "id": "a90837c7-be4b-4b58-bcba-0236a992749a",
+  "id": "b59d8a2a-8028-465e-a155-c5adcabb470b",
   "prevId": "5e8e49f4-cb73-4bf5-a3df-468029b0076d",
   "version": "7",
   "dialect": "postgresql",
@@ -33615,8 +33615,8 @@
           "method": "btree",
           "with": {}
         },
-        "subscription_invoice_si_uq": {
-          "name": "subscription_invoice_si_uq",
+        "subscription_invoice_si_idx": {
+          "name": "subscription_invoice_si_idx",
           "columns": [
             {
               "expression": "sales_invoice_id",
@@ -33625,7 +33625,7 @@
               "nulls": "last"
             }
           ],
-          "isUnique": true,
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}

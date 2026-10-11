@@ -527,7 +527,7 @@ export const subscription = pgTable(
       .notNull()
       .references(() => party.id),
     customerRef: text('customer_ref'),
-    /** The plan in force now; earlier plans are in the change history. */
+    /** The plan of the latest change (a downgrade may start at the next period); history in `subscription_plan_change`. */
     planId: uuid('plan_id')
       .notNull()
       .references(() => subscriptionPlan.id),
@@ -597,7 +597,7 @@ export const subscriptionDelivery = pgTable(
   (t) => [index('subscription_delivery_sub_idx').on(t.subscriptionId, t.deliveredOn), uniqueIndex('subscription_delivery_reversal_uq').on(t.reversalOf)],
 );
 
-/** What each invoice carried: a period's fee, the previous period's overage. Counts while its invoice is live. */
+/** One row per item an invoice carried: a period's fee or an ended period's overage. Counts while its invoice is live. */
 export const subscriptionInvoice = pgTable(
   'subscription_invoice',
   {
@@ -615,5 +615,5 @@ export const subscriptionInvoice = pgTable(
     prorationAmount: money('proration_amount').notNull().default('0'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('subscription_invoice_sub_idx').on(t.subscriptionId), uniqueIndex('subscription_invoice_si_uq').on(t.salesInvoiceId)],
+  (t) => [index('subscription_invoice_sub_idx').on(t.subscriptionId), index('subscription_invoice_si_idx').on(t.salesInvoiceId)],
 );
