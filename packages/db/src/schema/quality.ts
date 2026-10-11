@@ -298,3 +298,103 @@ export const attachment = pgTable(
   },
   (t) => [index('attachment_owner_idx').on(t.ownerType, t.ownerId), uniqueIndex('attachment_object_uq').on(t.objectKey), check('attachment_size_ck', sql`${t.size} > 0`)],
 );
+
+// Decision 061: CAPA — corrective and preventive action. A 5-Why and root cause on every CAPA, the 8D sections on
+// major ones, actions with owners, and an effectiveness check by someone other than the owner after a wait.
+
+export const capaSource = pgEnum('capa_source', ['ncr', 'audit', 'complaint', 'other']);
+export const capaSeverity = pgEnum('capa_severity', ['minor', 'major']);
+export const capaStatus = pgEnum('capa_status', ['open', 'in_action', 'verifying', 'closed', 'cancelled']);
+
+export const capa = pgTable(
+  'capa',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ...scope,
+    number: text('number').notNull(),
+    source: capaSource('source').notNull(),
+    title: text('title').notNull(),
+    /** D2: the problem as observed. */
+    problem: text('problem').notNull(),
+    severity: capaSeverity('severity').notNull(),
+    ownerUserId: text('owner_user_id')
+      .notNull()
+      .references(() => user.id),
+    verifyAfterDays: integer('verify_after_days').notNull().default(60),
+    /** D4: the 5-Why chain and the root-cause statement. */
+    whys: jsonb('whys').$type<string[]>().notNull().default([]),
+    rootCause: text('root_cause'),
+    /** D1, D3, D8 (major CAPAs). */
+    team: text('team'),
+    containment: text('containment'),
+    recognition: text('recognition'),
+    status: capaStatus('status').notNull().default('open'),
+    verifyDueOn: date('verify_due_on'),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    cancelReason: text('cancel_reason'),
+    ...created,
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('capa_number_uq').on(t.entityId, t.number),
+    index('capa_status_idx').on(t.entityId, t.status),
+    check('capa_verify_ck', sql`${t.verifyAfterDays} between 30 and 180`),
+  ],
+);
+
+export const capaNcr = pgTable(
+  'capa_ncr',
+  {
+    capaId: uuid('capa_id')
+      .notNull()
+      .references(() => capa.id, { onDelete: 'cascade' }),
+    ncrId: uuid('ncr_id')
+      .notNull()
+      .references(() => ncr.id),
+  },
+  (t) => [uniqueIndex('capa_ncr_uq').on(t.capaId, t.ncrId), index('capa_ncr_ncr_idx').on(t.ncrId)],
+);
+
+export const capaActionKind = pgEnum('capa_action_kind', ['containment', 'corrective', 'preventive']);
+export const capaActionStatus = pgEnum('capa_action_status', ['open', 'done', 'cancelled']);
+
+export const capaAction = pgTable(
+  'capa_action',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    capaId: uuid('capa_id')
+      .notNull()
+      .references(() => capa.id, { onDelete: 'cascade' }),
+    kind: capaActionKind('kind').notNull(),
+    description: text('description').notNull(),
+    ownerUserId: text('owner_user_id')
+      .notNull()
+      .references(() => user.id),
+    dueOn: date('due_on').notNull(),
+    status: capaActionStatus('status').notNull().default('open'),
+    doneOn: date('done_on'),
+    doneNote: text('done_note'),
+    doneBy: text('done_by').references(() => user.id),
+    cancelReason: text('cancel_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('capa_action_capa_idx').on(t.capaId)],
+);
+
+/** Every effectiveness check, kept: not effective returns the CAPA to action. */
+export const capaVerification = pgTable(
+  'capa_verification',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    capaId: uuid('capa_id')
+      .notNull()
+      .references(() => capa.id),
+    effective: boolean('effective').notNull(),
+    note: text('note').notNull(),
+    verifiedBy: text('verified_by')
+      .notNull()
+      .references(() => user.id),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('capa_verification_capa_idx').on(t.capaId)],
+);

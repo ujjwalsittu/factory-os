@@ -50,6 +50,7 @@ export const DEFAULT_SERIES: Record<string, string> = {
   job_work_receipt: '{ENTITY}/JWR/{FY}/{#####}',
   inspection_record: '{ENTITY}/IR/{FY}/{#####}',
   ncr: '{ENTITY}/NCR/{FY}/{####}',
+  capa: '{ENTITY}/CAPA/{FY}/{####}',
   fai: '{ENTITY}/FAI/{FY}/{####}',
   credit_note: '{ENTITY}/CN/{FY}/{####}',
   debit_note: '{ENTITY}/DN/{FY}/{####}',
