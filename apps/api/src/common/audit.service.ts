@@ -27,6 +27,19 @@ export class AuditService {
   constructor(@Inject(DB) private readonly db: Database) {}
 
   async record(ctx: RequestContext | null, input: AuditInput, tx?: Tx): Promise<void> {
+    await this.append(ctx, input, ctx?.user.id ?? null, null, tx);
+  }
+
+  /**
+   * Support access reads (decision 050): the subject whose data was shown is the actor, the real operator is the
+   * impersonator. Identities come only from these arguments, never from caller-supplied fields; always inside the
+   * caller's transaction, so a failed insert means no data is released.
+   */
+  async recordSupport(ctx: RequestContext, input: AuditInput, subjectUserId: string, tx: Tx): Promise<void> {
+    await this.append(ctx, input, subjectUserId, ctx.user.id, tx);
+  }
+
+  private async append(ctx: RequestContext | null, input: AuditInput, actorUserId: string | null, impersonatorUserId: string | null, tx?: Tx): Promise<void> {
     const run = async (t: Tx) => {
       const tenantId = input.tenantId ?? null;
       await t.execute(sql`select pg_advisory_xact_lock(hashtext(${'audit:' + (tenantId ?? 'platform')}))`);
@@ -36,12 +49,13 @@ export class AuditService {
         .where(tenantId ? eq(auditEvent.tenantId, tenantId) : isNull(auditEvent.tenantId))
         .orderBy(desc(auditEvent.seq))
         .limit(1);
+      // Property order is part of the hash; keep it exactly as it has always been.
       const row = {
         occurredAt: new Date(),
         tenantId,
         entityId: input.entityId ?? null,
-        actorUserId: ctx?.user.id ?? null,
-        impersonatorUserId: null,
+        actorUserId,
+        impersonatorUserId,
         action: input.action,
         targetType: input.targetType,
         targetId: input.targetId ?? null,

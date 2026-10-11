@@ -4,6 +4,8 @@ import {loadSsoConfig} from './modules/sso/sso.config.js';
 import type {SsoConfig} from './modules/sso/sso.types.js';
 import {loadPasskeyConfig} from './modules/passkeys/passkeys.config.js';
 import type {PasskeyConfig} from './modules/passkeys/passkeys.types.js';
+import {loadSupportConfig} from './modules/support-access/support-access.config.js';
+import type {SupportConfig} from './modules/support-access/support-access.types.js';
 
 const limit=z.coerce.number().int().min(1).max(1000);
 const schema = z.object({
@@ -43,7 +45,7 @@ const schema = z.object({
     .transform((v) => v === 'true'),
 });
 
-export type AppConfig = z.infer<typeof schema> & {email:EmailConfig;sso:SsoConfig;passkeys:PasskeyConfig};
+export type AppConfig = z.infer<typeof schema> & {email:EmailConfig;sso:SsoConfig;passkeys:PasskeyConfig;supportAccess:SupportConfig};
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = schema.safeParse(env);
@@ -51,5 +53,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     const issues = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
-  return {...parsed.data,email:loadEmailConfig(env),sso:loadSsoConfig(env),passkeys:loadPasskeyConfig(env,{webOrigin:parsed.data.WEB_ORIGIN,trustedOrigins:[parsed.data.WEB_ORIGIN,...parsed.data.EXTRA_TRUSTED_ORIGINS]})};
+  return {...parsed.data,email:loadEmailConfig(env),sso:loadSsoConfig(env),passkeys:loadPasskeyConfig(env,{webOrigin:parsed.data.WEB_ORIGIN,trustedOrigins:[parsed.data.WEB_ORIGIN,...parsed.data.EXTRA_TRUSTED_ORIGINS]}),supportAccess:loadSupportConfig(env,parsed.data.WEB_ORIGIN)};
 }

@@ -8,7 +8,6 @@ import { computeGst, GST_RATES, type SupplyType, type TaxResult } from '@factory
 import { Dec } from '@factoryos/core';
 import {
   accountingSettings,
-  batch,
   type Database,
   gstRegistration,
   hsnCode,
@@ -34,6 +33,7 @@ import { DB } from '../common/tokens.js';
 import { parse } from '../common/validation.js';
 import { FaiService } from './quality/fai.service.js';
 import { StockPostingService } from './stock-posting.service.js';
+import { salesInvoiceDetail, salesInvoiceList } from './readers/sales-invoices.read.js';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 type Party = typeof party.$inferSelect;
@@ -482,67 +482,16 @@ export class SellingController {
   async listInvoices(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
     const entityId = entityOf(ctx);
     const { status, customerId } = parse(z.object({ status: z.enum(['draft', 'submitted', 'cancelled']).optional(), customerId: z.string().uuid().optional() }), query);
-    const where: SQL[] = [eq(salesInvoice.entityId, entityId)];
-    if (status) where.push(eq(salesInvoice.status, status));
-    if (customerId) where.push(eq(salesInvoice.customerId, customerId));
-    return this.db
-      .select({
-        id: salesInvoice.id,
-        number: salesInvoice.number,
-        status: salesInvoice.status,
-        invoiceDate: salesInvoice.invoiceDate,
-        dueDate: salesInvoice.dueDate,
-        customerName: party.name,
-        supplyType: salesInvoice.supplyType,
-        currency: salesInvoice.currency,
-        taxableValue: salesInvoice.taxableValue,
-        totalTax: salesInvoice.totalTax,
-        grandTotal: salesInvoice.grandTotal,
-        soNumber: salesOrder.number,
-        gstin: gstRegistration.gstin,
-      })
-      .from(salesInvoice)
-      .innerJoin(party, eq(party.id, salesInvoice.customerId))
-      .leftJoin(salesOrder, eq(salesOrder.id, salesInvoice.salesOrderId))
-      .leftJoin(gstRegistration, eq(gstRegistration.id, salesInvoice.gstRegistrationId))
-      .where(and(...where))
-      .orderBy(desc(salesInvoice.createdAt))
-      .limit(500);
+    return salesInvoiceList(this.db, { tenantId: ctx.tenant.tenantId, entityId }, { status, customerId });
   }
 
   @Get('sales-invoices/:id')
   @RequirePermission('selling.sales_invoice.read')
   async getInvoice(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
     const entityId = entityOf(ctx);
-    const [inv] = await this.db
-      .select({ inv: salesInvoice, partyName: party.name, soNumber: salesOrder.number, reg: gstRegistration })
-      .from(salesInvoice)
-      .innerJoin(party, eq(party.id, salesInvoice.customerId))
-      .leftJoin(salesOrder, eq(salesOrder.id, salesInvoice.salesOrderId))
-      .leftJoin(gstRegistration, eq(gstRegistration.id, salesInvoice.gstRegistrationId))
-      .where(and(eq(salesInvoice.id, id), eq(salesInvoice.entityId, entityId)));
+    const inv = await salesInvoiceDetail(this.db, { tenantId: ctx.tenant.tenantId, entityId }, id);
     if (!inv) throw new NotFoundException('Sales invoice not found');
-    const rows = await this.db
-      .select({ line: salesInvoiceLine, itemCode: item.code, itemName: item.name, tracking: item.tracking, isStockItem: item.isStockItem, uomCode: uom.code, batchNo: batch.batchNo, warehouseCode: warehouse.code })
-      .from(salesInvoiceLine)
-      .innerJoin(item, eq(item.id, salesInvoiceLine.itemId))
-      .innerJoin(uom, eq(uom.id, item.stockUomId))
-      .leftJoin(batch, eq(batch.id, salesInvoiceLine.batchId))
-      .leftJoin(warehouse, eq(warehouse.id, salesInvoiceLine.warehouseId))
-      .where(eq(salesInvoiceLine.invoiceId, id))
-      .orderBy(asc(salesInvoiceLine.lineNo));
-    const [stock] = inv.inv.stockEntryId ? await this.db.select({ number: stockEntry.number, status: stockEntry.status }).from(stockEntry).where(eq(stockEntry.id, inv.inv.stockEntryId)) : [];
-    return {
-      ...inv.inv,
-      partyName: inv.partyName,
-      soNumber: inv.soNumber,
-      ourGstin: inv.reg?.gstin ?? null,
-      ourStateCode: inv.reg?.stateCode ?? null,
-      ourAddress: inv.reg?.address ?? null,
-      ourTradeName: inv.reg?.tradeName ?? null,
-      stockEntryNumber: stock?.number ?? null,
-      lines: rows.map((r) => ({ ...r.line, itemCode: r.itemCode, itemName: r.itemName, tracking: r.tracking, isStockItem: r.isStockItem, uomCode: r.uomCode, batchNo: r.batchNo, warehouseCode: r.warehouseCode })),
-    };
+    return inv;
   }
 
   @Post('sales-invoices')

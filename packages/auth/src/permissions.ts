@@ -46,6 +46,7 @@ export const RESOURCES = [
   { module: 'settings', resource: 'user', label: 'Users & invitations', actions: ['read', 'create', 'update', 'delete'] },
   { module: 'settings', resource: 'role', label: 'Roles & permissions', actions: ['read', 'create', 'update', 'delete'] },
   { module: 'settings', resource: 'audit', label: 'Audit log', actions: ['read', 'export'] },
+  { module: 'settings', resource: 'support_access', label: 'Support access (approve temporary read-only operator access)', actions: ['read', 'configure', 'approve', 'cancel'] },
   { module: 'settings', resource: 'integration', label: 'Integrations (GSP, Tally, IoT)', actions: ['read', 'manage'] },
   { module: 'masters', resource: 'item', label: 'Items', actions: ['read', 'create', 'update', 'delete', 'export'] },
   { module: 'masters', resource: 'party', label: 'Customers & suppliers', actions: ['read', 'create', 'update', 'delete', 'export'] },

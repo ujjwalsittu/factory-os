@@ -33,6 +33,7 @@ import { DB } from '../../common/tokens.js';
 import { parse } from '../../common/validation.js';
 import { businessDate, entityOf, type Tx } from '../accounting/accounting-lock.js';
 import { availableStock, WorkOrderService } from './work-order.service.js';
+import { workOrderList } from '../readers/work-orders.read.js';
 
 const quantity = z
   .union([z.string(), z.number()])
@@ -85,33 +86,7 @@ export class WorkOrdersController {
   async list(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
     const entityId = entityOf(ctx);
     const { status } = parse(z.object({ status: z.enum(['draft', 'released', 'completed', 'cancelled']).optional() }), query);
-    const where = [eq(workOrder.entityId, entityId)];
-    if (status) where.push(eq(workOrder.status, status));
-    return this.db
-      .select({
-        id: workOrder.id,
-        number: workOrder.number,
-        status: workOrder.status,
-        itemCode: item.code,
-        itemName: item.name,
-        revision: sql<string>`coalesce(${bom.revision}, 'Rework')`,
-        plannedQty: workOrder.plannedQty,
-        producedQty: workOrder.producedQty,
-        plannedStart: workOrder.plannedStart,
-        plannedEnd: workOrder.plannedEnd,
-        priority: workOrder.priority,
-        scheduledFinish: workOrder.scheduledFinish,
-        salesOrder: salesOrder.number,
-        createdAt: workOrder.createdAt,
-        wip: sql<string>`(select coalesce(sum(c.amount), 0) from work_order_cost c where c.work_order_id = "work_order"."id")`,
-      })
-      .from(workOrder)
-      .innerJoin(item, eq(item.id, workOrder.itemId))
-      .leftJoin(bom, eq(bom.id, workOrder.bomId))
-      .leftJoin(salesOrder, eq(salesOrder.id, workOrder.salesOrderId))
-      .where(and(...where))
-      .orderBy(desc(workOrder.createdAt))
-      .limit(500);
+    return workOrderList(this.db, { tenantId: ctx.tenant.tenantId, entityId }, { status });
   }
 
   @Get('work-orders/:id')

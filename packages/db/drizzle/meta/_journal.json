@@ -246,6 +246,13 @@
       "when": 1791656826723,
       "tag": "0034_platform_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791662506156,
+      "tag": "0035_support_access",
+      "breakpoints": true
     }
   ]
 }
