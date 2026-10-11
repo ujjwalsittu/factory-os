@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-11 (Asia/Kolkata) · Phase 3e EarthNow subscriptions built, PR to main_
+_Last updated: 2026-10-11 (Asia/Kolkata) · Phase 3f billing runs claimed by this session_
 
 ## Done
 - [x] **Phase 3e: EarthNow subscriptions** (decision 059, closes B12; migrations 0040_subscriptions, 0041_subscription_active_aoi). Services → Subscriptions: plans as prepaid bundles of reports and alerts per month, quarter or year with overage rates; subscriptions per customer and AOI (start up to a year back); each period's fee invoiced in advance (from a week before), overage of ended periods on the next invoice; deliveries append-only and frozen once their overage is billed; upgrades apply at once with the fee difference prorated by days, downgrades from the next period; cancel at period end; free plans bill overage only. Verified: core 4 tests, new smoke 82 checks and browser walkthrough (desktop/390 px), projects 141, memberships 76, MaaS 93, campaigns 74 and selling smokes, memberships/projects/campaigns/selling browsers, typecheck 19, build 12, tests 11. [Review](../superpowers/reviews/2026-10-11-earthnow-subscriptions-review.md).
@@ -130,6 +130,7 @@ _Last updated: 2026-10-11 (Asia/Kolkata) · Phase 3e EarthNow subscriptions buil
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
+- **Phase 3f: billing runs (decision 060)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-11 17:45 UTC. [Design](../superpowers/specs/2026-10-11-billing-runs-design.md); five tasks.
 
 
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
@@ -141,7 +142,7 @@ _Last updated: 2026-10-11 (Asia/Kolkata) · Phase 3e EarthNow subscriptions buil
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
 3. User review of completed accounting/settlement/customer/supplier and manufacturing workflows on dev. Original shared activation states are preserved; cut-over remains a deliberate Finance action.
 
-4. Further Phase 3 slices need designs and user choices: billing runs, IoT metering. Deferred quality follow-ups (decision 048): CAPA and skill matrix.
+4. Further Phase 3 slices need designs and user choices: IoT metering (open B20). Deferred quality follow-ups (decision 048): CAPA and skill matrix.
 
 ## Blockers
 - Automatic TDS/TCS profile/source work: current official Act393/394/395/397/402 text retrieved and pinned, including scrap2% effective2026-04-01, but complete GST-base, PAN-operativity relief and lower/nil certificate applicability guidance is still missing. Original/lower-case legacy circular PDF paths returned404; generic document search did not produce verified guidance. [Evidence/requirements](../compliance/withholding-profile-evidence.md). Need reachable official primary URLs or authorized exported guidance plus applicability confirmation; optional source-URL question already asked. No numerical defaults enabled. Continue independent bank-reconciliation work while this gate remains closed.
