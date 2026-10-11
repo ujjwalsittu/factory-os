@@ -476,4 +476,3 @@ export class SubscriptionsController {
     return p;
   }
 }
-
