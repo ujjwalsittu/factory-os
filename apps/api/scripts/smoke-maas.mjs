@@ -148,6 +148,15 @@ await c.req('POST', `/services/bookings/${b3.id}/usage`, { minutes: 50, note: 'P
 d = await c.req('GET', `/services/bookings/${b3.id}`);
 assert.deepEqual([d.charge.billableMinutes, d.charge.hours, d.charge.rate, d.charge.amount], [120, '2.00', '2000.00', '4000.00']);
 await c.req('POST', `/services/bookings/${b3.id}/invoice`, {}, 201);
+s = await c.req('POST', '/manufacturing/schedule/run', {}, 201);
+const b5 = await c.req('POST', '/services/bookings', { customerId: startup.id, machineId: m2.id, startsAt: at(60), endsAt: at(61) }, 201);
+await c.req('POST', `/services/bookings/${b5.id}/confirm`, {}, 201);
+await c.req('POST', `/services/bookings/${b5.id}/cancel`, { reason: 'Customer postponed' }, 201);
+s = await c.req('POST', '/manufacturing/schedule/run', {}, 201);
+await c.req('DELETE', `/sales-invoices/${(await c.req('GET', `/services/bookings/${b3.id}`)).salesInvoiceId}`, undefined, 200);
+await c.req('POST', `/services/bookings/${b3.id}/invoice`, {}, 201);
+assert.equal((await c.req('GET', '/manufacturing/schedule')).stale, false);
+ok('invoicing a booking doesn’t mark the schedule out of date');
 ok('a member pays the member rate, and short use bills the 2-hour minimum');
 
 // ── Cancel and isolation ──

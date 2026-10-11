@@ -358,7 +358,8 @@ export class MaasController {
         if (b.status !== 'completed' || (await this.invoiceHoldsIn(tx, b.salesInvoiceId))) throw new ConflictException('The booking changed; reload');
         const [t] = await tx.select({ total: sum(maasUsage.minutes) }).from(maasUsage).where(eq(maasUsage.bookingId, id));
         if (Number(t?.total ?? 0) !== c.actualMinutes) throw new ConflictException('Usage changed while invoicing; reload');
-        await tx.update(maasBooking).set({ salesInvoiceId: invoiceId, updatedAt: new Date() }).where(eq(maasBooking.id, id));
+        // No updatedAt bump: billing doesn't change reserved time, so the schedule stays current.
+        await tx.update(maasBooking).set({ salesInvoiceId: invoiceId }).where(eq(maasBooking.id, id));
         await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.invoice', targetType: 'maas_booking', targetId: id, after: { invoiceId, ...c } }, tx);
       },
     );
