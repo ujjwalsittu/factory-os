@@ -14,6 +14,7 @@ import { parse } from '../../common/validation.js';
 import { businessDate, entityOf, type Tx } from '../accounting/accounting-lock.js';
 import { SellingController } from '../selling.controller.js';
 import { StockPostingService } from '../stock-posting.service.js';
+import type { Billable } from './billables.js';
 
 const money = z
   .union([z.string(), z.number()])
@@ -280,18 +281,37 @@ export class SubscriptionsController {
   async invoice(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
     const entityId = entityOf(ctx);
     const input = parse(invoiceInput, body);
-    const s = await this.find(this.db, entityId, id);
-    const bill = this.bill(await this.state(this.db, s), s);
-    if (!bill.lines.length) throw new ConflictException(bill.nothing);
+    const b = await this.subscriptionBillable(ctx, id);
     const inv = await this.selling.createDraftInvoice(
       ctx,
       entityId,
-      { customerId: s.customerId, invoiceDate: input.invoiceDate ?? businessDate(), gstRegistrationId: input.gstRegistrationId ?? null, customerPoNo: s.customerRef ?? null, remarks: `Subscription ${s.number} · ${s.aoiName}`, lines: bill.lines.map((l) => l.line) },
-      async (tx, invoiceId) => {
+      { customerId: b.customerId, invoiceDate: input.invoiceDate ?? businessDate(), gstRegistrationId: input.gstRegistrationId ?? null, customerPoNo: b.customerRef, remarks: b.remarks, lines: b.lines },
+      b.settle,
+    );
+    return { invoiceId: inv.id, lines: b.lines.length };
+  }
+
+  /** What the next invoice of a subscription would carry (decision 060); refused when nothing is due. */
+  async subscriptionBillable(ctx: TenantRequestContext, id: string): Promise<Billable> {
+    const entityId = entityOf(ctx);
+    const s = await this.find(this.db, entityId, id);
+    const bill = this.bill(await this.state(this.db, s), s);
+    if (!bill.lines.length) throw new ConflictException(bill.nothing);
+    return {
+      kind: 'subscription',
+      sourceId: id,
+      label: s.number,
+      customerId: s.customerId,
+      customerRef: s.customerRef ?? null,
+      remarks: `Subscription ${s.number} · ${s.aoiName}`,
+      lines: bill.lines.map((l) => l.line),
+      amount: bill.lines.reduce((t, l) => t.add(l.amount), Dec.ZERO).toFixed(2),
+      settle: async (tx, invoiceId) => {
+        if (!invoiceId) throw new ConflictException(`Subscription ${s.number} needs an invoice`);
         const locked = await this.lock(tx, entityId, id);
         // Recompute under the lock: the same lines, or someone else invoiced or recorded meanwhile.
         const again = this.bill(await this.state(tx, locked), locked);
-        if (JSON.stringify(again.lines.map((l) => l.line)) !== JSON.stringify(bill.lines.map((l) => l.line))) throw new ConflictException('The subscription changed; reload');
+        if (JSON.stringify(again.lines.map((l) => l.line)) !== JSON.stringify(bill.lines.map((l) => l.line))) throw new ConflictException(`Subscription ${s.number} changed; reload`);
         for (const l of bill.lines) {
           if (l.kind === 'fee') await tx.insert(subscriptionInvoice).values({ subscriptionId: id, salesInvoiceId: invoiceId, feePeriodStart: l.periodStart, feeAmount: l.amount });
           else if (l.kind === 'overage') await tx.insert(subscriptionInvoice).values({ subscriptionId: id, salesInvoiceId: invoiceId, overagePeriodStart: l.periodStart, overageReports: l.reports, overageAlerts: l.alerts, overageAmount: l.amount });
@@ -302,8 +322,15 @@ export class SubscriptionsController {
         }
         await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'subscription.invoice', targetType: 'subscription', targetId: id, after: { invoiceId, lines: bill.lines.map((l) => ({ kind: l.kind, amount: l.amount })) } }, tx);
       },
-    );
-    return { invoiceId: inv.id, lines: bill.lines.length };
+    };
+  }
+
+  /** Subscriptions with something to invoice today: a fee due, ended periods' overage or an upgrade proration. */
+  async dueSubscriptionIds(entityId: string): Promise<string[]> {
+    const rows = await this.db.select().from(subscription).where(eq(subscription.entityId, entityId)).orderBy(asc(subscription.number));
+    const due: string[] = [];
+    for (const s of rows) if (this.bill(await this.state(this.db, s), s).lines.length) due.push(s.id);
+    return due;
   }
 
   /** Cancel at the end of the current (or last invoiced) period; before the start with nothing invoiced, at once. */

@@ -13,6 +13,7 @@ import { parse } from '../../common/validation.js';
 import { businessDate, entityOf, type Tx } from '../accounting/accounting-lock.js';
 import { SellingController } from '../selling.controller.js';
 import { ProjectsController } from './projects.controller.js';
+import type { Billable } from './billables.js';
 import { StockPostingService } from '../stock-posting.service.js';
 
 const money = z
@@ -328,6 +329,19 @@ export class CampaignsController {
   async invoice(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
     const entityId = entityOf(ctx);
     const input = parse(invoiceInput, body);
+    const b = await this.campaignBillable(ctx, id);
+    const inv = await this.selling.createDraftInvoice(
+      ctx,
+      entityId,
+      { customerId: b.customerId, invoiceDate: input.invoiceDate ?? businessDate(), gstRegistrationId: input.gstRegistrationId ?? null, customerPoNo: b.customerRef, remarks: b.remarks, lines: b.lines },
+      b.settle,
+    );
+    return { invoiceId: inv.id, total: b.amount };
+  }
+
+  /** What invoicing a reported campaign would carry (decision 060): the quoted amount, then each chargeable extra. */
+  async campaignBillable(ctx: TenantRequestContext, id: string): Promise<Billable> {
+    const entityId = entityOf(ctx);
     const d = await this.get(ctx, id);
     if (d.projectId) throw new ConflictException(`Billed through project ${d.projectNumber ?? ''}`.trim());
     if (d.status !== 'reported' && d.status !== 'closed') throw new ConflictException('Invoice the campaign once its report is approved');
@@ -337,18 +351,33 @@ export class CampaignsController {
       ...d.extras.map((e) => ({ itemId: e.serviceItemId, description: `${e.description} (campaign ${d.number})`, qty: e.qty, rate: e.rate })),
     ].filter((l) => Number(l.rate) > 0);
     if (!lines.length) throw new BadRequestException('Nothing to invoice: the quoted amount and extras are zero');
-    const inv = await this.selling.createDraftInvoice(
-      ctx,
-      entityId,
-      { customerId: d.customerId, invoiceDate: input.invoiceDate ?? businessDate(), gstRegistrationId: input.gstRegistrationId ?? null, customerPoNo: d.customerRef ?? null, remarks: `Test campaign ${d.number}`, lines },
-      async (tx, invoiceId) => {
+    return {
+      kind: 'campaign',
+      sourceId: id,
+      label: d.number,
+      customerId: d.customerId,
+      customerRef: d.customerRef ?? null,
+      remarks: `Test campaign ${d.number}`,
+      lines,
+      amount: d.totalAmount,
+      settle: async (tx, invoiceId) => {
         const c = await this.lock(tx, entityId, id);
-        if ((c.status !== 'reported' && c.status !== 'closed') || c.projectId || (await this.invoiceLive(tx, c.salesInvoiceId))) throw new ConflictException('The campaign changed; reload');
+        if ((c.status !== 'reported' && c.status !== 'closed') || c.projectId || (await this.invoiceLive(tx, c.salesInvoiceId))) throw new ConflictException(`Campaign ${d.number} changed; reload`);
         await tx.update(testCampaign).set({ salesInvoiceId: invoiceId, updatedAt: new Date() }).where(eq(testCampaign.id, id));
         await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'test_campaign.invoice', targetType: 'test_campaign', targetId: id, after: { invoiceId, total: d.totalAmount } }, tx);
       },
-    );
-    return { invoiceId: inv.id, total: d.totalAmount };
+    };
+  }
+
+  /** Reported or closed campaigns billed on their own and not invoiced yet. */
+  async dueCampaignIds(entityId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: testCampaign.id, invoiceStatus: salesInvoice.status })
+      .from(testCampaign)
+      .leftJoin(salesInvoice, eq(salesInvoice.id, testCampaign.salesInvoiceId))
+      .where(and(eq(testCampaign.entityId, entityId), inArray(testCampaign.status, ['reported', 'closed']), isNull(testCampaign.projectId)))
+      .orderBy(asc(testCampaign.number));
+    return rows.filter((r) => !LIVE(r.invoiceStatus)).map((r) => r.id);
   }
 
   @Post('campaigns/:id/close')

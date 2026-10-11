@@ -95,6 +95,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
       { href: '/app/services/memberships', label: 'Memberships', icon: BadgePercent, permission: 'services.membership.read', entityScoped: true },
       { href: '/app/services/campaigns', label: 'Test campaigns', icon: FlaskConical, permission: 'services.campaign.read', entityScoped: true },
       { href: '/app/services/subscriptions', label: 'Subscriptions', icon: Satellite, permission: 'services.subscription.read', entityScoped: true },
+      { href: '/app/services/billing-runs', label: 'Billing runs', icon: ReceiptText, permission: 'services.billing_run.read', entityScoped: true },
       { href: '/app/services/projects', label: 'Projects', icon: FolderKanban, permission: 'services.project.read', entityScoped: true },
       { href: '/app/services/timesheets', label: 'Timesheets', icon: Clock, permission: 'services.timesheet.read', entityScoped: true },
       { href: '/app/services/cost-rates', label: 'Cost rates', icon: Wallet, permission: 'services.cost_rate.read', entityScoped: true },

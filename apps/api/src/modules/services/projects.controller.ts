@@ -17,6 +17,7 @@ import {
   purchaseInvoice,
   purchaseInvoiceLine,
   salesInvoice,
+  salesInvoiceLine,
   testCampaign,
   timesheetEntry,
   type Database,
@@ -35,6 +36,7 @@ import { DB } from '../../common/tokens.js';
 import { parse } from '../../common/validation.js';
 import { businessDate, entityOf, type Tx } from '../accounting/accounting-lock.js';
 import { SellingController } from '../selling.controller.js';
+import type { Billable } from './billables.js';
 import { StockPostingService } from '../stock-posting.service.js';
 
 const money = z
@@ -108,25 +110,27 @@ export class ProjectsController {
     const ids = rows.map((r) => r.p.id);
     const billed = ids.length
       ? await this.db
-          .select({ projectId: projectMilestone.projectId, taxable: salesInvoice.taxableValue, grandTotal: salesInvoice.grandTotal, invoiceId: salesInvoice.id })
+          .select({ projectId: projectMilestone.projectId, amount: projectMilestone.amount, invoiceId: salesInvoice.id })
           .from(projectMilestone)
           .innerJoin(salesInvoice, eq(salesInvoice.id, projectMilestone.salesInvoiceId))
           .where(and(inArray(projectMilestone.projectId, ids), inArray(salesInvoice.status, ['draft', 'submitted'])))
       : [];
     const held = ids.length
       ? await this.db
-          .select({ projectId: projectRetention.projectId, invoiceId: projectRetention.salesInvoiceId })
+          .select({ projectId: projectRetention.projectId, invoiceId: projectRetention.salesInvoiceId, amount: projectMilestone.amount })
           .from(projectRetention)
           .innerJoin(salesInvoice, eq(salesInvoice.id, projectRetention.salesInvoiceId))
+          .innerJoin(projectMilestone, eq(projectMilestone.id, projectRetention.milestoneId))
           .where(and(inArray(projectRetention.projectId, ids), isNull(projectRetention.releasedOn), inArray(salesInvoice.status, ['draft', 'submitted'])))
       : [];
-    return rows.map((r) => {
+    const out = [];
+    for (const r of rows) {
       const mine = billed.filter((b) => b.projectId === r.p.id);
-      const retentionHeld = held
-        .filter((h) => h.projectId === r.p.id)
-        .reduce((s, h) => s.add(retentionOf(mine.find((b) => b.invoiceId === h.invoiceId)?.grandTotal ?? '0', r.p.retentionPct)), Dec.ZERO);
-      return { ...r.p, customerName: r.customerName, invoiced: mine.reduce((s, b) => s.add(b.taxable ?? '0'), Dec.ZERO).toFixed(2), retentionHeld: retentionHeld.toFixed(2) };
-    });
+      let retentionHeld = Dec.ZERO;
+      for (const h of held.filter((x) => x.projectId === r.p.id)) retentionHeld = retentionHeld.add(await this.retentionFor(this.db, h.invoiceId, r.p.serviceItemId, h.amount, r.p.retentionPct));
+      out.push({ ...r.p, customerName: r.customerName, invoiced: mine.reduce((s, b) => s.add(b.amount), Dec.ZERO).toFixed(2), retentionHeld: retentionHeld.toFixed(2) });
+    }
+    return out;
   }
 
   @Get('projects/:id')
@@ -152,21 +156,23 @@ export class ProjectsController {
       .where(eq(projectMilestone.projectId, id))
       .orderBy(asc(projectMilestone.seq));
     const retention = await this.db
-      .select({ r: projectRetention, invoiceNumber: salesInvoice.number, invoiceStatus: salesInvoice.status, invoiceTotal: salesInvoice.grandTotal, milestoneName: projectMilestone.name })
+      .select({ r: projectRetention, invoiceNumber: salesInvoice.number, invoiceStatus: salesInvoice.status, milestoneName: projectMilestone.name, milestoneAmount: projectMilestone.amount })
       .from(projectRetention)
       .innerJoin(salesInvoice, eq(salesInvoice.id, projectRetention.salesInvoiceId))
       .innerJoin(projectMilestone, eq(projectMilestone.id, projectRetention.milestoneId))
       .where(and(eq(projectRetention.projectId, id), inArray(salesInvoice.status, ['draft', 'submitted'])))
       .orderBy(asc(projectRetention.createdAt));
     const dueOn = p.completedOn ? addMonths(p.completedOn, p.dlpMonths) : null;
-    const retentionRows = retention.map((x) => ({
+    const retentionRows = [];
+    for (const x of retention)
+      retentionRows.push({
       ...x.r,
-      amount: x.r.releasedOn ? x.r.amount : retentionOf(x.invoiceTotal, p.retentionPct),
+      amount: x.r.releasedOn ? x.r.amount : await this.retentionFor(this.db, x.r.salesInvoiceId, p.serviceItemId, x.milestoneAmount, p.retentionPct),
       invoiceNumber: x.invoiceNumber,
       invoiceStatus: x.invoiceStatus,
       milestoneName: x.milestoneName,
       dueOn,
-    }));
+    });
     const budget = await this.db.select().from(projectBudget).where(eq(projectBudget.projectId, id));
     const links = await this.links(entityId, id);
     const actuals = await this.actuals(ctx, entityId, id, links);
@@ -175,7 +181,8 @@ export class ProjectsController {
       .from(attachment)
       .where(and(eq(attachment.entityId, entityId), eq(attachment.ownerType, 'project'), eq(attachment.ownerId, id), isNull(attachment.withdrawnAt)));
     const live = milestones.filter((m) => LIVE(m.invoiceStatus));
-    const revenue = live.reduce((s, m) => s.add(m.invoiceTaxable ?? '0'), Dec.ZERO);
+    // A run's invoice may carry other sources' lines: revenue is the milestones' own amounts.
+    const revenue = live.reduce((s, m) => s.add(m.m.amount), Dec.ZERO);
     const actualTotal = CATEGORIES.reduce((s, c) => s.add(actuals.byCategory[c]), Dec.ZERO);
     const milestoneTotal = milestones.reduce((s, m) => s.add(m.m.amount), Dec.ZERO);
     return {
@@ -340,6 +347,23 @@ export class ProjectsController {
   async invoice(@Ctx() ctx: TenantRequestContext, @Param('mid', ParseUUIDPipe) mid: string, @Body() body: unknown) {
     const entityId = entityOf(ctx);
     const input = parse(invoiceInput, body);
+    const b = await this.milestoneBillable(ctx, mid);
+    const inv = await this.selling.createDraftInvoice(
+      ctx,
+      entityId,
+      { customerId: b.customerId, invoiceDate: input.invoiceDate ?? businessDate(), gstRegistrationId: input.gstRegistrationId ?? null, customerPoNo: b.customerRef, remarks: b.remarks, lines: b.lines },
+      b.settle,
+    );
+    return { invoiceId: inv.id };
+  }
+
+  /**
+   * What invoicing an achieved milestone would carry (decision 060). Settling records the retention on the invoice
+   * total, so it is computed from the invoice as it stands then (a run's invoice may carry other lines: the retention
+   * is on this milestone's share only).
+   */
+  async milestoneBillable(ctx: TenantRequestContext, mid: string): Promise<Billable> {
+    const entityId = entityOf(ctx);
     const m = await this.milestoneIn(ctx, mid);
     const d = await this.get(ctx, m.projectId);
     const ms = d.milestones.find((x) => x.id === mid)!;
@@ -347,30 +371,46 @@ export class ProjectsController {
     if (!ms.achievedOn) throw new ConflictException('Mark the milestone achieved before invoicing it');
     if (ms.invoiceStatus) throw new ConflictException(`Already invoiced on ${ms.invoiceNumber ?? 'a draft invoice'}`);
     const description = `${ms.name} (project ${d.number}: ${d.title}${d.customerRef ? `, your ref ${d.customerRef}` : ''}; accepted ${ms.acceptanceRef})`;
-    const inv = await this.selling.createDraftInvoice(
-      ctx,
-      entityId,
-      {
-        customerId: d.customerId,
-        invoiceDate: input.invoiceDate ?? businessDate(),
-        gstRegistrationId: input.gstRegistrationId ?? null,
-        customerPoNo: d.customerRef ?? null,
-        remarks: `Project ${d.number} · milestone ${ms.name}${Number(d.retentionPct) > 0 ? ` · retention ${Dec.of(d.retentionPct).toFixed(2)}% withheld by the customer` : ''}`,
-        lines: [{ itemId: d.serviceItemId, description, qty: '1', rate: ms.amount }],
-      },
-      async (tx, invoiceId) => {
+    return {
+      kind: 'milestone',
+      sourceId: mid,
+      label: `${d.number} · ${ms.name}`,
+      customerId: d.customerId,
+      customerRef: d.customerRef ?? null,
+      remarks: `Project ${d.number} · milestone ${ms.name}${Number(d.retentionPct) > 0 ? ` · retention ${Dec.of(d.retentionPct).toFixed(2)}% withheld by the customer` : ''}`,
+      lines: [{ itemId: d.serviceItemId, description, qty: '1', rate: ms.amount }],
+      amount: Dec.of(ms.amount).toFixed(2),
+      settle: async (tx, invoiceId) => {
         const p = await this.lock(tx, entityId, d.id);
         const [locked] = await tx.select().from(projectMilestone).where(eq(projectMilestone.id, mid)).for('update');
-        if ((p.status !== 'active' && p.status !== 'completed') || !locked!.achievedOn || (await this.invoiceLive(tx, locked!.salesInvoiceId))) throw new ConflictException('The project changed; reload');
+        if ((p.status !== 'active' && p.status !== 'completed') || !locked!.achievedOn || (await this.invoiceLive(tx, locked!.salesInvoiceId))) throw new ConflictException(`Project ${d.number} changed; reload`);
         await tx.update(projectMilestone).set({ salesInvoiceId: invoiceId }).where(eq(projectMilestone.id, mid));
-        if (Number(p.retentionPct) > 0) {
-          const [inv] = await tx.select({ grandTotal: salesInvoice.grandTotal }).from(salesInvoice).where(eq(salesInvoice.id, invoiceId));
-          await tx.insert(projectRetention).values({ tenantId: p.tenantId, projectId: p.id, milestoneId: mid, salesInvoiceId: invoiceId, amount: retentionOf(inv!.grandTotal, p.retentionPct) });
+        if (invoiceId && Number(p.retentionPct) > 0) {
+          await tx.insert(projectRetention).values({ tenantId: p.tenantId, projectId: p.id, milestoneId: mid, salesInvoiceId: invoiceId, amount: await this.retentionFor(tx, invoiceId, d.serviceItemId, ms.amount, p.retentionPct) });
         }
         await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'project.milestone_invoice', targetType: 'project', targetId: p.id, after: { mid, invoiceId, amount: ms.amount } }, tx);
       },
-    );
-    return { invoiceId: inv.id };
+    };
+  }
+
+  /** Achieved milestones of active or completed projects not invoiced yet. */
+  async dueMilestoneIds(entityId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: projectMilestone.id, invoiceStatus: salesInvoice.status })
+      .from(projectMilestone)
+      .innerJoin(project, eq(project.id, projectMilestone.projectId))
+      .leftJoin(salesInvoice, eq(salesInvoice.id, projectMilestone.salesInvoiceId))
+      .where(and(eq(project.entityId, entityId), inArray(project.status, ['active', 'completed']), isNotNull(projectMilestone.achievedOn)))
+      .orderBy(asc(project.number), asc(projectMilestone.seq));
+    return rows.filter((r) => !LIVE(r.invoiceStatus)).map((r) => r.id);
+  }
+
+  /** Retention on a milestone's line of its invoice, GST included (a run's invoice may carry other sources' lines). */
+  private async retentionFor(db: Database | Tx, invoiceId: string, itemId: string, amount: string, retentionPct: string) {
+    const lines = await db.select().from(salesInvoiceLine).where(and(eq(salesInvoiceLine.invoiceId, invoiceId), eq(salesInvoiceLine.itemId, itemId)));
+    const line = lines.find((l) => Dec.of(l.taxableValue ?? '0').eq(amount)) ?? lines[0];
+    const total = line ? Dec.of(line.taxableValue ?? '0').add(line.igst ?? '0').add(line.cgst ?? '0').add(line.sgst ?? '0').add(line.cess ?? '0') : Dec.of(amount);
+    return retentionOf(total.toFixed(2), retentionPct);
   }
 
   /** The customer has paid the retention: record it (the receipt itself is entered in AR). */
@@ -392,7 +432,9 @@ export class ProjectsController {
       const releasedOn = input.releasedOn ?? businessDate();
       if (releasedOn > businessDate()) throw new BadRequestException('The release date can’t be in the future');
       // Frozen at release: a submitted invoice no longer changes.
-      await tx.update(projectRetention).set({ releasedOn, releaseRef: input.releaseRef, releasedBy: ctx.user.id, amount: retentionOf(inv.grandTotal, p.retentionPct) }).where(eq(projectRetention.id, rid));
+      const [ms] = await tx.select({ amount: projectMilestone.amount }).from(projectMilestone).where(eq(projectMilestone.id, locked!.milestoneId));
+      const amount = await this.retentionFor(tx, locked!.salesInvoiceId, p.serviceItemId, ms!.amount, p.retentionPct);
+      await tx.update(projectRetention).set({ releasedOn, releaseRef: input.releaseRef, releasedBy: ctx.user.id, amount }).where(eq(projectRetention.id, rid));
     }, { rid, ...input });
     return { ok: true };
   }

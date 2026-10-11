@@ -2,7 +2,7 @@
 // booking holds a `booking` machine block that production is scheduled around); usage is append-only; a completed
 // booking is billed through a draft sales invoice.
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, index, integer, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, date, index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { user } from './auth.js';
 import { machine } from './manufacturing.js';
 import { item, party } from './masters.js';
@@ -622,4 +622,46 @@ export const subscriptionInvoice = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('subscription_invoice_sub_idx').on(t.subscriptionId), index('subscription_invoice_si_idx').on(t.salesInvoiceId)],
+);
+
+// Phase 3f (decision 060): a billing run raises one draft invoice per customer and reference across the service sources.
+
+export const billingRun = pgTable(
+  'billing_run',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ...scope,
+    number: text('number').notNull(),
+    /** The invoices' date. */
+    asOf: date('as_of').notNull(),
+    kinds: jsonb('kinds').$type<string[]>().notNull(),
+    /** Groups that failed: customer, reference and why. */
+    failures: jsonb('failures').$type<{ customerId: string; customerName: string; customerRef: string | null; items: string[]; message: string }[]>().notNull().default([]),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('billing_run_number_uq').on(t.entityId, t.number)],
+);
+
+export const billingRunInvoice = pgTable(
+  'billing_run_invoice',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => billingRun.id, { onDelete: 'cascade' }),
+    /** Null for a group settled without an invoice (bookings fully covered by membership hours). */
+    salesInvoiceId: uuid('sales_invoice_id').references(() => salesInvoice.id, { onDelete: 'set null' }),
+    customerId: uuid('customer_id')
+      .notNull()
+      .references(() => party.id),
+    customerRef: text('customer_ref'),
+    items: jsonb('items').$type<{ kind: string; sourceId: string; label: string; amount: string }[]>().notNull(),
+    amount: money('amount').notNull(),
+    /** Why Submit all left this invoice a draft. */
+    submitError: text('submit_error'),
+  },
+  (t) => [index('billing_run_invoice_run_idx').on(t.runId)],
 );

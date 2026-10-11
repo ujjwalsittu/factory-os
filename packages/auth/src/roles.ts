@@ -44,7 +44,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
         (inModule('accounts', 'selling', 'buying')(p) && /\.(create|submit|export)$/.test(p) && !/^buying\.(return_resolution|return_movement)\./.test(p) && p !== 'buying.supplier_note.submit') ||
         p === 'accounts.bank_reconciliation.cancel' || p === 'accounts.withholding.cancel' || p === 'accounts.bank_charge.cancel' ||
         p === 'selling.sales_note.update' || p === 'buying.supplier_note.update' || p === 'buying.return_claim.update' ||
-        p === 'compliance.gst_return.create' ||
+        p === 'compliance.gst_return.create' || p === 'services.billing_run.read' ||
         p === 'compliance.gst_return.export' ||
         p === 'compliance.einvoice.create' || ['compliance.sandbox_operation.read','compliance.sandbox_operation.export','compliance.sandbox_connection.read','compliance.sandbox_irn.create','compliance.sandbox_irn.submit','compliance.sandbox_irn.update','compliance.sandbox_ewb.create','compliance.sandbox_ewb.submit','compliance.sandbox_ewb.update'].includes(p),
     ),

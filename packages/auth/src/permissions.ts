@@ -86,6 +86,7 @@ export const RESOURCES = [
   { module: 'services', resource: 'project', label: 'Projects: milestones, retention, budget and linked cost; approve covers activate, complete, close and retention release (decision 058)', actions: ['read', 'create', 'update', 'approve'] },
   { module: 'services', resource: 'timesheet', label: 'Timesheets: own hours on projects; approve covers others\' hours (decision 058)', actions: ['read', 'create', 'approve'] },
   { module: 'services', resource: 'subscription', label: 'EarthNow subscriptions: plans, deliveries, plan changes and cancellation (decision 059)', actions: ['read', 'create', 'update'] },
+  { module: 'services', resource: 'billing_run', label: 'Billing runs: one draft invoice per customer across services, then submit all (decision 060)', actions: ['read', 'create'] },
   { module: 'services', resource: 'cost_rate', label: 'Hourly cost rates of members (salary-sensitive, decision 058)', actions: ['read', 'update'] },
   { module: 'quality', resource: 'inspection', label: 'Inspections', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'quality', resource: 'plan', label: 'Inspection plans', actions: ['read', 'create', 'update', 'submit'] },
