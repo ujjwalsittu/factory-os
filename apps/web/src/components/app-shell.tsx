@@ -8,6 +8,8 @@ import {
   Package,
   Ruler,
   Tags,
+  CalendarCheck2,
+  IndianRupee,
   Warehouse,
   Building2,
   CalendarClock,
@@ -39,7 +41,6 @@ import {
   ShoppingCart,
   Truck,
   Users,
-  Wrench,
   X,
   ReceiptText,
   ScanSearch,
@@ -80,7 +81,13 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
       { href: '/app/manufacturing/boms', label: 'Bills of materials', icon: ListTree, permission: 'manufacturing.bom.read', entityScoped: true },
       { href: '/app/manufacturing/work-centres', label: 'Work centres', icon: Cog, permission: 'manufacturing.work_centre.read', entityScoped: true },
       { href: '/app/manufacturing/calendars', label: 'Calendars', icon: CalendarClock, permission: 'manufacturing.calendar.read', entityScoped: true },
-      { href: '/app/services', label: 'Services', icon: Wrench, phase: 3 },
+    ],
+  },
+  {
+    section: 'Services',
+    items: [
+      { href: '/app/services/bookings', label: 'Machine bookings', icon: CalendarCheck2, permission: 'services.booking.read', entityScoped: true },
+      { href: '/app/services/rate-cards', label: 'Rate cards', icon: IndianRupee, permission: 'services.rate_card.read', entityScoped: true },
     ],
   },
   {

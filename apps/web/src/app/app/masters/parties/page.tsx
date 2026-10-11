@@ -118,6 +118,7 @@ function PartyDialog({ party, onClose }: { party: Party | null; onClose: () => v
     email: party?.email ?? '',
     phone: party?.phone ?? '',
     isActive: party?.isActive ?? true,
+    maasMember: party?.maasMember ?? false,
   });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   const canEdit = party ? ws.can('masters.party.update') : ws.can('masters.party.create');
@@ -140,6 +141,7 @@ function PartyDialog({ party, onClose }: { party: Party | null; onClose: () => v
         email: f.email || null,
         phone: f.phone || null,
         isActive: f.isActive,
+        maasMember: f.isCustomer && f.maasMember,
       };
       return party ? api(`/parties/${party.id}`, { method: 'PATCH', body, scope: ws.scope }) : api('/parties', { method: 'POST', body: { ...body, code: f.code }, scope: ws.scope });
     },
@@ -175,6 +177,12 @@ function PartyDialog({ party, onClose }: { party: Party | null; onClose: () => v
           {e.isCustomer && <span className="text-danger">{e.isCustomer}</span>}
           {e.isJobWorker && <span className="text-danger">{e.isJobWorker}</span>}
         </div>
+        {f.isCustomer && (
+          <label className="flex items-center gap-2 text-[13px]">
+            <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={f.maasMember} onChange={(ev) => setF({ ...f, maasMember: ev.target.checked })} />
+            Studio member (member rates on machine-hour bookings)
+          </label>
+        )}
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="GST treatment" error={e.gstTreatment}>
             {(p) => (

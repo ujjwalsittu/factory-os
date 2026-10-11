@@ -29,7 +29,8 @@
     "e2e:support-access-workspace": "node --env-file-if-exists=../../.env e2e/support-access-workspace.mjs",
     "e2e:receipt-inspection-plans": "node e2e/receipt-inspection-plans.mjs",
     "e2e:batch-page": "node e2e/batch-page.mjs",
-    "e2e:schedule-no-time": "node e2e/schedule-no-time.mjs"
+    "e2e:schedule-no-time": "node e2e/schedule-no-time.mjs",
+    "e2e:maas": "node e2e/maas.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",

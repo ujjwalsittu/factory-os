@@ -241,7 +241,8 @@ function Queues({ view, onSelect }: { view: ScheduleView; onSelect: (b: Bar) => 
     <div className="space-y-3 sm:hidden">
       {lanes.map((lane) => {
         const bars = view.bars.filter((b) => b.machineId === lane.id);
-        if (!bars.length) return null;
+        const bookings = (view.bookings ?? []).filter((k) => k.machineId === lane.id);
+        if (!bars.length && !bookings.length) return null;
         return (
           <Card key={lane.id ?? 'jw'}>
             <CardHeader title={lane.label} />
@@ -256,6 +257,17 @@ function Queues({ view, onSelect }: { view: ScheduleView; onSelect: (b: Bar) => 
                       {formatDateTime(b.startsAt)} → {formatDateTime(b.endsAt)}
                     </span>
                   </button>
+                </li>
+              ))}
+              {bookings.map((k) => (
+                <li key={k.id} className="px-4 py-2 text-[13px]">
+                  <Link href={`/app/services/bookings/${k.id}`} className="font-mono font-medium hover:text-accent">
+                    {k.number}
+                  </Link>{' '}
+                  · {k.customerName} <Badge tone="info">{k.status === 'tentative' ? 'Tentative booking' : 'Reserved'}</Badge>
+                  <span className="block text-muted">
+                    {formatDateTime(k.startsAt)} → {formatDateTime(k.endsAt)}
+                  </span>
                 </li>
               ))}
             </ul>

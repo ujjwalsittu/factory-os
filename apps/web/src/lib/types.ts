@@ -187,6 +187,8 @@ export interface Party {
   email: string | null;
   phone: string | null;
   isActive: boolean;
+  /** Decision 055: member rates on machine-hour bookings. */
+  maasMember: boolean;
 }
 
 export interface Warehouse {

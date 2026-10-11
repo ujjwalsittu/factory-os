@@ -78,6 +78,8 @@ export interface ScheduleView {
   unscheduled: { operationId: string; reason: string; seq?: number; name?: string; workOrderId?: string; number?: string }[];
   conflicts: { operationId: string; reason: string; seq?: number; name?: string; workOrderId?: string; number?: string }[];
   noTime: NoTimeOperation[];
+  /** Decision 055: machine bookings in range; confirmed ones also appear in `blocks` as kind `booking`. */
+  bookings: { id: string; number: string; status: 'tentative' | 'confirmed' | 'in_use' | 'completed'; machineId: string; startsAt: string; endsAt: string; machineBlockId: string | null; customerName: string }[];
   late: { id: string; number: string; itemCode: string; scheduledFinish: string; dueAt: string; priority: number }[];
 }
 
