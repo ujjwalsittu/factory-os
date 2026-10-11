@@ -129,7 +129,15 @@ function Balance() {
                         </Badge>
                       )}
                     </Td>
-                    <Td className="font-mono text-[12px] whitespace-nowrap">{r.batchNo ? `${r.batchNo}${r.heatNo && r.heatNo !== r.batchNo ? ` · ${r.heatNo}` : ''}` : '—'}</Td>
+                    <Td className="font-mono text-[12px] whitespace-nowrap">
+                      {r.batchNo && r.batchId ? (
+                        <Link href={`/app/inventory/batches/${r.batchId}`} className="hover:text-accent">
+                          {`${r.batchNo}${r.heatNo && r.heatNo !== r.batchNo ? ` · ${r.heatNo}` : ''}`}
+                        </Link>
+                      ) : (
+                        '—'
+                      )}
+                    </Td>
                     <Td className="text-[12px]">
                       {r.expiryDate ? <span className={r.expiryDate < now ? 'font-medium text-danger' : ''}>{formatDate(r.expiryDate)}</span> : '—'}
                     </Td>

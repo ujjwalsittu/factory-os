@@ -2,12 +2,14 @@
 import { Alert, Badge, Button, buttonClass, Card, CardHeader, EmptyState, Input, PageHeader, Table, Td, Th } from '@factoryos/ui';
 import { useQuery } from '@tanstack/react-query';
 import { GitBranch } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDate, formatQty } from '@/lib/format';
+import { downloadCertificatePack } from '@/lib/quality';
 
 interface Hit {
   batchId: string;
@@ -120,13 +122,18 @@ function TreeView({ batchId, direction, onDirection, onOpen }: { batchId: string
                   </Button>
                 ))}
               </div>
+              {ws.can('inventory.batch.read') && (
+                <Link href={`/app/inventory/batches/${batchId}`} className={buttonClass('ghost', 'sm')}>
+                  Batch page
+                </Link>
+              )}
               {ws.can('quality.attachment.read') && t && (
                 <Button
                   size="sm"
                   variant="secondary"
                   onClick={() => {
                     setExportError(null);
-                    downloadPack(batchId, t.root.batchNo, ws.scope).catch((err: unknown) => setExportError(err instanceof Error ? err.message : 'Download failed'));
+                    downloadCertificatePack(batchId, t.root.batchNo, ws.scope).catch((err: unknown) => setExportError(err instanceof Error ? err.message : 'Download failed'));
                   }}
                 >
                   Certificate pack
@@ -207,18 +214,6 @@ async function download(batchId: string, scope: { tenantId?: string | null; enti
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `recall-${batchId.slice(0, 8)}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-/** Zip of every certificate, report and FAI along the lot's genealogy, with a manifest (decision 048). */
-async function downloadPack(batchId: string, batchNo: string, scope: { tenantId?: string | null; entityId?: string | null }) {
-  const res = await fetch(`/api/quality/certificate-pack/${batchId}?format=zip`, { headers: { ...(scope.tenantId ? { 'x-tenant-id': scope.tenantId } : {}), ...(scope.entityId ? { 'x-entity-id': scope.entityId } : {}) }, credentials: 'include' });
-  if (!res.ok) throw new Error(`Download failed (${res.status})`);
-  const blob = await res.blob();
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `certificates-${batchNo.replace(/[^\w.-]+/g, '_')}.zip`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
