@@ -178,6 +178,8 @@ export class TimesheetsController {
       const e = await this.lock(tx, entityId, id);
       if (e.userId === ctx.user.id) throw new ForbiddenException('Someone else approves your hours');
       if (e.status !== 'submitted') throw new ConflictException(e.status === 'approved' ? 'Already approved' : 'Only submitted hours are approved');
+      const [p] = await tx.select({ status: project.status, number: project.number }).from(project).where(eq(project.id, e.projectId));
+      if (p?.status === 'closed') throw new ConflictException(`Project ${p.number} is closed; its cost is final`);
       const rate = await this.rateOn(tx, entityId, e.userId, e.workDate);
       const cost = Dec.of(e.hours).mul(rate).toFixed(2);
       await tx.update(timesheetEntry).set({ status: 'approved', approvedBy: ctx.user.id, approvedAt: new Date(), costRate: rate, costAmount: cost, updatedAt: new Date() }).where(eq(timesheetEntry.id, id));

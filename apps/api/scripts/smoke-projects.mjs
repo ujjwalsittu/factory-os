@@ -189,6 +189,11 @@ assert.deepEqual([d.retentionHeld, d.revenue], ['59000.00', '1000000.00']);
 await fail('POST', `/services/retention/${d.retention[0].id}/release`, { releaseRef: 'RCPT-1', releasedOn: tomorrow }, 400, 'no release in the future', /future/);
 await fail('POST', `/services/retention/${d.retention[0].id}/release`, { releaseRef: 'RCPT-1' }, 403, 'releasing retention needs project approval', undefined, analyst);
 for (const r of d.retention) await c.req('POST', `/services/retention/${r.id}/release`, { releaseRef: `RCPT-${r.amount}` }, 201);
+await fail('POST', `/services/projects/${p.id}/close`, {}, 409, 'hours awaiting approval keep a project open', /waits for approval/);
+await fail('POST', `/services/timesheets/${own.id}/reject`, { reason: 'Not billable to the customer' }, 403, 'nobody sends back their own hours either', /Someone else/);
+// The analyst becomes an approver and sends the lead's hours back as not billable.
+await c.req('PATCH', `/roles/${role.id}`, { permissions: ['services.project.read', 'services.timesheet.read', 'services.timesheet.create', 'services.timesheet.approve'] });
+await analyst.req('POST', `/services/timesheets/${own.id}/reject`, { reason: 'Not billable to the customer' }, 201);
 await fail('POST', `/services/retention/${d.retention[0].id}/release`, { releaseRef: 'again' }, 409, 'retention is released once', /Already released/);
 await c.req('POST', `/services/projects/${p.id}/close`, {}, 201);
 d = await c.req('GET', `/services/projects/${p.id}`);

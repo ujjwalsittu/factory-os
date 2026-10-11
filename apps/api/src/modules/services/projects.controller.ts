@@ -441,6 +441,8 @@ export class ProjectsController {
         .innerJoin(salesInvoice, eq(salesInvoice.id, projectRetention.salesInvoiceId))
         .where(and(eq(projectRetention.projectId, id), isNull(projectRetention.releasedOn), inArray(salesInvoice.status, ['draft', 'submitted'])));
       if (h?.n) throw new ConflictException(`Retention on ${h.n} invoice${h.n === 1 ? ' is' : 's is'} still held; record its release first`);
+      const [t] = await tx.select({ n: sql<number>`count(*)::int` }).from(timesheetEntry).where(and(eq(timesheetEntry.projectId, id), eq(timesheetEntry.status, 'submitted')));
+      if (t?.n) throw new ConflictException(`${t.n} timesheet entr${t.n === 1 ? 'y waits' : 'ies wait'} for approval; approve or send them back first`);
       await tx.update(project).set({ status: 'closed', closedAt: new Date(), updatedAt: new Date() }).where(eq(project.id, id));
     });
     return { ok: true };
@@ -468,6 +470,57 @@ export class ProjectsController {
     const input = parse(linkInput, body);
     await this.setLink(ctx, id, input.kind, input.id, true);
     return { ok: true };
+  }
+
+  /** Documents that could be linked: same customer for bookings and campaigns, unlinked and not billed on their own. */
+  @Get('projects/:id/link-candidates')
+  @RequirePermission('services.project.read')
+  async candidates(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Query() query: unknown) {
+    const entityId = entityOf(ctx);
+    const { kind } = parse(z.object({ kind: z.enum(LINK_KINDS) }), query);
+    const [p] = await this.db.select().from(project).where(and(eq(project.id, id), eq(project.entityId, entityId)));
+    if (!p) throw new NotFoundException('Project not found');
+    if (kind === 'booking') {
+      const rows = await this.db
+        .select({ id: maasBooking.id, number: maasBooking.number, status: maasBooking.status, machineCode: machine.code, startsAt: maasBooking.startsAt })
+        .from(maasBooking)
+        .innerJoin(machine, eq(machine.id, maasBooking.machineId))
+        .leftJoin(salesInvoice, eq(salesInvoice.id, maasBooking.salesInvoiceId))
+        .where(and(eq(maasBooking.entityId, entityId), eq(maasBooking.customerId, p.customerId), isNull(maasBooking.projectId), isNull(maasBooking.campaignId), isNull(maasBooking.billedAt), ne(maasBooking.status, 'cancelled'), or(isNull(salesInvoice.id), eq(salesInvoice.status, 'cancelled'))))
+        .orderBy(desc(maasBooking.startsAt))
+        .limit(200);
+      return rows.map((r) => ({ id: r.id, label: `${r.number} · ${r.machineCode} · ${r.status.replace('_', ' ')}` }));
+    }
+    if (kind === 'campaign') {
+      const rows = await this.db
+        .select({ id: testCampaign.id, number: testCampaign.number, title: testCampaign.title, status: testCampaign.status })
+        .from(testCampaign)
+        .leftJoin(salesInvoice, eq(salesInvoice.id, testCampaign.salesInvoiceId))
+        .where(and(eq(testCampaign.entityId, entityId), eq(testCampaign.customerId, p.customerId), isNull(testCampaign.projectId), inArray(testCampaign.status, [...OPEN_CAMPAIGN]), or(isNull(salesInvoice.id), eq(salesInvoice.status, 'cancelled'))))
+        .orderBy(desc(testCampaign.createdAt))
+        .limit(200);
+      return rows.map((r) => ({ id: r.id, label: `${r.number} · ${r.title}` }));
+    }
+    if (kind === 'work_order') {
+      const rows = await this.db
+        .select({ id: workOrder.id, number: workOrder.number, status: workOrder.status, itemCode: item.code, plannedQty: workOrder.plannedQty })
+        .from(workOrder)
+        .innerJoin(item, eq(item.id, workOrder.itemId))
+        .where(and(eq(workOrder.entityId, entityId), isNull(workOrder.projectId), inArray(workOrder.status, ['draft', 'released'])))
+        .orderBy(desc(workOrder.createdAt))
+        .limit(200);
+      return rows.map((r) => ({ id: r.id, label: `${r.number ?? 'Draft'} · ${r.itemCode} × ${Dec.of(r.plannedQty).toString().replace(/\.?0+$/, '')} · ${r.status}` }));
+    }
+    const rows = await this.db
+      .select({ id: purchaseInvoiceLine.id, lineNo: purchaseInvoiceLine.lineNo, number: purchaseInvoice.number, supplierInvoiceNo: purchaseInvoice.supplierInvoiceNo, supplierName: party.name, itemCode: item.code, taxableValue: purchaseInvoiceLine.taxableValue, currency: purchaseInvoice.currency })
+      .from(purchaseInvoiceLine)
+      .innerJoin(purchaseInvoice, eq(purchaseInvoice.id, purchaseInvoiceLine.invoiceId))
+      .innerJoin(party, eq(party.id, purchaseInvoice.supplierId))
+      .innerJoin(item, eq(item.id, purchaseInvoiceLine.itemId))
+      .where(and(eq(purchaseInvoice.entityId, entityId), isNull(purchaseInvoiceLine.projectId), ne(purchaseInvoice.status, 'cancelled')))
+      .orderBy(desc(purchaseInvoice.postingDate))
+      .limit(200);
+    return rows.map((r) => ({ id: r.id, label: `${r.number ?? 'Draft'} (${r.supplierName} ${r.supplierInvoiceNo}) · line ${r.lineNo} ${r.itemCode} · ${r.currency} ${Dec.of(r.taxableValue ?? '0').toFixed(2)}` }));
   }
 
   @Delete('projects/:id/links/:kind/:linkId')

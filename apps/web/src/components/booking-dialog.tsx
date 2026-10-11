@@ -10,7 +10,7 @@ import { type Booking, fromLocal, toLocal } from '@/lib/services';
 import type { Party } from '@/lib/types';
 
 /** New booking, or move/resize/change a tentative or confirmed one (decision 055). Times are IST. */
-export function BookingDialog({ booking, onClose, onSaved, campaign }: { booking: Booking | null; onClose: () => void; onSaved?: (id: string) => void; campaign?: { id: string; number: string; customerId: string } }) {
+export function BookingDialog({ booking, onClose, onSaved, campaign, project }: { booking: Booking | null; onClose: () => void; onSaved?: (id: string) => void; campaign?: { id: string; number: string; customerId: string }; project?: { id: string; number: string; customerId: string } }) {
   const ws = useWorkspace();
   const qc = useQueryClient();
   const centres = useQuery({ queryKey: ['work-centres', ws.entityId], queryFn: () => api<WorkCentre[]>('/manufacturing/work-centres', { scope: ws.scope }) });
@@ -18,7 +18,7 @@ export function BookingDialog({ booking, onClose, onSaved, campaign }: { booking
   const hour = new Date();
   hour.setMinutes(0, 0, 0);
   const [f, setF] = useState({
-    customerId: booking?.customerId ?? campaign?.customerId ?? '',
+    customerId: booking?.customerId ?? campaign?.customerId ?? project?.customerId ?? '',
     machineId: booking?.machineId ?? '',
     startsAt: toLocal(booking?.startsAt ?? new Date(hour.getTime() + 24 * 3600e3).toISOString()),
     endsAt: toLocal(booking?.endsAt ?? new Date(hour.getTime() + 30 * 3600e3).toISOString()),
@@ -29,13 +29,14 @@ export function BookingDialog({ booking, onClose, onSaved, campaign }: { booking
       api<{ id?: string }>(booking ? `/services/bookings/${booking.id}` : '/services/bookings', {
         method: booking ? 'PUT' : 'POST',
         scope: ws.scope,
-        body: { ...f, startsAt: fromLocal(f.startsAt), endsAt: fromLocal(f.endsAt), purpose: f.purpose || null, ...(campaign && !booking ? { campaignId: campaign.id } : {}) },
+        body: { ...f, startsAt: fromLocal(f.startsAt), endsAt: fromLocal(f.endsAt), purpose: f.purpose || null, ...(campaign && !booking ? { campaignId: campaign.id } : {}), ...(project && !booking ? { projectId: project.id } : {}) },
       }),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ['bookings'] });
       void qc.invalidateQueries({ queryKey: ['booking'] });
       void qc.invalidateQueries({ queryKey: ['schedule'] });
       void qc.invalidateQueries({ queryKey: ['campaign'] });
+      void qc.invalidateQueries({ queryKey: ['project'] });
       onClose();
       if (!booking && r.id) onSaved?.(r.id);
     },
@@ -44,7 +45,7 @@ export function BookingDialog({ booking, onClose, onSaved, campaign }: { booking
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   return (
     <FormDialog
-      title={booking ? `Change ${booking.number}` : campaign ? `Book for ${campaign.number}` : 'New booking'}
+      title={booking ? `Change ${booking.number}` : campaign ? `Book for ${campaign.number}` : project ? `Book for ${project.number}` : 'New booking'}
       description={booking?.status === 'confirmed' ? 'The machine stays reserved; the new time is checked against other reservations and pinned or running production.' : 'Times are in IST. A new booking is tentative until confirmed.'}
       onClose={onClose}
       onSubmit={() => m.mutate()}
@@ -55,7 +56,7 @@ export function BookingDialog({ booking, onClose, onSaved, campaign }: { booking
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Customer" error={err.customerId}>
           {(p) => (
-            <Select {...p} value={f.customerId} onChange={set('customerId')} required autoFocus disabled={!!campaign}>
+            <Select {...p} value={f.customerId} onChange={set('customerId')} required autoFocus disabled={!!campaign || !!project}>
               <option value="">Choose…</option>
               {parties.data?.filter((c) => c.isCustomer && c.isActive).map((c) => (
                 <option key={c.id} value={c.id}>

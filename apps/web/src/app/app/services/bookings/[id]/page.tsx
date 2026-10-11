@@ -155,6 +155,26 @@ export default function BookingPage() {
             <Card>
               <CardHeader title="Billing" description="Usage rounded up to the rate card’s step, never below its minimum." />
               <div className="px-4 pt-3 pb-4 text-[13px]">
+                {(b.campaignId || b.projectId) && (
+                  <Alert tone="info" className="mb-3">
+                    {b.campaignId ? (
+                      <>
+                        Billed with test campaign{' '}
+                        <Link href={`/app/services/campaigns/${b.campaignId}`} className="font-mono hover:text-accent">
+                          {b.campaignNumber}
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        Billed through project{' '}
+                        <Link href={`/app/services/projects/${b.projectId}`} className="font-mono hover:text-accent">
+                          {b.projectNumber}
+                        </Link>
+                      </>
+                    )}
+                    , not by the hour. The value below is what the machine time is worth.
+                  </Alert>
+                )}
                 {!b.rateCard ? (
                   <Alert tone="warning">No rate card for {b.machineCode} on {formatDate(b.startsAt)}. Add one under Services → Rate cards.</Alert>
                 ) : (
