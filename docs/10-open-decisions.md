@@ -12,7 +12,6 @@ in `ai/MEMORY.md`).
 | B9 | Payroll/HR in scope, or import cost from an external payroll? | Module scope |
 | B10 | AM build cost apportionment: by volume, weight or build height? | Costing (Phase 6) |
 | B11 | Ground-station billing unit: per pass, per minute, or monthly? | Services (Phase 3) |
-| B12 | EarthNow pricing units: per hectare, per AOI, per report, per alert? | Subscriptions (Phase 3) |
 | B14 | MPCB hazardous-waste authorisation held? Which waste categories? | EHS (Phase 5) |
 | B15 | Rough user counts: desk, shop floor, customer portal | Sizing |
 | B16 | SSO: Google Workspace or Microsoft 365? | Auth (late Phase 0) |
