@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-11 (Asia/Kolkata) · Phase 3b studio memberships built (PR open)_
+_Last updated: 2026-10-11 (Asia/Kolkata) · Phase 3c test campaigns claimed by this session_
 
 ## Done
 - [x] **Phase 3b: studio memberships** (decision 056, migration 0037_maas_memberships). Services → Memberships: plans (a pool of whole machine-hours for a 1–60 month term, fee as a service item) and memberships (fee raised as a draft invoice upfront, no overlapping terms per customer, cancel only with no hours drawn). Billing a completed booking draws hours from the active membership first and invoices only the excess at the member rate, in one transaction; reversal returns hours with append-only negative draws. Members get member rates; unused hours expire with the term. Verified: core 8 tests, new smoke 76 checks and browser walkthrough (desktop/390 px), MaaS 93, scheduling 58 and selling smokes, MaaS/selling/scheduling browsers, typecheck 19, build 12, tests 11. [Review](../superpowers/reviews/2026-10-11-maas-memberships-review.md).
@@ -127,6 +127,7 @@ _Last updated: 2026-10-11 (Asia/Kolkata) · Phase 3b studio memberships built (P
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
+- **Phase 3c: test campaigns (decision 057)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-11 10:22 UTC. [Design](../superpowers/specs/2026-10-11-test-campaigns-design.md); five tasks.
 
 
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
@@ -138,7 +139,7 @@ _Last updated: 2026-10-11 (Asia/Kolkata) · Phase 3b studio memberships built (P
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
 3. User review of completed accounting/settlement/customer/supplier and manufacturing workflows on dev. Original shared activation states are preserved; cut-over remains a deliberate Finance action.
 
-4. After Phase 3b (decision 056), further Phase 3 slices need designs and user choices: test campaigns with customer custody, EarthNow subscriptions (open decision B12), projects, billing runs, IoT metering. Deferred quality follow-ups (decision 048): CAPA and skill matrix.
+4. After Phase 3c (decision 057), further Phase 3 slices need designs and user choices: EarthNow subscriptions (open decision B12), projects, billing runs, IoT metering. Deferred quality follow-ups (decision 048): CAPA and skill matrix.
 
 ## Blockers
 - Automatic TDS/TCS profile/source work: current official Act393/394/395/397/402 text retrieved and pinned, including scrap2% effective2026-04-01, but complete GST-base, PAN-operativity relief and lower/nil certificate applicability guidance is still missing. Original/lower-case legacy circular PDF paths returned404; generic document search did not produce verified guidance. [Evidence/requirements](../compliance/withholding-profile-evidence.md). Need reachable official primary URLs or authorized exported guidance plus applicability confirmation; optional source-URL question already asked. No numerical defaults enabled. Continue independent bank-reconciliation work while this gate remains closed.
