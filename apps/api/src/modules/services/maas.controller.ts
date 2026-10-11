@@ -14,6 +14,7 @@ import { SellingController } from '../selling.controller.js';
 import { StockPostingService } from '../stock-posting.service.js';
 import { CampaignsController } from './campaigns.controller.js';
 import { ProjectsController } from './projects.controller.js';
+import type { Billable, BillableLine } from './billables.js';
 import { bookingDrawn, membershipDrawn, membershipOn } from './memberships.js';
 
 const money = z
@@ -371,6 +372,25 @@ export class MaasController {
   async bill(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
     const entityId = entityOf(ctx);
     const input = parse(invoiceInput, body);
+    const b = await this.bookingBillable(ctx, id);
+    const { charge: c, coveredMinutes, overageMinutes, hours } = b.detail;
+    if (!b.lines.length) {
+      await this.db.transaction((tx) => b.settle(tx, null));
+      return { invoiceId: null, coveredMinutes, overageMinutes, ...c };
+    }
+    if (!ctx.tenant.permissions.has('selling.sales_invoice.create')) throw new ForbiddenException('Missing permission: selling.sales_invoice.create');
+    const inv = await this.selling.createDraftInvoice(
+      ctx,
+      entityId,
+      { customerId: b.customerId, invoiceDate: input.invoiceDate ?? businessDate(), gstRegistrationId: input.gstRegistrationId ?? null, remarks: input.remarks ?? b.remarks, lines: b.lines },
+      b.settle,
+    );
+    return { invoiceId: inv.id, coveredMinutes, overageMinutes, ...c, hours, amount: b.amount };
+  }
+
+  /** What billing a completed booking would carry (decision 060): membership hours first, the excess as one line. */
+  async bookingBillable(ctx: TenantRequestContext, id: string): Promise<Billable & { detail: { charge: NonNullable<Awaited<ReturnType<MaasController['booking']>>['charge']>; coveredMinutes: number; overageMinutes: number; hours: string } }> {
+    const entityId = entityOf(ctx);
     const d = await this.booking(ctx, id);
     if (d.campaignId) throw new ConflictException(`Billed with test campaign ${d.campaignNumber ?? ''}`.trim());
     if (d.projectId) throw new ConflictException(`Billed through project ${d.projectNumber ?? ''}`.trim());
@@ -382,41 +402,50 @@ export class MaasController {
     const membershipId = d.membership?.id ?? null;
     const settle = async (tx: Tx, invoiceId: string | null) => {
       const b = await this.lock(tx, entityId, id);
-      if (b.status !== 'completed' || b.projectId || b.campaignId || (await this.invoiceHoldsIn(tx, b.salesInvoiceId)) || (await bookingDrawn(tx, id)) > 0) throw new ConflictException('The booking changed; reload');
+      if (b.status !== 'completed' || b.projectId || b.campaignId || (await this.invoiceHoldsIn(tx, b.salesInvoiceId)) || (await bookingDrawn(tx, id)) > 0) throw new ConflictException(`Booking ${d.number} changed; reload`);
       const [t] = await tx.select({ total: sum(maasUsage.minutes) }).from(maasUsage).where(eq(maasUsage.bookingId, id));
-      if (Number(t?.total ?? 0) !== c.actualMinutes) throw new ConflictException('Usage changed while billing; reload');
+      if (Number(t?.total ?? 0) !== c.actualMinutes) throw new ConflictException(`Usage of booking ${d.number} changed while billing; reload`);
       if (coveredMinutes > 0 && membershipId) {
         const [m] = await tx.select().from(maasMembership).where(eq(maasMembership.id, membershipId)).for('update');
-        if (!m || m.status !== 'active' || m.includedMinutes - (await membershipDrawn(tx, membershipId)) < coveredMinutes) throw new ConflictException('The membership changed; reload');
+        if (!m || m.status !== 'active' || m.includedMinutes - (await membershipDrawn(tx, membershipId)) < coveredMinutes) throw new ConflictException(`Membership ${d.membership!.number} changed; reload`);
         await tx.insert(maasMembershipDraw).values({ tenantId: b.tenantId, membershipId, bookingId: id, minutes: coveredMinutes, createdBy: ctx.user.id });
       }
       // No updatedAt bump: billing doesn't change reserved time, so the schedule stays current.
       await tx.update(maasBooking).set({ billedAt: new Date(), ...(invoiceId ? { salesInvoiceId: invoiceId } : {}) }).where(eq(maasBooking.id, id));
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.bill', targetType: 'maas_booking', targetId: id, after: { invoiceId, membershipId, coveredMinutes, overageMinutes, ...c } }, tx);
     };
-    if (overageMinutes === 0) {
-      await this.db.transaction((tx) => settle(tx, null));
-      return { invoiceId: null, coveredMinutes, overageMinutes, ...c };
-    }
-    if (!ctx.tenant.permissions.has('selling.sales_invoice.create')) throw new ForbiddenException('Missing permission: selling.sales_invoice.create');
-    const [card] = await this.db.select({ serviceItemId: maasRateCard.serviceItemId }).from(maasRateCard).where(eq(maasRateCard.id, d.rateCard.id));
     const hours = maasHours(overageMinutes);
-    const description = coveredMinutes
-      ? `Machine time on ${d.machineCode} (${d.machineName}), booking ${d.number}: ${c.actualMinutes} min used, ${c.billableMinutes} min billed, ${coveredMinutes} min from membership ${d.membership!.number}, ${overageMinutes} min beyond it at member rate`
-      : `Machine time on ${d.machineCode} (${d.machineName}), booking ${d.number}: ${c.actualMinutes} min used, ${c.billableMinutes} min billed${c.memberRate ? ' at member rate' : ''}`;
-    const inv = await this.selling.createDraftInvoice(
-      ctx,
-      entityId,
-      {
-        customerId: d.customerId,
-        invoiceDate: input.invoiceDate ?? businessDate(),
-        gstRegistrationId: input.gstRegistrationId ?? null,
-        remarks: input.remarks ?? `Machine booking ${d.number}`,
-        lines: [{ itemId: card!.serviceItemId, description, qty: hours, rate: c.rate }],
-      },
+    const lines: BillableLine[] = [];
+    if (overageMinutes > 0) {
+      const [card] = await this.db.select({ serviceItemId: maasRateCard.serviceItemId }).from(maasRateCard).where(eq(maasRateCard.id, d.rateCard.id));
+      const description = coveredMinutes
+        ? `Machine time on ${d.machineCode} (${d.machineName}), booking ${d.number}: ${c.actualMinutes} min used, ${c.billableMinutes} min billed, ${coveredMinutes} min from membership ${d.membership!.number}, ${overageMinutes} min beyond it at member rate`
+        : `Machine time on ${d.machineCode} (${d.machineName}), booking ${d.number}: ${c.actualMinutes} min used, ${c.billableMinutes} min billed${c.memberRate ? ' at member rate' : ''}`;
+      lines.push({ itemId: card!.serviceItemId, description, qty: hours, rate: c.rate });
+    }
+    return {
+      kind: 'booking',
+      sourceId: id,
+      label: d.number,
+      customerId: d.customerId,
+      customerRef: null,
+      remarks: `Machine booking ${d.number}`,
+      lines,
+      amount: overageMinutes > 0 ? Dec.of(hours).mul(c.rate).toFixed(2) : '0.00',
       settle,
-    );
-    return { invoiceId: inv.id, coveredMinutes, overageMinutes, ...c, hours, amount: Dec.of(hours).mul(c.rate).toFixed(2) };
+      detail: { charge: c, coveredMinutes, overageMinutes, hours },
+    };
+  }
+
+  /** Completed bookings not yet billed and billed on their own (not through a campaign or project). */
+  async dueBookingIds(entityId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: maasBooking.id, invoiceStatus: salesInvoice.status })
+      .from(maasBooking)
+      .leftJoin(salesInvoice, eq(salesInvoice.id, maasBooking.salesInvoiceId))
+      .where(and(eq(maasBooking.entityId, entityId), eq(maasBooking.status, 'completed'), isNull(maasBooking.campaignId), isNull(maasBooking.projectId), isNull(maasBooking.billedAt)))
+      .orderBy(asc(maasBooking.number));
+    return rows.filter((r) => !this.invoiceHolds(r.invoiceStatus)).map((r) => r.id);
   }
 
   /** Decision 055 name for billing, kept for callers that invoice a booking. */
