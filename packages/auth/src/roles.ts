@@ -88,13 +88,13 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'services_coordinator',
     name: 'Services coordinator',
     description: 'Machine-hour rate cards, bookings, usage and their invoices (decision 055).',
-    permissions: all((p) => p.startsWith('services.') || ['masters.party.read', 'masters.item.read', 'selling.sales_invoice.read', 'selling.sales_invoice.create', 'manufacturing.schedule.read', 'manufacturing.work_centre.read'].includes(p)),
+    permissions: all((p) => (p.startsWith('services.') && p !== 'services.campaign.approve') || ['masters.party.read', 'masters.item.read', 'selling.sales_invoice.read', 'selling.sales_invoice.create', 'manufacturing.schedule.read', 'manufacturing.work_centre.read', 'quality.attachment.read', 'quality.attachment.create'].includes(p)),
   },
   {
     key: 'quality',
     name: 'Quality',
     description: 'Inspections, NCR, FAI, calibration and recording scrap/waste.',
-    permissions: all((p) => p.startsWith('quality.') || p.startsWith('manufacturing.genealogy.') || p === 'manufacturing.job_work.read' || p === 'masters.item.read' || p === 'ehs.waste.read' || p === 'ehs.waste.create'),
+    permissions: all((p) => p.startsWith('quality.') || p === 'services.campaign.read' || p === 'services.campaign.approve' || p.startsWith('manufacturing.genealogy.') || p === 'manufacturing.job_work.read' || p === 'masters.item.read' || p === 'ehs.waste.read' || p === 'ehs.waste.create'),
   },
   {
     key: 'auditor',

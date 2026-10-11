@@ -86,6 +86,8 @@ export const maasBooking = pgTable(
     salesInvoiceId: uuid('sales_invoice_id').references(() => salesInvoice.id, { onDelete: 'set null' }),
     /** Decision 056: set once billed (by membership hours, an invoice, or both); cleared by a reversal. */
     billedAt: timestamp('billed_at', { withTimezone: true }),
+    /** Decision 057: a chamber booked for a test campaign is billed with the campaign, never by the hour. */
+    campaignId: uuid('campaign_id'),
     ...stamps,
   },
   (t) => [
@@ -209,4 +211,110 @@ export const maasMembershipDraw = pgTable(
     uniqueIndex('maas_membership_draw_reversal_uq').on(t.reversalOf),
     check('maas_membership_draw_minutes_ck', sql`(${t.reversalOf} is null and ${t.minutes} > 0) or (${t.reversalOf} is not null and ${t.minutes} < 0)`),
   ],
+);
+
+export const testCampaignStatus = pgEnum('test_campaign_status', ['draft', 'active', 'reported', 'closed', 'cancelled']);
+
+/** Decision 057: a test service order quoted as a lump sum, with the customer's payload held in custody. */
+export const testCampaign = pgTable(
+  'test_campaign',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ...scope,
+    number: text('number').notNull(),
+    customerId: uuid('customer_id')
+      .notNull()
+      .references(() => party.id),
+    title: text('title').notNull(),
+    scope: text('scope'),
+    customerRef: text('customer_ref'),
+    /** Service item (SAC) of the quoted line. */
+    serviceItemId: uuid('service_item_id')
+      .notNull()
+      .references(() => item.id),
+    quotedAmount: money('quoted_amount').notNull(),
+    status: testCampaignStatus('status').notNull().default('draft'),
+    cancelReason: text('cancel_reason'),
+    reportSummary: text('report_summary'),
+    reportApprovedBy: text('report_approved_by').references(() => user.id),
+    reportApprovedAt: timestamp('report_approved_at', { withTimezone: true }),
+    salesInvoiceId: uuid('sales_invoice_id').references(() => salesInvoice.id, { onDelete: 'set null' }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    ...stamps,
+  },
+  (t) => [
+    uniqueIndex('test_campaign_number_uq').on(t.entityId, t.number),
+    index('test_campaign_customer_idx').on(t.customerId),
+    check('test_campaign_amount_ck', sql`${t.quotedAmount} >= 0`),
+  ],
+);
+
+export const testStepResult = pgEnum('test_step_result', ['pending', 'pass', 'fail', 'na']);
+
+export const testCampaignStep = pgTable(
+  'test_campaign_step',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    campaignId: uuid('campaign_id')
+      .notNull()
+      .references(() => testCampaign.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    name: text('name').notNull(),
+    requirement: text('requirement'),
+    result: testStepResult('result').notNull().default('pending'),
+    measured: text('measured'),
+    notes: text('notes'),
+    recordedBy: text('recorded_by').references(() => user.id),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }),
+  },
+  (t) => [uniqueIndex('test_campaign_step_seq_uq').on(t.campaignId, t.seq)],
+);
+
+export const testCampaignExtra = pgTable(
+  'test_campaign_extra',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    campaignId: uuid('campaign_id')
+      .notNull()
+      .references(() => testCampaign.id, { onDelete: 'cascade' }),
+    description: text('description').notNull(),
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
+    rate: money('rate').notNull(),
+    serviceItemId: uuid('service_item_id')
+      .notNull()
+      .references(() => item.id),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('test_campaign_extra_ck', sql`${t.qty} > 0 and ${t.rate} >= 0`)],
+);
+
+/** The customer's goods in our custody for a campaign: not stock, never valued. */
+export const custodyItem = pgTable(
+  'custody_item',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    campaignId: uuid('campaign_id')
+      .notNull()
+      .references(() => testCampaign.id),
+    description: text('description').notNull(),
+    serialNo: text('serial_no'),
+    qty: integer('qty').notNull().default(1),
+    inwardChallanNo: text('inward_challan_no').notNull(),
+    receivedCondition: text('received_condition').notNull(),
+    receivedBy: text('received_by')
+      .notNull()
+      .references(() => user.id),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+    outwardChallanNo: text('outward_challan_no'),
+    returnCondition: text('return_condition'),
+    returnedBy: text('returned_by').references(() => user.id),
+    returnedAt: timestamp('returned_at', { withTimezone: true }),
+  },
+  (t) => [index('custody_item_campaign_idx').on(t.campaignId), check('custody_item_qty_ck', sql`${t.qty} > 0`)],
 );

@@ -61,6 +61,8 @@ export const DEFAULT_SERIES: Record<string, string> = {
   work_order: '{ENTITY}/WO/{FY}/{#####}',
   maas_booking: '{ENTITY}/MB/{FY}/{#####}',
   maas_membership: '{ENTITY}/MM/{FY}/{#####}',
+  test_campaign: '{ENTITY}/TC/{FY}/{####}',
+  custody_return: '{ENTITY}/RDC/{FY}/{####}',
 };
 
 /** Statutory documents whose number goes on a GST return: at most 16 characters. */
