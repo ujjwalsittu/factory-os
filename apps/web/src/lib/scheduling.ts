@@ -50,6 +50,20 @@ export interface Bar {
   late: boolean;
   noMaterial: boolean;
   conflict: boolean;
+  /** Decision 054: the order has an in-house operation with no routing time, which is not on the schedule. */
+  noTime: boolean;
+}
+
+/** Decision 054: an in-house operation of a released order with 0 planned minutes still to make. */
+export interface NoTimeOperation {
+  operationId: string;
+  seq: number;
+  name: string;
+  workOrderId: string;
+  number: string;
+  rework: boolean;
+  itemCode: string;
+  workCentre: string | null;
 }
 
 export interface ScheduleView {
@@ -63,6 +77,7 @@ export interface ScheduleView {
   bars: Bar[];
   unscheduled: { operationId: string; reason: string; seq?: number; name?: string; workOrderId?: string; number?: string }[];
   conflicts: { operationId: string; reason: string; seq?: number; name?: string; workOrderId?: string; number?: string }[];
+  noTime: NoTimeOperation[];
   late: { id: string; number: string; itemCode: string; scheduledFinish: string; dueAt: string; priority: number }[];
 }
 

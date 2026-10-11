@@ -148,6 +148,7 @@ function Planner() {
                 {sel.late && <Badge tone="danger">Late</Badge>}
                 {sel.noMaterial && <Badge tone="warning">No material issued</Badge>}
                 {sel.conflict && <Badge tone="warning">Starts before the previous operation ends</Badge>}
+                {sel.noTime && <Badge tone="warning">An operation has no routing time</Badge>}
               </div>
             </div>
             {sel.pinned && canUpdate && (
@@ -158,7 +159,7 @@ function Planner() {
           </div>
         </Card>
       )}
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-2">
         <ListCard title="Late orders" empty="Nothing late.">
           {v.late.map((w) => (
             <li key={w.id} className="px-4 py-2 text-[13px]">
@@ -180,6 +181,21 @@ function Planner() {
               </Link>{' '}
               · {u.seq} {u.name}
               <p className="text-muted">{u.reason}</p>
+            </li>
+          ))}
+        </ListCard>
+        <ListCard title="No routing time" empty="Every operation still to make has set-up or run time.">
+          {v.noTime.map((n) => (
+            <li key={n.operationId} className="px-4 py-2 text-[13px]">
+              <Link className="font-mono font-medium hover:text-accent" href={`/app/manufacturing/work-orders/${n.workOrderId}`}>
+                {n.number}
+              </Link>{' '}
+              · {n.seq} {n.name}
+              {n.rework && <Badge className="ml-1">Rework</Badge>}
+              <p className="text-muted">
+                {n.itemCode}
+                {n.workCentre ? ` on ${n.workCentre}` : ''}: no set-up or run time, so it is not on the schedule
+              </p>
             </li>
           ))}
         </ListCard>
@@ -235,6 +251,7 @@ function Queues({ view, onSelect }: { view: ScheduleView; onSelect: (b: Bar) => 
                   <button type="button" className="w-full px-4 py-2 text-left text-[13px]" onClick={() => onSelect(b)}>
                     <span className="font-mono font-medium">{b.number}</span> · {b.seq} {b.name}
                     {b.late && <Badge tone="danger" className="ml-1">Late</Badge>}
+                    {b.noTime && <Badge tone="warning" className="ml-1">No routing time</Badge>}
                     <span className="block text-muted">
                       {formatDateTime(b.startsAt)} → {formatDateTime(b.endsAt)}
                     </span>

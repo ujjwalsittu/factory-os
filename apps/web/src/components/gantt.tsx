@@ -1,6 +1,6 @@
 'use client';
 import { cn } from '@factoryos/ui';
-import { Pin } from 'lucide-react';
+import { Pin, TriangleAlert } from 'lucide-react';
 import { Fragment, useRef, useState } from 'react';
 import { type Bar, barColour, type ScheduleView } from '@/lib/scheduling';
 
@@ -76,7 +76,7 @@ export function Gantt({
         key={b.operationId}
         type="button"
         aria-label={`${b.number} operation ${b.seq} ${b.name}`}
-        title={`${b.number} · ${b.seq} ${b.name} · ${b.itemCode}${b.late ? ' · late' : ''}${b.noMaterial ? ' · no material issued' : ''}`}
+        title={`${b.number} · ${b.seq} ${b.name} · ${b.itemCode}${b.late ? ' · late' : ''}${b.noMaterial ? ' · no material issued' : ''}${b.noTime ? ' · an operation has no routing time' : ''}`}
         className={cn(
           'absolute top-1 bottom-1 flex items-center gap-1 overflow-hidden rounded-md border-l-4 px-1.5 text-left text-[11px] leading-tight whitespace-nowrap text-fg shadow-sm',
           barColour(b.workOrderId),
@@ -107,6 +107,7 @@ export function Gantt({
         onPointerCancel={() => setDrag(null)}
       >
         {b.pinned && <Pin className="size-3 shrink-0" aria-label="Pinned" />}
+        {b.noTime && <TriangleAlert className="size-3 shrink-0 text-warning" aria-label="No routing time" />}
         <span className="font-mono font-medium">{b.number}</span>
         <span className="text-muted">
           {b.seq} {b.name}
