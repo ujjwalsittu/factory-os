@@ -33,7 +33,8 @@
     "e2e:maas": "node e2e/maas.mjs",
     "e2e:maas-memberships": "node e2e/maas-memberships.mjs",
     "e2e:test-campaigns": "node e2e/test-campaigns.mjs",
-    "e2e:projects": "node e2e/projects.mjs"
+    "e2e:projects": "node e2e/projects.mjs",
+    "e2e:subscriptions": "node e2e/subscriptions.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",

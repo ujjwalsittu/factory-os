@@ -287,3 +287,71 @@ export const TIMESHEET_STATUS: Record<TimesheetEntry['status'], { label: string;
   submitted: { label: 'Submitted', tone: 'info' },
   approved: { label: 'Approved', tone: 'success' },
 };
+
+/** Decision 059: EarthNow subscriptions — prepaid report/alert bundles per period, overage on the next invoice. */
+export type SubscriptionPeriod = 'month' | 'quarter' | 'year';
+export const SUBSCRIPTION_PERIOD: Record<SubscriptionPeriod, string> = { month: 'Monthly', quarter: 'Quarterly', year: 'Yearly' };
+
+export interface SubscriptionPlan {
+  id: string;
+  code: string;
+  name: string;
+  solution: string;
+  period: SubscriptionPeriod;
+  fee: string;
+  includedReports: number;
+  includedAlerts: number;
+  reportRate: string;
+  alertRate: string;
+  serviceItemId: string;
+  itemCode: string;
+  isActive: boolean;
+}
+
+export interface Subscription {
+  id: string;
+  number: string;
+  customerId: string;
+  customerName: string;
+  customerRef: string | null;
+  planId: string;
+  planName: string;
+  planCode: string;
+  solution: string;
+  aoiName: string;
+  aoiHectares: string | null;
+  aoiNotes: string | null;
+  startDate: string;
+  endDate: string | null;
+  status: 'active' | 'cancelled';
+  cancelReason: string | null;
+  next: { start: string; end: string; due: boolean } | null;
+}
+
+type InvoiceRef = { id: string; number: string | null; status: 'draft' | 'submitted' } | null;
+
+export interface SubscriptionDetail extends Omit<Subscription, 'planName' | 'planCode' | 'solution'> {
+  plan: SubscriptionPlan;
+  pendingChange: { effectiveOn: string; toPlan: string } | null;
+  today: string;
+  periods: {
+    index: number;
+    start: string;
+    end: string;
+    feePlan: string;
+    fee: string;
+    planName: string;
+    includedReports: number;
+    includedAlerts: number;
+    reports: number;
+    alerts: number;
+    overageReports: number;
+    overageAlerts: number;
+    overageAmount: string;
+    ended: boolean;
+    feeInvoice: InvoiceRef;
+    overageInvoice: InvoiceRef;
+  }[];
+  changes: { id: string; fromPlan: string; toPlan: string; effectiveOn: string; prorationAmount: string; salesInvoiceId: string | null; prorationInvoiced: boolean; createdAt: string }[];
+  deliveries: { id: string; kind: 'report' | 'alert'; deliveredOn: string; title: string; reference: string | null; reversalOf: string | null; reversed: boolean; recordedBy: string; createdAt: string }[];
+}

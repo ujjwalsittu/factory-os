@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "subscription_active_aoi_uq" ON "subscription" USING btree ("entity_id","customer_id","aoi_name") WHERE "subscription"."status" = 'active';
