@@ -33,3 +33,10 @@ export const DISPOSAL_LABELS: Record<string, string> = {
   tsdf: 'TSDF (hazardous)',
   other: 'Other',
 };
+
+/** Decision 053: the kinds of batch shown on the batch pages. */
+export const BATCH_KIND: Record<'lot' | 'serial' | 'remnant', { label: string; tone: 'neutral' | 'accent' | 'warning' }> = {
+  lot: { label: 'Lot', tone: 'neutral' },
+  serial: { label: 'Serial', tone: 'accent' },
+  remnant: { label: 'Remnant', tone: 'warning' },
+};

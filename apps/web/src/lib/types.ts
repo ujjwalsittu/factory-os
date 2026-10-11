@@ -652,3 +652,42 @@ export interface LandedCostDetail {
   allocationError: string | null;
   roundingValue: string;
 }
+
+/** Decision 053: a lot, serial or remnant found by number, heat or item code. */
+export interface BatchSearchRow {
+  id: string;
+  batchNo: string;
+  heatNo: string | null;
+  kind: 'lot' | 'serial' | 'remnant';
+  createdAt: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  uomCode: string;
+  qty: string;
+}
+
+export interface BatchDetail {
+  id: string;
+  batchNo: string;
+  kind: 'lot' | 'serial' | 'remnant';
+  heatNo: string | null;
+  supplierBatchNo: string | null;
+  supplierName: string | null;
+  mfgDate: string | null;
+  expiryDate: string | null;
+  lengthMm: string | null;
+  parentBatchId: string | null;
+  parentBatchNo: string | null;
+  createdAt: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  tracking: string;
+  uomCode: string;
+  stock: { warehouseId: string; warehouseCode: string; warehouseName: string; warehouseType: string; ownerName: string | null; qty: string }[];
+  /** Null when the viewer may not read that kind of record. */
+  inspections: { id: string; number: string | null; stage: string; status: string; result: string | null; qty: string; source: 'record' | 'receipt'; createdAt: string }[] | null;
+  ncrs: { id: string; number: string | null; status: string; qty: string; description: string; createdAt: string }[] | null;
+  fais: { id: string; number: string | null; status: string; createdAt: string }[] | null;
+}

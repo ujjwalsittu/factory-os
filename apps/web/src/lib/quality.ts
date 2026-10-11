@@ -216,3 +216,15 @@ export const ATTACHMENT_KIND: Record<Attachment['kind'], string> = {
   drawing: 'Drawing',
   other: 'Other',
 };
+
+/** Zip of every certificate, report and FAI along the lot's genealogy, with a manifest (decision 048). */
+export async function downloadCertificatePack(batchId: string, batchNo: string, scope: { tenantId?: string | null; entityId?: string | null }) {
+  const res = await fetch(`/api/quality/certificate-pack/${batchId}?format=zip`, { headers: { ...(scope.tenantId ? { 'x-tenant-id': scope.tenantId } : {}), ...(scope.entityId ? { 'x-entity-id': scope.entityId } : {}) }, credentials: 'include' });
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `certificates-${batchNo.replace(/[^\w.-]+/g, '_')}.zip`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}

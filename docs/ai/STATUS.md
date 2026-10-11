@@ -1,8 +1,9 @@
 # Status
 
-_Last updated: 2026-10-11 (Asia/Kolkata) · Batch and serial page claimed by this session_
+_Last updated: 2026-10-11 (Asia/Kolkata) · Batch and serial page built (PR open)_
 
 ## Done
+- [x] **Batch and serial page** (decision 053, no migration). Inventory → Batches & serials finds lots, serials and remnants by number, heat or item code; the batch page shows read-only details, stock by warehouse with owner, movements, inspections/NCRs/FAIs it may read, MTC and other attachments, the certificate pack and a genealogy link. Stock balance and genealogy link to it. Verified: new smoke and browser walkthrough (desktop/390 px), inventory, genealogy, serials and quality (112) smokes, quality/inventory/genealogy browsers, typecheck 19, build 12, tests 11. [Review](../superpowers/reviews/2026-10-11-batch-page-review.md).
 - [x] **Inspection plans on purchase-receipt inspections** (decision 052, no migration). Items with an active incoming plan are inspected to it from Incoming inspection ("Inspect to plan"): a draft per quantity, every planned sample with calibrated gauges, accepted stock to stores and an NCR (MRB, all five dispositions) for rejects; the 1b inspection row is written on submit. Items without a plan and customer-owned material keep the one-step form. Verified: new smoke 81 checks and browser walkthrough (desktop/390 px), quality 112, FAI 52, buying and customer-material smokes, buying and quality browsers, typecheck 19, build 12, tests 11. [Review](../superpowers/reviews/2026-10-11-receipt-inspection-plans-review.md).
 - [x] **Audited read-only support access** (decision 050, migration 0035_support_access). Disabled by default (`SUPPORT_ACCESS_ENABLED=false`, tenant policy off).
   - Settings → Support access: a tenant-wide administrator turns the policy on (5–30 min cap, allowed areas) and approves one operator, one member to view as, one entity and areas, with their own password and a sign-in under five minutes old with TOTP. History shows approvals, starts, views and ends; revoke ends access at once.
@@ -123,8 +124,6 @@ _Last updated: 2026-10-11 (Asia/Kolkata) · Batch and serial page claimed by thi
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
-- **Batch and serial page (decision 053)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-11 04:40 UTC. [Design](../superpowers/specs/2026-10-11-batch-page-design.md); four tasks.
-
 
 
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
@@ -136,7 +135,7 @@ _Last updated: 2026-10-11 (Asia/Kolkata) · Batch and serial page claimed by thi
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
 3. User review of completed accounting/settlement/customer/supplier and manufacturing workflows on dev. Original shared activation states are preserved; cut-over remains a deliberate Finance action.
 
-4. Manufacturing next (needs a design and user choices): quality and scheduling follow-ups from the 2d/2e reviews (batch page with attachments, zero-duration operations flagged on the Gantt), then Phase 3 services with MaaS bookings on the machine calendar. Quality follow-ups from the 2d review: a batch/serial page with attachments, CAPA and skill matrix (decision 048 deferred them).
+4. Manufacturing next (needs a design and user choices): the scheduling follow-up from the 2e review (zero-duration operations flagged on the Gantt), then Phase 3 services with MaaS bookings on the machine calendar. Deferred quality follow-ups (decision 048): CAPA and skill matrix.
 
 ## Blockers
 - Automatic TDS/TCS profile/source work: current official Act393/394/395/397/402 text retrieved and pinned, including scrap2% effective2026-04-01, but complete GST-base, PAN-operativity relief and lower/nil certificate applicability guidance is still missing. Original/lower-case legacy circular PDF paths returned404; generic document search did not produce verified guidance. [Evidence/requirements](../compliance/withholding-profile-evidence.md). Need reachable official primary URLs or authorized exported guidance plus applicability confirmation; optional source-URL question already asked. No numerical defaults enabled. Continue independent bank-reconciliation work while this gate remains closed.

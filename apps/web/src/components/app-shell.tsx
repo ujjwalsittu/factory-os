@@ -7,6 +7,7 @@ import {
   Handshake,
   Package,
   Ruler,
+  Tags,
   Warehouse,
   Building2,
   CalendarClock,
@@ -117,6 +118,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     items: [
       { href: '/app/inventory/entries', label: 'Stock entries', icon: ArrowLeftRight, permission: 'inventory.stock_entry.read', entityScoped: true },
       { href: '/app/inventory/balance', label: 'Stock balance', icon: Boxes, permission: 'inventory.report.read', entityScoped: true },
+      { href: '/app/inventory/batches', label: 'Batches & serials', icon: Tags, permission: 'inventory.batch.read', entityScoped: true },
       { href: '/app/inventory/customer-material', label: 'Customer material', icon: Handshake, permission: 'inventory.report.read', entityScoped: true },
       { href: '/app/inventory/remnants', label: 'Remnants', icon: Ruler, permission: 'inventory.batch.read', entityScoped: true },
       { href: '/app/inventory/warehouses', label: 'Warehouses', icon: Warehouse, permission: 'inventory.warehouse.read', entityScoped: true },
