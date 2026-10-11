@@ -14,6 +14,7 @@ import {
   ncrDisposition,
   purchaseInvoice,
   purchaseInvoiceLine,
+  qualityInspection,
   receiptInvoiceAllocation,
   stockEntry,
   stockEntryLine,
@@ -332,15 +333,107 @@ export class QualityService {
     if (Dec.of(input.qtyRejected).gt('0'))
       raised = await this.raiseNcrIn(tx, ctx, entityId, { itemId: r.itemId, batchId: r.batchId, qty: input.qtyRejected, fromWarehouseId: r.holdWarehouseId, workOrderId: r.holdWarehouseId ? null : r.workOrderId, inspectionRecordId: r.id, description: input.ncrDescription!.trim() });
     await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'inspection.submit', targetType: 'inspection_record', targetId: r.id, after: { number, outcome, accepted: input.qtyAccepted, rejected: input.qtyRejected, ncr: raised?.number ?? null } }, tx);
+    if (r.sourceType === 'receipt') await this.recordReceiptInspectionIn(tx, ctx, entityId, after!, raised?.mrbWarehouseId ?? null, date);
     return { ...after!, ncr: raised };
   }
 
   async cancelRecordIn(tx: Tx, ctx: TenantRequestContext, entityId: string, id: string, reason: string) {
     const r = await this.lockRecord(tx, entityId, id);
     if (r.status !== 'draft') throw new ConflictException('A submitted inspection stands; raise an NCR to correct it');
-    if (r.holdWarehouseId) throw new ConflictException('This inspection holds stock in quarantine; cancel the document that put it there');
+    // A receipt inspection moves nothing until it is submitted, so its draft can be withdrawn; other holds follow their document.
+    if (r.holdWarehouseId && r.sourceType !== 'receipt') throw new ConflictException('This inspection holds stock in quarantine; cancel the document that put it there');
     await tx.update(inspectionRecord).set({ status: 'cancelled', remarks: reason }).where(eq(inspectionRecord.id, r.id));
     await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'inspection.cancel', targetType: 'inspection_record', targetId: r.id, reason }, tx);
+  }
+
+  // Purchase-receipt inspections against a plan (decision 052) ------------------------------------------
+
+  /** Received quantity of a receipt line already inspected (submitted 1b inspections) or held by open plan drafts. */
+  async receiptLineTaken(db: Database | Tx, receiptLineId: string) {
+    const [x] = await db.execute<{ submitted: string; drafts: string }>(sql`
+      select coalesce((select sum(q.qty_inspected) from quality_inspection q where q.receipt_line_id = ${receiptLineId} and q.status = 'submitted'), 0)::text as submitted,
+             coalesce((select sum(r.qty) from inspection_record r where r.source_type = 'receipt' and r.source_id = ${receiptLineId} and r.status = 'draft'), 0)::text as drafts`).then((res) => res.rows);
+    return { submitted: x!.submitted, drafts: x!.drafts };
+  }
+
+  /**
+   * Opens a draft incoming inspection against the item's active plan for part of a received line in quarantine.
+   * Nothing moves until it is submitted; customer-owned material keeps the quick form.
+   */
+  async openReceiptRecordIn(tx: Tx, ctx: TenantRequestContext, entityId: string, input: { receiptLineId: string; qty: string; acceptWarehouseId?: string | null }) {
+    const [rl] = await tx
+      .select({ line: stockEntryLine, entry: stockEntry, wh: warehouse, it: item })
+      .from(stockEntryLine)
+      .innerJoin(stockEntry, eq(stockEntry.id, stockEntryLine.entryId))
+      .innerJoin(warehouse, eq(warehouse.id, stockEntryLine.toWarehouseId))
+      .innerJoin(item, eq(item.id, stockEntryLine.itemId))
+      .where(and(eq(stockEntryLine.id, input.receiptLineId), eq(stockEntry.entityId, entityId)))
+      .for('update', { of: stockEntryLine });
+    if (!rl || rl.entry.status !== 'submitted' || rl.entry.purpose !== 'receipt') throw new BadRequestException('Not a submitted receipt line of this entity');
+    if (rl.wh.type !== 'quarantine') throw new BadRequestException('Only stock received into quarantine is inspected here');
+    if (rl.line.ownerPartyId) throw new BadRequestException('Customer-owned material is inspected with the quick form');
+    const plan = await this.activePlan(tx, entityId, rl.line.itemId, 'incoming');
+    if (!plan) throw new BadRequestException('This item has no active incoming inspection plan');
+    const taken = await this.receiptLineTaken(tx, rl.line.id);
+    const pending = Dec.of(rl.line.qty).sub(taken.submitted).sub(taken.drafts);
+    const qty = Dec.of(input.qty);
+    if (!qty.gt('0')) throw new BadRequestException({ message: 'Quantity must be positive', issues: [{ path: 'qty', message: 'Must be positive' }] });
+    if (qty.gt(pending)) throw new BadRequestException({ message: `Only ${pending.toFixed(3)} is waiting for inspection`, issues: [{ path: 'qty', message: `At most ${pending.toFixed(3)}` }] });
+    const where = input.acceptWarehouseId
+      ? and(eq(warehouse.id, input.acceptWarehouseId), eq(warehouse.entityId, entityId), eq(warehouse.isActive, true))
+      : and(eq(warehouse.entityId, entityId), eq(warehouse.type, 'stores'), eq(warehouse.isActive, true));
+    const [accept] = await tx.select().from(warehouse).where(where).orderBy(asc(warehouse.code)).limit(1);
+    if (!accept) throw new BadRequestException({ message: 'No stores warehouse found; create one or choose it', issues: [{ path: 'acceptWarehouseId', message: 'Required' }] });
+    if (accept.type === 'quarantine' || accept.type === 'mrb') throw new BadRequestException({ message: 'Accepted stock goes to a usable warehouse', issues: [{ path: 'acceptWarehouseId', message: 'Choose a stores warehouse' }] });
+    const r = await this.openRecordIn(tx, ctx, entityId, {
+      stage: 'incoming',
+      itemId: rl.line.itemId,
+      batchId: rl.line.batchId,
+      qty: qty.toString(),
+      sourceType: 'receipt',
+      sourceId: rl.line.id,
+      holdWarehouseId: rl.wh.id,
+      acceptWarehouseId: accept.id,
+      remarks: `Receipt ${rl.entry.number}`,
+    });
+    await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'inspection.open', targetType: 'inspection_record', targetId: r.id, after: { receipt: rl.entry.number, qty: r.qty, plan: plan.revision } }, tx);
+    return r;
+  }
+
+  /** The 1b record of a submitted plan inspection, so receipt quantities, lists and cancel guards stay in one place. */
+  private async recordReceiptInspectionIn(tx: Tx, ctx: TenantRequestContext, entityId: string, r: typeof inspectionRecord.$inferSelect, mrbWarehouseId: string | null, date: string) {
+    const accepted = Dec.of(r.qtyAccepted);
+    const rejected = Dec.of(r.qtyRejected);
+    const number = await this.posting.allocateNumber(tx, ctx.tenant.tenantId, entityId, 'quality_inspection', date);
+    const [qi] = await tx
+      .insert(qualityInspection)
+      .values({
+        tenantId: ctx.tenant.tenantId,
+        entityId,
+        number,
+        status: 'submitted',
+        receiptLineId: r.sourceId!,
+        itemId: r.itemId,
+        batchId: r.batchId,
+        ownerPartyId: null,
+        fromWarehouseId: r.holdWarehouseId!,
+        acceptWarehouseId: accepted.gt('0') ? r.acceptWarehouseId : null,
+        rejectWarehouseId: rejected.gt('0') ? mrbWarehouseId : null,
+        qtyInspected: accepted.add(rejected).toString(),
+        qtyAccepted: accepted.toString(),
+        qtyRejected: rejected.toString(),
+        result: rejected.isZero() ? 'accepted' : accepted.isZero() ? 'rejected' : 'partial',
+        checks: `Recorded against inspection ${r.number}`,
+        remarks: r.remarks,
+        transferEntryId: r.transferEntryId,
+        inspectionRecordId: r.id,
+        inspectionDate: date,
+        createdBy: ctx.user.id,
+        submittedBy: ctx.user.id,
+        submittedAt: new Date(),
+      })
+      .returning();
+    await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'quality_inspection.submit', targetType: 'quality_inspection', targetId: qi!.id, after: { number, inspection: r.number, accepted: qi!.qtyAccepted, rejected: qi!.qtyRejected } }, tx);
   }
 
   /** Called when the document that put stock on hold is cancelled: drafts are withdrawn, submitted ones block it. */
