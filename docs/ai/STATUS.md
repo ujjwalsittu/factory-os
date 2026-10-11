@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-11 (Asia/Kolkata) · Receipt inspection plans complete on `claude/zealous-allen-35g1vm`, PR to main_
+_Last updated: 2026-10-11 (Asia/Kolkata) · Batch and serial page claimed by this session_
 
 ## Done
 - [x] **Inspection plans on purchase-receipt inspections** (decision 052, no migration). Items with an active incoming plan are inspected to it from Incoming inspection ("Inspect to plan"): a draft per quantity, every planned sample with calibrated gauges, accepted stock to stores and an NCR (MRB, all five dispositions) for rejects; the 1b inspection row is written on submit. Items without a plan and customer-owned material keep the one-step form. Verified: new smoke 81 checks and browser walkthrough (desktop/390 px), quality 112, FAI 52, buying and customer-material smokes, buying and quality browsers, typecheck 19, build 12, tests 11. [Review](../superpowers/reviews/2026-10-11-receipt-inspection-plans-review.md).
@@ -123,6 +123,7 @@ _Last updated: 2026-10-11 (Asia/Kolkata) · Receipt inspection plans complete on
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
+- **Batch and serial page (decision 053)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-11 04:40 UTC. [Design](../superpowers/specs/2026-10-11-batch-page-design.md); four tasks.
 
 
 
