@@ -47,3 +47,23 @@ export function maasCharge(actualMinutes: number, t: MaasRateCardTerms, member: 
   const rate = maasRate(t, member);
   return { actualMinutes, billableMinutes, hours, rate, amount: Dec.of(hours).mul(rate).toFixed(2), memberRate: member && t.memberRate !== null };
 }
+
+/** Decision 056: billable minutes split between a membership's remaining hours and overage invoiced at the member rate. */
+export function maasMembershipSplit(billableMinutes: number, remainingMinutes: number): { coveredMinutes: number; overageMinutes: number } {
+  if (!Number.isInteger(billableMinutes) || billableMinutes < 0) throw new Error('Billable minutes must be whole, zero or more');
+  const remaining = Math.max(0, Math.trunc(remainingMinutes));
+  const coveredMinutes = Math.min(billableMinutes, remaining);
+  return { coveredMinutes, overageMinutes: billableMinutes - coveredMinutes };
+}
+
+/** Last day of a term of `months` starting on `startsOn` (YYYY-MM-DD): the day before the same date `months` later. */
+export function maasTermEnd(startsOn: string, months: number): string {
+  if (!Number.isInteger(months) || months < 1) throw new Error('A term is at least one month');
+  const [y, m, d] = startsOn.split('-').map(Number) as [number, number, number];
+  const target = new Date(Date.UTC(y, m - 1 + months, 1));
+  // Clamp to the target month's last day (31 Jan + 1 month → 28/29 Feb), then step back one day.
+  const last = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(d, last));
+  target.setUTCDate(target.getUTCDate() - 1);
+  return target.toISOString().slice(0, 10);
+}

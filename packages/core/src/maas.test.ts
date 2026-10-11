@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { maasBillableMinutes, maasCharge, maasHours, maasRate, maasTermsError } from './maas.js';
+import { maasBillableMinutes, maasCharge, maasHours, maasMembershipSplit, maasRate, maasTermEnd, maasTermsError } from './maas.js';
 
 const terms = { standardRate: '2500', memberRate: '2000', minimumMinutes: 120, roundingMinutes: 15 };
 
@@ -43,5 +43,23 @@ describe('maas billing (decision 055)', () => {
     expect(maasTermsError({ ...terms, standardRate: '0' })).toMatch(/standard rate/);
     expect(maasTermsError({ ...terms, memberRate: '-1' })).toMatch(/member rate/);
     expect(maasTermsError({ ...terms, minimumMinutes: 0 })).toBeNull();
+  });
+});
+
+describe('maas memberships (decision 056)', () => {
+  it('splits billable minutes between remaining hours and overage', () => {
+    expect(maasMembershipSplit(330, 6000)).toEqual({ coveredMinutes: 330, overageMinutes: 0 });
+    expect(maasMembershipSplit(330, 120)).toEqual({ coveredMinutes: 120, overageMinutes: 210 });
+    expect(maasMembershipSplit(330, 0)).toEqual({ coveredMinutes: 0, overageMinutes: 330 });
+    expect(maasMembershipSplit(330, -30)).toEqual({ coveredMinutes: 0, overageMinutes: 330 });
+    expect(() => maasMembershipSplit(1.5, 10)).toThrow();
+  });
+
+  it('ends a term the day before the same date months later', () => {
+    expect(maasTermEnd('2026-10-11', 12)).toBe('2027-10-10');
+    expect(maasTermEnd('2026-04-01', 12)).toBe('2027-03-31');
+    expect(maasTermEnd('2026-01-31', 1)).toBe('2026-02-27');
+    expect(maasTermEnd('2027-12-15', 3)).toBe('2028-03-14');
+    expect(() => maasTermEnd('2026-10-11', 0)).toThrow();
   });
 });

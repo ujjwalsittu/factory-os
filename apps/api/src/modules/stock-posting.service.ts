@@ -60,6 +60,7 @@ export const DEFAULT_SERIES: Record<string, string> = {
   settlement_allocation: '{ENTITY}/ADJ/{FY}/{#####}',
   work_order: '{ENTITY}/WO/{FY}/{#####}',
   maas_booking: '{ENTITY}/MB/{FY}/{#####}',
+  maas_membership: '{ENTITY}/MM/{FY}/{#####}',
 };
 
 /** Statutory documents whose number goes on a GST return: at most 16 characters. */

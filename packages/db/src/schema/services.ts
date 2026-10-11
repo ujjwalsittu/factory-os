@@ -2,7 +2,7 @@
 // booking holds a `booking` machine block that production is scheduled around); usage is append-only; a completed
 // booking is billed through a draft sales invoice.
 import { sql } from 'drizzle-orm';
-import { check, date, index, integer, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, date, index, integer, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { user } from './auth.js';
 import { machine } from './manufacturing.js';
 import { item, party } from './masters.js';
@@ -84,6 +84,8 @@ export const maasBooking = pgTable(
     cancelReason: text('cancel_reason'),
     /** The invoice raised for it; a deleted draft frees the booking. */
     salesInvoiceId: uuid('sales_invoice_id').references(() => salesInvoice.id, { onDelete: 'set null' }),
+    /** Decision 056: set once billed (by membership hours, an invoice, or both); cleared by a reversal. */
+    billedAt: timestamp('billed_at', { withTimezone: true }),
     ...stamps,
   },
   (t) => [
@@ -117,4 +119,94 @@ export const maasUsage = pgTable(
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('maas_usage_booking_idx').on(t.bookingId), check('maas_usage_minutes_ck', sql`${t.minutes} <> 0`)],
+);
+
+/** Decision 056: a membership plan — a pool of machine-hours for a term, with a fee invoiced upfront. */
+export const maasPlan = pgTable(
+  'maas_plan',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ...scope,
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    /** Whole hours in minutes, so remaining hours stay exact. */
+    includedMinutes: integer('included_minutes').notNull(),
+    termMonths: integer('term_months').notNull(),
+    fee: money('fee').notNull(),
+    /** Service item (SAC) that becomes the fee invoice line. */
+    serviceItemId: uuid('service_item_id')
+      .notNull()
+      .references(() => item.id),
+    isActive: boolean('is_active').notNull().default(true),
+    ...stamps,
+  },
+  (t) => [
+    uniqueIndex('maas_plan_code_uq').on(t.entityId, t.code),
+    check('maas_plan_minutes_ck', sql`${t.includedMinutes} > 0 and ${t.includedMinutes} % 60 = 0`),
+    check('maas_plan_term_ck', sql`${t.termMonths} between 1 and 60`),
+    check('maas_plan_fee_ck', sql`${t.fee} >= 0`),
+  ],
+);
+
+export const maasMembershipStatus = pgEnum('maas_membership_status', ['active', 'cancelled']);
+
+/** A customer's membership for one term; hours and fee are copied from the plan. */
+export const maasMembership = pgTable(
+  'maas_membership',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ...scope,
+    number: text('number').notNull(),
+    customerId: uuid('customer_id')
+      .notNull()
+      .references(() => party.id),
+    planId: uuid('plan_id')
+      .notNull()
+      .references(() => maasPlan.id),
+    startsOn: date('starts_on').notNull(),
+    endsOn: date('ends_on').notNull(),
+    includedMinutes: integer('included_minutes').notNull(),
+    fee: money('fee').notNull(),
+    status: maasMembershipStatus('status').notNull().default('active'),
+    cancelReason: text('cancel_reason'),
+    /** The fee invoice; a deleted draft leaves it empty. */
+    salesInvoiceId: uuid('sales_invoice_id').references(() => salesInvoice.id, { onDelete: 'set null' }),
+    ...stamps,
+  },
+  (t) => [
+    uniqueIndex('maas_membership_number_uq').on(t.entityId, t.number),
+    index('maas_membership_customer_idx').on(t.customerId, t.startsOn),
+    check('maas_membership_term_ck', sql`${t.endsOn} >= ${t.startsOn}`),
+  ],
+);
+
+/** Hours drawn by a booking from a membership; append-only, a reversal is a negative row pointing at the draw. */
+export const maasMembershipDraw = pgTable(
+  'maas_membership_draw',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // No cascade: append-only, like usage.
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id),
+    membershipId: uuid('membership_id')
+      .notNull()
+      .references(() => maasMembership.id),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => maasBooking.id),
+    minutes: integer('minutes').notNull(),
+    reversalOf: uuid('reversal_of'),
+    reason: text('reason'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('maas_membership_draw_membership_idx').on(t.membershipId),
+    index('maas_membership_draw_booking_idx').on(t.bookingId),
+    uniqueIndex('maas_membership_draw_reversal_uq').on(t.reversalOf),
+    check('maas_membership_draw_minutes_ck', sql`(${t.reversalOf} is null and ${t.minutes} > 0) or (${t.reversalOf} is not null and ${t.minutes} < 0)`),
+  ],
 );
