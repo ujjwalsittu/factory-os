@@ -260,6 +260,13 @@
       "when": 1791699270025,
       "tag": "0036_maas",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791702393254,
+      "tag": "0037_maas_memberships",
+      "breakpoints": true
     }
   ]
 }

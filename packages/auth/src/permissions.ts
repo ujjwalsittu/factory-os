@@ -81,6 +81,7 @@ export const RESOURCES = [
   { module: 'services', resource: 'booking', label: 'Machine bookings (create, move, confirm, cancel)', actions: ['read', 'create', 'update'] },
   { module: 'services', resource: 'usage', label: 'Machine usage (timer and manual)', actions: ['create'] },
   { module: 'services', resource: 'billing', label: 'Invoice completed bookings', actions: ['create'] },
+  { module: 'services', resource: 'membership', label: 'Studio membership plans and memberships (decision 056)', actions: ['read', 'create', 'update'] },
   { module: 'quality', resource: 'inspection', label: 'Inspections', actions: ['read', 'create', 'submit', 'cancel', 'approve', 'export'] },
   { module: 'quality', resource: 'plan', label: 'Inspection plans', actions: ['read', 'create', 'update', 'submit'] },
   { module: 'quality', resource: 'fai', label: 'First article inspection (AS9102)', actions: ['read', 'create', 'submit', 'approve'] },

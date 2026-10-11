@@ -10,6 +10,7 @@ import {
   Tags,
   CalendarCheck2,
   IndianRupee,
+  BadgePercent,
   Warehouse,
   Building2,
   CalendarClock,
@@ -87,6 +88,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     section: 'Services',
     items: [
       { href: '/app/services/bookings', label: 'Machine bookings', icon: CalendarCheck2, permission: 'services.booking.read', entityScoped: true },
+      { href: '/app/services/memberships', label: 'Memberships', icon: BadgePercent, permission: 'services.membership.read', entityScoped: true },
       { href: '/app/services/rate-cards', label: 'Rate cards', icon: IndianRupee, permission: 'services.rate_card.read', entityScoped: true },
     ],
   },

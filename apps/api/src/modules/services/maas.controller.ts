@@ -1,8 +1,8 @@
 // Phase 3a machine-hour MaaS (decision 055): rate cards, bookings, usage and a draft invoice for a completed booking.
 // A confirmed booking holds a `booking` machine block, which the scheduler already treats as unavailable time.
-import { maasCharge, maasTermsError } from '@factoryos/core';
-import { item, machine, machineBlock, maasBooking, maasRateCard, maasUsage, party, salesInvoice, scheduledOperation, type Database, user, workCentre } from '@factoryos/db';
-import { BadRequestException, Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
+import { Dec, maasCharge, maasHours, maasMembershipSplit, maasTermsError } from '@factoryos/core';
+import { item, machine, machineBlock, maasBooking, maasMembership, maasMembershipDraw, maasRateCard, maasUsage, party, salesInvoice, scheduledOperation, type Database, user, workCentre } from '@factoryos/db';
+import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, ne, or, sql, sum } from 'drizzle-orm';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../../common/access.js';
@@ -12,6 +12,7 @@ import { parse } from '../../common/validation.js';
 import { businessDate, entityOf, type Tx } from '../accounting/accounting-lock.js';
 import { SellingController } from '../selling.controller.js';
 import { StockPostingService } from '../stock-posting.service.js';
+import { bookingDrawn, membershipDrawn, membershipOn } from './memberships.js';
 
 const money = z
   .union([z.string(), z.number()])
@@ -171,12 +172,23 @@ export class MaasController {
       .where(eq(maasUsage.bookingId, id))
       .orderBy(asc(maasUsage.recordedAt));
     const usedMinutes = usage.reduce((s, u) => s + u.minutes, 0);
-    const card = await this.cardFor(this.db, r.b.machineId, istDate(r.b.startsAt));
-    const charge = card ? maasCharge(Math.max(0, usedMinutes), card, r.member) : null;
+    const day = istDate(r.b.startsAt);
+    const card = await this.cardFor(this.db, r.b.machineId, day);
+    // Decision 056: an active membership on the booking's start date makes the customer a member and holds hours.
+    const ms = await membershipOn(this.db, entityId, r.b.customerId, day);
+    const member = r.member || !!ms;
+    const charge = card ? maasCharge(Math.max(0, usedMinutes), card, member) : null;
+    const drawnMinutes = await bookingDrawn(this.db, id);
+    const billed = drawnMinutes > 0 || this.invoiceHolds(r.invoiceStatus);
+    const remainingMinutes = ms ? ms.includedMinutes - (await membershipDrawn(this.db, ms.id)) : null;
+    const split = charge && !billed ? maasMembershipSplit(charge.billableMinutes, remainingMinutes ?? 0) : null;
     return {
       ...r.b,
       customerName: r.customerName,
-      member: r.member,
+      member,
+      membership: ms ? { id: ms.id, number: ms.number, endsOn: ms.endsOn, remainingMinutes } : null,
+      drawnMinutes,
+      split: split && charge ? { ...split, overageHours: maasHours(split.overageMinutes), overageAmount: Dec.of(maasHours(split.overageMinutes)).mul(charge.rate).toFixed(2) } : null,
       machineCode: r.machineCode,
       machineName: r.machineName,
       workCentre: r.workCentre,
@@ -186,7 +198,8 @@ export class MaasController {
       usedMinutes,
       rateCard: card ? { id: card.id, standardRate: card.standardRate, memberRate: card.memberRate, minimumMinutes: card.minimumMinutes, roundingMinutes: card.roundingMinutes, validFrom: card.validFrom, validTo: card.validTo } : null,
       charge,
-      billable: r.b.status === 'completed' && !this.invoiceHolds(r.invoiceStatus) && !!card,
+      billed,
+      billable: r.b.status === 'completed' && !billed && !!card,
     };
   }
 
@@ -321,7 +334,7 @@ export class MaasController {
     return this.db.transaction(async (tx) => {
       const b = await this.lock(tx, entityId, id);
       if (b.status !== 'in_use' && b.status !== 'completed') throw new ConflictException('Usage is recorded once the machine has been used');
-      if (await this.invoiceHoldsIn(tx, b.salesInvoiceId)) throw new ConflictException('The booking is invoiced; cancel or delete the invoice to change its usage');
+      if ((await this.invoiceHoldsIn(tx, b.salesInvoiceId)) || (await bookingDrawn(tx, id)) > 0) throw new ConflictException('The booking is billed or invoiced; reverse the billing, or cancel or delete its invoice, to change its usage');
       const [t] = await tx.select({ total: sum(maasUsage.minutes) }).from(maasUsage).where(eq(maasUsage.bookingId, id));
       if (Number(t?.total ?? 0) + input.minutes < 0) throw new BadRequestException(`Only ${Number(t?.total ?? 0)} minutes are recorded`);
       const [u] = await tx.insert(maasUsage).values({ tenantId: b.tenantId, bookingId: id, minutes: input.minutes, source: 'manual', note: input.note, recordedBy: ctx.user.id }).returning();
@@ -330,19 +343,46 @@ export class MaasController {
     });
   }
 
-  /** A draft tax invoice for a completed booking at its rate card, through the sales invoice path. */
-  @Post('bookings/:id/invoice')
-  @RequirePermission('services.billing.create', 'selling.sales_invoice.create')
-  async invoice(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+  /**
+   * Bill a completed booking (decision 056): hours come from the customer's membership first; any excess (or all of it,
+   * without a membership) becomes a draft tax invoice at the rate card through the sales invoice path. All or nothing.
+   */
+  @Post('bookings/:id/bill')
+  @RequirePermission('services.billing.create')
+  async bill(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
     const entityId = entityOf(ctx);
     const input = parse(invoiceInput, body);
     const d = await this.booking(ctx, id);
-    if (d.status !== 'completed') throw new ConflictException('Only completed bookings are invoiced');
-    if (this.invoiceHolds(d.invoiceStatus)) throw new ConflictException(`Already invoiced on ${d.invoiceNumber ?? 'a draft invoice'}`);
-    if (!d.rateCard || !d.charge) throw new BadRequestException(`No rate card for ${d.machineCode} on ${istDate(d.startsAt)}`);
-    const [card] = await this.db.select({ serviceItemId: maasRateCard.serviceItemId }).from(maasRateCard).where(eq(maasRateCard.id, d.rateCard.id));
+    if (d.status !== 'completed') throw new ConflictException('Only completed bookings are billed');
+    if (d.billed) throw new ConflictException(d.invoiceNumber || d.salesInvoiceId ? `Already invoiced on ${d.invoiceNumber ?? 'a draft invoice'}` : 'Already billed to the membership');
+    if (!d.rateCard || !d.charge || !d.split) throw new BadRequestException(`No rate card for ${d.machineCode} on ${istDate(d.startsAt)}`);
     const c = d.charge;
-    const description = `Machine time on ${d.machineCode} (${d.machineName}), booking ${d.number}: ${c.actualMinutes} min used, ${c.billableMinutes} min billed${c.memberRate ? ' at member rate' : ''}`;
+    const { coveredMinutes, overageMinutes } = d.split;
+    const membershipId = d.membership?.id ?? null;
+    const settle = async (tx: Tx, invoiceId: string | null) => {
+      const b = await this.lock(tx, entityId, id);
+      if (b.status !== 'completed' || (await this.invoiceHoldsIn(tx, b.salesInvoiceId)) || (await bookingDrawn(tx, id)) > 0) throw new ConflictException('The booking changed; reload');
+      const [t] = await tx.select({ total: sum(maasUsage.minutes) }).from(maasUsage).where(eq(maasUsage.bookingId, id));
+      if (Number(t?.total ?? 0) !== c.actualMinutes) throw new ConflictException('Usage changed while billing; reload');
+      if (coveredMinutes > 0 && membershipId) {
+        const [m] = await tx.select().from(maasMembership).where(eq(maasMembership.id, membershipId)).for('update');
+        if (!m || m.status !== 'active' || m.includedMinutes - (await membershipDrawn(tx, membershipId)) < coveredMinutes) throw new ConflictException('The membership changed; reload');
+        await tx.insert(maasMembershipDraw).values({ tenantId: b.tenantId, membershipId, bookingId: id, minutes: coveredMinutes, createdBy: ctx.user.id });
+      }
+      // No updatedAt bump: billing doesn't change reserved time, so the schedule stays current.
+      await tx.update(maasBooking).set({ billedAt: new Date(), ...(invoiceId ? { salesInvoiceId: invoiceId } : {}) }).where(eq(maasBooking.id, id));
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.bill', targetType: 'maas_booking', targetId: id, after: { invoiceId, membershipId, coveredMinutes, overageMinutes, ...c } }, tx);
+    };
+    if (overageMinutes === 0) {
+      await this.db.transaction((tx) => settle(tx, null));
+      return { invoiceId: null, coveredMinutes, overageMinutes, ...c };
+    }
+    if (!ctx.tenant.permissions.has('selling.sales_invoice.create')) throw new ForbiddenException('Missing permission: selling.sales_invoice.create');
+    const [card] = await this.db.select({ serviceItemId: maasRateCard.serviceItemId }).from(maasRateCard).where(eq(maasRateCard.id, d.rateCard.id));
+    const hours = maasHours(overageMinutes);
+    const description = coveredMinutes
+      ? `Machine time on ${d.machineCode} (${d.machineName}), booking ${d.number}: ${c.actualMinutes} min used, ${c.billableMinutes} min billed, ${coveredMinutes} min from membership ${d.membership!.number}, ${overageMinutes} min beyond it at member rate`
+      : `Machine time on ${d.machineCode} (${d.machineName}), booking ${d.number}: ${c.actualMinutes} min used, ${c.billableMinutes} min billed${c.memberRate ? ' at member rate' : ''}`;
     const inv = await this.selling.createDraftInvoice(
       ctx,
       entityId,
@@ -351,19 +391,39 @@ export class MaasController {
         invoiceDate: input.invoiceDate ?? businessDate(),
         gstRegistrationId: input.gstRegistrationId ?? null,
         remarks: input.remarks ?? `Machine booking ${d.number}`,
-        lines: [{ itemId: card!.serviceItemId, description, qty: c.hours, rate: c.rate }],
+        lines: [{ itemId: card!.serviceItemId, description, qty: hours, rate: c.rate }],
       },
-      async (tx, invoiceId) => {
-        const b = await this.lock(tx, entityId, id);
-        if (b.status !== 'completed' || (await this.invoiceHoldsIn(tx, b.salesInvoiceId))) throw new ConflictException('The booking changed; reload');
-        const [t] = await tx.select({ total: sum(maasUsage.minutes) }).from(maasUsage).where(eq(maasUsage.bookingId, id));
-        if (Number(t?.total ?? 0) !== c.actualMinutes) throw new ConflictException('Usage changed while invoicing; reload');
-        // No updatedAt bump: billing doesn't change reserved time, so the schedule stays current.
-        await tx.update(maasBooking).set({ salesInvoiceId: invoiceId }).where(eq(maasBooking.id, id));
-        await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.invoice', targetType: 'maas_booking', targetId: id, after: { invoiceId, ...c } }, tx);
-      },
+      settle,
     );
-    return { invoiceId: inv.id, ...c };
+    return { invoiceId: inv.id, coveredMinutes, overageMinutes, ...c, hours, amount: Dec.of(hours).mul(c.rate).toFixed(2) };
+  }
+
+  /** Decision 055 name for billing, kept for callers that invoice a booking. */
+  @Post('bookings/:id/invoice')
+  @RequirePermission('services.billing.create')
+  async invoice(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    return this.bill(ctx, id, body);
+  }
+
+  /** Undo billing (decision 056): reverse the membership draws once any overage invoice is deleted or cancelled. */
+  @Post('bookings/:id/unbill')
+  @RequirePermission('services.billing.create')
+  async unbill(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const { reason: why } = parse(reason, body);
+    return this.db.transaction(async (tx) => {
+      const b = await this.lock(tx, entityId, id);
+      if (await this.invoiceHoldsIn(tx, b.salesInvoiceId)) throw new ConflictException('Delete the draft invoice or cancel the invoice first');
+      const draws = await tx
+        .select()
+        .from(maasMembershipDraw)
+        .where(and(eq(maasMembershipDraw.bookingId, id), isNull(maasMembershipDraw.reversalOf), sql`not exists (select 1 from ${maasMembershipDraw} r where r.reversal_of = ${maasMembershipDraw.id})`));
+      if (!draws.length) throw new ConflictException('Nothing billed to a membership to reverse');
+      for (const dr of draws) await tx.insert(maasMembershipDraw).values({ tenantId: dr.tenantId, membershipId: dr.membershipId, bookingId: id, minutes: -dr.minutes, reversalOf: dr.id, reason: why, createdBy: ctx.user.id });
+      await tx.update(maasBooking).set({ billedAt: null }).where(eq(maasBooking.id, id));
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.unbill', targetType: 'maas_booking', targetId: id, after: { reason: why, reversed: draws.map((x) => ({ id: x.id, minutes: x.minutes })) } }, tx);
+      return { ok: true };
+    });
   }
 
   // ── helpers ──
