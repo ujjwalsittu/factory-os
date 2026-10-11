@@ -482,3 +482,138 @@ export const timesheetEntry = pgTable(
     check('timesheet_entry_hours_ck', sql`${t.hours} <> 0 and abs(${t.hours}) <= 24 and mod(${t.hours} * 4, 1) = 0`),
   ],
 );
+
+// Phase 3e (decision 059): EarthNow subscriptions. A plan is a prepaid bundle of reports and alerts per period; the fee
+// is invoiced in advance, overage on the next invoice, and an upgrade's fee difference is prorated by days.
+
+export const subscriptionPeriod = pgEnum('subscription_period', ['month', 'quarter', 'year']);
+
+export const subscriptionPlan = pgTable(
+  'subscription_plan',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ...scope,
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    /** What is monitored, e.g. crop health. */
+    solution: text('solution').notNull(),
+    period: subscriptionPeriod('period').notNull(),
+    fee: money('fee').notNull(),
+    includedReports: integer('included_reports').notNull().default(0),
+    includedAlerts: integer('included_alerts').notNull().default(0),
+    reportRate: money('report_rate').notNull().default('0'),
+    alertRate: money('alert_rate').notNull().default('0'),
+    serviceItemId: uuid('service_item_id')
+      .notNull()
+      .references(() => item.id),
+    isActive: boolean('is_active').notNull().default(true),
+    ...stamps,
+  },
+  (t) => [
+    uniqueIndex('subscription_plan_code_uq').on(t.entityId, t.code),
+    check('subscription_plan_ck', sql`${t.fee} >= 0 and ${t.includedReports} >= 0 and ${t.includedAlerts} >= 0 and ${t.reportRate} >= 0 and ${t.alertRate} >= 0`),
+  ],
+);
+
+export const subscriptionStatus = pgEnum('subscription_status', ['active', 'cancelled']);
+
+export const subscription = pgTable(
+  'subscription',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ...scope,
+    number: text('number').notNull(),
+    customerId: uuid('customer_id')
+      .notNull()
+      .references(() => party.id),
+    customerRef: text('customer_ref'),
+    /** The plan in force now; earlier plans are in the change history. */
+    planId: uuid('plan_id')
+      .notNull()
+      .references(() => subscriptionPlan.id),
+    aoiName: text('aoi_name').notNull(),
+    aoiHectares: numeric('aoi_hectares', { precision: 14, scale: 2 }),
+    aoiNotes: text('aoi_notes'),
+    /** Anchors the periods. */
+    startDate: date('start_date').notNull(),
+    /** Last day of the last period, once cancelled. */
+    endDate: date('end_date'),
+    status: subscriptionStatus('status').notNull().default('active'),
+    cancelReason: text('cancel_reason'),
+    ...stamps,
+  },
+  (t) => [uniqueIndex('subscription_number_uq').on(t.entityId, t.number), index('subscription_customer_idx').on(t.customerId), check('subscription_aoi_ck', sql`${t.aoiHectares} is null or ${t.aoiHectares} > 0`)],
+);
+
+/** Append-only plan history. An upgrade carries its prorated charge until an invoice takes it. */
+export const subscriptionPlanChange = pgTable(
+  'subscription_plan_change',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    subscriptionId: uuid('subscription_id')
+      .notNull()
+      .references(() => subscription.id),
+    fromPlanId: uuid('from_plan_id')
+      .notNull()
+      .references(() => subscriptionPlan.id),
+    toPlanId: uuid('to_plan_id')
+      .notNull()
+      .references(() => subscriptionPlan.id),
+    effectiveOn: date('effective_on').notNull(),
+    prorationAmount: money('proration_amount').notNull().default('0'),
+    /** The invoice that charged the proration; a deleted draft frees it. */
+    salesInvoiceId: uuid('sales_invoice_id').references(() => salesInvoice.id, { onDelete: 'set null' }),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('subscription_plan_change_sub_idx').on(t.subscriptionId, t.effectiveOn), check('subscription_plan_change_ck', sql`${t.prorationAmount} >= 0`)],
+);
+
+export const subscriptionDeliveryKind = pgEnum('subscription_delivery_kind', ['report', 'alert']);
+
+/** Reports and alerts delivered, append-only: a wrong entry is cancelled by a reversal row. */
+export const subscriptionDelivery = pgTable(
+  'subscription_delivery',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id),
+    subscriptionId: uuid('subscription_id')
+      .notNull()
+      .references(() => subscription.id),
+    kind: subscriptionDeliveryKind('kind').notNull(),
+    deliveredOn: date('delivered_on').notNull(),
+    title: text('title').notNull(),
+    reference: text('reference'),
+    reversalOf: uuid('reversal_of'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('subscription_delivery_sub_idx').on(t.subscriptionId, t.deliveredOn), uniqueIndex('subscription_delivery_reversal_uq').on(t.reversalOf)],
+);
+
+/** What each invoice carried: a period's fee, the previous period's overage. Counts while its invoice is live. */
+export const subscriptionInvoice = pgTable(
+  'subscription_invoice',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    subscriptionId: uuid('subscription_id')
+      .notNull()
+      .references(() => subscription.id),
+    salesInvoiceId: uuid('sales_invoice_id').notNull(),
+    feePeriodStart: date('fee_period_start'),
+    feeAmount: money('fee_amount').notNull().default('0'),
+    overagePeriodStart: date('overage_period_start'),
+    overageReports: integer('overage_reports').notNull().default(0),
+    overageAlerts: integer('overage_alerts').notNull().default(0),
+    overageAmount: money('overage_amount').notNull().default('0'),
+    prorationAmount: money('proration_amount').notNull().default('0'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('subscription_invoice_sub_idx').on(t.subscriptionId), uniqueIndex('subscription_invoice_si_uq').on(t.salesInvoiceId)],
+);
