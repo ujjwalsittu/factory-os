@@ -497,7 +497,11 @@ export class SellingController {
   @Post('sales-invoices')
   @RequirePermission('selling.sales_invoice.create')
   async createInvoice(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
-    const entityId = entityOf(ctx);
+    return this.createDraftInvoice(ctx, entityOf(ctx), body);
+  }
+
+  /** A draft invoice through the same checks as the form; `within` runs inside its transaction (MaaS billing, decision 055). */
+  async createDraftInvoice(ctx: TenantRequestContext, entityId: string, body: unknown, within?: (tx: Tx, invoiceId: string) => Promise<void>) {
     const input = parse(invoiceInput, body);
     const { header, lines } = await this.prepareInvoice(ctx, entityId, input);
     return this.db.transaction(async (tx) => {
@@ -505,7 +509,8 @@ export class SellingController {
       const [inv] = await tx.insert(salesInvoice).values({ ...header, tenantId: ctx.tenant.tenantId, entityId, createdBy: ctx.user.id }).returning();
       await tx.insert(salesInvoiceLine).values(lines.map((l, i) => ({ ...l, invoiceId: inv!.id, lineNo: i + 1 })));
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'sales_invoice.create', targetType: 'sales_invoice', targetId: inv!.id, after: input }, tx);
-      return inv;
+      if (within) await within(tx, inv!.id);
+      return inv!;
     });
   }
 

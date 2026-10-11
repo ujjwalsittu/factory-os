@@ -91,6 +91,8 @@ const partyInput = z
     phone: z.string().trim().max(20).optional().nullable(),
     addresses: z.array(addressInput).max(20).default([]),
     isActive: z.boolean().default(true),
+    /** Decision 055: member rates on machine-hour bookings. */
+    maasMember: z.boolean().default(false),
   })
   .refine((p) => p.isCustomer || p.isSupplier, { message: 'Mark the party as a customer, a supplier, or both', path: ['isCustomer'] });
 
