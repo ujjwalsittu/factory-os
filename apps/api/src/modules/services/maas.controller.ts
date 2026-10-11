@@ -1,0 +1,454 @@
+// Phase 3a machine-hour MaaS (decision 055): rate cards, bookings, usage and a draft invoice for a completed booking.
+// A confirmed booking holds a `booking` machine block, which the scheduler already treats as unavailable time.
+import { maasCharge, maasTermsError } from '@factoryos/core';
+import { item, machine, machineBlock, maasBooking, maasRateCard, maasUsage, party, salesInvoice, scheduledOperation, type Database, user, workCentre } from '@factoryos/db';
+import { BadRequestException, Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
+import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, ne, or, sql, sum } from 'drizzle-orm';
+import { z } from 'zod';
+import { Ctx, RequirePermission, type TenantRequestContext } from '../../common/access.js';
+import { AuditService } from '../../common/audit.service.js';
+import { DB } from '../../common/tokens.js';
+import { parse } from '../../common/validation.js';
+import { businessDate, entityOf, type Tx } from '../accounting/accounting-lock.js';
+import { SellingController } from '../selling.controller.js';
+import { StockPostingService } from '../stock-posting.service.js';
+
+const money = z
+  .union([z.string(), z.number()])
+  .transform((v) => String(v).trim())
+  .pipe(z.string().regex(/^\d+(\.\d{1,2})?$/, 'Rupees with up to 2 decimals'));
+const rateCardInput = z.object({
+  machineId: z.uuid(),
+  serviceItemId: z.uuid(),
+  standardRate: money,
+  memberRate: money.nullable().optional(),
+  minimumMinutes: z.number().int().min(0).max(24 * 60).default(0),
+  roundingMinutes: z.number().int().default(15),
+  validFrom: z.iso.date(),
+  validTo: z.iso.date().nullable().optional(),
+});
+const bookingInput = z.object({
+  customerId: z.uuid(),
+  machineId: z.uuid(),
+  startsAt: z.iso.datetime({ offset: true }),
+  endsAt: z.iso.datetime({ offset: true }),
+  purpose: z.string().trim().max(500).nullable().optional(),
+});
+const listQuery = z.object({
+  status: z.enum(['tentative', 'confirmed', 'in_use', 'completed', 'cancelled']).optional(),
+  machineId: z.uuid().optional(),
+  from: z.iso.datetime({ offset: true }).optional(),
+  to: z.iso.datetime({ offset: true }).optional(),
+});
+const reason = z.object({ reason: z.string().trim().min(3, 'Give a reason').max(500) });
+const usageInput = z.object({ minutes: z.number().int().min(-24 * 60).max(24 * 60).refine((m) => m !== 0, 'Minutes can’t be zero'), note: z.string().trim().min(3, 'Say why').max(500) });
+const invoiceInput = z.object({ invoiceDate: z.iso.date().optional(), gstRegistrationId: z.uuid().nullable().optional(), remarks: z.string().trim().max(2000).nullable().optional() });
+
+/** Indian calendar date of an instant: rate cards are dated in the entity's business day. */
+const istDate = (d: Date) => new Date(d.getTime() + 5.5 * 3600e3).toISOString().slice(0, 10);
+const MINUTE = 60_000;
+
+@Controller('services')
+export class MaasController {
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly audit: AuditService,
+    private readonly posting: StockPostingService,
+    private readonly selling: SellingController,
+  ) {}
+
+  // ── Rate cards ──
+
+  @Get('rate-cards')
+  @RequirePermission('services.rate_card.read')
+  async rateCards(@Ctx() ctx: TenantRequestContext) {
+    const entityId = entityOf(ctx);
+    return this.db
+      .select({ card: maasRateCard, machineCode: machine.code, machineName: machine.name, itemCode: item.code, itemName: item.name })
+      .from(maasRateCard)
+      .innerJoin(machine, eq(machine.id, maasRateCard.machineId))
+      .innerJoin(item, eq(item.id, maasRateCard.serviceItemId))
+      .where(eq(maasRateCard.entityId, entityId))
+      .orderBy(asc(machine.code), desc(maasRateCard.validFrom))
+      .then((rows) => rows.map((r) => ({ ...r.card, machineCode: r.machineCode, machineName: r.machineName, itemCode: r.itemCode, itemName: r.itemName })));
+  }
+
+  @Post('rate-cards')
+  @RequirePermission('services.rate_card.update')
+  async createRateCard(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const input = parse(rateCardInput, body);
+    const terms = { standardRate: input.standardRate, memberRate: input.memberRate ?? null, minimumMinutes: input.minimumMinutes, roundingMinutes: input.roundingMinutes };
+    const err = maasTermsError(terms);
+    if (err) throw new BadRequestException(err);
+    if (input.validTo && input.validTo < input.validFrom) throw new BadRequestException('The card ends before it starts');
+    await this.machineIn(this.db, entityId, input.machineId);
+    const [svc] = await this.db.select().from(item).where(and(eq(item.id, input.serviceItemId), eq(item.tenantId, ctx.tenant.tenantId)));
+    if (!svc) throw new NotFoundException('Service item not found');
+    if (svc.type !== 'service') throw new BadRequestException(`${svc.code} is not a service item; machine time is billed as a service (SAC)`);
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`maas-rate:${input.machineId}`}))`);
+      const clash = await tx
+        .select({ id: maasRateCard.id, validFrom: maasRateCard.validFrom })
+        .from(maasRateCard)
+        .where(
+          and(
+            eq(maasRateCard.machineId, input.machineId),
+            or(isNull(maasRateCard.validTo), sql`${maasRateCard.validTo} >= ${input.validFrom}`),
+            input.validTo ? lte(maasRateCard.validFrom, input.validTo) : sql`true`,
+          ),
+        )
+        .limit(1);
+      if (clash.length) throw new ConflictException(`Another rate card from ${clash[0]!.validFrom} covers these dates; end it first`);
+      const [card] = await tx
+        .insert(maasRateCard)
+        .values({ tenantId: ctx.tenant.tenantId, entityId, ...input, memberRate: input.memberRate ?? null, validTo: input.validTo ?? null, createdBy: ctx.user.id })
+        .returning();
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_rate_card.create', targetType: 'maas_rate_card', targetId: card!.id, after: input }, tx);
+      return card!;
+    });
+  }
+
+  @Post('rate-cards/:id/end')
+  @RequirePermission('services.rate_card.update')
+  async endRateCard(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const { validTo } = parse(z.object({ validTo: z.iso.date() }), body);
+    const [card] = await this.db.select().from(maasRateCard).where(and(eq(maasRateCard.id, id), eq(maasRateCard.entityId, entityId)));
+    if (!card) throw new NotFoundException('Rate card not found');
+    if (validTo < card.validFrom) throw new BadRequestException(`The card starts on ${card.validFrom}`);
+    if (card.validTo && validTo > card.validTo) throw new BadRequestException(`The card already ends on ${card.validTo}`);
+    await this.db.update(maasRateCard).set({ validTo, updatedAt: new Date() }).where(eq(maasRateCard.id, id));
+    await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_rate_card.end', targetType: 'maas_rate_card', targetId: id, before: { validTo: card.validTo }, after: { validTo } });
+    return { ok: true };
+  }
+
+  // ── Bookings ──
+
+  @Get('bookings')
+  @RequirePermission('services.booking.read')
+  async bookings(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
+    const entityId = entityOf(ctx);
+    const q = parse(listQuery, query);
+    const rows = await this.db
+      .select({ b: maasBooking, customerName: party.name, machineCode: machine.code, machineName: machine.name, invoiceNumber: salesInvoice.number, invoiceStatus: salesInvoice.status })
+      .from(maasBooking)
+      .innerJoin(party, eq(party.id, maasBooking.customerId))
+      .innerJoin(machine, eq(machine.id, maasBooking.machineId))
+      .leftJoin(salesInvoice, eq(salesInvoice.id, maasBooking.salesInvoiceId))
+      .where(
+        and(
+          eq(maasBooking.entityId, entityId),
+          q.status ? eq(maasBooking.status, q.status) : undefined,
+          q.machineId ? eq(maasBooking.machineId, q.machineId) : undefined,
+          q.from ? gt(maasBooking.endsAt, new Date(q.from)) : undefined,
+          q.to ? lt(maasBooking.startsAt, new Date(q.to)) : undefined,
+        ),
+      )
+      .orderBy(asc(maasBooking.startsAt))
+      .limit(500);
+    const used = await this.usedMinutes(rows.map((r) => r.b.id));
+    return rows.map((r) => ({ ...r.b, customerName: r.customerName, machineCode: r.machineCode, machineName: r.machineName, invoiceNumber: r.invoiceNumber, invoiceStatus: r.invoiceStatus, usedMinutes: used.get(r.b.id) ?? 0 }));
+  }
+
+  @Get('bookings/:id')
+  @RequirePermission('services.booking.read')
+  async booking(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
+    const entityId = entityOf(ctx);
+    const [r] = await this.db
+      .select({ b: maasBooking, customerName: party.name, member: party.maasMember, machineCode: machine.code, machineName: machine.name, workCentre: workCentre.name, invoiceNumber: salesInvoice.number, invoiceStatus: salesInvoice.status })
+      .from(maasBooking)
+      .innerJoin(party, eq(party.id, maasBooking.customerId))
+      .innerJoin(machine, eq(machine.id, maasBooking.machineId))
+      .innerJoin(workCentre, eq(workCentre.id, machine.workCentreId))
+      .leftJoin(salesInvoice, eq(salesInvoice.id, maasBooking.salesInvoiceId))
+      .where(and(eq(maasBooking.id, id), eq(maasBooking.entityId, entityId)));
+    if (!r) throw new NotFoundException('Booking not found');
+    const usage = await this.db
+      .select({ id: maasUsage.id, minutes: maasUsage.minutes, source: maasUsage.source, note: maasUsage.note, recordedAt: maasUsage.recordedAt, recordedBy: user.name })
+      .from(maasUsage)
+      .innerJoin(user, eq(user.id, maasUsage.recordedBy))
+      .where(eq(maasUsage.bookingId, id))
+      .orderBy(asc(maasUsage.recordedAt));
+    const usedMinutes = usage.reduce((s, u) => s + u.minutes, 0);
+    const card = await this.cardFor(this.db, r.b.machineId, istDate(r.b.startsAt));
+    const charge = card ? maasCharge(Math.max(0, usedMinutes), card, r.member) : null;
+    return {
+      ...r.b,
+      customerName: r.customerName,
+      member: r.member,
+      machineCode: r.machineCode,
+      machineName: r.machineName,
+      workCentre: r.workCentre,
+      invoiceNumber: r.invoiceNumber,
+      invoiceStatus: r.invoiceStatus,
+      usage,
+      usedMinutes,
+      rateCard: card ? { id: card.id, standardRate: card.standardRate, memberRate: card.memberRate, minimumMinutes: card.minimumMinutes, roundingMinutes: card.roundingMinutes, validFrom: card.validFrom, validTo: card.validTo } : null,
+      charge,
+      billable: r.b.status === 'completed' && !this.invoiceHolds(r.invoiceStatus) && !!card,
+    };
+  }
+
+  @Post('bookings')
+  @RequirePermission('services.booking.create')
+  async create(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const input = this.span(parse(bookingInput, body));
+    await this.customerIn(ctx, input.customerId);
+    return this.db.transaction(async (tx) => {
+      await this.machineIn(tx, entityId, input.machineId);
+      const number = await this.posting.allocateNumber(tx, ctx.tenant.tenantId, entityId, 'maas_booking', businessDate());
+      const [b] = await tx
+        .insert(maasBooking)
+        .values({ tenantId: ctx.tenant.tenantId, entityId, number, customerId: input.customerId, machineId: input.machineId, startsAt: input.start, endsAt: input.end, purpose: input.purpose ?? null, createdBy: ctx.user.id })
+        .returning();
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.create', targetType: 'maas_booking', targetId: b!.id, after: { number, ...input } }, tx);
+      return b!;
+    });
+  }
+
+  /** Move, resize or change a tentative or confirmed booking; a confirmed one keeps its reservation in step. */
+  @Put('bookings/:id')
+  @RequirePermission('services.booking.update')
+  async update(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const input = this.span(parse(bookingInput, body));
+    await this.customerIn(ctx, input.customerId);
+    return this.db.transaction(async (tx) => {
+      await this.lockSchedule(tx, entityId);
+      const b = await this.lock(tx, entityId, id);
+      if (b.status !== 'tentative' && b.status !== 'confirmed') throw new ConflictException(`A booking that is ${label(b.status)} can’t be changed`);
+      await this.machineIn(tx, entityId, input.machineId);
+      if (b.status === 'confirmed') {
+        await this.checkClashes(tx, input.machineId, input.start, input.end, b.machineBlockId);
+        await tx
+          .update(machineBlock)
+          .set({ machineId: input.machineId, startsAt: input.start, endsAt: input.end, reason: await this.blockReason(tx, b.number, input.customerId), updatedAt: new Date() })
+          .where(eq(machineBlock.id, b.machineBlockId!));
+      }
+      await tx
+        .update(maasBooking)
+        .set({ customerId: input.customerId, machineId: input.machineId, startsAt: input.start, endsAt: input.end, purpose: input.purpose ?? null, updatedAt: new Date() })
+        .where(eq(maasBooking.id, id));
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.update', targetType: 'maas_booking', targetId: id, before: { machineId: b.machineId, startsAt: b.startsAt, endsAt: b.endsAt }, after: input }, tx);
+      return { ok: true };
+    });
+  }
+
+  @Post('bookings/:id/confirm')
+  @RequirePermission('services.booking.update')
+  async confirm(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
+    const entityId = entityOf(ctx);
+    return this.db.transaction(async (tx) => {
+      await this.lockSchedule(tx, entityId);
+      const b = await this.lock(tx, entityId, id);
+      if (b.status !== 'tentative') throw new ConflictException(`Only tentative bookings can be confirmed (this one is ${label(b.status)})`);
+      if (b.endsAt.getTime() <= Date.now()) throw new BadRequestException('The booking has already ended; move it first');
+      await this.checkClashes(tx, b.machineId, b.startsAt, b.endsAt, null);
+      const [blk] = await tx
+        .insert(machineBlock)
+        .values({ tenantId: b.tenantId, entityId, machineId: b.machineId, kind: 'booking', startsAt: b.startsAt, endsAt: b.endsAt, reason: await this.blockReason(tx, b.number, b.customerId), createdBy: ctx.user.id })
+        .returning();
+      await tx.update(maasBooking).set({ status: 'confirmed', machineBlockId: blk!.id, updatedAt: new Date() }).where(eq(maasBooking.id, id));
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.confirm', targetType: 'maas_booking', targetId: id, after: { machineBlockId: blk!.id } }, tx);
+      return { ok: true };
+    });
+  }
+
+  @Post('bookings/:id/cancel')
+  @RequirePermission('services.booking.update')
+  async cancel(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const { reason: why } = parse(reason, body);
+    return this.db.transaction(async (tx) => {
+      await this.lockSchedule(tx, entityId);
+      const b = await this.lock(tx, entityId, id);
+      if (b.status !== 'tentative' && b.status !== 'confirmed') throw new ConflictException(`A booking that is ${label(b.status)} can’t be cancelled`);
+      await tx.update(maasBooking).set({ status: 'cancelled', cancelReason: why, machineBlockId: null, updatedAt: new Date() }).where(eq(maasBooking.id, id));
+      if (b.machineBlockId) await tx.delete(machineBlock).where(eq(machineBlock.id, b.machineBlockId));
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.cancel', targetType: 'maas_booking', targetId: id, before: { status: b.status }, after: { reason: why } }, tx);
+      return { ok: true };
+    });
+  }
+
+  @Post('bookings/:id/start')
+  @RequirePermission('services.usage.create')
+  async start(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
+    const entityId = entityOf(ctx);
+    return this.db.transaction(async (tx) => {
+      const b = await this.lock(tx, entityId, id);
+      if (b.status !== 'confirmed') throw new ConflictException(b.status === 'tentative' ? 'Confirm the booking before starting the machine' : `A booking that is ${label(b.status)} can’t be started`);
+      const now = new Date();
+      await tx.update(maasBooking).set({ status: 'in_use', startedAt: now, updatedAt: now }).where(eq(maasBooking.id, id));
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.start', targetType: 'maas_booking', targetId: id, after: { startedAt: now } }, tx);
+      return { ok: true };
+    });
+  }
+
+  /** Stop the timer: the elapsed whole minutes are recorded and an early finish frees the rest of the reservation. */
+  @Post('bookings/:id/stop')
+  @RequirePermission('services.usage.create')
+  async stop(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
+    const entityId = entityOf(ctx);
+    return this.db.transaction(async (tx) => {
+      await this.lockSchedule(tx, entityId);
+      const b = await this.lock(tx, entityId, id);
+      if (b.status !== 'in_use' || !b.startedAt) throw new ConflictException('The machine timer is not running for this booking');
+      const now = new Date();
+      const minutes = Math.round((now.getTime() - b.startedAt.getTime()) / MINUTE);
+      if (minutes > 0) await tx.insert(maasUsage).values({ tenantId: b.tenantId, bookingId: id, minutes, source: 'timer', note: null, recordedBy: ctx.user.id });
+      if (b.machineBlockId) {
+        const [blk] = await tx.select().from(machineBlock).where(eq(machineBlock.id, b.machineBlockId));
+        if (blk && blk.startsAt >= now) {
+          // Stopped before the reserved time began: release all of it.
+          await tx.update(maasBooking).set({ machineBlockId: null }).where(eq(maasBooking.id, id));
+          await tx.delete(machineBlock).where(eq(machineBlock.id, blk.id));
+        } else if (blk && blk.endsAt > now) await tx.update(machineBlock).set({ endsAt: now, updatedAt: now }).where(eq(machineBlock.id, blk.id));
+      }
+      await tx.update(maasBooking).set({ status: 'completed', stoppedAt: now, updatedAt: now }).where(eq(maasBooking.id, id));
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.stop', targetType: 'maas_booking', targetId: id, after: { stoppedAt: now, minutes } }, tx);
+      return { ok: true, minutes };
+    });
+  }
+
+  /** Usage recorded by hand (no timer) or a correction; append-only. */
+  @Post('bookings/:id/usage')
+  @RequirePermission('services.usage.create')
+  async recordUsage(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const input = parse(usageInput, body);
+    return this.db.transaction(async (tx) => {
+      const b = await this.lock(tx, entityId, id);
+      if (b.status !== 'in_use' && b.status !== 'completed') throw new ConflictException('Usage is recorded once the machine has been used');
+      if (await this.invoiceHoldsIn(tx, b.salesInvoiceId)) throw new ConflictException('The booking is invoiced; cancel or delete the invoice to change its usage');
+      const [t] = await tx.select({ total: sum(maasUsage.minutes) }).from(maasUsage).where(eq(maasUsage.bookingId, id));
+      if (Number(t?.total ?? 0) + input.minutes < 0) throw new BadRequestException(`Only ${Number(t?.total ?? 0)} minutes are recorded`);
+      const [u] = await tx.insert(maasUsage).values({ tenantId: b.tenantId, bookingId: id, minutes: input.minutes, source: 'manual', note: input.note, recordedBy: ctx.user.id }).returning();
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_usage.record', targetType: 'maas_booking', targetId: id, after: input }, tx);
+      return u!;
+    });
+  }
+
+  /** A draft tax invoice for a completed booking at its rate card, through the sales invoice path. */
+  @Post('bookings/:id/invoice')
+  @RequirePermission('services.billing.create', 'selling.sales_invoice.create')
+  async invoice(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const input = parse(invoiceInput, body);
+    const d = await this.booking(ctx, id);
+    if (d.status !== 'completed') throw new ConflictException('Only completed bookings are invoiced');
+    if (this.invoiceHolds(d.invoiceStatus)) throw new ConflictException(`Already invoiced on ${d.invoiceNumber ?? 'a draft invoice'}`);
+    if (!d.rateCard || !d.charge) throw new BadRequestException(`No rate card for ${d.machineCode} on ${istDate(d.startsAt)}`);
+    const [card] = await this.db.select({ serviceItemId: maasRateCard.serviceItemId }).from(maasRateCard).where(eq(maasRateCard.id, d.rateCard.id));
+    const c = d.charge;
+    const description = `Machine time on ${d.machineCode} (${d.machineName}), booking ${d.number}: ${c.actualMinutes} min used, ${c.billableMinutes} min billed${c.memberRate ? ' at member rate' : ''}`;
+    const inv = await this.selling.createDraftInvoice(
+      ctx,
+      entityId,
+      {
+        customerId: d.customerId,
+        invoiceDate: input.invoiceDate ?? businessDate(),
+        gstRegistrationId: input.gstRegistrationId ?? null,
+        remarks: input.remarks ?? `Machine booking ${d.number}`,
+        lines: [{ itemId: card!.serviceItemId, description, qty: c.hours, rate: c.rate }],
+      },
+      async (tx, invoiceId) => {
+        const b = await this.lock(tx, entityId, id);
+        if (b.status !== 'completed' || (await this.invoiceHoldsIn(tx, b.salesInvoiceId))) throw new ConflictException('The booking changed; reload');
+        const [t] = await tx.select({ total: sum(maasUsage.minutes) }).from(maasUsage).where(eq(maasUsage.bookingId, id));
+        if (Number(t?.total ?? 0) !== c.actualMinutes) throw new ConflictException('Usage changed while invoicing; reload');
+        // No updatedAt bump: billing doesn't change reserved time, so the schedule stays current.
+        await tx.update(maasBooking).set({ salesInvoiceId: invoiceId }).where(eq(maasBooking.id, id));
+        await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.invoice', targetType: 'maas_booking', targetId: id, after: { invoiceId, ...c } }, tx);
+      },
+    );
+    return { invoiceId: inv.id, ...c };
+  }
+
+  // ── helpers ──
+
+  private span(input: z.infer<typeof bookingInput>) {
+    const start = new Date(input.startsAt);
+    const end = new Date(input.endsAt);
+    if (end <= start) throw new BadRequestException('The booking must end after it starts');
+    if (end.getTime() - start.getTime() > 31 * 24 * 60 * MINUTE) throw new BadRequestException('Book at most 31 days at a time');
+    if (end.getTime() <= Date.now()) throw new BadRequestException('The booking is in the past');
+    return { ...input, start, end };
+  }
+
+  private async lock(tx: Tx, entityId: string, id: string) {
+    const [b] = await tx.select().from(maasBooking).where(and(eq(maasBooking.id, id), eq(maasBooking.entityId, entityId))).for('update');
+    if (!b) throw new NotFoundException('Booking not found');
+    return b;
+  }
+
+  /** The scheduler's per-entity lock, so a booking never races a Reschedule or a move on the Gantt. */
+  private async lockSchedule(tx: Tx, entityId: string) {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`schedule:${entityId}`}))`);
+  }
+
+  private async machineIn(db: Database | Tx, entityId: string, id: string) {
+    const [m] = await db.select().from(machine).where(and(eq(machine.id, id), eq(machine.entityId, entityId)));
+    if (!m) throw new NotFoundException('Machine not found');
+    if (!m.isActive) throw new BadRequestException(`${m.code} is inactive`);
+    return m;
+  }
+
+  private async customerIn(ctx: TenantRequestContext, id: string) {
+    const [p] = await this.db.select().from(party).where(and(eq(party.id, id), eq(party.tenantId, ctx.tenant.tenantId)));
+    if (!p) throw new NotFoundException('Customer not found');
+    if (!p.isCustomer) throw new BadRequestException(`${p.name} is not a customer`);
+    return p;
+  }
+
+  private async blockReason(tx: Tx, number: string, customerId: string) {
+    const [p] = await tx.select({ name: party.name }).from(party).where(eq(party.id, customerId));
+    return `Booking ${number} · ${p?.name ?? 'customer'}`;
+  }
+
+  /** A confirmed booking may not overlap other reserved time or pinned/running production on the machine. */
+  private async checkClashes(tx: Tx, machineId: string, start: Date, end: Date, ownBlockId: string | null) {
+    const [blk] = await tx
+      .select({ kind: machineBlock.kind, reason: machineBlock.reason })
+      .from(machineBlock)
+      .where(and(eq(machineBlock.machineId, machineId), lt(machineBlock.startsAt, end), gt(machineBlock.endsAt, start), ownBlockId ? ne(machineBlock.id, ownBlockId) : undefined))
+      .limit(1);
+    if (blk) throw new ConflictException(blk.kind === 'booking' ? `Overlaps ${blk.reason}` : `Overlaps ${blk.kind} on this machine: ${blk.reason}`);
+    const [op] = await tx
+      .select({ pinned: scheduledOperation.pinned, running: scheduledOperation.running })
+      .from(scheduledOperation)
+      .where(and(eq(scheduledOperation.machineId, machineId), lt(scheduledOperation.startsAt, end), gt(scheduledOperation.endsAt, start), or(eq(scheduledOperation.pinned, true), eq(scheduledOperation.running, true))))
+      .limit(1);
+    if (op) throw new ConflictException(op.running ? 'Overlaps production running on this machine' : 'Overlaps production pinned on this machine; unpin or move it first');
+  }
+
+  private async cardFor(db: Database | Tx, machineId: string, date: string) {
+    const [c] = await db
+      .select()
+      .from(maasRateCard)
+      .where(and(eq(maasRateCard.machineId, machineId), lte(maasRateCard.validFrom, date), or(isNull(maasRateCard.validTo), sql`${maasRateCard.validTo} >= ${date}`)))
+      .limit(1);
+    return c ?? null;
+  }
+
+  private invoiceHolds(status: string | null) {
+    return status === 'draft' || status === 'submitted';
+  }
+
+  private async invoiceHoldsIn(tx: Tx, invoiceId: string | null) {
+    if (!invoiceId) return false;
+    const [inv] = await tx.select({ status: salesInvoice.status }).from(salesInvoice).where(eq(salesInvoice.id, invoiceId));
+    return this.invoiceHolds(inv?.status ?? null);
+  }
+
+  private async usedMinutes(ids: string[]) {
+    if (!ids.length) return new Map<string, number>();
+    const rows = await this.db.select({ id: maasUsage.bookingId, total: sum(maasUsage.minutes) }).from(maasUsage).where(inArray(maasUsage.bookingId, ids)).groupBy(maasUsage.bookingId);
+    return new Map(rows.map((r) => [r.id, Number(r.total ?? 0)]));
+  }
+}
+
+function label(status: string) {
+  return status.replace('_', ' ');
+}

@@ -170,10 +170,24 @@ export function Gantt({
                       .map((b) => (
                         <div
                           key={b.id}
-                          className="absolute inset-y-0 border-x border-danger bg-danger-soft bg-[repeating-linear-gradient(45deg,transparent_0_6px,var(--color-surface)_6px_9px)]"
+                          className={cn(
+                            'absolute inset-y-0 border-x bg-[repeating-linear-gradient(45deg,transparent_0_6px,var(--color-surface)_6px_9px)]',
+                            b.kind === 'booking' ? 'border-info bg-info-soft' : 'border-danger bg-danger-soft',
+                          )}
                           style={{ left: Math.max(0, x(b.startsAt)), width: Math.max(2, Math.min(width, x(b.endsAt)) - Math.max(0, x(b.startsAt))) }}
                           title={b.reason}
-                          aria-label={`Downtime: ${b.reason}`}
+                          aria-label={b.kind === 'booking' ? `Reserved: ${b.reason}` : `Downtime: ${b.reason}`}
+                        />
+                      ))}
+                    {(view.bookings ?? [])
+                      .filter((k) => k.machineId === m.id && k.status === 'tentative')
+                      .map((k) => (
+                        <div
+                          key={k.id}
+                          className="pointer-events-none absolute inset-y-1 rounded-md border-2 border-dashed border-info"
+                          style={{ left: Math.max(0, x(k.startsAt)), width: Math.max(2, Math.min(width, x(k.endsAt)) - Math.max(0, x(k.startsAt))) }}
+                          title={`Tentative booking ${k.number} · ${k.customerName}`}
+                          aria-label={`Tentative booking ${k.number} · ${k.customerName}`}
                         />
                       ))}
                     {now >= 0 && now <= width && <div className="absolute inset-y-0 w-px bg-danger" style={{ left: now }} aria-hidden />}

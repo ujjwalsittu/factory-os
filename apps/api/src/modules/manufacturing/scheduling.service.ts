@@ -22,6 +22,8 @@ import {
   jobCard,
   machine,
   machineBlock,
+  maasBooking,
+  party,
   salesOrder,
   scheduledOperation,
   scheduleRun,
@@ -32,7 +34,7 @@ import {
   workOrderOperation,
 } from '@factoryos/db';
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, gt, inArray, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, lt, ne, sql } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import { AuditService } from '../../common/audit.service.js';
 import { DB } from '../../common/tokens.js';
@@ -293,7 +295,22 @@ export class SchedulingService {
           .from(workOrder)
           .where(and(eq(workOrder.entityId, entityId), gt(workOrder.updatedAt, run.runAt)))
           .limit(1)
+      ).length > 0 ||
+      // Decision 055: a booking that reserves (or released) machine time since the run.
+      (
+        await this.db
+          .select({ id: maasBooking.id })
+          .from(maasBooking)
+          .where(and(eq(maasBooking.entityId, entityId), gt(maasBooking.updatedAt, run.runAt), ne(maasBooking.status, 'tentative')))
+          .limit(1)
       ).length > 0;
+    // Decision 055: bookings in range; confirmed ones also appear as `booking` blocks.
+    const bookings = await this.db
+      .select({ id: maasBooking.id, number: maasBooking.number, status: maasBooking.status, machineId: maasBooking.machineId, startsAt: maasBooking.startsAt, endsAt: maasBooking.endsAt, machineBlockId: maasBooking.machineBlockId, customerName: party.name })
+      .from(maasBooking)
+      .innerJoin(party, eq(party.id, maasBooking.customerId))
+      .where(and(eq(maasBooking.entityId, entityId), ne(maasBooking.status, 'cancelled'), lt(maasBooking.startsAt, fromEpochMinutes(to)), gt(maasBooking.endsAt, fromEpochMinutes(from))))
+      .orderBy(asc(maasBooking.startsAt));
     return {
       run: run ?? null,
       stale,
@@ -328,6 +345,7 @@ export class SchedulingService {
       }),
       unscheduled: run ? run.details.unscheduled.map((u) => ({ ...u, ...named.find((n) => n.id === u.operationId) })) : [],
       noTime,
+      bookings,
       conflicts: run ? run.details.conflicts.map((c) => ({ ...c, ...named.find((n) => n.id === c.operationId) })) : [],
       late: late
         .map((w) => ({ ...w, dueAt: dueAt(w) }))
