@@ -3,6 +3,7 @@ import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardCheck } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
@@ -21,7 +22,7 @@ const RESULT: Record<string, { label: string; tone: 'success' | 'danger' | 'warn
 export default function InspectionsPage() {
   return (
     <>
-      <PageHeader title="Incoming inspection" description="Material received into quarantine waits here. Accepted quantity moves to stores, rejected to MRB / hold, in one step." />
+      <PageHeader title="Incoming inspection" description="Material received into quarantine waits here. Items with an incoming inspection plan are inspected to it; others in one step: accepted quantity to stores, rejected to MRB / hold." />
       <EntityGate what="inspection">
         <div className="space-y-6">
           <Pending />
@@ -36,6 +37,7 @@ function Pending() {
   const ws = useWorkspace();
   const q = useQuery({ queryKey: ['inspections-pending', ws.entityId], queryFn: () => api<PendingInspection[]>('/inspections/pending', { scope: ws.scope }) });
   const [inspecting, setInspecting] = useState<PendingInspection | null>(null);
+  const [planning, setPlanning] = useState<PendingInspection | null>(null);
   return (
     <Card>
       <CardHeader title="Waiting for inspection" description="Receipts in quarantine of items marked for incoming inspection" />
@@ -72,17 +74,32 @@ function Pending() {
                 <Td>
                   <span className="font-mono text-[13px] font-medium">{r.itemCode}</span> <span className="text-[13px] text-muted">{r.itemName}</span>
                   {r.batchNo && <p className="font-mono text-[12px] text-subtle">{r.batchNo}{r.heatNo && r.heatNo !== r.batchNo ? ` · ${r.heatNo}` : ''}</p>}
+                  {r.planRevision && <Badge tone="accent" className="mt-1">Plan rev {r.planRevision}</Badge>}
+                  {Number(r.inProgress) > 0 && (
+                    <p className="mt-1 text-[12px] text-muted">
+                      {formatQty(r.inProgress)} {r.uomCode} being inspected ·{' '}
+                      <Link href="/app/quality/inspections" className="text-accent hover:underline">
+                        open inspections
+                      </Link>
+                    </p>
+                  )}
                 </Td>
                 <Td className="tabular text-right text-[13px]">{formatQty(r.qty)}</Td>
                 <Td className="tabular text-right font-semibold whitespace-nowrap">
                   {formatQty(r.pending)} <span className="text-[11px] font-normal text-subtle">{r.uomCode}</span>
                 </Td>
                 <Td className="text-right">
-                  {ws.can('quality.inspection.submit') && (
-                    <Button size="sm" onClick={() => setInspecting(r)}>
-                      Inspect
-                    </Button>
-                  )}
+                  {r.planRevision
+                    ? ws.can('quality.inspection.create') && (
+                        <Button size="sm" onClick={() => setPlanning(r)}>
+                          Inspect to plan
+                        </Button>
+                      )
+                    : ws.can('quality.inspection.submit') && (
+                        <Button size="sm" onClick={() => setInspecting(r)}>
+                          Inspect
+                        </Button>
+                      )}
                 </Td>
               </Tr>
             ))}
@@ -90,7 +107,51 @@ function Pending() {
         </Table>
       )}
       {inspecting && <InspectDialog line={inspecting} onClose={() => setInspecting(null)} />}
+      {planning && <PlanDialog line={planning} onClose={() => setPlanning(null)} />}
     </Card>
+  );
+}
+
+/** Decision 052: opens a draft inspection against the item's incoming plan; results are recorded on its page. */
+function PlanDialog({ line, onClose }: { line: PendingInspection; onClose: () => void }) {
+  const ws = useWorkspace();
+  const router = useRouter();
+  const warehouses = useQuery({ queryKey: ['warehouses', ws.entityId], queryFn: () => api<Warehouse[]>('/warehouses', { scope: ws.scope }) });
+  const whs = (warehouses.data ?? []).filter((w) => w.isActive && w.type !== 'quarantine' && w.type !== 'mrb');
+  const [f, setF] = useState({ qty: String(Number(line.pending)), acceptWarehouseId: '' });
+  const m = useMutation({
+    mutationFn: () => api<{ id: string }>('/quality/inspections/receipt', { method: 'POST', body: { receiptLineId: line.receiptLineId, qty: f.qty, acceptWarehouseId: f.acceptWarehouseId || null }, scope: ws.scope }),
+    onSuccess: (r) => router.push(`/app/quality/inspections/${r.id}`),
+  });
+  const errs = fieldErrors(m.error);
+  return (
+    <FormDialog
+      title={`Inspect ${line.itemCode}${line.batchNo ? ` · ${line.batchNo}` : ''} to plan rev ${line.planRevision}`}
+      description={`${formatQty(line.pending)} ${line.uomCode} pending from ${line.receiptNumber}. You record each characteristic next; nothing moves until the result is recorded.`}
+      onClose={onClose}
+      onSubmit={() => m.mutate()}
+      pending={m.isPending}
+      error={m.error}
+      submitLabel="Start inspection"
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label={`Quantity (${line.uomCode})`} error={errs.qty}>
+          {(p) => <Input {...p} className="tabular text-right" inputMode="decimal" value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value })} required autoFocus />}
+        </Field>
+        <Field label="Accepted to" error={errs.acceptWarehouseId}>
+          {(p) => (
+            <Select {...p} value={f.acceptWarehouseId} onChange={(e) => setF({ ...f, acceptWarehouseId: e.target.value })}>
+              <option value="">Default ({whs.find((w) => w.type === 'stores')?.code ?? 'none'})</option>
+              {whs.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.code} · {w.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+      </div>
+    </FormDialog>
   );
 }
 
@@ -208,10 +269,17 @@ function History() {
               </Td>
               <Td className="text-[13px] text-muted">{i.inspectorName}</Td>
               <Td className="text-right">
-                {i.status === 'submitted' && ws.can('quality.inspection.cancel') && (
-                  <Button size="sm" variant="ghost" onClick={() => setCancelling(i)}>
-                    Cancel
-                  </Button>
+                {i.inspectionRecordId ? (
+                  <Link href={`/app/quality/inspections/${i.inspectionRecordId}`} className="text-[13px] text-accent hover:underline">
+                    Results
+                  </Link>
+                ) : (
+                  i.status === 'submitted' &&
+                  ws.can('quality.inspection.cancel') && (
+                    <Button size="sm" variant="ghost" onClick={() => setCancelling(i)}>
+                      Cancel
+                    </Button>
+                  )
                 )}
               </Td>
             </Tr>

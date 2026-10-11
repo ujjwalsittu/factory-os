@@ -125,6 +125,8 @@ export interface InspectionDetail extends InspectionRow {
   characteristics: Characteristic[];
   results: Measurement[];
   ncr: { id: string; number: string } | null;
+  /** The purchase receipt a receipt inspection came from (decision 052). */
+  receipt: { id: string; number: string; supplier: string | null } | null;
 }
 
 export interface Disposition {

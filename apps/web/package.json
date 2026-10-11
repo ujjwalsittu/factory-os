@@ -26,7 +26,8 @@
     "e2e:bank-reconciliation": "node --env-file-if-exists=../../.env e2e/bank-reconciliation.mjs",
     "e2e:passkeys": "node --env-file-if-exists=../../.env e2e/passkeys.mjs",
     "e2e:support-access-controls": "node --env-file-if-exists=../../.env e2e/support-access-controls.mjs",
-    "e2e:support-access-workspace": "node --env-file-if-exists=../../.env e2e/support-access-workspace.mjs"
+    "e2e:support-access-workspace": "node --env-file-if-exists=../../.env e2e/support-access-workspace.mjs",
+    "e2e:receipt-inspection-plans": "node e2e/receipt-inspection-plans.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",

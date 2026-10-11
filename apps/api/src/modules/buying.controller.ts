@@ -397,6 +397,7 @@ export class BuyingController {
         batchNo: batch.batchNo,
         receiptNumber: sql<string>`(select e.number from stock_entry_line l join stock_entry e on e.id = l.entry_id where l.id = "quality_inspection"."receipt_line_id")`,
         transferEntryId: qualityInspection.transferEntryId,
+        inspectionRecordId: qualityInspection.inspectionRecordId,
         inspectorName: user.name,
       })
       .from(qualityInspection)

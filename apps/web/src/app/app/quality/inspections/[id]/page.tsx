@@ -12,6 +12,27 @@ import { api } from '@/lib/api';
 import { formatQty } from '@/lib/format';
 import { type Characteristic, type Gauge, type InspectionDetail, OUTCOME, STAGE } from '@/lib/quality';
 
+function WithdrawDialog({ id, onClose }: { id: string; onClose: () => void }) {
+  const ws = useWorkspace();
+  const qc = useQueryClient();
+  const [reason, setReason] = useState('');
+  const m = useMutation({
+    mutationFn: () => api(`/quality/inspections/${id}/cancel`, { method: 'POST', scope: ws.scope, body: { reason } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['inspection'] });
+      void qc.invalidateQueries({ queryKey: ['inspections-pending'] });
+      onClose();
+    },
+  });
+  return (
+    <FormDialog title="Withdraw this inspection" description="Nothing has moved yet; the quantity goes back to waiting for inspection." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Withdraw">
+      <Field label="Reason (recorded in the audit log)" error={fieldErrors(m.error).reason}>
+        {(p) => <Input {...p} value={reason} onChange={(e) => setReason(e.target.value)} minLength={5} required autoFocus />}
+      </Field>
+    </FormDialog>
+  );
+}
+
 export default function InspectionPage() {
   return (
     <EntityGate what="quality">
@@ -28,6 +49,7 @@ function View() {
   const qc = useQueryClient();
   const { id } = useParams<{ id: string }>();
   const [submitting, setSubmitting] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
   const q = useQuery({ queryKey: ['inspection', ws.entityId, id], queryFn: () => api<InspectionDetail>(`/quality/inspections/${id}`, { scope: ws.scope }) });
   const gauges = useQuery({ queryKey: ['gauges', ws.entityId], queryFn: () => api<Gauge[]>('/quality/gauges', { scope: ws.scope }) });
   const [values, setValues] = useState<Record<string, string>>({});
@@ -72,14 +94,31 @@ function View() {
         }
         description={`${r.itemCode} ${r.itemName}${r.itemRevision ? ` rev ${r.itemRevision}` : ''} · ${formatQty(r.qty)} ${r.uom}${r.batchNo ? ` · ${r.batchNo}` : ''}${r.workOrder ? ` · ${r.workOrder}` : ''}`}
         actions={
-          draft &&
-          ws.can('quality.inspection.submit') && (
-            <Button onClick={() => setSubmitting(true)} disabled={!r.results.length}>
-              Record result
-            </Button>
+          draft && (
+            <div className="flex flex-wrap gap-2">
+              {r.receipt && ws.can('quality.inspection.cancel') && (
+                <Button variant="secondary" onClick={() => setWithdrawing(true)}>
+                  Withdraw
+                </Button>
+              )}
+              {ws.can('quality.inspection.submit') && (
+                <Button onClick={() => setSubmitting(true)} disabled={!r.results.length}>
+                  Record result
+                </Button>
+              )}
+            </div>
           )
         }
       />
+      {r.receipt && (
+        <p className="mb-3 text-[13px] text-muted">
+          From receipt{' '}
+          <Link className="font-mono text-accent hover:underline" href={`/app/inventory/entries/${r.receipt.id}`}>
+            {r.receipt.number}
+          </Link>
+          {r.receipt.supplier ? ` · ${r.receipt.supplier}` : ''}
+        </p>
+      )}
       {r.holdWarehouse && draft && (
         <Alert className="mb-4">
           Waiting in {r.holdWarehouse}. Accepted quantity moves to {r.acceptWarehouse}; rejected quantity goes to MRB on an NCR.
@@ -199,6 +238,7 @@ function View() {
         <AttachmentsPanel ownerType="inspection_record" ownerId={r.id} defaultKind="cmm" title="Inspection reports and data" />
       </div>
       {submitting && <SubmitDialog r={r} onClose={() => setSubmitting(false)} />}
+      {withdrawing && <WithdrawDialog id={r.id} onClose={() => setWithdrawing(false)} />}
     </>
   );
 }
