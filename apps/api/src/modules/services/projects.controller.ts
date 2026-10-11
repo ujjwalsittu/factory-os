@@ -536,6 +536,11 @@ export class ProjectsController {
     await this.transition(ctx, id, on ? 'project.link' : 'project.unlink', async (tx, p) => {
       if (p.status === 'closed' || p.status === 'cancelled') throw new ConflictException(`A ${p.status} project’s links are fixed`);
       const target = on ? p.id : null;
+      // Once milestones are billed, linked machine time and tests may be in them: unlinking would let them be billed twice.
+      if (!on && (kind === 'booking' || kind === 'campaign')) {
+        const ms = await tx.select({ salesInvoiceId: projectMilestone.salesInvoiceId }).from(projectMilestone).where(and(eq(projectMilestone.projectId, p.id), isNotNull(projectMilestone.salesInvoiceId)));
+        for (const m of ms) if (await this.invoiceLive(tx, m.salesInvoiceId)) throw new ConflictException('Milestones are already invoiced, so linked bookings and campaigns stay with the project');
+      }
       if (kind === 'booking') {
         const [b] = await tx.select().from(maasBooking).where(and(eq(maasBooking.id, linkId), eq(maasBooking.entityId, entityId))).for('update');
         if (!b) throw new NotFoundException('Booking not found');

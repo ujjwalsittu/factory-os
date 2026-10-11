@@ -169,6 +169,7 @@ d = await c.req('GET', `/services/projects/${p.id}`);
 assert.deepEqual([d.milestones[0].state, d.retention.length], ['achieved', 0]);
 ok('deleting the draft frees the milestone and its retention');
 const i1b = await c.req('POST', `/services/milestones/${m1.id}/invoice`, {}, 201);
+await fail('DELETE', `/services/projects/${p.id}/links/booking/${bk.id}`, undefined, 409, 'billed work can’t be unlinked and billed again', /already invoiced/);
 await c.req('POST', `/sales-invoices/${i1b.invoiceId}/submit`, {}, 201);
 
 // ── Complete, retention due, close ──
