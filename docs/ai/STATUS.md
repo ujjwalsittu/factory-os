@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-12 (Asia/Kolkata) · IoT metering built, PR to main_
+_Last updated: 2026-10-12 (Asia/Kolkata) · tap firmware claimed by this session_
 
 ## Done
 - [x] **IoT pilot and machine-hour metering** (decision 063, closes B20; migration 0045_iot_metering). Plant → Devices: edge agents with a key shown once (hash only stored), rotate and revoke; machine taps, one per machine. Device-authenticated `/iot/ingest` with a result per event. Plant → Machines: live states and today's occupied time. Bookings on metered machines take occupied minutes (not off or maintenance) when covered and within 10% of the timer, otherwise wait for a supervisor's review before billing. `apps/edge-agent`: local MQTT to HTTPS with a file queue, quarantine and backoff; tap simulator; contract in `iot-protocol`. Verified: new smoke 72 checks and browser walkthrough (desktop/390 px), core/protocol/agent unit tests 7/2/4, end-to-end agent check against the API, MaaS 93, memberships 76, billing runs 81, campaigns 74, projects 141 and scheduling 58 smokes, MaaS/billing-runs/scheduling browsers, typecheck 20, build 12, tests 14. [Review](../superpowers/reviews/2026-10-12-iot-metering-review.md).
@@ -134,6 +134,7 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · IoT metering built, PR to main_
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
+- **MT-1 tap firmware, provisioning and OTA (decision 064)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-12. [Design](../superpowers/specs/2026-10-12-tap-firmware-design.md); six tasks.
 
 
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
@@ -145,7 +146,7 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · IoT metering built, PR to main_
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
 3. User review of completed accounting/settlement/customer/supplier and manufacturing workflows on dev. Original shared activation states are preserved; cut-over remains a deliberate Finance action.
 
-4. ESP32 MT-1 firmware once the pilot boards arrive (decision 063; set tap clocks from the edge), and the edge PC install with Mosquitto; then SMT traceability with printed 2D labels. Other roadmap candidates need the user's choice: machine maintenance, GST return data and cost centres, hazardous-waste manifests.
+4. When the pilot boards arrive: on-board testing and CT calibration of the MT-1 firmware (decision 064), and installing the edge PC; then SMT traceability with printed 2D labels. Other roadmap candidates need the user's choice: machine maintenance, GST return data and cost centres, hazardous-waste manifests.
 
 ## Blockers
 - Automatic TDS/TCS profile/source work: current official Act393/394/395/397/402 text retrieved and pinned, including scrap2% effective2026-04-01, but complete GST-base, PAN-operativity relief and lower/nil certificate applicability guidance is still missing. Original/lower-case legacy circular PDF paths returned404; generic document search did not produce verified guidance. [Evidence/requirements](../compliance/withholding-profile-evidence.md). Need reachable official primary URLs or authorized exported guidance plus applicability confirmation; optional source-URL question already asked. No numerical defaults enabled. Continue independent bank-reconciliation work while this gate remains closed.
