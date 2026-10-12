@@ -1,5 +1,4 @@
 # @factoryos/iot-protocol
 
-Shared edge ↔ cloud telemetry and machine-state schemas. See docs/07.
-
-> Scaffold only — see [docs/](../../docs/README.md). No feature code until the plan is approved.
+The plant MQTT contract shared by the edge agent and the tap simulator (decision 063, [docs/07](../../docs/07-iot.md)):
+topics `factoryos/{tenant}/{plant}/{device}/{metric}`; a machine tap publishes `{seq, state, at}` on metric `state`.

@@ -7,10 +7,21 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/main.js",
+    "simulate": "node scripts/simulate-tap.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",
-    "typescript": "^5.9.0"
+    "@types/node": "^26.6.4",
+    "aedes": "^1.2.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.3"
+  },
+  "description": "Plant edge agent: local MQTT to the FactoryOS ingest API with store-and-forward (decision 063).",
+  "dependencies": {
+    "@factoryos/iot-protocol": "workspace:*",
+    "mqtt": "^5.16.0"
   }
 }
