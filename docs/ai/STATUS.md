@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-12 (Asia/Kolkata) · skill matrix built, PR to main_
+_Last updated: 2026-10-12 (Asia/Kolkata) · IoT metering claimed by this session_
 
 ## Done
 - [x] **Skill matrix** (decision 062, migration 0044_skill_matrix). Quality → Skill matrix: named skills required by machines and work centres; people certified as trainee, qualified or trainer with a re-certification interval (append-only, revoked once); an uncertified job card start is refused unless a supervisor allows it once from the work order; a trainee's card waits for a qualified co-signer from their own login; inspection plans can require a skill to submit; certified counts per machine on the shop floor and schedule; expiring list and evidence files. Verified: new smoke 82 checks and browser walkthrough (desktop/390 px, three users), manufacturing 104, scheduling 58, no-time 32, job work 101, quality 112 and FAI 52 smokes, manufacturing/scheduling/quality browsers, typecheck 19, build 12, tests 11. [Review](../superpowers/reviews/2026-10-12-skill-matrix-review.md).
@@ -133,6 +133,7 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · skill matrix built, PR to main_
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
+- **IoT pilot and machine-hour metering (decision 063)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-12. [Design](../superpowers/specs/2026-10-12-iot-metering-design.md); six tasks.
 
 
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
@@ -144,7 +145,7 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · skill matrix built, PR to main_
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
 3. User review of completed accounting/settlement/customer/supplier and manufacturing workflows on dev. Original shared activation states are preserved; cut-over remains a deliberate Finance action.
 
-4. Further Phase 3 slices need designs and user choices: IoT metering (open B20).
+4. After metering: ESP32 MT-1 firmware once the pilot boards arrive (decision 063), then SMT traceability with printed 2D labels. Other roadmap candidates need the user's choice: machine maintenance, GST return data and cost centres, hazardous-waste manifests.
 
 ## Blockers
 - Automatic TDS/TCS profile/source work: current official Act393/394/395/397/402 text retrieved and pinned, including scrap2% effective2026-04-01, but complete GST-base, PAN-operativity relief and lower/nil certificate applicability guidance is still missing. Original/lower-case legacy circular PDF paths returned404; generic document search did not produce verified guidance. [Evidence/requirements](../compliance/withholding-profile-evidence.md). Need reachable official primary URLs or authorized exported guidance plus applicability confirmation; optional source-URL question already asked. No numerical defaults enabled. Continue independent bank-reconciliation work while this gate remains closed.

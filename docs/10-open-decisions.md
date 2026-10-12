@@ -16,7 +16,6 @@ in `ai/MEMORY.md`).
 | B15 | Rough user counts: desk, shop floor, customer portal | Sizing |
 | B16 | SSO: Google Workspace or Microsoft 365? | Auth (late Phase 0) |
 | B19 | Does Azeonics meet NIC's direct-API eligibility (static IP, turnover criteria)? | Decides NIC direct vs Adaequare for e-invoice (decision 020) |
-| B20 | IoT pilot budget (~10 machine taps, 1 edge PC, 2 scales) and board marking method (doc 11 §7) | Phase 5 |
 
 ## Technical
 
