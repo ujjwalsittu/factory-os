@@ -1,4 +1,5 @@
 // Phase 3a machine-hour MaaS (decision 055): shapes returned by /services.
+import type { Meter } from '@/lib/iot';
 
 export type BookingStatus = 'tentative' | 'confirmed' | 'in_use' | 'completed' | 'cancelled';
 
@@ -49,12 +50,21 @@ export interface Booking {
   invoiceNumber: string | null;
   invoiceStatus: 'draft' | 'submitted' | 'cancelled' | null;
   usedMinutes: number;
+  /** Decision 063: a metered booking's usage may wait for a supervisor's review before billing. */
+  meterStatus: 'none' | 'applied' | 'review';
 }
 
 export interface BookingDetail extends Booking {
   member: boolean;
   workCentre: string;
-  usage: { id: string; minutes: number; source: 'timer' | 'manual'; note: string | null; recordedAt: string; recordedBy: string }[];
+  usage: { id: string; minutes: number; source: 'timer' | 'manual' | 'meter'; note: string | null; recordedAt: string; recordedBy: string }[];
+  /** Decision 063: the machine's states over the booking when it has a tap, and the review of metered usage. */
+  meter: Meter | null;
+  meteredMinutes: number | null;
+  timerMinutes: number | null;
+  meterReviewedAt: string | null;
+  meterReviewedByName: string | null;
+  meterReviewNote: string | null;
   rateCard: { id: string; standardRate: string; memberRate: string | null; minimumMinutes: number; roundingMinutes: number; validFrom: string; validTo: string | null } | null;
   charge: { actualMinutes: number; billableMinutes: number; hours: string; rate: string; amount: string; memberRate: boolean } | null;
   /** Decision 056: the membership covering the booking's start date, and what billing would draw from it. */

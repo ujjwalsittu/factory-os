@@ -26,7 +26,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'administrator',
     name: 'Administrator',
     description: 'Users, roles, entities and settings. No statutory filing.',
-    permissions: all((p) => inModule('settings', 'masters')(p) || readOnly(p)),
+    permissions: all((p) => inModule('settings', 'masters', 'plant')(p) || readOnly(p)),
   },
   {
     key: 'finance_controller',
@@ -76,19 +76,19 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'production_planner',
     name: 'Production Planner',
     description: 'BOMs, routings, work orders and scheduling.',
-    permissions: all((p) => p.startsWith('manufacturing.') || p === 'services.booking.read' || ['quality.plan.read', 'quality.fai.read', 'quality.ncr.read', 'quality.ncr.create', 'quality.capa.read', 'quality.skill.read', 'quality.skill.manage', 'quality.gauge.read', 'quality.attachment.read', 'quality.attachment.create', 'quality.inspection.read'].includes(p) || p === 'masters.item.read' || p === 'inventory.stock_entry.read'),
+    permissions: all((p) => p.startsWith('manufacturing.') || p === 'services.booking.read' || ['quality.plan.read', 'quality.fai.read', 'quality.ncr.read', 'quality.ncr.create', 'quality.capa.read', 'quality.skill.read', 'quality.skill.manage', 'plant.device.read', 'plant.machine_state.read', 'quality.gauge.read', 'quality.attachment.read', 'quality.attachment.create', 'quality.inspection.read'].includes(p) || p === 'masters.item.read' || p === 'inventory.stock_entry.read'),
   },
   {
     key: 'operator',
     name: 'Operator',
     description: 'Own job cards on the shop floor.',
-    permissions: ['manufacturing.job_card.read', 'manufacturing.job_card.update', 'manufacturing.job_card.submit', 'manufacturing.schedule.read', 'quality.skill.read', 'services.booking.read', 'services.usage.create'],
+    permissions: ['manufacturing.job_card.read', 'manufacturing.job_card.update', 'manufacturing.job_card.submit', 'manufacturing.schedule.read', 'quality.skill.read', 'plant.machine_state.read', 'services.booking.read', 'services.usage.create'],
   },
   {
     key: 'services_coordinator',
     name: 'Services coordinator',
     description: 'Machine-hour rate cards, bookings, usage and their invoices (decision 055).',
-    permissions: all((p) => (p.startsWith('services.') && !['services.campaign.approve', 'services.project.approve', 'services.cost_rate.read', 'services.cost_rate.update'].includes(p)) || ['masters.party.read', 'masters.item.read', 'selling.sales_invoice.read', 'selling.sales_invoice.create', 'manufacturing.schedule.read', 'manufacturing.work_centre.read', 'quality.attachment.read', 'quality.attachment.create'].includes(p)),
+    permissions: all((p) => (p.startsWith('services.') && !['services.campaign.approve', 'services.project.approve', 'services.cost_rate.read', 'services.cost_rate.update'].includes(p)) || ['masters.party.read', 'masters.item.read', 'selling.sales_invoice.read', 'selling.sales_invoice.create', 'manufacturing.schedule.read', 'manufacturing.work_centre.read', 'quality.attachment.read', 'quality.attachment.create', 'plant.machine_state.read'].includes(p)),
   },
   {
     key: 'project_member',

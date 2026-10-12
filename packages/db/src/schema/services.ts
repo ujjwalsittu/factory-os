@@ -58,6 +58,8 @@ export const maasRateCard = pgTable(
   ],
 );
 
+/** Decision 063: metering of a booking on a machine with a tap. */
+export const maasMeterStatus = pgEnum('maas_meter_status', ['none', 'applied', 'review']);
 export const maasBookingStatus = pgEnum('maas_booking_status', ['tentative', 'confirmed', 'in_use', 'completed', 'cancelled']);
 
 /** A customer's reservation of a machine. */
@@ -90,6 +92,13 @@ export const maasBooking = pgTable(
     campaignId: uuid('campaign_id'),
     /** Decision 058: a booking for a project is billed through the project's milestones. */
     projectId: uuid('project_id').references(() => project.id),
+    /** Decision 063: metered occupied minutes vs the timer at stop; a review blocks billing until confirmed. */
+    meterStatus: maasMeterStatus('meter_status').notNull().default('none'),
+    meteredMinutes: integer('metered_minutes'),
+    timerMinutes: integer('timer_minutes'),
+    meterReviewedBy: text('meter_reviewed_by').references(() => user.id),
+    meterReviewedAt: timestamp('meter_reviewed_at', { withTimezone: true }),
+    meterReviewNote: text('meter_review_note'),
     ...stamps,
   },
   (t) => [
@@ -100,7 +109,7 @@ export const maasBooking = pgTable(
   ],
 );
 
-export const maasUsageSource = pgEnum('maas_usage_source', ['timer', 'manual']);
+export const maasUsageSource = pgEnum('maas_usage_source', ['timer', 'manual', 'meter']);
 
 /** Recorded machine time, append-only: a correction is a new row (negative minutes allowed with a note). */
 export const maasUsage = pgTable(

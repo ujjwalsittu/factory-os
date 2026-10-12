@@ -79,6 +79,11 @@ export default function BookingsPage() {
                       <Td className="whitespace-nowrap">{formatDateTime(b.endsAt)}</Td>
                       <Td>
                         <Badge tone={BOOKING_STATUS[b.status].tone}>{BOOKING_STATUS[b.status].label}</Badge>
+                        {b.meterStatus === 'review' && (
+                          <Badge tone="warning" className="ml-1">
+                            Usage review
+                          </Badge>
+                        )}
                       </Td>
                       <Td className="text-right whitespace-nowrap">{b.usedMinutes ? formatMinutes(b.usedMinutes) : '—'}</Td>
                       <Td>

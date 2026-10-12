@@ -43,6 +43,7 @@ import {
   ScrollText,
   Search,
   GraduationCap,
+  Router,
   SearchCheck,
   ShieldCheck,
   ShoppingCart,
@@ -175,7 +176,8 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
   {
     section: 'Plant',
     items: [
-      { href: '/app/machines', label: 'Machines', icon: Cpu, phase: 5 },
+      { href: '/app/machines', label: 'Machines', icon: Cpu, permission: 'plant.machine_state.read', entityScoped: true },
+      { href: '/app/plant/devices', label: 'Devices', icon: Router, permission: 'plant.device.read', entityScoped: true },
       { href: '/app/ehs/waste', label: 'Waste register', icon: Recycle, permission: 'ehs.waste.read', entityScoped: true },
     ],
   },

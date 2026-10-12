@@ -1,6 +1,6 @@
 // Phase 3a machine-hour MaaS (decision 055): rate cards, bookings, usage and a draft invoice for a completed booking.
 // A confirmed booking holds a `booking` machine block, which the scheduler already treats as unavailable time.
-import { Dec, maasCharge, maasHours, maasMembershipSplit, maasTermsError } from '@factoryos/core';
+import { Dec, maasCharge, maasHours, maasMembershipSplit, maasTermsError, meterAgrees } from '@factoryos/core';
 import { item, machine, machineBlock, maasBooking, maasMembership, maasMembershipDraw, maasRateCard, maasUsage, party, project, salesInvoice, scheduledOperation, testCampaign, type Database, user, workCentre } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, ne, or, sql, sum } from 'drizzle-orm';
@@ -10,6 +10,7 @@ import { AuditService } from '../../common/audit.service.js';
 import { DB } from '../../common/tokens.js';
 import { parse } from '../../common/validation.js';
 import { businessDate, entityOf, type Tx } from '../accounting/accounting-lock.js';
+import { IotService } from '../iot/iot.service.js';
 import { SellingController } from '../selling.controller.js';
 import { StockPostingService } from '../stock-posting.service.js';
 import { CampaignsController } from './campaigns.controller.js';
@@ -50,6 +51,11 @@ const listQuery = z.object({
 });
 const reason = z.object({ reason: z.string().trim().min(3, 'Give a reason').max(500) });
 const usageInput = z.object({ minutes: z.number().int().min(-24 * 60).max(24 * 60).refine((m) => m !== 0, 'Minutes can’t be zero'), note: z.string().trim().min(3, 'Say why').max(500) });
+const reviewInput = z.discriminatedUnion('choice', [
+  z.object({ choice: z.literal('metered'), note: z.string().trim().min(3, 'Say why').max(500) }),
+  z.object({ choice: z.literal('timer'), note: z.string().trim().min(3, 'Say why').max(500) }),
+  z.object({ choice: z.literal('corrected'), minutes: z.number().int().min(0).max(14 * 24 * 60), note: z.string().trim().min(3, 'Say why').max(500) }),
+]);
 const invoiceInput = z.object({ invoiceDate: z.iso.date().optional(), gstRegistrationId: z.uuid().nullable().optional(), remarks: z.string().trim().max(2000).nullable().optional() });
 
 /** Indian calendar date of an instant: rate cards are dated in the entity's business day. */
@@ -63,6 +69,7 @@ export class MaasController {
     private readonly audit: AuditService,
     private readonly posting: StockPostingService,
     private readonly selling: SellingController,
+    private readonly iot: IotService,
   ) {}
 
   // ── Rate cards ──
@@ -191,6 +198,10 @@ export class MaasController {
     const [proj] = r.b.projectId ? await this.db.select({ number: project.number }).from(project).where(eq(project.id, r.b.projectId)) : [];
     const projectNumber = proj?.number ?? null;
     const billed = drawnMinutes > 0 || this.invoiceHolds(r.invoiceStatus);
+    // Decision 063: the machine's states over the booking (live while in use), when it has a tap.
+    const meterTo = r.b.stoppedAt ?? (r.b.startedAt ? new Date() : null);
+    const meter = r.b.startedAt && meterTo ? await this.iot.meter(this.db, r.b.machineId, r.b.startedAt, meterTo) : null;
+    const [reviewer] = r.b.meterReviewedBy ? await this.db.select({ name: user.name }).from(user).where(eq(user.id, r.b.meterReviewedBy)) : [];
     const remainingMinutes = ms ? ms.includedMinutes - (await membershipDrawn(this.db, ms.id)) : null;
     const split = charge && !billed ? maasMembershipSplit(charge.billableMinutes, remainingMinutes ?? 0) : null;
     return {
@@ -212,7 +223,9 @@ export class MaasController {
       billed,
       campaignNumber,
       projectNumber,
-      billable: r.b.status === 'completed' && !billed && !!card && !r.b.campaignId && !r.b.projectId,
+      billable: r.b.status === 'completed' && !billed && !!card && !r.b.campaignId && !r.b.projectId && r.b.meterStatus !== 'review',
+      meter: meter ? { device: meter.device, minutes: meter.minutes, covered: meter.covered, segments: meter.segments } : null,
+      meterReviewedByName: reviewer?.name ?? null,
     };
   }
 
@@ -339,9 +352,45 @@ export class MaasController {
           await tx.delete(machineBlock).where(eq(machineBlock.id, blk.id));
         } else if (blk && blk.endsAt > now) await tx.update(machineBlock).set({ endsAt: now, updatedAt: now }).where(eq(machineBlock.id, blk.id));
       }
-      await tx.update(maasBooking).set({ status: 'completed', stoppedAt: now, updatedAt: now }).where(eq(maasBooking.id, id));
-      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.stop', targetType: 'maas_booking', targetId: id, after: { stoppedAt: now, minutes } }, tx);
-      return { ok: true, minutes };
+      // Decision 063: on a metered machine, occupied minutes replace the timer when covered and within 10%.
+      const meter = await this.iot.meter(tx, b.machineId, b.startedAt, now);
+      let meterStatus: 'none' | 'applied' | 'review' = 'none';
+      if (meter) {
+        meterStatus = meterAgrees(meter.minutes, minutes, meter.covered) ? 'applied' : 'review';
+        const diff = meter.minutes - Math.max(0, minutes);
+        if (meterStatus === 'applied' && diff !== 0) await tx.insert(maasUsage).values({ tenantId: b.tenantId, bookingId: id, minutes: diff, source: 'meter', note: `Metered ${meter.minutes} min (${meter.device.code})`, recordedBy: ctx.user.id });
+      }
+      await tx
+        .update(maasBooking)
+        .set({ status: 'completed', stoppedAt: now, updatedAt: now, meterStatus, meteredMinutes: meter?.minutes ?? null, timerMinutes: meter ? minutes : null })
+        .where(eq(maasBooking.id, id));
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.stop', targetType: 'maas_booking', targetId: id, after: { stoppedAt: now, minutes, meterStatus, meteredMinutes: meter?.minutes ?? null, covered: meter?.covered ?? null } }, tx);
+      return { ok: true, minutes, meterStatus, meteredMinutes: meter?.minutes ?? null };
+    });
+  }
+
+  /**
+   * Decision 063: a supervisor settles a metered booking that wasn't covered or differed from the timer by more than
+   * 10%: metered (recomputed now, so late data counts), the timer, or a corrected figure; one usage row makes up the
+   * difference, and billing opens.
+   */
+  @Post('bookings/:id/meter-review')
+  @RequirePermission('services.usage.approve')
+  async meterReview(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const input = parse(reviewInput, body);
+    return this.db.transaction(async (tx) => {
+      const b = await this.lock(tx, entityId, id);
+      if (b.meterStatus !== 'review' || !b.startedAt || !b.stoppedAt) throw new ConflictException('This booking’s usage isn’t waiting for review');
+      const meter = await this.iot.meter(tx, b.machineId, b.startedAt, b.stoppedAt);
+      const target = input.choice === 'metered' ? (meter?.minutes ?? 0) : input.choice === 'timer' ? (b.timerMinutes ?? 0) : input.minutes;
+      const [t] = await tx.select({ total: sum(maasUsage.minutes) }).from(maasUsage).where(eq(maasUsage.bookingId, id));
+      const diff = target - Number(t?.total ?? 0);
+      if (diff !== 0) await tx.insert(maasUsage).values({ tenantId: b.tenantId, bookingId: id, minutes: diff, source: input.choice === 'metered' ? 'meter' : 'manual', note: `Review (${input.choice}): ${input.note}`, recordedBy: ctx.user.id });
+      const now = new Date();
+      await tx.update(maasBooking).set({ meterStatus: 'applied', meteredMinutes: meter?.minutes ?? b.meteredMinutes, meterReviewedBy: ctx.user.id, meterReviewedAt: now, meterReviewNote: input.note, updatedAt: now }).where(eq(maasBooking.id, id));
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'maas_booking.meter_review', targetType: 'maas_booking', targetId: id, after: { ...input, minutes: target, meteredMinutes: meter?.minutes ?? null, covered: meter?.covered ?? null } }, tx);
+      return { ok: true, minutes: target };
     });
   }
 
@@ -354,6 +403,7 @@ export class MaasController {
     return this.db.transaction(async (tx) => {
       const b = await this.lock(tx, entityId, id);
       if (b.status !== 'in_use' && b.status !== 'completed') throw new ConflictException('Usage is recorded once the machine has been used');
+      if (b.meterStatus === 'review') throw new ConflictException('The metered usage is waiting for review; settle it there');
       if ((await this.invoiceHoldsIn(tx, b.salesInvoiceId)) || (await bookingDrawn(tx, id)) > 0) throw new ConflictException('The booking is billed or invoiced; reverse the billing, or cancel or delete its invoice, to change its usage');
       const [t] = await tx.select({ total: sum(maasUsage.minutes) }).from(maasUsage).where(eq(maasUsage.bookingId, id));
       if (Number(t?.total ?? 0) + input.minutes < 0) throw new BadRequestException(`Only ${Number(t?.total ?? 0)} minutes are recorded`);
@@ -395,6 +445,7 @@ export class MaasController {
     if (d.campaignId) throw new ConflictException(`Billed with test campaign ${d.campaignNumber ?? ''}`.trim());
     if (d.projectId) throw new ConflictException(`Billed through project ${d.projectNumber ?? ''}`.trim());
     if (d.status !== 'completed') throw new ConflictException('Only completed bookings are billed');
+    if (d.meterStatus === 'review') throw new ConflictException('Usage needs review: the meter and the timer disagree or the meter has gaps');
     if (d.billed) throw new ConflictException(d.invoiceNumber || d.salesInvoiceId ? `Already invoiced on ${d.invoiceNumber ?? 'a draft invoice'}` : 'Already billed to the membership');
     if (!d.rateCard || !d.charge || !d.split) throw new BadRequestException(`No rate card for ${d.machineCode} on ${istDate(d.startsAt)}`);
     const c = d.charge;
