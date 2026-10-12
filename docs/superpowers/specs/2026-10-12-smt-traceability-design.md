@@ -173,6 +173,17 @@ label size:
   boards.
 - **Plant → Devices:** a Label printers card, and print jobs with reprint.
 
+## Changes during the build
+
+- **Placement scan.** It is refused only when nothing is loaded on the machine for the order, or a loaded container
+  is out of date. BOM materials not on that machine's feeders (bare board, hand-fitted parts) are listed as a warning,
+  not refused.
+- **Permissions.** They are `manufacturing.smt.read`, `.create` (new reels and jars) and `.update` (scans, loads,
+  events, printing), the catalog's existing actions. Boards per panel is part of the BOM (`manufacturing.bom.update`).
+- **Printer safety.** The edge agent prints only to `PRINTER_PORTS` (default 9100) and, if set, `PRINTER_HOSTS`.
+
+See the [review](../reviews/2026-10-12-smt-traceability-review.md).
+
 ## Not in this slice
 
 - IPC-CFX and Hermes data: SPI, AOI and reflow results per board, placer pick and drop counts (decision 016, next SMT

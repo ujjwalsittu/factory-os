@@ -225,3 +225,14 @@ Append-only. One entry per session: `date · who · what changed · what's next`
   - smoke 37 checks plus regression and browser.
 
   Next: PR to main; then on-board testing when the boards arrive.
+- 2026-10-12 · agent · SMT board traceability (decision 065, migration 0047_smt_traceability):
+  - reels and paste jars with MSL and paste clocks;
+  - feeder setup by scanning, with the wrong-part, expiry and paste checks;
+  - panel labels reserving board serials; placement and depaneling scans;
+  - output of the reserved serials;
+  - board and recall trace on batch pages;
+  - ZPL labels printed through the edge agent to allowed printers only;
+  - Plant → Devices printers;
+  - smoke 131 checks, browser walkthrough and regression.
+
+  Next: PR to main; then CFX machine data when the line's interfaces are confirmed.
