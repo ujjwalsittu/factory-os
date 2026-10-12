@@ -142,6 +142,8 @@ OTA_BASE_URL=https://edge-nm1.plant:8443
 OTA_PORT=8443
 OTA_TLS_CERT=/etc/factoryos-edge/agent/ota-server.crt
 OTA_TLS_KEY=/etc/factoryos-edge/agent/ota-server.key
+# Label printers on the line (decision 065): only these hosts, on port 9100.
+PRINTER_HOSTS=10.20.0.50,10.20.0.51
 ENV
 sudo chown factoryos-edge: /etc/factoryos-edge/agent/agent.env && sudo chmod 600 /etc/factoryos-edge/agent/agent.env
 ```
@@ -183,6 +185,14 @@ journalctl -u factoryos-edge -f   # "subscribed to factoryos/azeonics/NM1/+/stat
 ```
 
 The data directory holds the queue of states waiting for FactoryOS. Keep it on the local disk.
+
+## 6a. Label printers (SMT line)
+
+1. Give each Zebra-compatible printer a fixed address on the plant network.
+2. Add the printers to `PRINTER_HOSTS` in `agent.env`, then restart the agent.
+3. In Plant → Devices, add each printer under the edge, with its host, port 9100, dpi and label size.
+4. Press **Test**: a test label prints within a few seconds, and the job shows as printed.
+5. Use high-temperature polyimide labels for boards that go through reflow.
 
 ## 7. Firewall
 

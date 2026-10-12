@@ -6,6 +6,7 @@ import mqtt, { type IClientOptions, type MqttClient } from 'mqtt';
 import { ConfigSync } from './config-sync.js';
 import { Forwarder } from './forwarder.js';
 import { type OtaOptions, OtaServer } from './ota.js';
+import { PrintRelay } from './printer.js';
 import { FileQueue } from './queue.js';
 import { StatusRelay } from './status-relay.js';
 
@@ -23,6 +24,10 @@ export interface AgentConfig {
   mqttTls?: { ca: string; cert: string; key: string } | undefined;
   /** Signed firmware updates; off when absent. */
   ota?: Omit<OtaOptions, 'log'> | undefined;
+  /** Label printing (decision 065): how often to ask for jobs (default 3 s; 0 turns printing off), and the allowed printers. */
+  printMs?: number | undefined;
+  printerPorts?: number[] | undefined;
+  printerHosts?: string[] | undefined;
   log?: ((msg: string) => void) | undefined;
   fetchImpl?: typeof fetch | undefined;
 }
@@ -33,9 +38,11 @@ export class EdgeAgent {
   readonly configs: ConfigSync;
   readonly statuses: StatusRelay;
   readonly ota: OtaServer | null;
+  readonly printing: PrintRelay;
   private client: MqttClient | null = null;
   private timer: NodeJS.Timeout | null = null;
   private syncTimer: NodeJS.Timeout | null = null;
+  private printTimer: NodeJS.Timeout | null = null;
   private stopped = false;
 
   constructor(private readonly cfg: AgentConfig) {
@@ -45,6 +52,7 @@ export class EdgeAgent {
     this.configs = new ConfigSync({ apiUrl: cfg.apiUrl, key: cfg.key, tenant: cfg.tenant, plant: cfg.plant, publish, fetchImpl: cfg.fetchImpl, log: cfg.log });
     this.statuses = new StatusRelay({ apiUrl: cfg.apiUrl, key: cfg.key, fetchImpl: cfg.fetchImpl, log: cfg.log });
     this.ota = cfg.ota ? new OtaServer({ ...cfg.ota, log: cfg.log }) : null;
+    this.printing = new PrintRelay({ apiUrl: cfg.apiUrl, key: cfg.key, ports: cfg.printerPorts, hosts: cfg.printerHosts, fetchImpl: cfg.fetchImpl, log: cfg.log });
   }
 
   async start() {
@@ -68,12 +76,14 @@ export class EdgeAgent {
     if (this.ota) log(`firmware server on port ${await this.ota.start()}`);
     this.schedule(0);
     this.scheduleSync(0);
+    if (this.cfg.printMs !== 0) this.schedulePrint(0);
   }
 
   async stop() {
     this.stopped = true;
     if (this.timer) clearTimeout(this.timer);
     if (this.syncTimer) clearTimeout(this.syncTimer);
+    if (this.printTimer) clearTimeout(this.printTimer);
     await this.ota?.stop();
     await this.client?.endAsync();
   }
@@ -91,6 +101,14 @@ export class EdgeAgent {
         log(manifest ? `announced firmware ${manifest.version}` : 'no valid firmware; announcement withdrawn');
       }
     }
+  }
+
+  private schedulePrint(ms: number) {
+    if (this.stopped) return;
+    this.printTimer = setTimeout(async () => {
+      await this.printing.poll().catch((e: Error) => this.cfg.log?.(`printing: ${e.message}`));
+      this.schedulePrint(this.cfg.printMs ?? 3000);
+    }, ms);
   }
 
   private scheduleSync(ms: number) {

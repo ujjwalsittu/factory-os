@@ -4,3 +4,4 @@ export { FileQueue } from './queue.js';
 export { ConfigSync } from './config-sync.js';
 export { ed25519PublicKey, OtaServer, scanFirmware } from './ota.js';
 export { StatusRelay } from './status-relay.js';
+export { PrintRelay, sendZpl } from './printer.js';

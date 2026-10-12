@@ -25,6 +25,9 @@ const agent = new EdgeAgent({
   dataDir,
   mqttTls,
   ota,
+  printMs: process.env.PRINT_POLL_MS === undefined ? undefined : Number(process.env.PRINT_POLL_MS),
+  printerPorts: process.env.PRINTER_PORTS?.split(',').map((p) => Number(p.trim())).filter((p) => Number.isInteger(p) && p > 0),
+  printerHosts: process.env.PRINTER_HOSTS?.split(',').map((h) => h.trim()).filter(Boolean),
   log: (m) => console.log(new Date().toISOString(), m),
 });
 await agent.start();
