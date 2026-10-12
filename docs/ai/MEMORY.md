@@ -82,6 +82,7 @@ at the end of the relevant section, with a date.
   their own (inspections) create `system_generated` entries through `posting.submitIn(tx, …)`; the public cancel endpoint refuses them.
 - GST is only ever computed on the server (`computeGst`); the web shows `POST /buying/tax-preview`. Never compute tax in the UI.
 - Smoke suites must run ~15 s apart locally (auth rate limit → 429).
+- A smoke that adds extra members signs each one up: space those sign-ups ~20 s apart inside the script (`smoke-maintenance.mjs` `pause()`), and add members through `/invitations` + `/invitations/accept`, never by inserting membership rows. The Administrator role is read-only outside settings/masters/plant, so a second approver needs a module role (e.g. Maintenance).
 - Landed cost revalues `fifo_layer.rate` in place and writes a value-only ledger row (`voucher_type = 'landed_cost'`, qty 0).
   `landed_cost_layer_change` stores old/new rate and qty on hand at posting; cancels (voucher, covered receipt, earlier issue)
   are refused whenever they would make ledger value ≠ layer value. Keep that invariant if you touch FIFO or cancel code.

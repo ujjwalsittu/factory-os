@@ -206,6 +206,11 @@ await fail('POST', `/maintenance/orders/${oLathe.id}/cancel`, { reason: 'No' }, 
 d = await c.req('POST', `/maintenance/orders/${oLathe.id}/cancel`, { reason: 'Lube system replaced; plan to be revised' }, 201);
 assert.equal(d.status, 'cancelled');
 await fail('POST', `/maintenance/orders/${oLathe.id}/results`, { itemId: d.checklist[0].id }, 409, 'a cancelled order is fixed', /cancelled/);
+// The lathe plan retired: it leaves the due list but the plans page still lists it to reactivate.
+await c.req('PUT', `/maintenance/plans/${pLathe.id}`, { name: 'Way lube check', everyRunHours: 2, items: [{ text: 'Top up way lube' }, { text: 'Check level glass' }], isActive: false });
+assert.ok(!(await c.req('GET', '/maintenance/plans')).some((p) => p.id === pLathe.id));
+assert.equal((await c.req('GET', '/maintenance/plans?all=1')).find((p) => p.id === pLathe.id).isActive, false);
+ok('an inactive plan leaves the due list and stays on the plans page');
 // An operator reports a breakdown but cannot work orders.
 const op = await join('Line operator', 'Operator');
 const opBd = await op.raw('POST', '/maintenance/breakdowns', { machineId: vmc.id, symptom: 'Coolant pump noisy' });

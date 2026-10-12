@@ -53,7 +53,7 @@ await L('Code').fill('CNC5'); await L('Hourly rate (₹)').fill('1200'); await L
 await page.click('dialog button:has-text("Save")'); await page.waitForSelector('td:has-text("CNC5")');
 await page.click('button:has-text("Add machine")');
 await L('Machine code').fill('M-03'); await L('Machine name').fill('DMG Mori DMU 50');
-await page.click('dialog button:has-text("Save")'); await page.waitForSelector('td span:has-text("M-03")');
+await page.click('dialog button:has-text("Save")'); await page.waitForSelector('td a:has-text("M-03")');
 await shot('01-work-centres');
 
 step('BOM with materials and an operation');

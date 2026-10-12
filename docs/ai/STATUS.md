@@ -1,8 +1,14 @@
 # Status
 
-_Last updated: 2026-10-12 (Asia/Kolkata) · machine maintenance claimed by this session_
+_Last updated: 2026-10-12 (Asia/Kolkata) · machine maintenance built; PR to main open_
 
 ## Done
+- [x] **Machine maintenance, preventive and breakdown** (decision 066, migration 0048_maintenance).
+  - **Maintenance → Plans:** per machine, every so many days and/or running hours (whichever comes first; hours from the tap, else job cards), a due-soon window and a checklist with readings, limits and usual spares.
+  - **Due and orders:** open due orders once; schedule them (the machine is reserved on the schedule); checklist readings (outside the limits needs a note), labour at the work-centre rate, spares issued from stores to repairs and maintenance, sign-off, and a supervisor's verification on critical machines.
+  - **Breakdowns** from the shop floor or the machine page block the machine on the schedule from the failure until the order is done; one open per machine; the machine page prompts when its tap shows an alarm.
+  - **Reliability and cost:** breakdowns, downtime, MTTR, MTBF, availability against the calendar, spares and labour per machine.
+  - Verified: core 6 tests, new smoke 92 checks and browser walkthrough (desktop/390 px), manufacturing 104, scheduling 58, IoT 72 and inventory smokes, manufacturing/scheduling/IoT/skill-matrix/SMT browsers, typecheck 20, build 12, tests 14. [Review](../superpowers/reviews/2026-10-12-machine-maintenance-review.md).
 - [x] **SMT board traceability with printed 2D labels** (decision 065, migration 0047_smt_traceability).
   - **Manufacturing → SMT line** (for scanners):
     - feeder setup by slot and reel, refused for a wrong part, a busy slot (splice instead), an expired reel or unready paste;
@@ -173,8 +179,6 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · machine maintenance claimed by this 
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
-- **Machine maintenance, preventive and breakdown (decision 066)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-12. [Design](../superpowers/specs/2026-10-12-machine-maintenance-design.md); six tasks.
-
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
 
 
@@ -190,13 +194,14 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · machine maintenance claimed by this 
    - calibrate the CTs;
    - create the release signing key offline (Azeonics) and move taps to release firmware before production.
 
-   Then the SMT line's machine data (IPC-CFX: SPI, AOI and reflow per board, placer pick counts) once the FUJI, Koh Young and Heller interfaces are confirmed. Machine maintenance (decision 066) is in progress. Other roadmap candidates need the user's choice: GST return data and cost centres, hazardous-waste manifests.
+   Then the SMT line's machine data (IPC-CFX: SPI, AOI and reflow per board, placer pick counts) once the FUJI, Koh Young and Heller interfaces are confirmed. Other roadmap candidates need the user's choice: GST return data and cost centres, hazardous-waste manifests.
 
 ## Blockers
 - Automatic TDS/TCS profile/source work: current official Act393/394/395/397/402 text retrieved and pinned, including scrap2% effective2026-04-01, but complete GST-base, PAN-operativity relief and lower/nil certificate applicability guidance is still missing. Original/lower-case legacy circular PDF paths returned404; generic document search did not produce verified guidance. [Evidence/requirements](../compliance/withholding-profile-evidence.md). Need reachable official primary URLs or authorized exported guidance plus applicability confirmation; optional source-URL question already asked. No numerical defaults enabled. Continue independent bank-reconciliation work while this gate remains closed.
 - NIC provider protocol verification: after user added NIC allowed domains and the cloud environment restarted on 2026-10-06, public `einvoice6.gst.gov.in/content/kb/` returns200, but NIC `einv-apisandbox.nic.in` (home/API help/schema pages), `einvoice1.gst.gov.in` and `ewaybillgst.gov.in` return503 with upstream connection timeout. `docs.ewaybillgst.gov.in` returns403 with CDN Access Denied, rather than the earlier tunnel denial. Domain allowlist access improved, but current NIC contracts remain unavailable. Need reachable official documentation or authorized exported copies before wire/auth implementation; do not substitute another IRP's protocol. User subsequently confirmed all five exact domains allowed; fresh recheck still shows the same503/CDN403 results with public KB200. Further allowlist additions are not justified by these responses. Offline work is authorized, implemented and verified; provider work remains separately blocked. Real acceptance additionally needs NIC access/IP whitelist/secure credentials.
 
 ## Noticed (out of scope, for later)
+- `PURPOSE_LABELS` in `apps/web/src/lib/stock.ts` has no labels for the production, cut, job-work and purchase-return purposes, so those entries show a blank purpose in the stock entries list and the ledger (maintenance was added with decision 066).
 - Receipt cancel guard: the "receipt has been inspected" check in `stock-posting.service.ts` runs only for receipts against a purchase order; a receipt without a PO relies on the stock reversal failing once inspected stock has left quarantine.
 - **Passkeys and user erasure:** `passkey.user_id` cascades on user delete, but the credential guard trigger requires a removal action for every passkey delete, so deleting a user who has a passkey is refused. No user-deletion path exists today; decide this together with DPDP erasure and retention (security/data-model change, needs a new migration and user approval). Also prune expired `auth_passkey_ceremony` rows like actions (review nit).
 - **Populated pre-release history:** protected source has both passkey SQL hashes at the prior branch timestamps but no quality0030. Normal shared migration would replay renamed passkey SQL; do not migrate it automatically. The explicit test-only reconciliation validates known hashes and stages only an owned copy, preserving source journal and credentials. Fresh mainline fixtures apply all33 migrations normally.
