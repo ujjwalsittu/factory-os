@@ -9,6 +9,7 @@ import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import { type Device, type Edge, MACHINE_STATE, signal, type TapConfig } from '@/lib/iot';
+import { JOB_TONE, type LabelPrinter, type PrintJobRow } from '@/lib/smt';
 import type { WorkCentre } from '@/lib/manufacturing';
 
 /** Plant → Devices (decision 063): edge agents with their keys, and the machine taps behind them. */
@@ -49,6 +50,7 @@ export default function DevicesPage() {
           )}
           <Edges onKey={setKey} />
           <Taps />
+          {ws.can('manufacturing.smt.read') && <Printers />}
         </div>
       </EntityGate>
       {dialog === 'edge' && <EdgeForm onClose={() => setDialog(null)} onKey={setKey} />}
@@ -358,6 +360,172 @@ function TapForm({ onClose }: { onClose: () => void }) {
         <Field label="Heartbeat (seconds)" error={err.heartbeatSeconds} hint="Gaps over 3 heartbeats count as no data.">
           {(p) => <Input {...p} type="number" min={10} max={600} value={f.heartbeatSeconds} onChange={set('heartbeatSeconds')} required />}
         </Field>
+      </div>
+    </FormDialog>
+  );
+}
+
+/** Decision 065: label printers on the plant network, printed to through their edge, and the recent jobs. */
+function Printers() {
+  const ws = useWorkspace();
+  const qc = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const printers = useQuery({ queryKey: ['printers', ws.entityId], queryFn: () => api<LabelPrinter[]>('/plant/printers', { scope: ws.scope }) });
+  const jobs = useQuery({ queryKey: ['print-jobs', ws.entityId], queryFn: () => api<PrintJobRow[]>('/plant/print-jobs', { scope: ws.scope }), refetchInterval: 5000 });
+  const act = useMutation({
+    mutationFn: ({ path }: { path: string }) => api(path, { method: 'POST', scope: ws.scope, body: {} }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['printers'] });
+      void qc.invalidateQueries({ queryKey: ['print-jobs'] });
+    },
+  });
+  return (
+    <Card>
+      <CardHeader
+        title="Label printers"
+        description="Zebra-compatible printers on the plant network. FactoryOS sends the labels; the plant's edge agent prints them (port 9100)."
+        actions={ws.can('plant.device.manage') && <Button variant="secondary" onClick={() => setAdding(true)}>Add printer</Button>}
+      />
+      {act.error && <Alert tone="danger" className="m-4">{act.error.message}</Alert>}
+      {printers.data?.length === 0 ? (
+        <p className="px-5 py-4 text-[13px] text-muted">No printers yet.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <thead>
+              <tr>
+                <Th>Printer</Th>
+                <Th>Address</Th>
+                <Th>Labels</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {printers.data?.map((p) => (
+                <Tr key={p.id}>
+                  <Td className="text-[13px]">
+                    <span className="font-mono font-medium">{p.code}</span> {p.name} {p.status === 'retired' && <Badge tone="neutral">Retired</Badge>}
+                    <span className="block text-subtle">via edge {p.edgeCode}</span>
+                  </Td>
+                  <Td className="font-mono text-[13px]">
+                    {p.host}:{p.port}
+                  </Td>
+                  <Td className="text-[13px] whitespace-nowrap">
+                    {p.widthMm} × {p.heightMm} mm, {p.dpi} dpi
+                  </Td>
+                  <Td className="text-right whitespace-nowrap">
+                    {p.status === 'active' && ws.can('manufacturing.smt.update') && (
+                      <Button size="sm" variant="ghost" onClick={() => act.mutate({ path: `/plant/printers/${p.id}/test` })}>
+                        Test
+                      </Button>
+                    )}
+                    {p.status === 'active' && ws.can('plant.device.manage') && (
+                      <Button size="sm" variant="ghost" onClick={() => window.confirm(`Retire ${p.code}? Its waiting labels are dropped.`) && act.mutate({ path: `/plant/printers/${p.id}/retire` })}>
+                        Retire
+                      </Button>
+                    )}
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        </div>
+      )}
+      {!!jobs.data?.length && (
+        <div className="border-t border-border">
+          <p className="px-5 pt-4 text-[13px] font-medium">Recent labels</p>
+          <div className="overflow-x-auto">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Label</Th>
+                  <Th>Printer</Th>
+                  <Th>Status</Th>
+                  <Th />
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.data.slice(0, 15).map((j) => (
+                  <Tr key={j.id}>
+                    <Td className="text-[13px]">
+                      {j.label}
+                      <span className="block text-subtle">{formatDateTime(j.createdAt)}</span>
+                    </Td>
+                    <Td className="font-mono text-[13px]">{j.printer}</Td>
+                    <Td className="text-[13px]">
+                      <Badge tone={JOB_TONE[j.status]}>{j.status === 'printed' ? 'Printed' : j.status === 'failed' ? 'Failed' : j.status === 'sent' ? 'Sent' : 'Queued'}</Badge>
+                      {j.error && <span className="block text-danger">{j.error}</span>}
+                    </Td>
+                    <Td className="text-right">
+                      {(j.status === 'failed' || j.status === 'printed') && ws.can('manufacturing.smt.update') && (
+                        <Button size="sm" variant="ghost" onClick={() => act.mutate({ path: `/plant/print-jobs/${j.id}/reprint` })}>
+                          Reprint
+                        </Button>
+                      )}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        </div>
+      )}
+      {adding && <PrinterForm onClose={() => setAdding(false)} />}
+    </Card>
+  );
+}
+
+function PrinterForm({ onClose }: { onClose: () => void }) {
+  const ws = useWorkspace();
+  const qc = useQueryClient();
+  const edges = useQuery({ queryKey: ['edges', ws.entityId], queryFn: () => api<Edge[]>('/plant/edges', { scope: ws.scope }) });
+  const active = edges.data?.filter((e) => e.status === 'active') ?? [];
+  const [f, setF] = useState({ edgeId: '', code: '', name: '', host: '', port: '9100', dpi: '203', widthMm: '50', heightMm: '25' });
+  const m = useMutation({
+    mutationFn: () =>
+      api('/plant/printers', {
+        method: 'POST',
+        scope: ws.scope,
+        body: { edgeId: f.edgeId || active[0]?.id, code: f.code, name: f.name, host: f.host, port: Number(f.port), dpi: Number(f.dpi), widthMm: Number(f.widthMm), heightMm: Number(f.heightMm) },
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['printers'] });
+      onClose();
+    },
+  });
+  const err = fieldErrors(m.error);
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  return (
+    <FormDialog title="Add label printer" description="Add its address to PRINTER_HOSTS on the edge PC too." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Add printer">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Code" error={err.code}>{(p) => <Input {...p} value={f.code} onChange={set('code')} required autoFocus placeholder="ZT-1" />}</Field>
+        <Field label="Name" error={err.name}>{(p) => <Input {...p} value={f.name} onChange={set('name')} required placeholder="SMT line printer" />}</Field>
+        <Field label="Edge" error={err.edgeId}>
+          {(p) => (
+            <Select {...p} value={f.edgeId || active[0]?.id || ''} onChange={set('edgeId')} required>
+              {active.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.code} · {e.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <Field label="Host" error={err.host} hint="Its address on the plant network">{(p) => <Input {...p} value={f.host} onChange={set('host')} required placeholder="10.20.0.50" className="font-mono" />}</Field>
+        <Field label="Port" error={err.port}>{(p) => <Input {...p} type="number" value={f.port} onChange={set('port')} required />}</Field>
+        <Field label="Resolution" error={err.dpi}>
+          {(p) => (
+            <Select {...p} value={f.dpi} onChange={set('dpi')}>
+              {['203', '300', '600'].map((d) => (
+                <option key={d} value={d}>
+                  {d} dpi
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <Field label="Label width (mm)" error={err.widthMm}>{(p) => <Input {...p} type="number" value={f.widthMm} onChange={set('widthMm')} required />}</Field>
+        <Field label="Label height (mm)" error={err.heightMm}>{(p) => <Input {...p} type="number" value={f.heightMm} onChange={set('heightMm')} required />}</Field>
       </div>
     </FormDialog>
   );

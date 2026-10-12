@@ -89,6 +89,9 @@ export const item = pgTable(
     shelfLifeDays: integer('shelf_life_days'),
     /** Moisture sensitivity level for SMT parts (1, 2, 2a, 3, 4, 5, 5a, 6). */
     mslLevel: text('msl_level'),
+    /** Decision 065: solder paste: minutes to thaw out of the fridge, and hours usable once opened. */
+    pasteThawMinutes: integer('paste_thaw_minutes'),
+    pasteOpenHours: integer('paste_open_hours'),
     requiresIncomingInspection: boolean('requires_incoming_inspection').notNull().default(false),
     /** Decision 048: output goes to Quarantine until a final inspection passes. */
     requiresFinalInspection: boolean('requires_final_inspection').notNull().default(false),

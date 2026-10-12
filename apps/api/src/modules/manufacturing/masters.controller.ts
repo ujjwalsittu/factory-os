@@ -34,6 +34,8 @@ const bomInput = z.object({
   itemId: z.uuid(),
   revision: z.string().trim().toUpperCase().min(1).max(10),
   quantity: positive.default('1'),
+  /** Decision 065: boards per SMT panel; panel labels reserve a serial per position. */
+  boardsPerPanel: z.number().int().min(1).max(100).nullable().optional(),
   remarks: z.string().trim().max(2000).nullable().optional(),
   materials: z
     .array(z.object({ itemId: z.uuid(), qty: positive, backflush: z.boolean().default(false), remarks: z.string().trim().max(500).nullable().optional() }))
@@ -167,6 +169,7 @@ export class ManufacturingMastersController {
         itemName: item.name,
         revision: bom.revision,
         quantity: bom.quantity,
+        boardsPerPanel: bom.boardsPerPanel,
         status: bom.status,
         isDefault: bom.isDefault,
         updatedAt: bom.updatedAt,
@@ -195,7 +198,7 @@ export class ManufacturingMastersController {
       await this.validateBom(tx, ctx, entityId, input);
       const [row] = await tx
         .insert(bom)
-        .values({ tenantId: ctx.tenant.tenantId, entityId, itemId: input.itemId, revision: input.revision, quantity: input.quantity, remarks: input.remarks ?? null, createdBy: ctx.user.id })
+        .values({ tenantId: ctx.tenant.tenantId, entityId, itemId: input.itemId, revision: input.revision, quantity: input.quantity, boardsPerPanel: input.boardsPerPanel ?? null, remarks: input.remarks ?? null, createdBy: ctx.user.id })
         .onConflictDoNothing()
         .returning();
       if (!row) throw new ConflictException(`Revision ${input.revision} already exists for this item`);
@@ -217,7 +220,7 @@ export class ManufacturingMastersController {
       await this.validateBom(tx, ctx, entityId, input);
       const [clash] = await tx.select({ id: bom.id }).from(bom).where(and(eq(bom.entityId, entityId), eq(bom.itemId, before.itemId), eq(bom.revision, input.revision), ne(bom.id, id)));
       if (clash) throw new ConflictException(`Revision ${input.revision} already exists for this item`);
-      await tx.update(bom).set({ revision: input.revision, quantity: input.quantity, remarks: input.remarks ?? null, updatedAt: new Date() }).where(eq(bom.id, id));
+      await tx.update(bom).set({ revision: input.revision, quantity: input.quantity, boardsPerPanel: input.boardsPerPanel ?? null, remarks: input.remarks ?? null, updatedAt: new Date() }).where(eq(bom.id, id));
       await tx.delete(bomMaterial).where(eq(bomMaterial.bomId, id));
       await tx.delete(bomOperation).where(eq(bomOperation.bomId, id));
       await this.writeLines(tx, id, input);
@@ -286,7 +289,7 @@ export class ManufacturingMastersController {
       const from = await this.loadBom(tx, entityId, id);
       const [row] = await tx
         .insert(bom)
-        .values({ tenantId: ctx.tenant.tenantId, entityId, itemId: from.itemId, revision, quantity: from.quantity, remarks: from.remarks, createdBy: ctx.user.id })
+        .values({ tenantId: ctx.tenant.tenantId, entityId, itemId: from.itemId, revision, quantity: from.quantity, boardsPerPanel: from.boardsPerPanel, remarks: from.remarks, createdBy: ctx.user.id })
         .onConflictDoNothing()
         .returning();
       if (!row) throw new ConflictException(`Revision ${revision} already exists for this item`);
@@ -311,6 +314,7 @@ export class ManufacturingMastersController {
     const parent = items.get(input.itemId);
     if (!parent) throw new BadRequestException('Unknown item');
     if (!parent.isStockItem) throw new BadRequestException(`${parent.code} is not a stock item`);
+    if (input.boardsPerPanel && parent.tracking !== 'serial') throw new BadRequestException({ message: `Panelized boards get serials: ${parent.code} must be serial-tracked`, issues: [{ path: 'boardsPerPanel', message: 'Serial-tracked items only' }] });
     const seen = new Set<string>();
     input.materials.forEach((m, i) => {
       const it = items.get(m.itemId);

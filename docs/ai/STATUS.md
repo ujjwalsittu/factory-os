@@ -1,8 +1,28 @@
 # Status
 
-_Last updated: 2026-10-12 (Asia/Kolkata) · SMT traceability claimed by this session_
+_Last updated: 2026-10-12 (Asia/Kolkata) · SMT traceability done_
 
 ## Done
+- [x] **SMT board traceability with printed 2D labels** (decision 065, migration 0047_smt_traceability).
+  - **Manufacturing → SMT line** (for scanners):
+    - feeder setup by slot and reel, refused for a wrong part, a busy slot (splice instead), an expired reel or unready paste;
+    - panel labels reserving a board serial per position;
+    - placement and depaneling scans (board labels at depaneling);
+    - scrap;
+    - reels and paste jars from lots in stock, with MSL floor-life clocks (J-STD-033, paused in the dry cabinet, reset by a bake) and paste thaw and open time.
+  - **Output** takes the depaneled boards' reserved serials; a cancel frees them for a re-output under the same serials.
+  - **Trace:** batch pages show a board's reels and lots at placement, and a lot's boards for recalls.
+  - **Printing:** labels are ZPL printed through the edge agent (leased jobs, three attempts, reprint), only to printer ports and hosts allowed on the edge. Plant → Devices manages the printers.
+  - **Verified:**
+    - new smoke 139 checks;
+    - SMT browser walkthrough (desktop and 390 px);
+    - unit tests: core 142, edge agent 15;
+    - agent end to end with a fake TCP printer;
+    - regression smokes: manufacturing 104, serials 59, job work 101, quality 112, scheduling 58, IoT 72, tap config 37;
+    - regression browsers: manufacturing, IoT and batch page;
+    - firmware check;
+    - typecheck 20, build 12, tests 14.
+  - [Review](../superpowers/reviews/2026-10-12-smt-traceability-review.md).
 - [x] **MT-1 tap firmware, provisioning and OTA** (decision 064, migration 0046_tap_config).
   - **Plant → Devices:** tap settings (thresholds, CT calibration, debounce, heartbeat, light meanings), versioned. The tap status shows applied or pending, firmware, signal, outbox and last error.
   - **Edge endpoints:** `GET /iot/config` and `POST /iot/status`.
@@ -153,7 +173,6 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · SMT traceability claimed by this ses
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
-- **SMT board traceability with printed 2D labels (decision 065)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-12. [Design](../superpowers/specs/2026-10-12-smt-traceability-design.md); seven tasks.
 
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
 
@@ -170,7 +189,7 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · SMT traceability claimed by this ses
    - calibrate the CTs;
    - create the release signing key offline (Azeonics) and move taps to release firmware before production.
 
-   SMT traceability (decision 065) is in progress. Other roadmap candidates need the user's choice: machine maintenance, GST return data and cost centres, hazardous-waste manifests.
+   Then the SMT line's machine data (IPC-CFX: SPI, AOI and reflow per board, placer pick counts) once the FUJI, Koh Young and Heller interfaces are confirmed. Other roadmap candidates need the user's choice: machine maintenance, GST return data and cost centres, hazardous-waste manifests.
 
 ## Blockers
 - Automatic TDS/TCS profile/source work: current official Act393/394/395/397/402 text retrieved and pinned, including scrap2% effective2026-04-01, but complete GST-base, PAN-operativity relief and lower/nil certificate applicability guidance is still missing. Original/lower-case legacy circular PDF paths returned404; generic document search did not produce verified guidance. [Evidence/requirements](../compliance/withholding-profile-evidence.md). Need reachable official primary URLs or authorized exported guidance plus applicability confirmation; optional source-URL question already asked. No numerical defaults enabled. Continue independent bank-reconciliation work while this gate remains closed.

@@ -73,6 +73,8 @@ export const bom = pgTable(
     quantity: qty('quantity').notNull().default('1'),
     status: bomStatus('status').notNull().default('draft'),
     isDefault: boolean('is_default').notNull().default(false),
+    /** Decision 065: boards per SMT panel (null = not panelized); panel labels reserve one serial per position. */
+    boardsPerPanel: integer('boards_per_panel'),
     remarks: text('remarks'),
     activatedAt: timestamp('activated_at', { withTimezone: true }),
     activatedBy: text('activated_by').references(() => user.id),
@@ -82,6 +84,7 @@ export const bom = pgTable(
     uniqueIndex('bom_item_revision_uq').on(t.entityId, t.itemId, t.revision),
     uniqueIndex('bom_item_default_uq').on(t.entityId, t.itemId).where(sql`${t.isDefault}`),
     check('bom_quantity_ck', sql`${t.quantity} > 0`),
+    check('bom_boards_per_panel_ck', sql`${t.boardsPerPanel} is null or ${t.boardsPerPanel} between 1 and 100`),
   ],
 );
 

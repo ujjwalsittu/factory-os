@@ -270,3 +270,11 @@ at the end of the relevant section, with a date.
     file by hand.
   - **Local tooling.** PlatformIO is at `~/.local/bin/pio` (espressif32 7.1.3, Arduino 2.0.17/IDF 4.4). The provisioning
     test needs `dockerd` running and a venv with `esp-idf-nvs-partition-gen`.
+- 2026-10-12 SMT (decision 065):
+  - **Board serials.** A panelized BOM (`boards_per_panel`) makes the work order output reserved board serials
+    (`smt_board`) instead of generating new ones. A cancelled board output clears `smt_board.batch_id`, and re-output
+    reuses the existing serial batch.
+  - **Containers.** Reels and paste are containers of a lot for traceability only: stock and FIFO stay at lot level.
+    Container events are append-only; the clocks are computed from them in `@factoryos/core` `smt.ts`.
+  - **Printing.** Print jobs are claimed by the edge with a 60 s lease and fail after 3 attempts. The edge agent prints
+    only to `PRINTER_PORTS` (default 9100) and `PRINTER_HOSTS`.

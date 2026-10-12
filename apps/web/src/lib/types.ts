@@ -161,6 +161,8 @@ export interface Item {
   drawingNo: string | null;
   shelfLifeDays: number | null;
   mslLevel: string | null;
+  pasteThawMinutes: number | null;
+  pasteOpenHours: number | null;
   requiresIncomingInspection: boolean;
   exportControlled: boolean;
   reorderLevel: string | null;

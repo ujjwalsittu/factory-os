@@ -38,6 +38,7 @@ import { OperationalPostings } from '../accounting/operational-postings.js';
 import { StockPostingService } from '../stock-posting.service.js';
 import { QualityService } from '../quality/quality.service.js';
 import { SkillsService } from '../quality/skills.service.js';
+import { SmtService } from './smt.service.js';
 import { JobWorkService } from './job-work.service.js';
 
 type WorkOrder = typeof workOrder.$inferSelect;
@@ -60,6 +61,7 @@ export class WorkOrderService {
     private readonly jobWork: JobWorkService,
     private readonly skills: SkillsService,
     private readonly quality: QualityService,
+    private readonly smt: SmtService,
   ) {}
 
   /** Every mutation: accounting lock first (the stock engine takes it too), then the work order row. */
@@ -204,7 +206,7 @@ export class WorkOrderService {
   }
 
   /** Finished goods into stock: backflush first, then value the output from WIP (actual costing). */
-  async outputIn(tx: Tx, ctx: TenantRequestContext, entityId: string, wo: WorkOrder, postingDate: string, input: { qty: string; batchNo?: string | null; warehouseId?: string | null; asBuilt?: string[][] }) {
+  async outputIn(tx: Tx, ctx: TenantRequestContext, entityId: string, wo: WorkOrder, postingDate: string, input: { qty: string; batchNo?: string | null; warehouseId?: string | null; asBuilt?: string[][]; boards?: string[] }) {
     this.assertOpen(wo);
     const q = Dec.of(input.qty);
     const [it] = await tx.select().from(item).where(eq(item.id, wo.itemId));
@@ -212,6 +214,9 @@ export class WorkOrderService {
     if (serial && !isWholeUnits(q.toString())) throw new BadRequestException(`${it!.code} is serial-tracked; output whole units`);
     await this.jobWork.assertOutputAllowed(tx, wo.id, Dec.of(wo.producedQty).add(q).toString());
     const asBuilt = serial ? await this.checkAsBuilt(tx, wo, Number(q.toString()), input.asBuilt) : [];
+    // Decision 065: a panelized SMT order outputs the boards whose serials were reserved on their panel labels.
+    const boards = serial ? await this.smt.boardsForOutput(tx, wo.id, wo.bomId, Number(q.toString()), input.boards) : null;
+    if (input.boards?.length && !boards) throw new BadRequestException('Boards are scanned only for panelized SMT orders');
     let backflushEntryId: string | null = null;
     const flush = (await tx.select().from(workOrderMaterial).where(and(eq(workOrderMaterial.workOrderId, wo.id), eq(workOrderMaterial.backflush, true)))).map((m) => ({
       itemId: m.itemId,
@@ -229,8 +234,26 @@ export class WorkOrderService {
     // Decision 048: items needing final inspection wait in Quarantine until an inspection releases them.
     const hold = it!.requiresFinalInspection ? await this.quality.holdWarehouse(tx, ctx, entityId, 'quarantine') : null;
     const to = hold?.id ?? destination;
-    let outLines: { itemId: string; qty: string; to: string; rate: string; newBatchNo: string | null }[];
-    if (serial) {
+    let outLines: { itemId: string; qty: string; to: string; rate: string; newBatchNo: string | null; batchId?: string }[];
+    if (boards) {
+      const parts = splitEqually(value, boards.length);
+      // A board output again after a cancelled output reuses its serial batch, but only one this work order's own
+      // (cancelled) output made: a batch of the same number from anywhere else (say, a hand-typed receipt) is refused.
+      const existing = await tx.select({ id: batch.id, batchNo: batch.batchNo }).from(batch).where(and(eq(batch.itemId, it!.id), inArray(batch.batchNo, boards.map((b) => b.serialNo))));
+      const ours = existing.length
+        ? await tx
+            .select({ batchId: stockEntryLine.batchId })
+            .from(stockEntryLine)
+            .innerJoin(stockEntry, eq(stockEntry.id, stockEntryLine.entryId))
+            .where(and(eq(stockEntry.workOrderId, wo.id), eq(stockEntry.purpose, 'production_output'), inArray(stockEntryLine.batchId, existing.map((e) => e.id))))
+        : [];
+      const foreign = existing.filter((e) => !ours.some((o) => o.batchId === e.id));
+      if (foreign.length) throw new ConflictException(`Serial ${foreign.map((e) => e.batchNo).join(', ')} already exists for ${it!.code} from elsewhere; it can't be output for this board`);
+      outLines = parts.map((part, k) => {
+        const again = existing.find((e) => e.batchNo === boards[k]!.serialNo);
+        return { itemId: wo.itemId, qty: '1', to, rate: part, newBatchNo: again ? null : boards[k]!.serialNo, ...(again ? { batchId: again.id } : {}) };
+      });
+    } else if (serial) {
       // Decision 046: one generated serial per unit, each carrying an equal share of the value (last takes the remainder).
       const n = Number(q.toString());
       const [counter] = await tx
@@ -250,6 +273,10 @@ export class WorkOrderService {
       const made = await tx.select().from(stockEntryLine).where(eq(stockEntryLine.entryId, entry.id)).orderBy(asc(stockEntryLine.lineNo));
       for (const l of made)
         await this.quality.openRecordIn(tx, ctx, entityId, { stage: 'final', itemId: l.itemId, batchId: l.batchId, qty: l.qty, sourceType: 'output', sourceId: l.id, workOrderId: wo.id, holdWarehouseId: hold.id, acceptWarehouseId: destination });
+    }
+    if (boards) {
+      const made = await tx.select({ batchId: stockEntryLine.batchId }).from(stockEntryLine).where(eq(stockEntryLine.entryId, entry.id)).orderBy(asc(stockEntryLine.lineNo));
+      await this.smt.attachOutput(tx, boards, made.map((m) => m.batchId));
     }
     if (asBuilt.length) {
       const made = await tx.select({ lineNo: stockEntryLine.lineNo, batchId: stockEntryLine.batchId }).from(stockEntryLine).where(eq(stockEntryLine.entryId, entry.id)).orderBy(asc(stockEntryLine.lineNo));
@@ -279,6 +306,7 @@ export class WorkOrderService {
       if (latest?.id !== entry.id) throw new ConflictException('Cancel the later outputs first');
       const [row] = await tx.select().from(workOrderCost).where(and(eq(workOrderCost.stockEntryId, entry.id), isNull(workOrderCost.reversalOf)));
       await this.quality.releaseHoldIn(tx, 'output', (await tx.select({ id: stockEntryLine.id }).from(stockEntryLine).where(eq(stockEntryLine.entryId, entry.id))).map((l) => l.id));
+      await this.smt.detachOutput(tx, (await tx.select({ batchId: stockEntryLine.batchId }).from(stockEntryLine).where(eq(stockEntryLine.entryId, entry.id))).flatMap((l) => (l.batchId ? [l.batchId] : [])));
       await this.posting.cancelIn(tx, ctx, entityId, entry.id, reason);
       await this.reverseCost(tx, ctx, row!);
       // As-built rows of the cancelled assembly serials are reversed, which frees their components.

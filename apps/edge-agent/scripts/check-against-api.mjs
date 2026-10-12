@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtempSync } from 'node:fs';
-import { createServer } from 'node:net';
+import { createServer, createServer as createTcpServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Aedes } from 'aedes';
@@ -39,7 +39,20 @@ const broker = await Aedes.createBroker();
 const server = createServer(broker.handle);
 await new Promise((r) => server.listen(0, r));
 const mqttUrl = `mqtt://127.0.0.1:${server.address().port}`;
-const agent = new EdgeAgent({ mqttUrl, apiUrl: API, key: edge.key, tenant: tenantSlug, plant: 'NM1', dataDir: mkdtempSync(join(tmpdir(), 'edge-')), flushMs: 200, log: (x) => console.log('  agent:', x) });
+// Decision 065: a fake Zebra printer on the plant network, registered behind the edge.
+const printed = [];
+const fakePrinter = createTcpServer((sock) => {
+  let buf = '';
+  sock.on('data', (d) => (buf += d));
+  sock.on('end', () => {
+    printed.push(buf);
+    sock.end();
+  });
+});
+await new Promise((r) => fakePrinter.listen(0, '127.0.0.1', r));
+const printerPort = fakePrinter.address().port;
+const printer = await call('POST', '/plant/printers', { edgeId: edge.id, code: 'ZT-1', name: 'Line printer', host: '127.0.0.1', port: printerPort, widthMm: 50, heightMm: 25 });
+const agent = new EdgeAgent({ mqttUrl, apiUrl: API, key: edge.key, tenant: tenantSlug, plant: 'NM1', dataDir: mkdtempSync(join(tmpdir(), 'edge-')), flushMs: 200, printMs: 300, printerPorts: [printerPort], log: (x) => console.log('  agent:', x) });
 await agent.start();
 await promisify(execFile)('node', [new URL('./simulate-tap.mjs', import.meta.url).pathname, '--mqtt', mqttUrl, '--tenant', tenantSlug, '--plant', 'NM1', '--device', 'MT1-01', '--script', 'idle:2,running:8', '--speed', '0']).then((r) => process.stdout.write(r.stdout));
 let row;
@@ -70,6 +83,20 @@ assert.equal(config.runAmps, 6.5);
 const reported = (await call('GET', '/plant/devices')).find((d) => d.code === 'MT1-01');
 assert.deepEqual([reported.fwVersion, reported.appliedConfigVersion, reported.configVersion], ['1.0.0', 2, 2]);
 console.log('  settings v2 reached the tap as a retained config; its status reached Plant → Devices');
+
+// A test label goes through FactoryOS, the edge and the printer, and comes back as printed.
+const job = await call('POST', `/plant/printers/${printer.id}/test`, {});
+let status;
+for (let i = 0; i < 40; i++) {
+  status = (await call('GET', '/plant/print-jobs')).find((j) => j.id === job.id)?.status;
+  if (status === 'printed') break;
+  await new Promise((r) => setTimeout(r, 250));
+}
+assert.equal(status, 'printed');
+assert.equal(printed.length, 1);
+assert.match(printed[0], /^\^XA[\s\S]*TEST-ZT-1[\s\S]*\^XZ$/);
+console.log('  a test label reached the printer through the edge and was reported printed');
+fakePrinter.close();
 
 await agent.stop();
 await new Promise((r) => broker.close(r));

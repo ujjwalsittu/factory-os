@@ -119,6 +119,8 @@ function ItemDialog({ item, onClose }: { item: Item | null; onClose: () => void 
     drawingNo: item?.drawingNo ?? '',
     shelfLifeDays: item?.shelfLifeDays?.toString() ?? '',
     mslLevel: item?.mslLevel ?? '',
+    pasteThawMinutes: item?.pasteThawMinutes?.toString() ?? '',
+    pasteOpenHours: item?.pasteOpenHours?.toString() ?? '',
     reorderLevel: item?.reorderLevel ? String(Number(item.reorderLevel)) : '',
     requiresIncomingInspection: item?.requiresIncomingInspection ?? false,
     exportControlled: item?.exportControlled ?? false,
@@ -142,6 +144,8 @@ function ItemDialog({ item, onClose }: { item: Item | null; onClose: () => void 
         drawingNo: f.drawingNo || null,
         shelfLifeDays: f.shelfLifeDays ? Number(f.shelfLifeDays) : null,
         mslLevel: f.mslLevel || null,
+        pasteThawMinutes: f.pasteThawMinutes ? Number(f.pasteThawMinutes) : null,
+        pasteOpenHours: f.pasteOpenHours ? Number(f.pasteOpenHours) : null,
         reorderLevel: f.reorderLevel || null,
         requiresIncomingInspection: f.requiresIncomingInspection,
         exportControlled: f.exportControlled,
@@ -231,6 +235,8 @@ function ItemDialog({ item, onClose }: { item: Item | null; onClose: () => void 
                 </Select>
               )}
             </Field>
+            <Field label="Paste thaw (min)" hint="Solder paste only" error={e.pasteThawMinutes}>{(p) => <Input {...p} value={f.pasteThawMinutes} onChange={set('pasteThawMinutes')} inputMode="numeric" placeholder="240" />}</Field>
+            <Field label="Paste open life (h)" hint="Usable once opened" error={e.pasteOpenHours}>{(p) => <Input {...p} value={f.pasteOpenHours} onChange={set('pasteOpenHours')} inputMode="numeric" placeholder="24" />}</Field>
           </div>
         )}
         <Field label="Description" error={e.description}>{(p) => <Input {...p} value={f.description} onChange={set('description')} />}</Field>

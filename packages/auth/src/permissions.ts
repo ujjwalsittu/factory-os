@@ -77,6 +77,7 @@ export const RESOURCES = [
   { module: 'manufacturing', resource: 'job_work', label: 'Job work (challans and receipts)', actions: ['read', 'create', 'submit', 'cancel'] },
   { module: 'manufacturing', resource: 'schedule', label: 'Production schedule (run, move, pin)', actions: ['read', 'update'] },
   { module: 'manufacturing', resource: 'calendar', label: 'Working calendars and machine downtime', actions: ['read', 'update'] },
+  { module: 'manufacturing', resource: 'smt', label: 'SMT line: reels and paste (create), feeder setup, panel scans and labels (update) (decision 065)', actions: ['read', 'create', 'update'] },
   { module: 'services', resource: 'rate_card', label: 'Machine-hour rate cards (decision 055)', actions: ['read', 'update'] },
   { module: 'services', resource: 'booking', label: 'Machine bookings (create, move, confirm, cancel)', actions: ['read', 'create', 'update'] },
   { module: 'services', resource: 'usage', label: 'Machine usage (timer and manual); approve confirms metered usage (decision 063)', actions: ['create', 'approve'] },

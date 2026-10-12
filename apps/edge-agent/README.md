@@ -23,6 +23,15 @@ Decision 064 ([design](../../docs/superpowers/specs/2026-10-12-tap-firmware-desi
     CA);
   - announces it, retained, on `factoryos/{tenant}/{plant}/ota`. Builds that fail a check are logged and skipped.
 
+Decision 065 ([design](../../docs/superpowers/specs/2026-10-12-smt-traceability-design.md)) adds **label printing**:
+
+- every 3 seconds the agent claims its printers' label jobs (`GET /api/iot/print-jobs`, with a 60 s lease);
+- it sends each job's ZPL over raw TCP to the printer, then reports the result (`POST /api/iot/print-jobs/:id/result`);
+- a failure is retried up to three times, then shows as failed in Plant → Devices with Reprint.
+
+The printer's address comes from FactoryOS, so the agent only connects to printer ports (`PRINTER_PORTS`, default
+9100). Set `PRINTER_HOSTS` to restrict it to the plant's printers too.
+
 ## Run
 
 Node 22. Build with `pnpm --filter @factoryos/edge-agent build`, then:
@@ -47,6 +56,9 @@ Optional:
 | `OTA_BASE_URL` | How taps reach the firmware server, e.g. `https://edge-nm1.plant:8443` (must match its certificate) |
 | `OTA_PORT` | Firmware server port (default 8443) |
 | `OTA_TLS_KEY`, `OTA_TLS_CERT` | PEM files for the firmware server, issued by the plant CA |
+| `PRINT_POLL_MS` | How often to ask for label jobs (default 3000; 0 turns printing off) |
+| `PRINTER_PORTS` | Comma-separated ports the agent may print to (default 9100) |
+| `PRINTER_HOSTS` | Comma-separated printer hosts the agent may print to (default: any host on an allowed port) |
 
 The full edge PC setup is in [`docs/iot/edge-install.md`](../../docs/iot/edge-install.md).
 
@@ -55,8 +67,8 @@ Keep the data directory on persistent storage; it holds the queue across restart
 ## Test
 
 - `pnpm --filter @factoryos/edge-agent test`: queue, forwarder (outage and catch-up, duplicates, quarantine), settings
-  and status relays, firmware checks (tampered, mis-signed, wrong size) and the server, and the agent over an
-  in-process MQTT broker.
+  and status relays, firmware checks (tampered, mis-signed, wrong size) and the server, label printing to a fake TCP
+  printer (allowed ports and hosts), and the agent over an in-process MQTT broker.
 - `pnpm --filter @factoryos/edge-agent simulate -- --tenant azeonics --plant NM1 --device MT1-01 --script "idle:5,running:30"`:
   publishes a tap's heartbeats to a broker.
 - `API=http://localhost:4000 node scripts/check-against-api.mjs`: end to end against a running API (simulator, broker,

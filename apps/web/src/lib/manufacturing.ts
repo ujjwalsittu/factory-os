@@ -63,6 +63,8 @@ export interface BomDetail {
   quantity: string;
   status: BomStatus;
   isDefault: boolean;
+  /** Decision 065: SMT boards per panel; null when not panelized. */
+  boardsPerPanel: number | null;
   remarks: string | null;
   materials: { id: string; lineNo: number; itemId: string; itemCode: string; itemName: string; tracking: string; uom: string; qty: string; backflush: boolean; remarks: string | null }[];
   operations: { id: string; seq: number; name: string; workCentreId: string | null; workCentreCode: string | null; workCentreName: string | null; hourlyRate: string | null; outsourced: boolean; supplierId: string | null; supplierName: string | null; setupMinutes: string; runMinutesPerUnit: string; leadDays?: number | null; instructions: string | null }[];

@@ -8,6 +8,7 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { AttachmentsPanel } from '@/components/attachments-panel';
 import { EntityGate } from '@/components/entity-gate';
+import { SmtTrace } from '@/components/smt-trace';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDate, formatQty } from '@/lib/format';
@@ -226,6 +227,7 @@ function View() {
           </Card>
         )}
 
+        <SmtTrace batchId={b.id} />
         {ws.can('quality.attachment.read') && <AttachmentsPanel ownerType="batch" ownerId={b.id} defaultKind="mtc" title="Certificates (MTC, CoC, CoA) and files" />}
       </div>
     </>

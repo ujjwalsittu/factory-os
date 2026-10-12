@@ -43,6 +43,7 @@ export function BomEditor({ bom }: { bom: BomDetail | null }) {
   const [revision, setRevision] = useState(bom?.revision ?? 'A');
   const [quantity, setQuantity] = useState(bom ? num(bom.quantity) : '1');
   const [remarks, setRemarks] = useState(bom?.remarks ?? '');
+  const [boardsPerPanel, setBoardsPerPanel] = useState(bom?.boardsPerPanel ? String(bom.boardsPerPanel) : '');
   const [materials, setMaterials] = useState<MaterialRow[]>(
     bom?.materials.map((m) => ({ item: { id: m.itemId, code: m.itemCode, name: m.itemName, tracking: m.tracking, uomCode: m.uom }, qty: num(m.qty), backflush: m.backflush })) ?? [{ item: null, qty: '', backflush: false }],
   );
@@ -57,6 +58,7 @@ export function BomEditor({ bom }: { bom: BomDetail | null }) {
     itemId: item?.id,
     revision,
     quantity,
+    boardsPerPanel: boardsPerPanel ? Number(boardsPerPanel) : null,
     remarks: remarks || null,
     materials: materials.filter((m) => m.item).map((m) => ({ itemId: m.item!.id, qty: m.qty, backflush: m.backflush })),
     operations: operations.map((o) => ({ seq: Number(o.seq), name: o.name, workCentreId: o.outsourced ? null : o.workCentreId, outsourced: o.outsourced, supplierId: o.outsourced ? o.supplierId || null : null, setupMinutes: o.setupMinutes || '0', runMinutesPerUnit: o.runMinutesPerUnit || '0', leadDays: o.outsourced && o.leadDays ? Number(o.leadDays) : null, instructions: o.instructions || null })),
@@ -133,9 +135,14 @@ export function BomEditor({ bom }: { bom: BomDetail | null }) {
             {(f) => <Input {...f} inputMode="decimal" value={quantity} onChange={(e) => setQuantity(e.target.value)} disabled={!editable} />}
           </Field>
         </div>
-        <Field label="Remarks" className="mt-4">
-          {(f) => <Input {...f} value={remarks} onChange={(e) => setRemarks(e.target.value)} disabled={!editable} placeholder="Drawing, ECN reference…" />}
-        </Field>
+        <div className="mt-4 grid gap-4 sm:grid-cols-4">
+          <Field label="Remarks" className="sm:col-span-3">
+            {(f) => <Input {...f} value={remarks} onChange={(e) => setRemarks(e.target.value)} disabled={!editable} placeholder="Drawing, ECN reference…" />}
+          </Field>
+          <Field label="Boards per panel" error={fe.boardsPerPanel} hint="SMT boards made in panels; serial-tracked items">
+            {(f) => <Input {...f} inputMode="numeric" value={boardsPerPanel} onChange={(e) => setBoardsPerPanel(e.target.value.replace(/\D/g, ''))} disabled={!editable} placeholder="Not panelized" />}
+          </Field>
+        </div>
       </Card>
 
       <Card className="mb-4">

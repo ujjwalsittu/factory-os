@@ -69,6 +69,8 @@ const outputInput = z.object({
   warehouseId: z.uuid().nullable().optional(),
   /** Serial assemblies: per new serial, the component serial (batch) ids built into it (decision 046). */
   asBuilt: z.array(z.array(z.uuid()).max(100)).max(1000).optional(),
+  /** Panelized SMT orders (decision 065): the board serials to output; the oldest depaneled boards when omitted. */
+  boards: z.array(z.string().trim().min(1).max(80)).max(1000).optional(),
 });
 const stopInput = z.object({ goodQty: quantity.default('0'), reworkQty: quantity.default('0'), scrapQty: quantity.default('0'), remarks: z.string().trim().max(1000).nullable().optional() });
 
