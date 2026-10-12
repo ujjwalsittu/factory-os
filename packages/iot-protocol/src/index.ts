@@ -57,3 +57,74 @@ export function parseTapMessage(payload: string | Uint8Array): TapMessage | { er
   if (typeof m.at !== 'string' || Number.isNaN(Date.parse(m.at))) return { error: 'Bad timestamp' };
   return { seq: m.seq as number, state: m.state as MachineState, at: m.at };
 }
+
+// ── Decision 064: tap configuration, status and firmware updates ──
+
+/** Retained on `factoryos/{tenant}/{plant}/{device}/config`; the tap applies it and reports `configVersion`. */
+export interface TapConfigMessage {
+  version: number;
+  heartbeatSeconds: number;
+  offAmps: number;
+  runAmps: number;
+  ctAmpsPerVolt: number;
+  debounceSeconds: number;
+  lights: { red: 'alarm' | 'none'; amber: 'idle' | 'setup' | 'alarm' | 'none'; green: 'running' | 'none' };
+}
+
+/** Retained on `factoryos/{tenant}/{plant}/{device}/status`. */
+export interface TapStatus {
+  fwVersion: string;
+  configVersion: number | null;
+  uptime: number;
+  rssi: number | null;
+  outbox: number;
+  lastError: string | null;
+  at: string;
+}
+
+/** Retained on `factoryos/{tenant}/{plant}/ota`: the signed manifest of the firmware every tap should run. */
+export interface OtaManifest {
+  version: string;
+  size: number;
+  sha256: string;
+  url: string;
+  /** Ed25519 over the canonical string `factoryos-mt1|{version}|{size}|{sha256}`, base64. */
+  signature: string;
+}
+
+export const otaSigningPayload = (m: Pick<OtaManifest, 'version' | 'size' | 'sha256'>) => `factoryos-mt1|${m.version}|${m.size}|${m.sha256}`;
+
+export function deviceTopic(tenant: string, plant: string, device: string, metric: 'state' | 'status' | 'config') {
+  return stateTopic(tenant, plant, device).replace(/\/state$/, `/${metric}`);
+}
+export function plantStatusFilter(tenant: string, plant: string) {
+  return `factoryos/${tenant}/${plant}/+/status`;
+}
+export function otaTopic(tenant: string, plant: string) {
+  if (!SEGMENT.test(tenant) || !SEGMENT.test(plant)) throw new Error('Bad topic segment');
+  return `factoryos/${tenant}/${plant}/ota`;
+}
+
+/** The device code from a `status` topic of this tenant and plant, or null. */
+export function deviceFromStatusTopic(topic: string, tenant: string, plant: string): string | null {
+  return deviceFromTopic(topic.replace(/\/status$/, '/state'), tenant, plant) && topic.endsWith('/status') ? topic.split('/')[3]! : null;
+}
+
+export function parseTapStatus(payload: string | Uint8Array): TapStatus | { error: string } {
+  let v: Partial<TapStatus>;
+  try {
+    v = JSON.parse(typeof payload === 'string' ? payload : new TextDecoder().decode(payload)) as Partial<TapStatus>;
+  } catch {
+    return { error: 'Not JSON' };
+  }
+  if (!v || typeof v !== 'object' || typeof v.fwVersion !== 'string' || typeof v.at !== 'string' || Number.isNaN(Date.parse(v.at))) return { error: 'Bad status' };
+  return {
+    fwVersion: v.fwVersion.slice(0, 40),
+    configVersion: Number.isSafeInteger(v.configVersion) ? (v.configVersion as number) : null,
+    uptime: Number.isFinite(v.uptime) ? Math.max(0, Math.floor(v.uptime as number)) : 0,
+    rssi: Number.isFinite(v.rssi) ? Math.round(v.rssi as number) : null,
+    outbox: Number.isFinite(v.outbox) ? Math.max(0, Math.floor(v.outbox as number)) : 0,
+    lastError: typeof v.lastError === 'string' ? v.lastError.slice(0, 200) : null,
+    at: v.at,
+  };
+}

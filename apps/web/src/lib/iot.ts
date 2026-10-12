@@ -47,7 +47,25 @@ export interface Device {
   status: 'active' | 'retired';
   lastSeenAt: string | null;
   lastState: MachineState | null;
+  /** Decision 064: the settings the edge publishes to the tap, and what the tap last reported. */
+  config: TapConfig;
+  configVersion: number;
+  fwVersion: string | null;
+  appliedConfigVersion: number | null;
+  rssi: number | null;
+  outbox: number | null;
+  lastError: string | null;
+  statusAt: string | null;
 }
+export interface TapConfig {
+  offAmps: number;
+  runAmps: number;
+  ctAmpsPerVolt: number;
+  debounceSeconds: number;
+  lights: { red: 'alarm' | 'none'; amber: 'idle' | 'setup' | 'alarm' | 'none'; green: 'running' | 'none' };
+}
+/** Wi-Fi signal in words, from the tap's RSSI. */
+export const signal = (rssi: number) => (rssi >= -60 ? 'good' : rssi >= -72 ? 'fair' : 'weak');
 export interface MachineRow {
   id: string;
   code: string;

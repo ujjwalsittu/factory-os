@@ -15,6 +15,32 @@ const code = z.string().trim().min(2).max(40).regex(/^[A-Za-z0-9._-]+$/, 'Letter
 const edgeInput = z.object({ code, name: z.string().trim().min(2).max(120) });
 const deviceInput = z.object({ edgeId: z.uuid(), code, name: z.string().trim().min(2).max(120), machineId: z.uuid(), heartbeatSeconds: z.number().int().min(10).max(600).default(60) });
 const deviceUpdate = z.object({ name: z.string().trim().min(2).max(120), machineId: z.uuid(), heartbeatSeconds: z.number().int().min(10).max(600) });
+const tapConfigInput = z
+  .object({
+    offAmps: z.number().min(0).max(500),
+    runAmps: z.number().min(0.1).max(500),
+    ctAmpsPerVolt: z.number().min(1).max(1000),
+    debounceSeconds: z.number().int().min(1).max(120),
+    lights: z.object({ red: z.enum(['alarm', 'none']), amber: z.enum(['idle', 'setup', 'alarm', 'none']), green: z.enum(['running', 'none']) }),
+  })
+  .refine((c) => c.offAmps < c.runAmps, { message: 'The running threshold is above the off threshold', path: ['runAmps'] });
+const statusInput = z.object({
+  statuses: z
+    .array(
+      z.object({
+        device: z.string().min(1).max(40),
+        fwVersion: z.string().min(1).max(40),
+        configVersion: z.number().int().nullable(),
+        uptime: z.number().int().min(0),
+        rssi: z.number().int().min(-127).max(0).nullable(),
+        outbox: z.number().int().min(0),
+        lastError: z.string().max(200).nullable(),
+        at: z.string().min(10).max(40),
+      }),
+    )
+    .min(1)
+    .max(500),
+});
 const ingestInput = z.object({
   events: z
     .array(z.object({ device: z.string().min(1).max(40), seq: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER), state: z.string().min(1).max(20), at: z.string().min(10).max(40) }))
@@ -135,8 +161,24 @@ export class PlantController {
       if (!d) throw new NotFoundException('Device not found');
       if (d.status !== 'active') throw new ConflictException('A retired device is fixed');
       if (input.machineId !== d.machineId) await this.machineFree(tx, entityId, input.machineId, id);
-      const [after] = await tx.update(iotDevice).set(input).where(eq(iotDevice.id, id)).returning();
+      const [after] = await tx.update(iotDevice).set({ ...input, configVersion: input.heartbeatSeconds === d.heartbeatSeconds ? d.configVersion : d.configVersion + 1 }).where(eq(iotDevice.id, id)).returning();
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'iot_device.update', targetType: 'iot_device', targetId: id, before: { name: d.name, machineId: d.machineId, heartbeatSeconds: d.heartbeatSeconds }, after: input }, tx);
+      return after!;
+    });
+  }
+
+  /** Decision 064: the tap's thresholds and stack-light meanings; each change raises the version the tap reports back. */
+  @Put('devices/:id/config')
+  @RequirePermission('plant.device.update')
+  async config(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const input = parse(tapConfigInput, body);
+    return this.db.transaction(async (tx) => {
+      const [d] = await tx.select().from(iotDevice).where(and(eq(iotDevice.id, id), eq(iotDevice.entityId, entityId))).for('update');
+      if (!d) throw new NotFoundException('Device not found');
+      if (d.status !== 'active') throw new ConflictException('A retired device is fixed');
+      const [after] = await tx.update(iotDevice).set({ config: input, configVersion: d.configVersion + 1 }).where(eq(iotDevice.id, id)).returning();
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'iot_device.config', targetType: 'iot_device', targetId: id, before: { version: d.configVersion, config: d.config }, after: { version: after!.configVersion, config: input } }, tx);
       return after!;
     });
   }
@@ -222,5 +264,27 @@ export class IngestController {
     const input = parse(ingestInput, body);
     const results = await this.iot.ingest(edge, input.events);
     return { results };
+  }
+
+  /** Decision 064: the configs the edge publishes to its taps (retained), with their versions. */
+  @Get('config')
+  @Public()
+  async config(@Headers('authorization') auth: string | undefined) {
+    const edge = await this.iot.edgeForKey(auth);
+    if (!edge) throw new UnauthorizedException('Unknown or revoked edge key');
+    this.iot.throttle(edge.id);
+    return { taps: await this.iot.configs(edge) };
+  }
+
+  /** Decision 064: what the taps report (firmware, applied config, signal, outbox, last error); a result per tap. */
+  @Post('status')
+  @Public()
+  @HttpCode(200)
+  async status(@Headers('authorization') auth: string | undefined, @Body() body: unknown) {
+    const edge = await this.iot.edgeForKey(auth);
+    if (!edge) throw new UnauthorizedException('Unknown or revoked edge key');
+    this.iot.throttle(edge.id);
+    const input = parse(statusInput, body);
+    return { results: await this.iot.status(edge, input.statuses) };
   }
 }

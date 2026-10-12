@@ -1,7 +1,7 @@
 // Decision 063: the IoT pilot. Each plant's edge agent holds a credential (only its hash is stored) and forwards the
 // machine taps' state changes; the events are append-only and drive machine-hour metering of bookings.
 import { sql } from 'drizzle-orm';
-import { bigint, check, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { bigint, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { user } from './auth.js';
 import { machine } from './manufacturing.js';
 import { legalEntity, tenant } from './platform.js';
@@ -42,6 +42,17 @@ export const iotEdge = pgTable(
   (t) => [uniqueIndex('iot_edge_code_uq').on(t.entityId, t.code), uniqueIndex('iot_edge_key_uq').on(t.keyHash)],
 );
 
+/** Decision 064: what a tap applies, set in Plant → Devices and published to it by the edge agent. */
+export interface TapConfig {
+  offAmps: number;
+  runAmps: number;
+  /** Amps per ADC volt of the CT burden; set when the tap is calibrated on its machine. */
+  ctAmpsPerVolt: number;
+  debounceSeconds: number;
+  lights: { red: 'alarm' | 'none'; amber: 'idle' | 'setup' | 'alarm' | 'none'; green: 'running' | 'none' };
+}
+export const DEFAULT_TAP_CONFIG: TapConfig = { offAmps: 0.5, runAmps: 3, ctAmpsPerVolt: 30, debounceSeconds: 5, lights: { red: 'alarm', amber: 'idle', green: 'running' } };
+
 /** A machine tap behind an edge; at most one active tap per machine. */
 export const iotDevice = pgTable(
   'iot_device',
@@ -61,6 +72,15 @@ export const iotDevice = pgTable(
     status: iotDeviceStatus('status').notNull().default('active'),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     lastState: machineState('last_state'),
+    /** Decision 064: settings pushed to the tap, and what the tap last reported. */
+    config: jsonb('config').$type<TapConfig>().notNull().default(DEFAULT_TAP_CONFIG),
+    configVersion: integer('config_version').notNull().default(1),
+    fwVersion: text('fw_version'),
+    appliedConfigVersion: integer('applied_config_version'),
+    rssi: integer('rssi'),
+    outbox: integer('outbox'),
+    lastError: text('last_error'),
+    statusAt: timestamp('status_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     retiredAt: timestamp('retired_at', { withTimezone: true }),
   },
