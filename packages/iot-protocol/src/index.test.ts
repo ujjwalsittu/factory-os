@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deviceFromStatusTopic, deviceFromTopic, deviceTopic, otaSigningPayload, otaTopic, parseTapMessage, parseTapStatus, plantStateFilter, stateTopic } from './index.js';
+import { compareFwVersions, deviceFromStatusTopic, deviceFromTopic, deviceTopic, otaSigningPayload, otaTopic, parseTapMessage, parseTapStatus, plantStateFilter, stateTopic } from './index.js';
 
 describe('plant MQTT contract (decision 063)', () => {
   it('builds and reads state topics', () => {
@@ -32,5 +32,15 @@ describe('tap config, status and OTA topics (decision 064)', () => {
   it('reads tap status defensively', () => {
     expect(parseTapStatus('{"fwVersion":"1.0.0","configVersion":3,"uptime":12.7,"rssi":-61,"outbox":0,"lastError":null,"at":"2026-10-12T04:00:00Z"}')).toEqual({ fwVersion: '1.0.0', configVersion: 3, uptime: 12, rssi: -61, outbox: 0, lastError: null, at: '2026-10-12T04:00:00Z' });
     expect(parseTapStatus('{"at":"2026-10-12T04:00:00Z"}')).toEqual({ error: 'Bad status' });
+  });
+
+  it('orders firmware versions', () => {
+    expect(compareFwVersions('1.2.0', '1.10.0')).toBe(-1);
+    expect(compareFwVersions('2.0.0', '1.99.99')).toBe(1);
+    expect(compareFwVersions('1.0.0', '1.0.0')).toBe(0);
+    expect(compareFwVersions('1.0.0-dev', '1.0.0')).toBe(-1);
+    expect(compareFwVersions('1.0.0', '1.0.0-dev')).toBe(1);
+    expect(compareFwVersions('1.0', '1.0.0')).toBeNull();
+    expect(compareFwVersions('1.0.0;rm', '1.0.0')).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
-// End-to-end check (decision 063) against a running API: a fresh tenant registers an edge and a tap, an in-process
-// MQTT broker stands in for Mosquitto, the built edge agent forwards the simulator's heartbeats, and the machine grid
-// shows the tap's state. Usage: API=http://localhost:4000 node scripts/check-against-api.mjs   (after pnpm build)
+// End-to-end check (decisions 063 and 064) against a running API: a fresh tenant registers an edge and a tap, an
+// in-process MQTT broker stands in for Mosquitto, the built edge agent forwards the simulator's heartbeats, and the
+// machine grid shows the tap's state; the tap's settings reach it as a retained config, and its status reaches Devices.
+// Usage: API=http://localhost:4000 node scripts/check-against-api.mjs   (after pnpm build)
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -9,6 +10,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Aedes } from 'aedes';
+import mqtt from 'mqtt';
 import { EdgeAgent } from '../dist/index.js';
 
 const API = `${process.env.API ?? 'http://localhost:4000'}/api`;
@@ -49,6 +51,26 @@ for (let i = 0; i < 40; i++) {
 assert.deepEqual([row.device.code, row.state, agent.queue.size], ['MT1-01', 'running', 0]);
 const tl = await call('GET', `/plant/machines/${m.id}/timeline?from=${encodeURIComponent(new Date(Date.now() - 11 * 60_000).toISOString())}`);
 assert.ok(tl.meter.minutes >= 9, `occupied ${tl.meter.minutes}`);
+
+// Decision 064: settings out to the tap, status back.
+const tapRow = (await call('GET', '/plant/devices')).find((d) => d.code === 'MT1-01');
+await call('PUT', `/plant/devices/${tapRow.id}/config`, { offAmps: 1, runAmps: 6.5, ctAmpsPerVolt: 50, debounceSeconds: 10, lights: { red: 'alarm', amber: 'setup', green: 'running' } });
+const tap = await mqtt.connectAsync(mqttUrl);
+const base = `factoryos/${tenantSlug}/NM1/MT1-01`;
+await tap.publishAsync(`${base}/status`, JSON.stringify({ fwVersion: '1.0.0', configVersion: 2, uptime: 60, rssi: -60, outbox: 0, lastError: null, at: new Date().toISOString() }), { qos: 1, retain: true });
+await new Promise((r) => setTimeout(r, 200));
+await agent.syncOnce();
+const config = await new Promise((resolve) => {
+  tap.on('message', (_t, p) => resolve(JSON.parse(p.toString())));
+  void tap.subscribeAsync(`${base}/config`, { qos: 1 });
+});
+await tap.endAsync();
+assert.equal(config.version, 2);
+assert.equal(config.runAmps, 6.5);
+const reported = (await call('GET', '/plant/devices')).find((d) => d.code === 'MT1-01');
+assert.deepEqual([reported.fwVersion, reported.appliedConfigVersion, reported.configVersion], ['1.0.0', 2, 2]);
+console.log('  settings v2 reached the tap as a retained config; its status reached Plant → Devices');
+
 await agent.stop();
 await new Promise((r) => broker.close(r));
 server.close();

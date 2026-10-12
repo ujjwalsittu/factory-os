@@ -128,3 +128,27 @@ export function parseTapStatus(payload: string | Uint8Array): TapStatus | { erro
     at: v.at,
   };
 }
+
+/** What `GET /iot/config` returns to the edge agent. */
+export interface TapConfigsResponse {
+  taps: { device: string; config: TapConfigMessage }[];
+}
+
+/**
+ * Orders firmware versions `major.minor.patch[-label]`: numerically, and a labelled build (e.g. `-dev`) before the
+ * plain release of the same number. Null for a malformed version.
+ */
+export function compareFwVersions(a: string, b: string): number | null {
+  const parse = (v: string) => /^(\d{1,5})\.(\d{1,5})\.(\d{1,5})(?:-([0-9A-Za-z.-]{1,20}))?$/.exec(v);
+  const x = parse(a);
+  const y = parse(b);
+  if (!x || !y) return null;
+  for (const i of [1, 2, 3]) {
+    const d = Number(x[i]) - Number(y[i]);
+    if (d) return Math.sign(d);
+  }
+  if (x[4] === y[4]) return 0;
+  if (!x[4]) return 1;
+  if (!y[4]) return -1;
+  return x[4] < y[4] ? -1 : 1;
+}
