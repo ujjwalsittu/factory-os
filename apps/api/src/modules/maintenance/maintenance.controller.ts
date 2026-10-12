@@ -50,8 +50,8 @@ export class MaintenanceController {
 
   @Get('plans')
   @RequirePermission('maintenance.plan.read')
-  plans(@Ctx() ctx: TenantRequestContext, @Query('machineId') machineId?: string) {
-    return this.mnt.dueList(this.db, entityOf(ctx), machineId && z.uuid().safeParse(machineId).success ? machineId : undefined);
+  plans(@Ctx() ctx: TenantRequestContext, @Query('machineId') machineId?: string, @Query('all') all?: string) {
+    return this.mnt.dueList(this.db, entityOf(ctx), machineId && z.uuid().safeParse(machineId).success ? machineId : undefined, all === '1');
   }
 
   @Post('plans')

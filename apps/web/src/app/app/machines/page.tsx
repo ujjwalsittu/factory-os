@@ -47,15 +47,11 @@ function Grid() {
           </thead>
           <tbody>
             {q.data?.map((m) => (
-              <Tr key={m.id} className={m.device ? 'cursor-pointer' : undefined} onClick={() => m.device && router.push(`/app/machines/${m.id}`)}>
+              <Tr key={m.id} className="cursor-pointer" onClick={() => router.push(`/app/machines/${m.id}`)}>
                 <Td className="text-[13px]">
-                  {m.device ? (
-                    <Link className="font-mono font-medium hover:text-accent" href={`/app/machines/${m.id}`} onClick={(e) => e.stopPropagation()}>
-                      {m.code}
-                    </Link>
-                  ) : (
-                    <span className="font-mono font-medium">{m.code}</span>
-                  )}{' '}
+                  <Link className="font-mono font-medium hover:text-accent" href={`/app/machines/${m.id}`} onClick={(e) => e.stopPropagation()}>
+                    {m.code}
+                  </Link>{' '}
                   {m.name}
                   <span className="block text-subtle">{m.workCentre}</span>
                 </Td>

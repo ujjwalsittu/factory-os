@@ -36,7 +36,8 @@ export interface WorkCentre {
   /** Null = the entity's default calendar (decision 049). */
   calendarId?: string | null;
   isActive: boolean;
-  machines: { id: string; code: string; name: string; isActive: boolean; workCentreId: string }[];
+  /** `critical` (decision 066): its maintenance orders also need a supervisor's verification. */
+  machines: { id: string; code: string; name: string; isActive: boolean; workCentreId: string; critical: boolean }[];
 }
 
 export interface BomRow {

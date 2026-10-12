@@ -179,13 +179,13 @@ export class MaintenanceService {
     return { ...due, runHoursSince: run.hours, runHoursSource: run.source, openOrder: open ?? null };
   }
 
-  /** Active plans with their due state, overdue first. */
-  async dueList(db: Db, entityId: string, machineId?: string) {
+  /** Active plans (or all, for the plans page) with their due state, overdue first. */
+  async dueList(db: Db, entityId: string, machineId?: string, includeInactive = false) {
     const plans = await db
       .select({ p: maintenancePlan, machineCode: machine.code, machineName: machine.name })
       .from(maintenancePlan)
       .innerJoin(machine, eq(machine.id, maintenancePlan.machineId))
-      .where(and(eq(maintenancePlan.entityId, entityId), eq(maintenancePlan.isActive, true), machineId ? eq(maintenancePlan.machineId, machineId) : undefined))
+      .where(and(eq(maintenancePlan.entityId, entityId), includeInactive ? undefined : eq(maintenancePlan.isActive, true), machineId ? eq(maintenancePlan.machineId, machineId) : undefined))
       .orderBy(asc(machine.code), asc(maintenancePlan.name));
     const rank = { overdue: 0, due_soon: 1, ok: 2 } as const;
     const out = [];
