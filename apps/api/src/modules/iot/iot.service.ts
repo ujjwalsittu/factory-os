@@ -81,6 +81,36 @@ export class IotService {
     return results;
   }
 
+  /** Decision 064: the config message for each active tap of this edge. */
+  async configs(edge: typeof iotEdge.$inferSelect) {
+    const taps = await this.db.select().from(iotDevice).where(and(eq(iotDevice.edgeId, edge.id), eq(iotDevice.status, 'active'))).orderBy(asc(iotDevice.code));
+    return taps.map((t) => ({ device: t.code, config: { version: t.configVersion, heartbeatSeconds: t.heartbeatSeconds, ...t.config } }));
+  }
+
+  /** Decision 064: record the taps' status reports; refused when the tap isn't this edge's active tap. */
+  async status(edge: typeof iotEdge.$inferSelect, statuses: { device: string; fwVersion: string; configVersion: number | null; uptime: number; rssi: number | null; outbox: number; lastError: string | null; at: string }[]) {
+    const taps = await this.db.select().from(iotDevice).where(and(eq(iotDevice.edgeId, edge.id), eq(iotDevice.status, 'active'), inArray(iotDevice.code, [...new Set(statuses.map((s) => s.device))])));
+    const results: { device: string; status: 'accepted' | 'refused'; reason?: string }[] = [];
+    for (const s of statuses) {
+      const t = taps.find((x) => x.code === s.device);
+      if (!t) {
+        results.push({ device: s.device, status: 'refused', reason: 'Not an active tap of this edge' });
+        continue;
+      }
+      const at = new Date(s.at);
+      if (Number.isNaN(at.getTime()) || at.getTime() > Date.now() + 5 * 60_000) {
+        results.push({ device: s.device, status: 'refused', reason: 'Bad timestamp' });
+        continue;
+      }
+      await this.db
+        .update(iotDevice)
+        .set({ fwVersion: s.fwVersion, appliedConfigVersion: s.configVersion, rssi: s.rssi, outbox: s.outbox, lastError: s.lastError, statusAt: at })
+        .where(eq(iotDevice.id, t.id));
+      results.push({ device: s.device, status: 'accepted' });
+    }
+    return results;
+  }
+
   /** The tap that metered a machine over [from, to): active then, or the latest one. Null when it has never had one. */
   async deviceFor(db: Database | Tx, machineId: string, from: Date, to: Date) {
     const [d] = await db

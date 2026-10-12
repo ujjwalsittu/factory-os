@@ -1,8 +1,27 @@
 # Status
 
-_Last updated: 2026-10-12 (Asia/Kolkata) · tap firmware claimed by this session_
+_Last updated: 2026-10-12 (Asia/Kolkata) · MT-1 tap firmware done_
 
 ## Done
+- [x] **MT-1 tap firmware, provisioning and OTA** (decision 064, migration 0046_tap_config).
+  - **Plant → Devices:** tap settings (thresholds, CT calibration, debounce, heartbeat, light meanings), versioned. The tap status shows applied or pending, firmware, signal, outbox and last error.
+  - **Edge endpoints:** `GET /iot/config` and `POST /iot/status`.
+  - **Edge agent:** publishes retained configs, relays status, and checks signed builds before serving the newest over HTTPS and announcing it.
+  - **`firmware/mt1`** (ESP32-S3, PlatformIO):
+    - host-tested `tapcore`: classifier, sequence blocks, outbox, messages, Ed25519 checks via vendored Monocypher;
+    - the app: CT RMS, light inputs, SNTP, MQTT over TLS, OTA with rollback;
+    - `sign.mjs` and `check.sh`.
+  - **`firmware/provision`:** plant CA, issue and revoke a tap, NVS image, ACL and CRL.
+  - **Guide:** [edge PC install guide](../iot/edge-install.md).
+  - **Verified:**
+    - smokes: tap config 37 and metering 72;
+    - the IoT browser walkthrough with settings and status, desktop and 390 px;
+    - unit tests: protocol 5, edge agent 11, firmware host 12;
+    - ESP32-S3 dev and release builds; the signed real image accepted by the edge agent;
+    - provisioning against Mosquitto 2.0.20 in Docker: ACL, CRL revocation, reissue;
+    - the agent end to end against the API;
+    - typecheck 20, build 12, tests 14.
+  - **Not yet run on hardware.** [Review](../superpowers/reviews/2026-10-12-tap-firmware-review.md).
 - [x] **IoT pilot and machine-hour metering** (decision 063, closes B20; migration 0045_iot_metering). Plant → Devices: edge agents with a key shown once (hash only stored), rotate and revoke; machine taps, one per machine. Device-authenticated `/iot/ingest` with a result per event. Plant → Machines: live states and today's occupied time. Bookings on metered machines take occupied minutes (not off or maintenance) when covered and within 10% of the timer, otherwise wait for a supervisor's review before billing. `apps/edge-agent`: local MQTT to HTTPS with a file queue, quarantine and backoff; tap simulator; contract in `iot-protocol`. Verified: new smoke 72 checks and browser walkthrough (desktop/390 px), core/protocol/agent unit tests 7/2/4, end-to-end agent check against the API, MaaS 93, memberships 76, billing runs 81, campaigns 74, projects 141 and scheduling 58 smokes, MaaS/billing-runs/scheduling browsers, typecheck 20, build 12, tests 14. [Review](../superpowers/reviews/2026-10-12-iot-metering-review.md).
 - [x] **Skill matrix** (decision 062, migration 0044_skill_matrix). Quality → Skill matrix: named skills required by machines and work centres; people certified as trainee, qualified or trainer with a re-certification interval (append-only, revoked once); an uncertified job card start is refused unless a supervisor allows it once from the work order; a trainee's card waits for a qualified co-signer from their own login; inspection plans can require a skill to submit; certified counts per machine on the shop floor and schedule; expiring list and evidence files. Verified: new smoke 82 checks and browser walkthrough (desktop/390 px, three users), manufacturing 104, scheduling 58, no-time 32, job work 101, quality 112 and FAI 52 smokes, manufacturing/scheduling/quality browsers, typecheck 19, build 12, tests 11. [Review](../superpowers/reviews/2026-10-12-skill-matrix-review.md).
 - [x] **CAPA** (decision 061, migration 0043_capa). Quality → CAPA: raised from any NCR (several NCRs per CAPA) or standalone from an audit, complaint or other; a 5-Why chain and root cause on every CAPA, the 8D team, containment and recognition on major ones; containment, corrective and preventive actions with owners and due dates; start, submit and an effectiveness check 30–180 days later by someone other than the owner, where not effective reopens it and every check is kept. The NCR page lists its CAPAs and raises one. Verified: new smoke 58 checks and browser walkthrough (desktop/390 px, two users), quality 112 and FAI 52 smokes, quality browser, typecheck 19, build 12, tests 11. [Review](../superpowers/reviews/2026-10-11-capa-review.md).
@@ -134,8 +153,6 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · tap firmware claimed by this session
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
-- **MT-1 tap firmware, provisioning and OTA (decision 064)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-12. [Design](../superpowers/specs/2026-10-12-tap-firmware-design.md); six tasks.
-
 
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
 
@@ -146,7 +163,13 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · tap firmware claimed by this session
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
 3. User review of completed accounting/settlement/customer/supplier and manufacturing workflows on dev. Original shared activation states are preserved; cut-over remains a deliberate Finance action.
 
-4. When the pilot boards arrive: on-board testing and CT calibration of the MT-1 firmware (decision 064), and installing the edge PC; then SMT traceability with printed 2D labels. Other roadmap candidates need the user's choice: machine maintenance, GST return data and cost centres, hazardous-waste manifests.
+4. When the pilot boards arrive:
+   - install the edge PC with [the guide](../iot/edge-install.md);
+   - run the first-board checklist in the [tap firmware review](../superpowers/reviews/2026-10-12-tap-firmware-review.md): provisioning, TLS, a state change, a config round trip, a dev OTA, a forced rollback;
+   - calibrate the CTs;
+   - create the release signing key offline (Azeonics) and move taps to release firmware before production.
+
+   Then SMT traceability with printed 2D labels. Other roadmap candidates need the user's choice: machine maintenance, GST return data and cost centres, hazardous-waste manifests.
 
 ## Blockers
 - Automatic TDS/TCS profile/source work: current official Act393/394/395/397/402 text retrieved and pinned, including scrap2% effective2026-04-01, but complete GST-base, PAN-operativity relief and lower/nil certificate applicability guidance is still missing. Original/lower-case legacy circular PDF paths returned404; generic document search did not produce verified guidance. [Evidence/requirements](../compliance/withholding-profile-evidence.md). Need reachable official primary URLs or authorized exported guidance plus applicability confirmation; optional source-URL question already asked. No numerical defaults enabled. Continue independent bank-reconciliation work while this gate remains closed.

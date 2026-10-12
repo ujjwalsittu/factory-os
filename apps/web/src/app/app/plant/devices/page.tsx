@@ -8,7 +8,7 @@ import { fieldErrors, FormDialog } from '@/components/form-dialog';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
-import { type Device, type Edge, MACHINE_STATE } from '@/lib/iot';
+import { type Device, type Edge, MACHINE_STATE, signal, type TapConfig } from '@/lib/iot';
 import type { WorkCentre } from '@/lib/manufacturing';
 
 /** Plant → Devices (decision 063): edge agents with their keys, and the machine taps behind them. */
@@ -121,6 +121,7 @@ function Taps() {
   const ws = useWorkspace();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['devices', ws.entityId], queryFn: () => api<Device[]>('/plant/devices', { scope: ws.scope }) });
+  const [editing, setEditing] = useState<Device | null>(null);
   const retire = useMutation({
     mutationFn: (id: string) => api(`/plant/devices/${id}/retire`, { method: 'POST', scope: ws.scope, body: {} }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['devices'] }),
@@ -139,6 +140,7 @@ function Taps() {
                 <Th>Machine</Th>
                 <Th>Edge</Th>
                 <Th>Last state</Th>
+                <Th>Tap status</Th>
                 <Th />
               </tr>
             </thead>
@@ -157,7 +159,15 @@ function Taps() {
                     {d.lastState ? <Badge tone={MACHINE_STATE[d.lastState].tone}>{MACHINE_STATE[d.lastState].label}</Badge> : <span className="text-subtle">—</span>}
                     {d.lastSeenAt && <span className="block text-subtle">{formatDateTime(d.lastSeenAt)}</span>}
                   </Td>
-                  <Td className="text-right">
+                  <Td className="text-[13px]">
+                    <TapStatus d={d} />
+                  </Td>
+                  <Td className="text-right whitespace-nowrap">
+                    {d.status === 'active' && ws.can('plant.device.update') && (
+                      <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>
+                        Settings
+                      </Button>
+                    )}
                     {d.status === 'active' && ws.can('plant.device.update') && (
                       <Button size="sm" variant="ghost" onClick={() => window.confirm(`Retire ${d.code}? Its machine stops being metered.`) && retire.mutate(d.id)}>
                         Retire
@@ -170,7 +180,100 @@ function Taps() {
           </Table>
         </div>
       )}
+      {editing && <TapSettings d={editing} onClose={() => setEditing(null)} />}
     </Card>
+  );
+}
+
+/** What the tap last reported (decision 064): whether it runs the current settings, firmware, signal, outbox, error. */
+function TapStatus({ d }: { d: Device }) {
+  if (!d.statusAt) return <span className="text-subtle">Not reported</span>;
+  const applied = d.appliedConfigVersion === d.configVersion;
+  return (
+    <div className="space-y-0.5">
+      <Badge tone={applied ? 'success' : 'warning'}>{applied ? `Config v${d.configVersion} applied` : `v${d.configVersion} pending (runs ${d.appliedConfigVersion ? `v${d.appliedConfigVersion}` : 'none'})`}</Badge>
+      <span className="block text-subtle">
+        fw {d.fwVersion}
+        {d.rssi !== null && ` · signal ${signal(d.rssi)} (${d.rssi} dBm)`}
+        {d.outbox ? ` · ${d.outbox} queued` : ''} · {formatDateTime(d.statusAt)}
+      </span>
+      {d.lastError && <span className="block text-danger">{d.lastError}</span>}
+    </div>
+  );
+}
+
+const LIGHT_MEANING: Record<string, string> = { alarm: 'Alarm', idle: 'Idle', setup: 'Setup', running: 'Running', none: 'Ignore' };
+
+/** The tap's thresholds, stack-light meanings, debounce and heartbeat; saving raises the version the edge publishes. */
+function TapSettings({ d, onClose }: { d: Device; onClose: () => void }) {
+  const ws = useWorkspace();
+  const qc = useQueryClient();
+  const [f, setF] = useState({
+    offAmps: String(d.config.offAmps),
+    runAmps: String(d.config.runAmps),
+    ctAmpsPerVolt: String(d.config.ctAmpsPerVolt),
+    debounceSeconds: String(d.config.debounceSeconds),
+    heartbeatSeconds: String(d.heartbeatSeconds),
+    lights: d.config.lights,
+  });
+  const m = useMutation({
+    mutationFn: async () => {
+      const config: TapConfig = { offAmps: Number(f.offAmps), runAmps: Number(f.runAmps), ctAmpsPerVolt: Number(f.ctAmpsPerVolt), debounceSeconds: Number(f.debounceSeconds), lights: f.lights };
+      if (Number(f.heartbeatSeconds) !== d.heartbeatSeconds) await api(`/plant/devices/${d.id}`, { method: 'PUT', scope: ws.scope, body: { name: d.name, machineId: d.machineId, heartbeatSeconds: Number(f.heartbeatSeconds) } });
+      return api(`/plant/devices/${d.id}/config`, { method: 'PUT', scope: ws.scope, body: config });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['devices'] });
+      onClose();
+    },
+  });
+  const err = fieldErrors(m.error);
+  const set = (k: 'offAmps' | 'runAmps' | 'ctAmpsPerVolt' | 'debounceSeconds' | 'heartbeatSeconds') => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  const light = (k: keyof TapConfig['lights'], options: string[]) => (
+    <Field label={`${k[0]!.toUpperCase()}${k.slice(1)} light`}>
+      {(p) => (
+        <Select {...p} value={f.lights[k]} onChange={(e) => setF({ ...f, lights: { ...f.lights, [k]: e.target.value } })}>
+          {options.map((o) => (
+            <option key={o} value={o}>
+              {LIGHT_MEANING[o]}
+            </option>
+          ))}
+        </Select>
+      )}
+    </Field>
+  );
+  return (
+    <FormDialog
+      title={`Settings for ${d.code}`}
+      description={`Now at version ${d.configVersion}. The edge publishes the new version to the tap, which reports when it has applied it.`}
+      onClose={onClose}
+      onSubmit={() => m.mutate()}
+      pending={m.isPending}
+      error={m.error}
+      submitLabel="Save settings"
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Off below (A)" error={err.offAmps} hint="Current under this means the machine is off.">
+          {(p) => <Input {...p} type="number" step="0.1" min={0} value={f.offAmps} onChange={set('offAmps')} required />}
+        </Field>
+        <Field label="Running from (A)" error={err.runAmps} hint="Current at or over this means it is cutting.">
+          {(p) => <Input {...p} type="number" step="0.1" min={0.1} value={f.runAmps} onChange={set('runAmps')} required />}
+        </Field>
+        <Field label="CT calibration (A per V)" error={err.ctAmpsPerVolt} hint="Set when the tap is calibrated on its machine.">
+          {(p) => <Input {...p} type="number" step="0.1" min={1} value={f.ctAmpsPerVolt} onChange={set('ctAmpsPerVolt')} required />}
+        </Field>
+        <Field label="Debounce (seconds)" error={err.debounceSeconds} hint="A state must hold this long before it changes.">
+          {(p) => <Input {...p} type="number" min={1} max={120} value={f.debounceSeconds} onChange={set('debounceSeconds')} required />}
+        </Field>
+        <Field label="Heartbeat (seconds)" error={err.heartbeatSeconds} hint="Gaps over 3 heartbeats count as no data.">
+          {(p) => <Input {...p} type="number" min={10} max={600} value={f.heartbeatSeconds} onChange={set('heartbeatSeconds')} required />}
+        </Field>
+        <div />
+        {light('red', ['alarm', 'none'])}
+        {light('amber', ['idle', 'setup', 'alarm', 'none'])}
+        {light('green', ['running', 'none'])}
+      </div>
+    </FormDialog>
   );
 }
 

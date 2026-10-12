@@ -216,3 +216,12 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 - 2026-10-12 · agent · CAPA (decision 061, migration 0043_capa): CAPAs from NCRs or standalone, 5-Why and 8D sections, actions by kind, start/submit gates, effectiveness check after 30–180 days by someone other than the owner (not effective reopens), CAPA pages and the NCR card; smoke 58 checks + browser walkthrough · next: PR to main; then the skill matrix or IoT metering (B20), each needing a design and user choices
 - 2026-10-12 · agent · Skill matrix (decision 062, migration 0044_skill_matrix): skills required by machines/work centres, append-only certifications with levels and expiry, job card start gate (trainee co-sign from own login, one-time supervisor allowance), inspection plans requiring a skill to submit, certified counts per machine, matrix and catalogue screens; smoke 82 checks + browser walkthrough · next: PR to main; then IoT metering once B20 is settled
 - 2026-10-12 · agent · IoT pilot and machine-hour metering (decision 063, closes B20; migration 0045_iot_metering): edges with hashed keys, taps, per-event ingest, live machine states, booking metering with 10% auto-apply or supervisor review, edge agent with file queue and tap simulator; smoke 72 checks + browser walkthrough · next: PR to main; then ESP32 MT-1 firmware when the boards arrive
+- 2026-10-12 · agent · MT-1 tap firmware, provisioning and OTA (decision 064, migration 0046_tap_config):
+  - versioned tap settings and tap status in Plant → Devices;
+  - edge config and status endpoints;
+  - edge agent config publishing, status relay, and a signed firmware server with announcements;
+  - ESP32-S3 firmware with a host-tested core, TLS, OTA and rollback;
+  - signing script, plant CA and tap provisioning scripts checked against Mosquitto, and the edge PC install guide;
+  - smoke 37 checks plus regression and browser.
+
+  Next: PR to main; then on-board testing when the boards arrive.

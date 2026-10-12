@@ -1,5 +1,5 @@
 import { chromium } from 'playwright';
-// IoT metering (decision 063) against running web + API (fresh tenant each run): Plant → Devices adds an edge (its key
+// IoT metering (decisions 063 and 064) against running web + API (fresh tenant each run): Plant → Devices adds an edge (its key
 // shown once) and a tap on the 5-axis; tap heartbeats with a 20-minute gap are posted to the ingest endpoint with that
 // key; stopping the booking sends its usage to review, the supervisor corrects it and the invoice button appears; the
 // machine grid and machine page show the states. Booking start is moved back in the local database (test-only).
@@ -107,6 +107,24 @@ try {
   const r = await fetch(`${B}/api/iot/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ events: [...beats(92, 80, 'setup'), ...beats(80, 50, 'running'), ...beats(30, 1, 'running'), ...beats(1, 0, 'idle')] }) });
   expect(r.ok, `ingest ${r.status}`);
   expect((await r.json()).results.every((x) => x.status === 'accepted'), 'all heartbeats accepted');
+
+  step('tap settings (decision 064): a new version, pending until the tap reports it');
+  await page.locator('tr', { hasText: 'MT1-01' }).getByRole('button', { name: 'Settings' }).click();
+  await L('Running from (A)').fill('6.5');
+  await L('Amber light').selectOption('setup');
+  await dialog('Save settings');
+  const edgeFetch = (path, init) => fetch(`${B}/api${path}`, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` } });
+  const cfg = await (await edgeFetch('/iot/config')).json();
+  expect(cfg.taps[0].config.version === 2 && cfg.taps[0].config.runAmps === 6.5 && cfg.taps[0].config.lights.amber === 'setup', 'the edge gets version 2');
+  const report = (configVersion) => edgeFetch('/iot/status', { method: 'POST', body: JSON.stringify({ statuses: [{ device: 'MT1-01', fwVersion: '1.0.0', configVersion, uptime: 60, rssi: -58, outbox: 3, lastError: null, at: new Date().toISOString() }] }) });
+  await report(1);
+  await page.reload();
+  await page.locator('tr', { hasText: 'MT1-01' }).getByText('v2 pending (runs v1)').waitFor();
+  await report(2);
+  await page.reload();
+  await page.locator('tr', { hasText: 'MT1-01' }).getByText('Config v2 applied').waitFor();
+  await page.locator('tr', { hasText: 'MT1-01' }).getByText(/signal good \(-58 dBm\) · 3 queued/).waitFor();
+  await shot('01b-tap-status');
 
   step('stop the booking: usage goes to review');
   await page.goto(`${B}/app/services/bookings/${bk.id}`);
