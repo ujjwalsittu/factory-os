@@ -39,6 +39,7 @@ import type { TenantRequestContext } from '../../common/access.js';
 import { AuditService } from '../../common/audit.service.js';
 import { DB } from '../../common/tokens.js';
 import type { Tx } from '../accounting/accounting-lock.js';
+import { extendOpenBreakdowns } from '../maintenance/breakdown-blocks.js';
 import { JobWorkService } from './job-work.service.js';
 
 export const HORIZON_DAYS = 28;
@@ -104,6 +105,8 @@ export class SchedulingService {
   /** One "Reschedule": places every released work order, replacing the unpinned placements. */
   async runIn(tx: Tx, ctx: TenantRequestContext, entityId: string) {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`schedule:${entityId}`}))`);
+    // Decision 066: an open breakdown keeps its machine blocked a day ahead of now.
+    await extendOpenBreakdowns(tx, entityId);
     const l = await this.load(tx, entityId);
     const now = toEpochMinutes(new Date());
     const horizon = now + HORIZON_DAYS * 1440;
@@ -200,6 +203,7 @@ export class SchedulingService {
 
   /** The latest run, its bars in [from, to), downtime, working time and the late and unscheduled lists. */
   async view(entityId: string, fromIso?: string, toIso?: string) {
+    await extendOpenBreakdowns(this.db, entityId);
     const [run] = await this.db.select().from(scheduleRun).where(eq(scheduleRun.entityId, entityId)).orderBy(desc(scheduleRun.runAt)).limit(1);
     let l: Loaded | null = null;
     try {
