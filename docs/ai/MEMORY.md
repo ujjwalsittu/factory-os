@@ -258,3 +258,15 @@ at the end of the relevant section, with a date.
 - 2026-10-12: CAPA (decision 061) lives in `apps/api/src/modules/quality/capa.controller.ts` under `/quality` (`capas`, `capa-actions`, `capa-people`). Smokes and e2e move a check date to today with `psql` against the local DATABASE_URL (test-only time travel), because the wait is at least 30 days.
 - 2026-10-12: Skill matrix (decision 062): `SkillsService.checkStart` gates every job card start (`work-order.service.ts`); a new place that starts work on a machine must call it too. Skill permissions reuse `approve` (certify) and `manage` (override) because the roles screen shows only ten action columns (`apps/web/src/app/app/settings/roles/page.tsx`).
 - 2026-10-12: IoT (decision 063): the edge agent posts to `POST /api/iot/ingest` with `Authorization: Bearer fos_edge_…` (key per edge, shown once, only its hash stored). MQTT topic contract lives in `packages/iot-protocol` (`factoryos/{tenant}/{plant}/{device}/state`, `{seq, state, at}`). Booking metering reads `IotService.meter`; occupied = not off/maintenance; unknown after 3 missed heartbeats.
+- 2026-10-12 MT-1 firmware (decision 064):
+  - **Sequence numbers.** `machine_state_event` is unique per (device, seq), so a tap must never reuse a seq.
+    Provisioning seeds the tap's NVS `seq/hw` with the time in ms, and the firmware reserves blocks of 1,000.
+  - **Version rules.** A tap's config version rises on every settings or heartbeat change. Firmware versions are
+    `x.y.z[-label]`, where `-dev` builds trust only the public development key in `firmware/scripts/sign.mjs`. The
+    release key is created and kept offline by Azeonics and never committed. `esp32s3-release` needs
+    `MT1_RELEASE_PUBKEY`.
+  - **Topics and ACL.** `factoryos/{tenant}/{plant}/{device}/state|status|config` and `factoryos/{tenant}/{plant}/ota`.
+    The Mosquitto ACL is generated from the plant CA index (`firmware/provision/common.sh`), so never edit the `acl`
+    file by hand.
+  - **Local tooling.** PlatformIO is at `~/.local/bin/pio` (espressif32 7.1.3, Arduino 2.0.17/IDF 4.4). The provisioning
+    test needs `dockerd` running and a venv with `esp-idf-nvs-partition-gen`.
