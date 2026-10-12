@@ -12,6 +12,7 @@ import {
   item,
   ncr,
   ncrDisposition,
+  skill,
   uom,
   warehouse,
   workOrder,
@@ -168,6 +169,26 @@ export class QualityController {
     const entityId = entityOf(ctx);
     const input = parse(planInput, body);
     await this.quality.run(entityId, (tx) => this.quality.savePlanIn(tx, ctx, entityId, input, id));
+    return this.plan(ctx, id);
+  }
+
+  /** The skill needed to submit records on this plan (decision 062); settable on a draft or active plan. */
+  @Put('plans/:id/required-skill')
+  @RequirePermission('quality.plan.update')
+  async requiredSkill(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const { skillId } = parse(z.object({ skillId: z.uuid().nullable() }), body);
+    await this.db.transaction(async (tx) => {
+      const [p] = await tx.select().from(inspectionPlan).where(and(eq(inspectionPlan.id, id), eq(inspectionPlan.entityId, entityId))).for('update');
+      if (!p) throw new NotFoundException('Inspection plan not found');
+      if (p.status === 'obsolete') throw new ConflictException('An obsolete plan is fixed');
+      if (skillId) {
+        const [s] = await tx.select({ id: skill.id }).from(skill).where(and(eq(skill.id, skillId), eq(skill.entityId, entityId), eq(skill.isActive, true)));
+        if (!s) throw new NotFoundException('Skill not found');
+      }
+      await tx.update(inspectionPlan).set({ requiredSkillId: skillId, updatedAt: new Date() }).where(eq(inspectionPlan.id, id));
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'inspection_plan.required_skill', targetType: 'inspection_plan', targetId: id, before: { skillId: p.requiredSkillId }, after: { skillId } }, tx);
+    });
     return this.plan(ctx, id);
   }
 

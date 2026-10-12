@@ -46,8 +46,9 @@ User choices, 2026-10-12:
   - `certified_on`, `expires_on` (= certified on + the skill's months) and `certified_by`, with an optional `note`;
   - `revoked_at`, `revoked_by` and `revoke_reason`, set once.
   - A trigger refuses any other update, and any delete.
-  - A person's **current** certification for a skill is the latest one not revoked. It **counts** on a date when that
-    date is on or before `expires_on`.
+  - A person's **current** certification for a skill is the latest one. It **counts** on a date when it is not revoked
+    and that date is on or before `expires_on`. Revoking the latest leaves no standing until someone certifies again, so
+    an older record never comes back by itself.
   - Re-certifying, raising or lowering a level adds a new row; the old rows stay as history.
 - **`skill_override`**: a one-time allowance for one person, one work-order operation and one machine (or none).
   - It records the reason, who granted it and when, and the job card that used it.
@@ -104,7 +105,7 @@ User choices, 2026-10-12:
 ## API
 
 - **Skills:** GET, POST and PUT `/quality/skills` (also deactivate).
-- **Requirements:** PUT `/quality/skills/requirements`, with `{machineId | workCentreId, skillIds[]}`.
+- **Requirements:** GET and PUT `/quality/skill-requirements`, with `{machineId | workCentreId, skillIds[]}`.
 - **Certifications:**
   - GET `/quality/skill-matrix` (people × skills, with expiring);
   - GET `/quality/skill-certifications?userId=&skillId=` (history);
@@ -115,8 +116,10 @@ User choices, 2026-10-12:
   - the start body gains `cosignUserId`;
   - POST `/manufacturing/job-cards/:id/cosign`;
   - the start refusal returns `code: 'skill_missing'` or `'cosign_required'` with the skills and who could co-sign.
-- **Certified counts:** GET `/quality/skill-coverage?machineIds=` returns the counts per machine. The schedule and the
-  dispatch list use it.
+- **Certified counts:** GET `/quality/skill-coverage` returns the required skills and certified count per machine. The
+  schedule and the dispatch list use it.
+- **Candidates:** GET `/quality/skill-candidates?operationId=&machineId=` lists the required skills and who could
+  co-sign.
 
 ## Permissions and roles
 

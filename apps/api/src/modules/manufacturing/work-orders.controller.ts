@@ -10,6 +10,7 @@ import {
   machine,
   salesOrder,
   serialComponent,
+  skillOverride,
   stockEntry,
   stockEntryLine,
   uom,
@@ -72,6 +73,8 @@ const outputInput = z.object({
 const stopInput = z.object({ goodQty: quantity.default('0'), reworkQty: quantity.default('0'), scrapQty: quantity.default('0'), remarks: z.string().trim().max(1000).nullable().optional() });
 
 const operatorUser = alias(user, 'operator');
+const cosignUser = alias(user, 'cosigner');
+const granterUser = alias(user, 'override_granter');
 
 @Controller('manufacturing')
 export class WorkOrdersController {
@@ -269,13 +272,24 @@ export class WorkOrdersController {
   @RequirePermission('manufacturing.job_card.update')
   start(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
     const entityId = entityOf(ctx);
-    const input = parse(z.object({ operationId: z.uuid(), machineId: z.uuid().nullable().optional(), outOfSequenceReason: z.string().trim().min(3, 'Give a reason').max(500).nullable().optional() }), body);
+    const input = parse(z.object({ operationId: z.uuid(), machineId: z.uuid().nullable().optional(), outOfSequenceReason: z.string().trim().min(3, 'Give a reason').max(500).nullable().optional(), cosignUserId: z.string().min(1).nullable().optional() }), body);
     return this.db.transaction(async (tx) => {
       const [op] = await tx.select({ workOrderId: workOrderOperation.workOrderId }).from(workOrderOperation).where(eq(workOrderOperation.id, input.operationId));
       if (!op) throw new NotFoundException('Operation not found');
       const wo = await this.orders.lock(tx, entityId, op.workOrderId);
-      const card = await this.orders.startCardIn(tx, ctx, entityId, wo, input.operationId, input.machineId ?? null, input.outOfSequenceReason ?? null);
+      const card = await this.orders.startCardIn(tx, ctx, entityId, wo, input.operationId, input.machineId ?? null, input.outOfSequenceReason ?? null, input.cosignUserId ?? null);
       return (await this.cards(tx, entityId, { ids: [card.id] }))[0];
+    });
+  }
+
+  /** The named co-signer confirms a trainee's card (decision 062). */
+  @Post('job-cards/:id/cosign')
+  @RequirePermission('manufacturing.job_card.update')
+  cosign(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
+    const entityId = entityOf(ctx);
+    return this.db.transaction(async (tx) => {
+      await this.orders.cosignCardIn(tx, ctx, entityId, id);
+      return (await this.cards(tx, entityId, { ids: [id] }))[0];
     });
   }
 
@@ -403,9 +417,12 @@ export class WorkOrdersController {
     if (filter.workOrderId) where.push(eq(jobCard.workOrderId, filter.workOrderId));
     if (filter.open) where.push(inArray(jobCard.status, ['running', 'paused']));
     const rows = await db
-      .select({ card: jobCard, operator: operatorUser.name, seq: workOrderOperation.seq, operation: workOrderOperation.name, number: workOrder.number, machine: machine.code, workCentre: workCentre.name })
+      .select({ card: jobCard, operator: operatorUser.name, seq: workOrderOperation.seq, operation: workOrderOperation.name, number: workOrder.number, machine: machine.code, workCentre: workCentre.name, cosigner: cosignUser.name, overrideReason: skillOverride.reason, overrideBy: granterUser.name })
       .from(jobCard)
       .innerJoin(operatorUser, eq(operatorUser.id, jobCard.operatorId))
+      .leftJoin(cosignUser, eq(cosignUser.id, jobCard.cosignUserId))
+      .leftJoin(skillOverride, eq(skillOverride.jobCardId, jobCard.id))
+      .leftJoin(granterUser, eq(granterUser.id, skillOverride.grantedBy))
       .innerJoin(workOrderOperation, eq(workOrderOperation.id, jobCard.operationId))
       .innerJoin(workOrder, eq(workOrder.id, jobCard.workOrderId))
       .innerJoin(workCentre, eq(workCentre.id, workOrderOperation.workCentreId))
@@ -425,6 +442,8 @@ export class WorkOrdersController {
         number: r.number,
         machine: r.machine,
         workCentre: r.workCentre,
+        cosigner: r.cosigner,
+        override: r.overrideReason ? { reason: r.overrideReason, by: r.overrideBy } : null,
         startedAt: ev[0]?.at ?? r.card.createdAt,
         pauseReason: r.card.status === 'paused' ? (lastPause?.reason ?? null) : null,
         // Live minutes for open cards; completed cards show the recorded figure.
