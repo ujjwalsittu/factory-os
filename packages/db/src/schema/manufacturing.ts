@@ -252,6 +252,9 @@ export const jobCard = pgTable(
     remarks: text('remarks'),
     /** Started ahead of this machine's dispatch order, or on another machine (decision 049). */
     outOfSequenceReason: text('out_of_sequence_reason'),
+    /** A trainee's card waits for a qualified person or trainer to co-sign it (decision 062). */
+    cosignUserId: text('cosign_user_id').references(() => user.id),
+    cosignedAt: timestamp('cosigned_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     cancelledBy: text('cancelled_by').references(() => user.id),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),

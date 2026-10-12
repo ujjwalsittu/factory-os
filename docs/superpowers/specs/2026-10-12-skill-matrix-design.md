@@ -77,7 +77,7 @@ User choices, 2026-10-12:
   - pause and stop are refused;
   - the minutes still count from the start;
   - the operator may cancel the card as today.
-- **Override** (`quality.skill.override`):
+- **Override** (`quality.skill.manage`):
   - granted from the work order operation, for a person and a machine, with a reason;
   - not for oneself;
   - listed with the job card ("Started under override by …: reason").
@@ -86,7 +86,7 @@ User choices, 2026-10-12:
   - submitting an inspection record on that plan needs the submitter to be qualified or a trainer, valid on the
     submission date;
   - drafts and measurements are open as today.
-- **Certify** (`quality.skill.certify`):
+- **Certify** (`quality.skill.approve`):
   - pick a person, skill, level and certification date (today or earlier, within the interval);
   - not for oneself;
   - a trainer level needs the certifier to be a currently valid trainer of the skill, unless the skill has none yet;
@@ -120,9 +120,10 @@ User choices, 2026-10-12:
 
 ## Permissions and roles
 
-- New: `quality.skill.read|create|update|certify|override`.
+- New: `quality.skill.read|create|update|approve|manage`. **approve** certifies and revokes; **manage** allows an
+  uncertified job card start. These reuse existing actions so the roles screen can grant them.
 - **Quality** gets all of them; it already takes every `quality.*` permission.
-- **Production planner** gets `quality.skill.read` and `quality.skill.override`. Planners act as shop supervisors.
+- **Production planner** gets `quality.skill.read` and `quality.skill.manage`. Planners act as shop supervisors.
 - **Operator** gets `quality.skill.read` to see the matrix and who can co-sign. Co-signing uses the operator's own
   `manufacturing.job_card.update`.
 

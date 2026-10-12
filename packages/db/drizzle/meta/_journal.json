@@ -309,6 +309,13 @@
       "when": 1791743443146,
       "tag": "0043_capa",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1791771318484,
+      "tag": "0044_skill_matrix",
+      "breakpoints": true
     }
   ]
 }

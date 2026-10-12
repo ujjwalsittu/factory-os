@@ -94,6 +94,7 @@ export const RESOURCES = [
   { module: 'quality', resource: 'ncr', label: 'Nonconformance and MRB', actions: ['read', 'create', 'submit', 'approve', 'cancel'] },
   { module: 'quality', resource: 'gauge', label: 'Gauges and calibration', actions: ['read', 'create', 'update'] },
   { module: 'quality', resource: 'capa', label: 'CAPA: root cause, actions, effectiveness check (decision 061)', actions: ['read', 'create', 'update', 'approve', 'cancel'] },
+  { module: 'quality', resource: 'skill', label: 'Skill matrix: skills and certifications; approve certifies, manage allows an uncertified job card start (decision 062)', actions: ['read', 'create', 'update', 'approve', 'manage'] },
   { module: 'quality', resource: 'attachment', label: 'Certificates and attachments', actions: ['read', 'create', 'cancel'] },
   { module: 'accounts', resource: 'account', label: 'Chart of accounts', actions: ['read', 'create', 'update'] },
   { module: 'accounts', resource: 'setup', label: 'Accounting setup and cut-over', actions: ['read', 'create', 'update', 'approve'] },
