@@ -38,7 +38,8 @@
     "e2e:billing-runs": "node e2e/billing-runs.mjs",
     "e2e:capa": "node e2e/capa.mjs",
     "e2e:skill-matrix": "node e2e/skill-matrix.mjs",
-    "e2e:iot-metering": "node e2e/iot-metering.mjs"
+    "e2e:iot-metering": "node e2e/iot-metering.mjs",
+    "e2e:smt": "node e2e/smt.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",

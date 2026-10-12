@@ -55,6 +55,7 @@ import {
   Banknote,
   Clock,
   Ship,
+  CircuitBoard,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -83,6 +84,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     items: [
       { href: '/app/manufacturing', label: 'Work orders', icon: Factory, permission: 'manufacturing.work_order.read', entityScoped: true },
       { href: '/app/manufacturing/shop-floor', label: 'Shop floor', icon: Timer, permission: 'manufacturing.job_card.read', entityScoped: true },
+      { href: '/app/manufacturing/smt', label: 'SMT line', icon: CircuitBoard, permission: 'manufacturing.smt.read', entityScoped: true },
       { href: '/app/manufacturing/schedule', label: 'Schedule', icon: GanttChart, permission: 'manufacturing.schedule.read', entityScoped: true },
       { href: '/app/manufacturing/genealogy', label: 'Genealogy', icon: GitBranch, permission: 'manufacturing.genealogy.read', entityScoped: true },
       { href: '/app/manufacturing/job-work', label: 'Job work', icon: Truck, permission: 'manufacturing.job_work.read', entityScoped: true },
