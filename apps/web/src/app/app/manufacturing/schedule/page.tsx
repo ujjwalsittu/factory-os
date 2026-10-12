@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
 import { Gantt } from '@/components/gantt';
+import { certifiedLabel, useSkillCoverage } from '@/components/skill-coverage';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDateTime, formatQty } from '@/lib/format';
@@ -236,7 +237,8 @@ function OutOfSequenceCard() {
 
 /** Phones: each machine's queue as a list instead of the Gantt. */
 function Queues({ view, onSelect }: { view: ScheduleView; onSelect: (b: Bar) => void }) {
-  const lanes = [...view.machines.map((m) => ({ id: m.id as string | null, label: `${m.code} · ${m.workCentre}` })), { id: null, label: 'Job work' }];
+  const coverage = useSkillCoverage();
+  const lanes = [...view.machines.map((m) => ({ id: m.id as string | null, label: `${m.code} · ${m.workCentre}${certifiedLabel(coverage.get(m.id)) ? ` · ${certifiedLabel(coverage.get(m.id))}` : ''}` })), { id: null, label: 'Job work' }];
   return (
     <div className="space-y-3 sm:hidden">
       {lanes.map((lane) => {

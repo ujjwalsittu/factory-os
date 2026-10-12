@@ -5,10 +5,12 @@ import { Pause, Play, Square, Timer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
+import { certifiedLabel, useSkillCoverage } from '@/components/skill-coverage';
 import { useWorkspace } from '@/components/workspace';
 import { api, ApiError } from '@/lib/api';
 import { formatDateTime, formatQty } from '@/lib/format';
 import { CARD_STATUS, formatMinutes, type JobCard, PAUSE_REASONS, type ShopFloor } from '@/lib/manufacturing';
+import type { CapaPerson } from '@/lib/quality';
 
 export default function ShopFloorPage() {
   return (
@@ -27,8 +29,12 @@ function Floor() {
   if (q.error) return <Alert tone="danger">{q.error.message}</Alert>;
   if (!q.data) return <p className="text-muted">Loading…</p>;
   const { mine, operations, openCards, machines } = q.data;
+  const toCosign = openCards.filter((c) => c.cosignUserId === ws.me.user.id && !c.cosignedAt);
   return (
     <div className="space-y-4">
+      {toCosign.map((c) => (
+        <CosignCard key={c.id} card={c} />
+      ))}
       {mine && <MyCard card={mine} />}
       {operations.length === 0 ? (
         <Card>
@@ -78,6 +84,7 @@ function Floor() {
                     </Badge>{' '}
                     {c.operator}
                     {c.machine && <span className="font-mono"> · {c.machine}</span>}
+                    {c.cosignUserId && !c.cosignedAt && <span className="text-warning"> · awaiting co-sign by {c.cosigner}</span>}
                   </p>
                 ))}
                 {!mine && ws.can('manufacturing.job_card.update') && <StartButton operationId={o.operationId} label={`Start op ${o.seq} on ${o.number}`} machines={machines.filter((m) => m.workCentreId === o.workCentreId)} scheduledMachineId={o.scheduledMachineId} />}
@@ -96,36 +103,61 @@ function StartButton({ operationId, label, machines, scheduledMachineId }: { ope
   const [machineId, setMachineId] = useState(scheduledMachineId ?? (machines.length === 1 ? machines[0]!.id : ''));
   // Set when the API says this start is out of the machine's dispatch order (decision 049).
   const [reason, setReason] = useState<string | null>(null);
+  // Set when the API says the operator is a trainee and needs a co-signer (decision 062).
+  const [cosign, setCosign] = useState<string | null>(null);
+  const coverage = useSkillCoverage();
+  const candidates = useQuery({
+    queryKey: ['skill-candidates', ws.entityId, operationId, machineId],
+    queryFn: () => api<{ people: CapaPerson[] }>(`/quality/skill-candidates?operationId=${operationId}${machineId ? `&machineId=${machineId}` : ''}`, { scope: ws.scope }),
+    enabled: cosign !== null,
+  });
   const m = useMutation({
-    mutationFn: () => api('/manufacturing/job-cards', { method: 'POST', body: { operationId, machineId: machineId || null, outOfSequenceReason: reason || null }, scope: ws.scope }),
+    mutationFn: () => api('/manufacturing/job-cards', { method: 'POST', body: { operationId, machineId: machineId || null, outOfSequenceReason: reason || null, cosignUserId: cosign || null }, scope: ws.scope }),
     onSuccess: () => {
       setReason(null);
+      setCosign(null);
       void qc.invalidateQueries({ queryKey: ['shop-floor'] });
       void qc.invalidateQueries({ queryKey: ['out-of-sequence'] });
       void qc.invalidateQueries({ queryKey: ['schedule'] });
     },
     onError: (e) => {
       if (e instanceof ApiError && e.issues.some((i) => i.path === 'outOfSequenceReason') && reason === null) setReason('');
+      if (e instanceof ApiError && e.issues.some((i) => i.path === 'cosignUserId') && cosign === null) setCosign('');
     },
   });
   const askReason = reason !== null;
+  const askCosign = cosign !== null;
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
       {machines.length > 0 && (
-        <Select aria-label="Machine" className="w-auto min-w-32 flex-1" value={machineId} onChange={(e) => setMachineId(e.target.value)}>
+        <Select aria-label="Machine" className="w-auto min-w-32 flex-1" value={machineId} onChange={(e) => { setMachineId(e.target.value); setCosign(null); }}>
           <option value="">No machine</option>
-          {machines.map((mc) => (
-            <option key={mc.id} value={mc.id}>
-              {mc.code} · {mc.name}
+          {machines.map((mc) => {
+            const label = certifiedLabel(coverage.get(mc.id));
+            return (
+              <option key={mc.id} value={mc.id}>
+                {mc.code} · {mc.name}
+                {label ? ` (${label})` : ''}
+              </option>
+            );
+          })}
+        </Select>
+      )}
+      {askCosign && (
+        <Select aria-label="Co-signer" className="w-full" value={cosign} onChange={(e) => setCosign(e.target.value)}>
+          <option value="">Who co-signs?</option>
+          {candidates.data?.people.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
             </option>
           ))}
         </Select>
       )}
       {askReason && <Input aria-label="Reason for starting out of sequence" className="w-full" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why this job first?" autoFocus />}
-      <Button size="lg" aria-label={label} loading={m.isPending} disabled={askReason && reason.trim().length < 3} onClick={() => m.mutate()}>
-        <Play className="size-4" /> {askReason ? 'Start anyway' : 'Start'}
+      <Button size="lg" aria-label={label} loading={m.isPending} disabled={(askReason && reason.trim().length < 3) || (askCosign && !cosign)} onClick={() => m.mutate()}>
+        <Play className="size-4" /> {askReason ? 'Start anyway' : askCosign ? 'Start with co-signer' : 'Start'}
       </Button>
-      {m.error instanceof ApiError && <p className={`w-full text-[13px] ${askReason ? 'text-warning' : 'text-danger'}`}>{m.error.message}</p>}
+      {m.error instanceof ApiError && <p className={`w-full text-[13px] ${askReason || askCosign ? 'text-warning' : 'text-danger'}`}>{m.error.message}</p>}
     </div>
   );
 }
@@ -170,11 +202,21 @@ function MyCard({ card }: { card: JobCard }) {
             {card.machine && <span className="font-mono"> · {card.machine}</span>}
             {card.pauseReason && <> · paused: {card.pauseReason}</>}
           </p>
+          {card.override && (
+            <p className="text-[13px] text-warning">
+              Started under an allowance by {card.override.by}: {card.override.reason}
+            </p>
+          )}
         </div>
         <p className="tabular font-mono text-3xl" aria-label="Running time">
           {h}:{String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
         </p>
       </div>
+      {card.cosignUserId && !card.cosignedAt ? (
+        <Alert tone="warning" className="mt-4">
+          Waiting for {card.cosigner} to co-sign from their own login. The clock is running; pause and stop open once they confirm.
+        </Alert>
+      ) : (
       <div className="mt-4 grid grid-cols-2 gap-2 sm:flex">
         {card.status === 'running' ? (
           <Button size="lg" variant="secondary" onClick={() => setPausing(true)}>
@@ -191,8 +233,33 @@ function MyCard({ card }: { card: JobCard }) {
           </Button>
         )}
       </div>
+      )}
       {pausing && <PauseDialog card={card} onClose={() => setPausing(false)} />}
       {stopping && <StopDialog card={card} onClose={() => setStopping(false)} />}
+    </Card>
+  );
+}
+
+/** A trainee named me as co-signer: confirm from my own login (decision 062). */
+function CosignCard({ card }: { card: JobCard }) {
+  const ws = useWorkspace();
+  const qc = useQueryClient();
+  const m = useMutation({
+    mutationFn: () => api(`/manufacturing/job-cards/${card.id}/cosign`, { method: 'POST', body: {}, scope: ws.scope }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['shop-floor'] }),
+  });
+  return (
+    <Card className="border-warning p-4">
+      <p className="text-[12px] text-muted">Co-sign requested</p>
+      <p className="font-medium">
+        {card.operator} (trainee) · <span className="font-mono">{card.number}</span> op {card.seq} {card.operation}
+        {card.machine && <span className="font-mono"> · {card.machine}</span>}
+      </p>
+      <p className="text-[13px] text-muted">Confirm that you are supervising this run.</p>
+      <Button className="mt-3" loading={m.isPending} onClick={() => m.mutate()}>
+        Co-sign
+      </Button>
+      {m.error && <p className="mt-2 text-[13px] text-danger">{m.error.message}</p>}
     </Card>
   );
 }

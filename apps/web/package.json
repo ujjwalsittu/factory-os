@@ -36,7 +36,8 @@
     "e2e:projects": "node e2e/projects.mjs",
     "e2e:subscriptions": "node e2e/subscriptions.mjs",
     "e2e:billing-runs": "node e2e/billing-runs.mjs",
-    "e2e:capa": "node e2e/capa.mjs"
+    "e2e:capa": "node e2e/capa.mjs",
+    "e2e:skill-matrix": "node e2e/skill-matrix.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",
