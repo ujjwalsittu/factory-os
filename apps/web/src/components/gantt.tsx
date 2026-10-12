@@ -2,6 +2,7 @@
 import { cn } from '@factoryos/ui';
 import { Pin, TriangleAlert } from 'lucide-react';
 import { Fragment, useRef, useState } from 'react';
+import { certifiedLabel, useSkillCoverage } from '@/components/skill-coverage';
 import { type Bar, barColour, type ScheduleView } from '@/lib/scheduling';
 
 const MIN = 60000;
@@ -37,6 +38,7 @@ export function Gantt({
   onSelect: (b: Bar | null) => void;
   onMove: (b: Bar, machineId: string, start: Date) => void;
 }) {
+  const coverage = useSkillCoverage();
   const t0 = from.getTime();
   const t1 = t0 + hours * 3600e3;
   const width = hours * pxPerHour;
@@ -153,9 +155,12 @@ export function Gantt({
               .filter((m) => m.workCentreId === centreId)
               .map((m) => (
                 <Fragment key={m.id}>
-                  <div className="sticky left-0 z-20 flex h-11 items-center border-b border-line bg-surface px-2 text-[13px]">
-                    <span className="font-mono font-medium">{m.code}</span>
-                    <span className="ml-1 truncate text-muted">{m.name}</span>
+                  <div className="sticky left-0 z-20 flex h-11 flex-col justify-center border-b border-line bg-surface px-2 text-[13px] leading-tight">
+                    <span className="truncate">
+                      <span className="font-mono font-medium">{m.code}</span>
+                      <span className="ml-1 text-muted">{m.name}</span>
+                    </span>
+                    {certifiedLabel(coverage.get(m.id)) && <span className={cn('text-[11px]', coverage.get(m.id)!.certified ? 'text-subtle' : 'text-danger')}>{certifiedLabel(coverage.get(m.id))}</span>}
                   </div>
                   <div
                     ref={(el) => {

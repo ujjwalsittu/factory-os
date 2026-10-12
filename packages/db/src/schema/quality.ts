@@ -8,6 +8,7 @@ import { batch, docStatus, stockEntry, warehouse } from './inventory.js';
 import { bomStatus, workOrder, workOrderOperation } from './manufacturing.js';
 import { item, qty } from './masters.js';
 import { legalEntity, tenant } from './platform.js';
+import { skill } from './skills.js';
 
 const scope = {
   tenantId: uuid('tenant_id')
@@ -42,6 +43,8 @@ export const inspectionPlan = pgTable(
     revision: text('revision').notNull(),
     status: bomStatus('status').notNull().default('draft'),
     remarks: text('remarks'),
+    /** Submitting a record on this plan needs a qualified person or trainer in this skill (decision 062). */
+    requiredSkillId: uuid('required_skill_id').references(() => skill.id),
     ...created,
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

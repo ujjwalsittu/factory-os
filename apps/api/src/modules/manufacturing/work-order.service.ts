@@ -13,9 +13,11 @@ import {
   machine,
   serialComponent,
   serialCounter,
+  skillOverride,
   stockBin,
   stockEntry,
   stockEntryLine,
+  user,
   warehouse,
   workCentre,
   workOrder,
@@ -24,7 +26,7 @@ import {
   scheduledOperation,
   workOrderOperation,
 } from '@factoryos/db';
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import { AuditService } from '../../common/audit.service.js';
@@ -35,6 +37,7 @@ import { GlPostingService } from '../accounting/gl-posting.service.js';
 import { OperationalPostings } from '../accounting/operational-postings.js';
 import { StockPostingService } from '../stock-posting.service.js';
 import { QualityService } from '../quality/quality.service.js';
+import { SkillsService } from '../quality/skills.service.js';
 import { JobWorkService } from './job-work.service.js';
 
 type WorkOrder = typeof workOrder.$inferSelect;
@@ -55,6 +58,7 @@ export class WorkOrderService {
     private readonly accounting: OperationalPostings,
     private readonly gl: GlPostingService,
     private readonly jobWork: JobWorkService,
+    private readonly skills: SkillsService,
     private readonly quality: QualityService,
   ) {}
 
@@ -333,7 +337,7 @@ export class WorkOrderService {
 
   // Job cards ---------------------------------------------------------------------------------------------
 
-  async startCardIn(tx: Tx, ctx: TenantRequestContext, entityId: string, wo: WorkOrder, operationId: string, machineId: string | null, outOfSequenceReason: string | null = null) {
+  async startCardIn(tx: Tx, ctx: TenantRequestContext, entityId: string, wo: WorkOrder, operationId: string, machineId: string | null, outOfSequenceReason: string | null = null, cosignUserId: string | null = null) {
     this.assertOpen(wo);
     const [op] = await tx.select().from(workOrderOperation).where(and(eq(workOrderOperation.id, operationId), eq(workOrderOperation.workOrderId, wo.id)));
     if (!op) throw new NotFoundException('Operation not found on this work order');
@@ -349,10 +353,13 @@ export class WorkOrderService {
     if (sequence && !outOfSequenceReason)
       throw new ConflictException({ message: `${sequence}. Give a reason to start this operation instead`, code: 'out_of_sequence', issues: [{ path: 'outOfSequenceReason', message: 'Reason required' }] });
     const reason = sequence ? outOfSequenceReason : null;
+    // Skill matrix (decision 062): certified, a trainee with a co-signer, or a supervisor's one-time allowance.
+    const gate = await this.skills.checkStart(tx, ctx, entityId, { id: op.id, workCentreId: op.workCentreId! }, machineId, cosignUserId);
     const [card] = await tx
       .insert(jobCard)
-      .values({ tenantId: ctx.tenant.tenantId, entityId, workOrderId: wo.id, operationId, machineId, operatorId: ctx.user.id, status: 'running', outOfSequenceReason: reason })
+      .values({ tenantId: ctx.tenant.tenantId, entityId, workOrderId: wo.id, operationId, machineId, operatorId: ctx.user.id, status: 'running', outOfSequenceReason: reason, cosignUserId: gate.cosignUserId })
       .returning();
+    if (gate.overrideId) await tx.update(skillOverride).set({ jobCardId: card!.id }).where(eq(skillOverride.id, gate.overrideId));
     await tx.insert(jobCardEvent).values({ jobCardId: card!.id, kind: 'start', by: ctx.user.id, reason: reason ? `Out of sequence: ${reason}` : null });
     await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'job_card.start', targetType: 'job_card', targetId: card!.id, after: { workOrder: wo.number, seq: op.seq } }, tx);
     return card!;
@@ -386,11 +393,34 @@ export class WorkOrderService {
     return card;
   }
 
+  /** A trainee's card waits for its co-signer before it can be paused or stopped (decision 062). */
+  private async assertCosigned(tx: Tx, card: typeof jobCard.$inferSelect) {
+    if (!card.cosignUserId || card.cosignedAt) return;
+    const [u] = await tx.select({ name: user.name }).from(user).where(eq(user.id, card.cosignUserId));
+    throw new ConflictException({ message: `Waiting for ${u?.name ?? 'the co-signer'} to co-sign this card`, code: 'cosign_pending' });
+  }
+
+  /** The named co-signer confirms a trainee's card from their own login, while still certified. */
+  async cosignCardIn(tx: Tx, ctx: TenantRequestContext, entityId: string, cardId: string) {
+    const card = await this.lockCard(tx, entityId, cardId);
+    if (card.cosignUserId !== ctx.user.id) throw new ForbiddenException('Only the named co-signer confirms this card');
+    if (card.cosignedAt) throw new ConflictException('Already co-signed');
+    if (card.status !== 'running' && card.status !== 'paused') throw new ConflictException(`This job card is ${card.status}`);
+    const [op] = await tx.select().from(workOrderOperation).where(eq(workOrderOperation.id, card.operationId));
+    const req = await this.skills.required(tx, op!.workCentreId!, card.machineId);
+    const ok = await this.skills.certifiedPeople(tx, ctx, entityId, req);
+    if (req.length && !ok.some((p) => p.id === ctx.user.id)) throw new ForbiddenException(`You are no longer qualified in ${req.map((s) => s.name).join(', ')}`);
+    const [after] = await tx.update(jobCard).set({ cosignedAt: new Date() }).where(eq(jobCard.id, card.id)).returning();
+    await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'job_card.cosign', targetType: 'job_card', targetId: card.id }, tx);
+    return after!;
+  }
+
   /** pause / resume by the operator who owns the card. */
   async moveCardIn(tx: Tx, ctx: TenantRequestContext, entityId: string, wo: WorkOrder, cardId: string, kind: 'pause' | 'resume', reason: string | null) {
     const card = await this.lockCard(tx, entityId, cardId);
     if (card.operatorId !== ctx.user.id) throw new ConflictException('Only the operator running this card can pause or resume it');
     if (card.status === 'cancelled') throw new ConflictException('This job card is cancelled');
+    await this.assertCosigned(tx, card);
     const next = this.next(card.status as JobCardState, kind);
     if (kind === 'pause' && !reason) throw new BadRequestException('Choose why the job is paused');
     await tx.insert(jobCardEvent).values({ jobCardId: card.id, kind, reason, by: ctx.user.id });
@@ -404,6 +434,7 @@ export class WorkOrderService {
     const card = await this.lockCard(tx, entityId, cardId);
     if (card.operatorId !== ctx.user.id) throw new ConflictException('Only the operator running this card can stop it');
     if (card.status === 'cancelled') throw new ConflictException('This job card is cancelled');
+    await this.assertCosigned(tx, card);
     this.next(card.status as JobCardState, 'stop');
     const now = new Date();
     await tx.insert(jobCardEvent).values({ jobCardId: card.id, kind: 'stop', at: now, by: ctx.user.id });

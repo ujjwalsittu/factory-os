@@ -76,13 +76,13 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'production_planner',
     name: 'Production Planner',
     description: 'BOMs, routings, work orders and scheduling.',
-    permissions: all((p) => p.startsWith('manufacturing.') || p === 'services.booking.read' || ['quality.plan.read', 'quality.fai.read', 'quality.ncr.read', 'quality.ncr.create', 'quality.capa.read', 'quality.gauge.read', 'quality.attachment.read', 'quality.attachment.create', 'quality.inspection.read'].includes(p) || p === 'masters.item.read' || p === 'inventory.stock_entry.read'),
+    permissions: all((p) => p.startsWith('manufacturing.') || p === 'services.booking.read' || ['quality.plan.read', 'quality.fai.read', 'quality.ncr.read', 'quality.ncr.create', 'quality.capa.read', 'quality.skill.read', 'quality.skill.manage', 'quality.gauge.read', 'quality.attachment.read', 'quality.attachment.create', 'quality.inspection.read'].includes(p) || p === 'masters.item.read' || p === 'inventory.stock_entry.read'),
   },
   {
     key: 'operator',
     name: 'Operator',
     description: 'Own job cards on the shop floor.',
-    permissions: ['manufacturing.job_card.read', 'manufacturing.job_card.update', 'manufacturing.job_card.submit', 'manufacturing.schedule.read', 'services.booking.read', 'services.usage.create'],
+    permissions: ['manufacturing.job_card.read', 'manufacturing.job_card.update', 'manufacturing.job_card.submit', 'manufacturing.schedule.read', 'quality.skill.read', 'services.booking.read', 'services.usage.create'],
   },
   {
     key: 'services_coordinator',

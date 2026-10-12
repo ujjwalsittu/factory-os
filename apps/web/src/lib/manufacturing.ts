@@ -107,6 +107,11 @@ export interface JobCard {
   completedAt: string | null;
   pauseReason: string | null;
   cancelReason: string | null;
+  /** A trainee's card waits for this person's co-sign (decision 062). */
+  cosignUserId: string | null;
+  cosigner: string | null;
+  cosignedAt: string | null;
+  override: { reason: string; by: string } | null;
 }
 
 export interface Movement {
@@ -149,7 +154,7 @@ export interface WorkOrderDetail {
   completedOn: string | null;
   cancelReason: string | null;
   materials: { id: string | null; itemId: string; itemCode: string; itemName: string; tracking: string; uom: string; qtyPerUnit: string | null; requiredQty: string | null; issuedQty: string; backflush: boolean }[];
-  operations: { id: string; seq: number; name: string; workCentre: string | null; hourlyRate: string | null; plannedMinutes: string; actualMinutes: string; goodQty: string; instructions: string | null; outsourced: boolean; supplierId: string | null; supplier: string | null; leadDays?: number | null }[];
+  operations: { id: string; seq: number; name: string; workCentreId: string | null; workCentre: string | null; hourlyRate: string | null; plannedMinutes: string; actualMinutes: string; goodQty: string; instructions: string | null; outsourced: boolean; supplierId: string | null; supplier: string | null; leadDays?: number | null }[];
   jobCards: JobCard[];
   movements: Movement[];
   asBuilt: { assemblyBatchId: string; assemblyNo: string; componentBatchId: string; componentNo: string }[];

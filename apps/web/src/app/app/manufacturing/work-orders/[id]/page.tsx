@@ -10,8 +10,8 @@ import { WorkOrderView } from '@/components/work-order-view';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDateTime, formatQty } from '@/lib/format';
-import type { WorkOrderDetail } from '@/lib/manufacturing';
-import { type InspectionDetail, type InspectionRow, OUTCOME, STAGE } from '@/lib/quality';
+import type { WorkCentre, WorkOrderDetail } from '@/lib/manufacturing';
+import { type InspectionDetail, type InspectionRow, OUTCOME, type SkillMatrix, type SkillOverride, STAGE } from '@/lib/quality';
 import { PRIORITY, type ScheduleView } from '@/lib/scheduling';
 
 function Order() {
@@ -35,6 +35,7 @@ function Order() {
       <WorkOrderView wo={q.data} />
       {ws.can('manufacturing.schedule.read') && q.data.status !== 'cancelled' && q.data.status !== 'completed' && <SchedulePanel wo={q.data} />}
       {ws.can('quality.inspection.read') && <Inspections wo={q.data} />}
+      {ws.can('quality.skill.read') && <Allowances wo={q.data} />}
     </>
   );
 }
@@ -77,6 +78,109 @@ function Inspections({ wo }: { wo: WorkOrderDetail }) {
         ))}
       </ul>
     </Card>
+  );
+}
+
+/** One-time allowances for an uncertified job card start on this order (decision 062). */
+function Allowances({ wo }: { wo: WorkOrderDetail }) {
+  const ws = useWorkspace();
+  const [granting, setGranting] = useState(false);
+  const q = useQuery({ queryKey: ['skill-overrides', ws.entityId, wo.id], queryFn: () => api<SkillOverride[]>(`/quality/skill-overrides?workOrderId=${wo.id}`, { scope: ws.scope }) });
+  const canGrant = ws.can('quality.skill.manage') && wo.status === 'released';
+  if (!q.data?.length && !canGrant) return null;
+  return (
+    <Card className="mt-4">
+      <CardHeader
+        title="Uncertified starts"
+        description="An allowance lets one named person start one operation once today without the machine's skills. It is shown on the job card."
+        actions={
+          canGrant && (
+            <Button size="sm" variant="secondary" onClick={() => setGranting(true)}>
+              Allow uncertified start
+            </Button>
+          )
+        }
+      />
+      {!q.data?.length && <p className="px-4 py-3 text-[13px] text-muted">None.</p>}
+      <ul className="divide-y divide-line">
+        {q.data?.map((o) => (
+          <li key={o.id} className="px-4 py-2 text-[13px]">
+            <span className="font-medium">{o.userName}</span> · op {o.seq}
+            {o.machine && <span className="font-mono"> · {o.machine}</span>} · {o.jobCardId ? <Badge tone="success">Used</Badge> : <Badge tone="warning">Valid {o.validOn}</Badge>}
+            <p className="text-muted">
+              {o.reason} · by {o.grantedByName}, {formatDateTime(o.grantedAt)}
+            </p>
+          </li>
+        ))}
+      </ul>
+      {granting && <Allow wo={wo} onClose={() => setGranting(false)} />}
+    </Card>
+  );
+}
+
+function Allow({ wo, onClose }: { wo: WorkOrderDetail; onClose: () => void }) {
+  const ws = useWorkspace();
+  const qc = useQueryClient();
+  const ops = wo.operations.filter((o) => !o.outsourced);
+  const [f, setF] = useState({ operationId: ops[0]?.id ?? '', machineId: '', userId: '', reason: '' });
+  const centres = useQuery({ queryKey: ['work-centres', ws.entityId], queryFn: () => api<WorkCentre[]>('/manufacturing/work-centres', { scope: ws.scope }) });
+  const people = useQuery({ queryKey: ['skill-matrix', ws.entityId], queryFn: () => api<SkillMatrix>('/quality/skill-matrix', { scope: ws.scope }) });
+  const op = ops.find((o) => o.id === f.operationId);
+  const machines = centres.data?.find((c) => c.id === op?.workCentreId)?.machines.filter((m) => m.isActive) ?? [];
+  const m = useMutation({
+    mutationFn: () => api('/quality/skill-overrides', { method: 'POST', scope: ws.scope, body: { ...f, machineId: f.machineId || null } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['skill-overrides'] });
+      onClose();
+    },
+  });
+  const err = fieldErrors(m.error);
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value, ...(k === 'operationId' ? { machineId: '' } : {}) });
+  return (
+    <FormDialog title="Allow uncertified start" description="Valid today, for one start. You can't allow your own." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Allow">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Operation" error={err.operationId}>
+          {(p) => (
+            <Select {...p} value={f.operationId} onChange={set('operationId')} required>
+              {ops.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.seq} · {o.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <Field label="Machine" error={err.machineId}>
+          {(p) => (
+            <Select {...p} value={f.machineId} onChange={set('machineId')}>
+              <option value="">No machine</option>
+              {machines.map((mc) => (
+                <option key={mc.id} value={mc.id}>
+                  {mc.code} · {mc.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+      </div>
+      <Field label="Person" error={err.userId}>
+        {(p) => (
+          <Select {...p} value={f.userId} onChange={set('userId')} required>
+            <option value="">Choose…</option>
+            {people.data?.people
+              .filter((x) => x.id !== ws.me.user.id)
+              .map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.name}
+                </option>
+              ))}
+          </Select>
+        )}
+      </Field>
+      <Field label="Reason" error={err.reason}>
+        {(p) => <Input {...p} value={f.reason} onChange={set('reason')} required placeholder="Why, and who supervises" />}
+      </Field>
+    </FormDialog>
   );
 }
 

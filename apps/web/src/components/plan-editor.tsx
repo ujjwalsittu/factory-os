@@ -1,6 +1,6 @@
 'use client';
 import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -8,7 +8,7 @@ import { fieldErrors } from '@/components/form-dialog';
 import { ItemPicker } from '@/components/item-picker';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
-import { type PlanDetail, STAGE, type Stage } from '@/lib/quality';
+import { type PlanDetail, type Skill, STAGE, type Stage } from '@/lib/quality';
 
 type Row = { balloon: string; description: string; kind: 'dimension' | 'visual' | 'functional' | 'document'; nominal: string; lowerLimit: string; upperLimit: string; unit: string; method: string; isKey: boolean; sampleSize: string };
 const blank = (): Row => ({ balloon: '', description: '', kind: 'dimension', nominal: '', lowerLimit: '', upperLimit: '', unit: 'mm', method: '', isKey: false, sampleSize: '' });
@@ -76,6 +76,7 @@ export function PlanEditor({ plan }: { plan: PlanDetail | null }) {
         }
       />
       {(save.error || activate.error) && <Alert tone="danger" className="mb-4">{(save.error ?? activate.error)!.message}</Alert>}
+      {plan && plan.status !== 'obsolete' && ws.can('quality.skill.read') && <RequiredSkill plan={plan} />}
       <Card className="mb-4 grid gap-4 p-4 sm:grid-cols-4">
         <Field label="Item" error={err.itemId} className="sm:col-span-2">
           {(f) => <ItemPicker value={item} onChange={setItem} invalid={!!f['aria-invalid']} />}
@@ -172,5 +173,42 @@ export function PlanEditor({ plan }: { plan: PlanDetail | null }) {
         )}
       </Card>
     </>
+  );
+}
+
+/** The skill an inspector needs to submit records on this plan (decision 062); anyone may still draft. */
+function RequiredSkill({ plan }: { plan: PlanDetail }) {
+  const ws = useWorkspace();
+  const qc = useQueryClient();
+  const skills = useQuery({ queryKey: ['skills', ws.entityId], queryFn: () => api<Skill[]>('/quality/skills', { scope: ws.scope }) });
+  const [skillId, setSkillId] = useState(plan.requiredSkillId ?? '');
+  const save = useMutation({
+    mutationFn: () => api<PlanDetail>(`/quality/plans/${plan.id}/required-skill`, { method: 'PUT', scope: ws.scope, body: { skillId: skillId || null } }),
+    onSuccess: (p) => qc.setQueryData(['plan', plan.id, ws.entityId], p),
+  });
+  const canEdit = ws.can('quality.plan.update');
+  const options = skills.data?.filter((s) => s.isActive || s.id === plan.requiredSkillId) ?? [];
+  if (!canEdit && !plan.requiredSkillId) return null;
+  return (
+    <Card className="mb-4 flex flex-wrap items-end gap-2 p-4">
+      <Field label="Required skill to submit" className="min-w-56 flex-1" hint="Anyone may draft; only someone qualified or a trainer in it submits.">
+        {(f) => (
+          <Select {...f} value={skillId} onChange={(e) => setSkillId(e.target.value)} disabled={!canEdit}>
+            <option value="">None</option>
+            {options.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.code} · {s.name}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
+      {canEdit && skillId !== (plan.requiredSkillId ?? '') && (
+        <Button variant="secondary" loading={save.isPending} onClick={() => save.mutate()}>
+          Save skill
+        </Button>
+      )}
+      {save.error && <p className="w-full text-[13px] text-danger">{save.error.message}</p>}
+    </Card>
   );
 }

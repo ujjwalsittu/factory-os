@@ -67,6 +67,8 @@ export interface PlanRow {
 }
 export interface PlanDetail extends PlanRow {
   remarks: string | null;
+  /** Submitting records on this plan needs this skill (decision 062). */
+  requiredSkillId: string | null;
   itemRevision: string | null;
   characteristics: Characteristic[];
 }
@@ -288,4 +290,70 @@ export interface CapaDetail extends Omit<CapaRow, 'openActions' | 'nextDue' | 'o
 export interface CapaPerson {
   id: string;
   name: string;
+}
+
+/** Skill matrix (decision 062). */
+export type SkillLevel = 'trainee' | 'qualified' | 'trainer';
+export const SKILL_LEVEL: Record<SkillLevel, { label: string; tone: BadgeTone }> = {
+  trainee: { label: 'Trainee', tone: 'warning' },
+  qualified: { label: 'Qualified', tone: 'success' },
+  trainer: { label: 'Trainer', tone: 'info' },
+};
+export interface Skill {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  recertifyMonths: number;
+  isActive: boolean;
+  machines: { id: string; code: string }[];
+  workCentres: { id: string; code: string }[];
+}
+export interface SkillCell {
+  userId: string;
+  skillId: string;
+  certificationId: string;
+  level: SkillLevel;
+  certifiedOn: string;
+  expiresOn: string;
+  state: 'valid' | 'expiring' | 'expired';
+}
+export interface SkillMatrix {
+  today: string;
+  skills: { id: string; code: string; name: string; recertifyMonths: number }[];
+  people: { id: string; name: string }[];
+  cells: SkillCell[];
+  expiring: (SkillCell & { userName: string; skillName: string })[];
+}
+export interface SkillCertification {
+  id: string;
+  level: SkillLevel;
+  certifiedOn: string;
+  expiresOn: string;
+  certifiedByName: string;
+  note: string | null;
+  createdAt: string;
+  revokedAt: string | null;
+  revokedByName: string | null;
+  revokeReason: string | null;
+  files: number;
+}
+export interface SkillCoverage {
+  machineId: string;
+  skills: { id: string; code: string; name: string }[];
+  certified: number | null;
+}
+export interface SkillOverride {
+  id: string;
+  operationId: string;
+  seq: number;
+  machineId: string | null;
+  machine: string | null;
+  userId: string;
+  userName: string;
+  reason: string;
+  validOn: string;
+  grantedByName: string;
+  grantedAt: string;
+  jobCardId: string | null;
 }

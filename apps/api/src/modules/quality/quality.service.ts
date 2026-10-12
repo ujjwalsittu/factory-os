@@ -16,11 +16,12 @@ import {
   purchaseInvoiceLine,
   qualityInspection,
   receiptInvoiceAllocation,
+  skill,
   stockEntry,
   stockEntryLine,
   warehouse,
 } from '@factoryos/db';
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import { AuditService } from '../../common/audit.service.js';
@@ -28,6 +29,7 @@ import { DB } from '../../common/tokens.js';
 import { businessDate, lockAccounting, type Tx } from '../accounting/accounting-lock.js';
 import { StockPostingService } from '../stock-posting.service.js';
 import { SupplierReturnClaimService } from '../supplier-returns/claim.service.js';
+import { counts, SkillsService } from './skills.service.js';
 
 type Stage = 'incoming' | 'in_process' | 'final';
 export interface CharacteristicInput {
@@ -74,7 +76,16 @@ export class QualityService {
     private readonly audit: AuditService,
     private readonly posting: StockPostingService,
     private readonly claims: SupplierReturnClaimService,
+    private readonly skills: SkillsService,
   ) {}
+
+  /** A plan that requires a skill is submitted only by someone qualified or a trainer in it (decision 062). */
+  private async assertInspector(tx: Tx, ctx: TenantRequestContext, entityId: string, planId: string) {
+    const [p] = await tx.select({ skillId: inspectionPlan.requiredSkillId, name: skill.name }).from(inspectionPlan).leftJoin(skill, eq(skill.id, inspectionPlan.requiredSkillId)).where(eq(inspectionPlan.id, planId));
+    if (!p?.skillId) return;
+    const [st] = await this.skills.standings(tx, entityId, { userIds: [ctx.user.id], skillIds: [p.skillId] });
+    if (!counts(st, businessDate()) || st.level === 'trainee') throw new ForbiddenException(`Submitting this inspection needs someone qualified in ${p.name}; save it as a draft for them`);
+  }
 
   run<T>(entityId: string, f: (tx: Tx) => Promise<T>) {
     return this.db.transaction(async (tx) => {
@@ -308,6 +319,7 @@ export class QualityService {
     }
     const latest = await this.latestResults(tx, r.id);
     if (!latest.length) throw new BadRequestException('Record at least one result');
+    if (r.planId) await this.assertInspector(tx, ctx, entityId, r.planId);
     if (r.planId) {
       const chars = await tx.select().from(inspectionCharacteristic).where(eq(inspectionCharacteristic.planId, r.planId)).orderBy(asc(inspectionCharacteristic.lineNo));
       for (const c of chars) {
