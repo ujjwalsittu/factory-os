@@ -138,5 +138,6 @@ Section D RFQs.
 ## 7. Questions for the user
 
 1. Controller makes for the CNC/EDM/lathe once vendors are chosen.
-2. Will boards be laser-marked or labelled with a 2D code? (Laser marker = one more machine.)
-3. Budget approval for ~10 MT-1 nodes + 1 edge PC + 2 scales for the pilot.
+2. ~~Will boards be laser-marked or labelled with a 2D code?~~ Answered 2026-10-12 (decision 063): printed
+   high-temperature 2D labels, no laser marker.
+3. ~~Budget approval for ~10 MT-1 nodes + 1 edge PC + 2 scales for the pilot.~~ Approved 2026-10-12 (decision 063).
