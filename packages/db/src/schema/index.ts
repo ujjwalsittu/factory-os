@@ -30,3 +30,4 @@ export * from './storage.js';
 export * from './support-access.js';
 export * from './services.js';
 export * from './iot.js';
+export * from './smt.js';

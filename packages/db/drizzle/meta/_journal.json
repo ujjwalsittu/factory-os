@@ -330,6 +330,13 @@
       "when": 1791823968944,
       "tag": "0046_tap_config",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1791826589222,
+      "tag": "0047_smt_traceability",
+      "breakpoints": true
     }
   ]
 }

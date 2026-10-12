@@ -70,7 +70,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'stores',
     name: 'Stores',
     description: 'Stock receipts, issues, transfers, counts and the waste register.',
-    permissions: all((p) => p.startsWith('inventory.') || p.startsWith('ehs.') || ['compliance.sandbox_operation.read','compliance.sandbox_connection.read','compliance.sandbox_partb.create','compliance.sandbox_partb.update'].includes(p) || p === 'buying.return_claim.read' || p === 'buying.return_movement.read' || p === 'buying.return_movement.create' || ['manufacturing.job_work.read', 'manufacturing.job_work.create', 'manufacturing.job_work.submit', 'quality.ncr.read', 'quality.ncr.create', 'quality.attachment.read', 'quality.attachment.create'].includes(p) || p === 'masters.item.read' || p === 'masters.party.read'),
+    permissions: all((p) => p.startsWith('inventory.') || p.startsWith('ehs.') || ['compliance.sandbox_operation.read','compliance.sandbox_connection.read','compliance.sandbox_partb.create','compliance.sandbox_partb.update'].includes(p) || p === 'buying.return_claim.read' || p === 'buying.return_movement.read' || p === 'buying.return_movement.create' || ['manufacturing.job_work.read', 'manufacturing.job_work.create', 'manufacturing.job_work.submit', 'manufacturing.smt.read', 'manufacturing.smt.create', 'manufacturing.smt.update', 'quality.ncr.read', 'quality.ncr.create', 'quality.attachment.read', 'quality.attachment.create'].includes(p) || p === 'masters.item.read' || p === 'masters.party.read'),
   },
   {
     key: 'production_planner',
@@ -82,7 +82,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'operator',
     name: 'Operator',
     description: 'Own job cards on the shop floor.',
-    permissions: ['manufacturing.job_card.read', 'manufacturing.job_card.update', 'manufacturing.job_card.submit', 'manufacturing.schedule.read', 'quality.skill.read', 'plant.machine_state.read', 'services.booking.read', 'services.usage.create'],
+    permissions: ['manufacturing.job_card.read', 'manufacturing.job_card.update', 'manufacturing.job_card.submit', 'manufacturing.schedule.read', 'manufacturing.smt.read', 'manufacturing.smt.update', 'quality.skill.read', 'plant.machine_state.read', 'services.booking.read', 'services.usage.create'],
   },
   {
     key: 'services_coordinator',
@@ -100,7 +100,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'quality',
     name: 'Quality',
     description: 'Inspections, NCR, FAI, calibration and recording scrap/waste.',
-    permissions: all((p) => p.startsWith('quality.') || p === 'services.campaign.read' || p === 'services.campaign.approve' || p.startsWith('manufacturing.genealogy.') || p === 'manufacturing.job_work.read' || p === 'masters.item.read' || p === 'ehs.waste.read' || p === 'ehs.waste.create'),
+    permissions: all((p) => p.startsWith('quality.') || p === 'services.campaign.read' || p === 'services.campaign.approve' || p.startsWith('manufacturing.genealogy.') || p === 'manufacturing.job_work.read' || p === 'manufacturing.smt.read' || p === 'masters.item.read' || p === 'ehs.waste.read' || p === 'ehs.waste.create'),
   },
   {
     key: 'auditor',
