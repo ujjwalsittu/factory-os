@@ -62,8 +62,10 @@ User choices, 2026-10-12:
   - `POST /iot/ingest` is device-authenticated, outside user sessions, with `Authorization: Bearer <edge key>`;
   - it takes up to 1,000 events, each `{device, seq, state, at}`;
   - the key decides the entity; devices must belong to that edge and be active;
-  - events more than 5 minutes in the future, or older than 30 days, are refused one by one, and the response counts
-    accepted, duplicate and refused;
+  - events more than 5 minutes in the future, or older than 30 days, are refused one by one;
+  - the response gives **each event's result**, keyed by `(device, seq)`: `accepted`, `duplicate` (already stored), or
+    `refused` with a reason (unknown or retired device, device of another edge, time out of range, bad state);
+  - a request that fails as a whole (bad key, malformed body, rate limit) stores nothing, and the edge retries it;
   - it updates the device's and the edge's `last_seen_at` and the device's `last_state`;
   - it is rate-limited per edge.
 - **Machine state over time:**
@@ -96,14 +98,18 @@ User choices, 2026-10-12:
 ## Edge agent (`apps/edge-agent`) and simulator
 
 - **Edge agent**, a Node service on the edge PC:
-  - subscribes to `factoryos/{plant}/{device}/state` on the local Mosquitto;
+  - subscribes to `factoryos/{tenant}/{plant}/+/state` on the local Mosquitto, the topic scheme of
+    [07 · IoT](../../07-iot.md) (`factoryos/{tenant}/{plant}/{device}/{metric}`, here metric `state`);
   - appends each message to a local file queue;
-  - posts batches to `/iot/ingest`, with retry and backoff, and removes only what the API acknowledged, so data
-    survives a restart or an internet outage;
-  - configured by environment variables: the API URL, the key and the plant;
+  - posts batches to `/iot/ingest`, with retry and backoff, so data survives a restart or an internet outage:
+    - `accepted` and `duplicate` events are removed from the queue;
+    - `refused` events move to a local quarantine file with their reason, kept for inspection and never resent;
+    - after a failed request, the whole batch stays queued and is retried;
+  - configured by environment variables: the API URL, the key, the tenant slug and the plant code;
   - runs in Docker next to Mosquitto.
 - **Tap simulator** (`apps/edge-agent/scripts/simulate-tap.mjs`): publishes MT-1-shaped messages (state, sequence,
-  heartbeat) for named devices, with scripted runs, idle spells and dropouts.
+  heartbeat) to the same `factoryos/{tenant}/{plant}/{device}/state` topics, for named devices, with scripted runs, idle
+  spells and dropouts. The topic and message shape live in one module shared by the agent and the simulator.
 - **Tests:**
   - an in-process MQTT broker in the edge agent's tests: queueing, restart recovery and an outage then catch-up;
   - a smoke against the API.
