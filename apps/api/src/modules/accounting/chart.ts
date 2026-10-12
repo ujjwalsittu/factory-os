@@ -29,6 +29,8 @@ export const DEFAULT_ACCOUNTS = [
   ['production_variance', 'Manufacturing variance', 'Direct Expenses', 'expense'],
   ['cogs', 'Cost of goods sold', 'Direct Expenses', 'expense'],
   ['scrap', 'Scrap expense', 'Direct Expenses', 'expense'],
+  /** Decision 066: spares issued to maintenance orders. */
+  ['maintenance', 'Repairs and maintenance (machinery)', 'Indirect Expenses', 'expense'],
   ['adjustment', 'Stock adjustments', 'Indirect Expenses', 'expense'],
   ['price_variance', 'Purchase price variance', 'Direct Expenses', 'expense'],
   ['forex', 'Foreign exchange gain or loss', 'Indirect Expenses', 'expense'],

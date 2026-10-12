@@ -76,13 +76,19 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'production_planner',
     name: 'Production Planner',
     description: 'BOMs, routings, work orders and scheduling.',
-    permissions: all((p) => p.startsWith('manufacturing.') || p === 'services.booking.read' || ['quality.plan.read', 'quality.fai.read', 'quality.ncr.read', 'quality.ncr.create', 'quality.capa.read', 'quality.skill.read', 'quality.skill.manage', 'plant.device.read', 'plant.machine_state.read', 'quality.gauge.read', 'quality.attachment.read', 'quality.attachment.create', 'quality.inspection.read'].includes(p) || p === 'masters.item.read' || p === 'inventory.stock_entry.read'),
+    permissions: all((p) => p.startsWith('manufacturing.') || p === 'maintenance.plan.read' || p === 'maintenance.order.read' || p === 'maintenance.breakdown.create' || p === 'services.booking.read' || ['quality.plan.read', 'quality.fai.read', 'quality.ncr.read', 'quality.ncr.create', 'quality.capa.read', 'quality.skill.read', 'quality.skill.manage', 'plant.device.read', 'plant.machine_state.read', 'quality.gauge.read', 'quality.attachment.read', 'quality.attachment.create', 'quality.inspection.read'].includes(p) || p === 'masters.item.read' || p === 'inventory.stock_entry.read'),
+  },
+  {
+    key: 'maintenance',
+    name: 'Maintenance',
+    description: 'Preventive plans, maintenance orders and breakdowns, spares from stores (decision 066).',
+    permissions: all((p) => p.startsWith('maintenance.') || ['manufacturing.work_centre.read', 'manufacturing.schedule.read', 'plant.machine_state.read', 'plant.device.read', 'masters.item.read', 'inventory.batch.read', 'inventory.stock_entry.read', 'inventory.report.read', 'quality.attachment.read', 'quality.attachment.create'].includes(p)),
   },
   {
     key: 'operator',
     name: 'Operator',
     description: 'Own job cards on the shop floor.',
-    permissions: ['manufacturing.job_card.read', 'manufacturing.job_card.update', 'manufacturing.job_card.submit', 'manufacturing.schedule.read', 'manufacturing.smt.read', 'manufacturing.smt.update', 'quality.skill.read', 'plant.machine_state.read', 'services.booking.read', 'services.usage.create'],
+    permissions: ['manufacturing.job_card.read', 'manufacturing.job_card.update', 'manufacturing.job_card.submit', 'manufacturing.schedule.read', 'manufacturing.smt.read', 'manufacturing.smt.update', 'maintenance.breakdown.create', 'maintenance.order.read', 'quality.skill.read', 'plant.machine_state.read', 'services.booking.read', 'services.usage.create'],
   },
   {
     key: 'services_coordinator',
