@@ -47,6 +47,9 @@ const itemInput = z.object({
   drawingNo: z.string().trim().max(60).optional().nullable(),
   shelfLifeDays: z.number().int().positive().max(36500).optional().nullable(),
   mslLevel: z.enum(['1', '2', '2a', '3', '4', '5', '5a', '6']).optional().nullable(),
+  /** Decision 065: solder paste thaw minutes and open hours (both or neither; batch-tracked items only). */
+  pasteThawMinutes: z.number().int().min(0).max(1440).optional().nullable(),
+  pasteOpenHours: z.number().int().min(1).max(720).optional().nullable(),
   requiresIncomingInspection: z.boolean().default(false),
   /** Decision 048: output waits in Quarantine for a final inspection; invoicing needs an approved FAI. */
   requiresFinalInspection: z.boolean().default(false),
@@ -194,6 +197,7 @@ export class MastersController {
   async createItem(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
     const input = parse(itemInput, body);
     await this.assertUom(ctx, input.stockUomId);
+    assertPaste({ ...input, tracking: input.type === 'service' ? 'none' : input.tracking });
     const values = { ...input, isStockItem: input.type !== 'service', tracking: input.type === 'service' ? ('none' as const) : input.tracking, tenantId: ctx.tenant.tenantId };
     return this.insertAudited(ctx, 'item', (tx) => tx.insert(item).values(values).onConflictDoNothing().returning(), 'An item with this code exists');
   }
@@ -213,6 +217,7 @@ export class MastersController {
     if (input.tracking && input.tracking !== before.tracking) {
       throw new BadRequestException({ message: 'Tracking cannot change once set', issues: [{ path: 'tracking', message: 'Create a new item instead' }] });
     }
+    assertPaste({ ...before, ...input });
     return this.db.transaction(async (tx) => {
       const [after] = await tx.update(item).set({ ...input, updatedAt: new Date() }).where(eq(item.id, id)).returning();
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, action: 'item.update', targetType: 'item', targetId: id, before, after }, tx);
@@ -281,4 +286,12 @@ export class MastersController {
 function stripNulls(row: Record<string, unknown>) {
   const { id: _id, tenantId: _t, createdAt: _c, updatedAt: _u, ...rest } = row;
   return Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== null));
+}
+
+/** Decision 065: a solder paste has both times, and is batch-tracked so its jars follow a lot. */
+function assertPaste(i: { pasteThawMinutes?: number | null; pasteOpenHours?: number | null; tracking?: string | null }) {
+  const thaw = i.pasteThawMinutes ?? null;
+  const open = i.pasteOpenHours ?? null;
+  if ((thaw === null) !== (open === null)) throw new BadRequestException({ message: 'Set both the paste thaw and open times, or neither', issues: [{ path: thaw === null ? 'pasteThawMinutes' : 'pasteOpenHours', message: 'Set both or neither' }] });
+  if (thaw !== null && i.tracking !== 'batch') throw new BadRequestException({ message: 'A solder paste must be batch-tracked', issues: [{ path: 'pasteThawMinutes', message: 'Batch-tracked items only' }] });
 }

@@ -10,6 +10,7 @@ import { DB } from '../../common/tokens.js';
 import { parse } from '../../common/validation.js';
 import { entityOf } from '../accounting/accounting-lock.js';
 import { IotService } from './iot.service.js';
+import { LabelService } from './labels.service.js';
 
 const code = z.string().trim().min(2).max(40).regex(/^[A-Za-z0-9._-]+$/, 'Letters, digits, dot, dash or underscore');
 const edgeInput = z.object({ code, name: z.string().trim().min(2).max(120) });
@@ -41,6 +42,7 @@ const statusInput = z.object({
     .min(1)
     .max(500),
 });
+const printResultInput = z.object({ ok: z.boolean(), error: z.string().max(300).nullable().optional() });
 const ingestInput = z.object({
   events: z
     .array(z.object({ device: z.string().min(1).max(40), seq: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER), state: z.string().min(1).max(20), at: z.string().min(10).max(40) }))
@@ -252,7 +254,10 @@ export class PlantController {
 /** The edge agent's endpoint: no session, the edge key in `Authorization: Bearer`. */
 @Controller('iot')
 export class IngestController {
-  constructor(private readonly iot: IotService) {}
+  constructor(
+    private readonly iot: IotService,
+    private readonly labels: LabelService,
+  ) {}
 
   @Post('ingest')
   @Public()
@@ -286,5 +291,26 @@ export class IngestController {
     this.iot.throttle(edge.id);
     const input = parse(statusInput, body);
     return { results: await this.iot.status(edge, input.statuses) };
+  }
+
+  /** Decision 065: label jobs for this edge's printers, claimed with a lease. */
+  @Get('print-jobs')
+  @Public()
+  async printJobs(@Headers('authorization') auth: string | undefined) {
+    const edge = await this.iot.edgeForKey(auth);
+    if (!edge) throw new UnauthorizedException('Unknown or revoked edge key');
+    this.iot.throttle(edge.id);
+    return { jobs: await this.labels.claim(edge.id) };
+  }
+
+  @Post('print-jobs/:id/result')
+  @Public()
+  @HttpCode(200)
+  async printResult(@Headers('authorization') auth: string | undefined, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const edge = await this.iot.edgeForKey(auth);
+    if (!edge) throw new UnauthorizedException('Unknown or revoked edge key');
+    this.iot.throttle(edge.id);
+    const input = parse(printResultInput, body);
+    return this.labels.result(edge.id, id, input.ok, input.error ?? null);
   }
 }
