@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-12 (Asia/Kolkata) · MT-1 tap firmware done_
+_Last updated: 2026-10-12 (Asia/Kolkata) · SMT traceability claimed by this session_
 
 ## Done
 - [x] **MT-1 tap firmware, provisioning and OTA** (decision 064, migration 0046_tap_config).
@@ -153,6 +153,7 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · MT-1 tap firmware done_
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
+- **SMT board traceability with printed 2D labels (decision 065)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-12. [Design](../superpowers/specs/2026-10-12-smt-traceability-design.md); seven tasks.
 
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
 
@@ -169,7 +170,7 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · MT-1 tap firmware done_
    - calibrate the CTs;
    - create the release signing key offline (Azeonics) and move taps to release firmware before production.
 
-   Then SMT traceability with printed 2D labels. Other roadmap candidates need the user's choice: machine maintenance, GST return data and cost centres, hazardous-waste manifests.
+   SMT traceability (decision 065) is in progress. Other roadmap candidates need the user's choice: machine maintenance, GST return data and cost centres, hazardous-waste manifests.
 
 ## Blockers
 - Automatic TDS/TCS profile/source work: current official Act393/394/395/397/402 text retrieved and pinned, including scrap2% effective2026-04-01, but complete GST-base, PAN-operativity relief and lower/nil certificate applicability guidance is still missing. Original/lower-case legacy circular PDF paths returned404; generic document search did not produce verified guidance. [Evidence/requirements](../compliance/withholding-profile-evidence.md). Need reachable official primary URLs or authorized exported guidance plus applicability confirmation; optional source-URL question already asked. No numerical defaults enabled. Continue independent bank-reconciliation work while this gate remains closed.
