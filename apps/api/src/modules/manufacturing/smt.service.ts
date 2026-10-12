@@ -413,10 +413,14 @@ export class SmtService {
     });
   }
 
-  async scrapBoard(tx: Tx, ctx: TenantRequestContext, entityId: string, serial: string, reason: string) {
-    const rows = await tx.select().from(smtBoard).where(and(eq(smtBoard.entityId, entityId), eq(smtBoard.serialNo, serial.trim()))).for('update');
-    if (!rows.length) throw new NotFoundException(`No board ${serial}`);
-    if (rows.length > 1) throw new ConflictException(`${serial} is ambiguous across items`);
+  async scrapBoard(tx: Tx, ctx: TenantRequestContext, entityId: string, serial: string, reason: string, workOrderId?: string | null) {
+    const rows = await tx
+      .select()
+      .from(smtBoard)
+      .where(and(eq(smtBoard.entityId, entityId), eq(smtBoard.serialNo, serial.trim()), workOrderId ? eq(smtBoard.workOrderId, workOrderId) : undefined))
+      .for('update');
+    if (!rows.length) throw new NotFoundException(`No board ${serial}${workOrderId ? ' on this work order' : ''}`);
+    if (rows.length > 1) throw new ConflictException(`${serial} is a board of more than one item; scrap it from its work order`);
     const bd = rows[0]!;
     if (bd.batchId) throw new ConflictException(`${serial} is already in stock; scrap it through stock or an NCR`);
     if (bd.scrappedAt) throw new ConflictException(`${serial} is already scrapped`);
@@ -473,9 +477,10 @@ export class SmtService {
   }
 
   async boardTraceBySerial(db: Db, entityId: string, serial: string) {
-    const [bd] = await db.select().from(smtBoard).where(and(eq(smtBoard.entityId, entityId), eq(smtBoard.serialNo, serial.trim())));
-    if (!bd) throw new NotFoundException(`No board ${serial}`);
-    return this.traceOf(db, bd);
+    const rows = await db.select().from(smtBoard).where(and(eq(smtBoard.entityId, entityId), eq(smtBoard.serialNo, serial.trim())));
+    if (!rows.length) throw new NotFoundException(`No board ${serial}`);
+    if (rows.length > 1) throw new ConflictException(`${serial} is a board of more than one item; open it from its batch page`);
+    return this.traceOf(db, rows[0]!);
   }
 
   private async traceOf(db: Db, bd: typeof smtBoard.$inferSelect) {
@@ -559,7 +564,9 @@ export class SmtService {
     const c = code.trim();
     const [p] = await db.select({ id: smtPanel.id, workOrderId: smtPanel.workOrderId }).from(smtPanel).where(and(eq(smtPanel.entityId, entityId), eq(smtPanel.code, c)));
     if (p) return { kind: 'panel' as const, id: p.id, workOrderId: p.workOrderId, code: c };
-    const [bd] = await db.select({ id: smtBoard.id, workOrderId: smtBoard.workOrderId, batchId: smtBoard.batchId }).from(smtBoard).where(and(eq(smtBoard.entityId, entityId), eq(smtBoard.serialNo, c)));
+    const boards = await db.select({ id: smtBoard.id, workOrderId: smtBoard.workOrderId, batchId: smtBoard.batchId }).from(smtBoard).where(and(eq(smtBoard.entityId, entityId), eq(smtBoard.serialNo, c)));
+    if (boards.length > 1) throw new ConflictException(`${c} is a board of more than one item`);
+    const bd = boards[0];
     if (bd) return { kind: 'board' as const, id: bd.id, workOrderId: bd.workOrderId, batchId: bd.batchId, code: c };
     const [ct] = await db.select({ id: smtContainer.id }).from(smtContainer).where(and(eq(smtContainer.entityId, entityId), eq(smtContainer.code, c)));
     if (ct) return { kind: 'container' as const, id: ct.id, code: c };

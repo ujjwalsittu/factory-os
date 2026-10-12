@@ -2,7 +2,7 @@
 import { zplLabel } from '@factoryos/core';
 import { type Database, iotEdge, labelPrinter, printJob } from '@factoryos/db';
 import { Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../../common/access.js';
 import { AuditService } from '../../common/audit.service.js';
@@ -91,8 +91,8 @@ export class PrintersController {
       if (!p) throw new NotFoundException('Printer not found');
       if (p.status !== 'active') throw new ConflictException('Already retired');
       await tx.update(labelPrinter).set({ status: 'retired' }).where(eq(labelPrinter.id, id));
-      // Its waiting jobs can't print any more.
-      await tx.update(printJob).set({ status: 'failed', leaseUntil: null, error: 'The printer was retired' }).where(and(eq(printJob.printerId, id), eq(printJob.status, 'queued')));
+      // Its waiting and in-flight jobs can't finish any more: the edge no longer claims a retired printer's jobs.
+      await tx.update(printJob).set({ status: 'failed', leaseUntil: null, error: 'The printer was retired' }).where(and(eq(printJob.printerId, id), inArray(printJob.status, ['queued', 'sent'])));
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'label_printer.retire', targetType: 'label_printer', targetId: id }, tx);
       return { ok: true };
     });

@@ -237,8 +237,18 @@ export class WorkOrderService {
     let outLines: { itemId: string; qty: string; to: string; rate: string; newBatchNo: string | null; batchId?: string }[];
     if (boards) {
       const parts = splitEqually(value, boards.length);
-      // A board output again after a cancelled output reuses its serial batch.
+      // A board output again after a cancelled output reuses its serial batch, but only one this work order's own
+      // (cancelled) output made: a batch of the same number from anywhere else (say, a hand-typed receipt) is refused.
       const existing = await tx.select({ id: batch.id, batchNo: batch.batchNo }).from(batch).where(and(eq(batch.itemId, it!.id), inArray(batch.batchNo, boards.map((b) => b.serialNo))));
+      const ours = existing.length
+        ? await tx
+            .select({ batchId: stockEntryLine.batchId })
+            .from(stockEntryLine)
+            .innerJoin(stockEntry, eq(stockEntry.id, stockEntryLine.entryId))
+            .where(and(eq(stockEntry.workOrderId, wo.id), eq(stockEntry.purpose, 'production_output'), inArray(stockEntryLine.batchId, existing.map((e) => e.id))))
+        : [];
+      const foreign = existing.filter((e) => !ours.some((o) => o.batchId === e.id));
+      if (foreign.length) throw new ConflictException(`Serial ${foreign.map((e) => e.batchNo).join(', ')} already exists for ${it!.code} from elsewhere; it can't be output for this board`);
       outLines = parts.map((part, k) => {
         const again = existing.find((e) => e.batchNo === boards[k]!.serialNo);
         return { itemId: wo.itemId, qty: '1', to, rate: part, newBatchNo: again ? null : boards[k]!.serialNo, ...(again ? { batchId: again.id } : {}) };

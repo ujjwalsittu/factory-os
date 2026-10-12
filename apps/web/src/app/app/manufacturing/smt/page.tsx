@@ -169,9 +169,10 @@ function Setup({ s, machineId }: { s: SmtSetup; machineId: string }) {
   const [note, setNote] = useState<string | null>(null);
   const done = () => void qc.invalidateQueries({ queryKey: ['smt-setup'] });
   const load = useMutation({
-    mutationFn: (code: string) => api<SmtSetup>('/manufacturing/smt/feeder/load', { method: 'POST', scope: ws.scope, body: { workOrderId: s.workOrder.id, machineId, slot, code, splice } }),
-    onSuccess: (_r, code) => {
-      setNote(`${code} ${splice ? 'spliced onto' : 'loaded on'} ${slot}`);
+    mutationFn: (v: { code: string; slot: string; splice: boolean }) => api<SmtSetup>('/manufacturing/smt/feeder/load', { method: 'POST', scope: ws.scope, body: { workOrderId: s.workOrder.id, machineId, ...v } }),
+    // The submitted values, not the fields as they are now: the operator may already be typing the next slot.
+    onSuccess: (_r, v) => {
+      setNote(`${v.code} ${v.splice ? 'spliced onto' : 'loaded on'} ${v.slot}`);
       setSplice(false);
       done();
     },
@@ -188,7 +189,7 @@ function Setup({ s, machineId }: { s: SmtSetup; machineId: string }) {
           {!machineId && <Alert className="mb-3">Choose the machine you are loading.</Alert>}
           <div className="grid gap-4 sm:grid-cols-[10rem_1fr_auto] sm:items-end">
             <Field label="Slot">{(p) => <Input {...p} value={slot} onChange={(e) => setSlot(e.target.value.toUpperCase())} placeholder="F12-L" className="font-mono" />}</Field>
-            <ScanInput label="Reel or paste jar" onScan={(c) => load.mutate(c)} pending={load.isPending} disabled={!machineId || !slot} />
+            <ScanInput label="Reel or paste jar" onScan={(c) => load.mutate({ code: c, slot, splice })} pending={load.isPending} disabled={!machineId || !slot} />
             <label className="flex items-center gap-2 pb-2 text-[13px]">
               <input type="checkbox" checked={splice} onChange={(e) => setSplice(e.target.checked)} /> Splice
             </label>
@@ -367,17 +368,17 @@ function Panels({ s, machineId, printerId }: { s: SmtSetup; machineId: string; p
           </div>
         )}
       </Card>
-      {scrapping !== null && <ScrapBoard onClose={() => setScrapping(null)} />}
+      {scrapping !== null && <ScrapBoard workOrderId={s.workOrder.id} onClose={() => setScrapping(null)} />}
     </div>
   );
 }
 
-function ScrapBoard({ onClose }: { onClose: () => void }) {
+function ScrapBoard({ workOrderId, onClose }: { workOrderId: string; onClose: () => void }) {
   const ws = useWorkspace();
   const qc = useQueryClient();
   const [f, setF] = useState({ serial: '', reason: '' });
   const m = useMutation({
-    mutationFn: () => api('/manufacturing/smt/boards/scrap', { method: 'POST', scope: ws.scope, body: f }),
+    mutationFn: () => api('/manufacturing/smt/boards/scrap', { method: 'POST', scope: ws.scope, body: { ...f, workOrderId } }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['smt-setup'] });
       onClose();

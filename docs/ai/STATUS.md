@@ -14,7 +14,7 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · SMT traceability done_
   - **Trace:** batch pages show a board's reels and lots at placement, and a lot's boards for recalls.
   - **Printing:** labels are ZPL printed through the edge agent (leased jobs, three attempts, reprint), only to printer ports and hosts allowed on the edge. Plant → Devices manages the printers.
   - **Verified:**
-    - new smoke 131 checks;
+    - new smoke 139 checks;
     - SMT browser walkthrough (desktop and 390 px);
     - unit tests: core 142, edge agent 15;
     - agent end to end with a fake TCP printer;

@@ -54,7 +54,7 @@
 
 | Check | Result |
 |---|---|
-| `smoke-smt.mjs` (new) | 131 request checks: everything in "What changed" above, plus isolation |
+| `smoke-smt.mjs` (new) | 139 request checks: everything in "What changed" above, plus isolation |
 | Core unit tests | 142 (10 new) |
 | Edge agent tests | 15 (4 new): ZPL over TCP to a fake printer, an unreachable printer, allowed ports and hosts, results |
 | Edge agent `check-against-api.mjs` | A test label from FactoryOS reached a fake TCP printer through the edge and was reported printed, plus the metering and tap config checks |
@@ -80,7 +80,9 @@ What `smoke-smt.mjs` covers:
 - the dry cabinet;
 - edge claim, retry, failure and reprint;
 - ZPL download;
-- isolation.
+- isolation;
+- review fixes: a serial received by hand is not taken over by a board's output; scrap can be scoped to a work order;
+  retiring a printer fails its labels in flight.
 
 ## Changes from the design during the build
 
@@ -92,6 +94,19 @@ What `smoke-smt.mjs` covers:
 2. **Permissions use the catalog's actions:** `read`, `create` (new reels and jars) and `update` (scans, loads,
    events, printing), not `operate`/`manage`. Panelization is edited with `manufacturing.bom.update` like the rest of
    the BOM.
+
+## Review fixes
+
+From the PR's automated review:
+
+- **Re-output after a cancel** reuses a serial batch only if this work order's own output made it. Before, a unit
+  received by hand under a reserved board serial would have been taken over.
+- **Board serials shared by two items:** scrap is scoped to the work order on the SMT page. Trace and scan resolve
+  refuse an ambiguous serial instead of picking one.
+- **Retiring a printer** fails its in-flight (sent) labels as well as queued ones.
+- **The edge agent** refuses a `PRINT_POLL_MS` that isn't 0 or at least 500 ms, which would otherwise poll in a tight
+  loop.
+- **The feeder load note** uses the submitted slot and splice, not the fields as they are when the request finishes.
 
 ## Self-review
 

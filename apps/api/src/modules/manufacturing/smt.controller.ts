@@ -27,7 +27,7 @@ const loadInput = z.object({ workOrderId: z.uuid(), machineId: z.uuid(), slot, c
 const unloadInput = z.object({ workOrderId: z.uuid(), machineId: z.uuid(), slot });
 const panelsInput = z.object({ count: z.number().int().min(1).max(200), printerId: z.uuid().nullable().optional() });
 const panelScanInput = z.object({ code: scan, step: z.enum(['placed', 'depaneled']), machineId: z.uuid().nullable().optional(), printerId: z.uuid().nullable().optional() });
-const scrapInput = z.object({ serial: scan, reason: z.string().trim().min(3).max(300) });
+const scrapInput = z.object({ serial: scan, reason: z.string().trim().min(3).max(300), workOrderId: z.uuid().nullable().optional() });
 const printInput = z.object({ printerId: z.uuid() });
 
 @Controller('manufacturing/smt')
@@ -133,7 +133,7 @@ export class SmtController {
   scrap(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
     const entityId = entityOf(ctx);
     const input = parse(scrapInput, body);
-    return this.db.transaction((tx) => this.smt.scrapBoard(tx, ctx, entityId, input.serial, input.reason));
+    return this.db.transaction((tx) => this.smt.scrapBoard(tx, ctx, entityId, input.serial, input.reason, input.workOrderId ?? null));
   }
 
   // ── Scans and trace ──

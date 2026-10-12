@@ -219,6 +219,11 @@ const again = wo.movements.filter((m) => m.purpose === 'production_output' && m.
 assert.deepEqual(again.lines.map((l) => l.batchNo), ['OBC-000005', 'OBC-000006']);
 assert.deepEqual(again.lines.map((l) => l.batchId), last.lines.map((l) => l.batchId).reverse());
 ok('a cancelled output frees its boards; output again reuses their serial batches');
+// A unit received by hand under a reserved board serial is not taken over by that board's output.
+const handRec = await c.req('POST', '/stock-entries', { postingDate: date, purpose: 'receipt', lines: [{ itemId: pcba.id, qty: '1', toWarehouseId: sto.id, newBatchNo: 'OBC-000008', rate: '5000' }] }, 201);
+await c.req('POST', `/stock-entries/${handRec.id}/submit`, {}, 201);
+await fail('POST', `/manufacturing/work-orders/${wo.id}/output`, { qty: '1', boards: ['OBC-000008'] }, 409, 'a serial batch from elsewhere is not reused for a board', /from elsewhere/);
+await fail('POST', '/manufacturing/smt/boards/scrap', { serial: 'OBC-000007', reason: 'Wrong order scanned', workOrderId: pcba.id }, 404, 'scrap scoped to a work order finds only its boards', /on this work order/);
 
 // ── Trace ──
 const t1 = await c.req('GET', '/manufacturing/smt/boards/OBC-000001');
@@ -274,6 +279,14 @@ const failed = jobs.find((j) => j.id === jb.id);
 assert.deepEqual([failed.status, failed.attempts, failed.error], ['failed', 3, 'Paper out']);
 const re = await c.req('POST', `/plant/print-jobs/${jb.id}/reprint`, {}, 201);
 assert.equal(re.status, 'queued');
+// Retiring a printer fails its queued and in-flight labels.
+await c.req('POST', `/plant/printers/${small.id}/test`, {}, 201);
+const inFlight = (await edge(ed.key, 'GET', '/iot/print-jobs')).data.jobs.find((j) => j.host === '10.20.0.51');
+assert.ok(inFlight);
+await c.req('POST', `/plant/printers/${small.id}/retire`, {}, 201);
+jobs = await c.req('GET', '/plant/print-jobs');
+assert.deepEqual([jobs.find((j) => j.id === inFlight.id).status, jobs.find((j) => j.id === inFlight.id).error], ['failed', 'The printer was retired']);
+ok('retiring a printer fails its labels in flight too');
 const theirs = await new Client().init('Elsewhere SMT');
 const theirEdge = await theirs.req('POST', '/plant/edges', { code: 'X1', name: 'Theirs' }, 201);
 assert.equal((await edge(theirEdge.key, 'GET', '/iot/print-jobs')).data.jobs.length, 0);
