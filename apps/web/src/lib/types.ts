@@ -211,7 +211,25 @@ export interface Batch {
   qty: string;
 }
 
-export type StockPurpose = 'receipt' | 'issue' | 'transfer' | 'adjustment' | 'return' | 'scrap' | 'delivery';
+/** Every stock entry purpose in the database enum (`stock_entry_purpose`). */
+export type StockPurpose =
+  | 'receipt'
+  | 'issue'
+  | 'transfer'
+  | 'adjustment'
+  | 'return'
+  | 'scrap'
+  | 'delivery'
+  | 'sales_return'
+  | 'purchase_return'
+  | 'purchase_return_receipt'
+  | 'production_issue'
+  | 'production_return'
+  | 'production_output'
+  | 'cut'
+  | 'job_work_out'
+  | 'job_work_in'
+  | 'maintenance';
 export type DocStatus = 'draft' | 'submitted' | 'cancelled';
 
 export interface StockEntryRow {

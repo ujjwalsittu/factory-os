@@ -10,7 +10,9 @@ export interface BookItem {id:string;kind:'gl'|'opening';date:string;signedAmoun
 export interface StatementItem {id:string;date:string;signedAmount:string;reference:string;remaining:string}
 export interface MatchState {book:BookItem[];statement:StatementItem[];groups:{id:string;kind:string;reversed:boolean;reason?:string}[];revision:string;sources:{id:string;voucherId:string;sourceType:string;sourceId:string;status:string}[]}
 export interface Report {profileId:string;baselineId:string;asOf:string;B:string;U:string;E:string;S:string;difference:string;coverageComplete:boolean;coverage:{complete:boolean;through:string;conflicts:string[];intervals:{id:string;startDate:string;endDate:string}[]};bookResiduals:BookItem[];statementResiduals:StatementItem[];previewHash:string}
-export interface Period {id:string;startDate:string;endDate:string;createdBy:string;createdAt:string;previewHash:string;reopened?:boolean;reopening?:{reason:string;createdBy:string;createdAt:string}|null;snapshot:{report:Report;outstanding:BookItem[];reviewerId:string}}
+/** The bank as it was at approval (frozen), or as it is now for approvals made before decision 067. */
+export interface BankIdentity {ledgerCode:string;ledgerName:string;maskedIdentifier:string;frozen:boolean}
+export interface Period {id:string;identity:BankIdentity;startDate:string;endDate:string;createdBy:string;createdAt:string;previewHash:string;reopened?:boolean;reopening?:{reason:string;createdBy:string;createdAt:string}|null;snapshot:{report:Report;outstanding:BookItem[];reviewerId:string}}
 export interface Adjustment {previewHash:string;row:StatementItem;bankAccountId:string;links:{id:string;kind:string;chargeId:string|null;voucherId:string|null;releasedAt:string|null;releaseReason:string|null}[]}
 export const isZero=(value:string)=>/^-?0+(?:\.0+)?$/.test(value);
 /** Reject late results after input changes or scope unmounts, including navigation side effects. */

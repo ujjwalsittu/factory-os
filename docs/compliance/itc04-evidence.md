@@ -85,9 +85,17 @@ respectively.
   - **Build:** CSV export in the form's field order, labelled "FORM GST ITC-04 fields". It is not
     presented as the offline-tool upload file. Matching the offline template is a follow-up once
     the template can be retrieved.
-- **E-way bill for interstate job work** (rule 138, introduced 2018): not present in the 2017
-  compilation, and the current rule text wasn't reachable.
-  - **Build:** interstate challans show an e-way bill number field and a warning. Submitting is
-    not blocked. Changing this to a hard rule needs the current rule 138 text.
+- **E-way bill for interstate job work** (rule 138, introduced 2018). Rechecked 2026-10-13 against
+  CBIC's consolidated CGST Rules "as amended upto 30th October, 2018"
+  (`https://cbic-gst.gov.in/pdf/CGST-Rules-2017-Part-A-Rules.pdf`): rule 138(1), proviso — "where
+  goods are sent by a principal located in one State or Union territory to a job worker located in
+  any other State or Union territory, the e-way bill shall be generated either by the principal or
+  the job worker, if registered, irrespective of the value of the consignment". Later amendments
+  could not be checked: the GST portal and newer CBIC pages still refuse connections from this
+  environment.
+  - **Build (decision 067, user's choice 2026-10-13):** an interstate challan is submitted only with
+    its e-way bill number, or with a stated reason: the registered job worker generates it, or the
+    movement is exempt (rule 138(14)). The reason is kept on the challan; the job worker's number can
+    be recorded later, once, with an audit entry.
 - **Later amendments to Sec 143 after 30-09-2020:** none found in the 2023 amendment Act
   (`pdf/CGST-Amendment-Act-2023.pdf`); not otherwise checked.

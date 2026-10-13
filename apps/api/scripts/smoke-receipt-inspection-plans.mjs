@@ -180,4 +180,16 @@ const after = await c.req('GET', `/quality/inspections/${d2.id}`);
 assert.equal(after.status, 'cancelled');
 ok('cancelling the receipt withdraws its open draft');
 
+// A receipt without a purchase order that has been inspected cannot be cancelled until its inspection is (plan and quick form).
+const grn3 = await c.req('POST', '/stock-entries', { purpose: 'receipt', postingDate: date, partyId: sup.id, lines: [{ itemId: bar.id, qty: '2', toWarehouseId: qua.id, newBatchNo: 'HT-3', rate: '300' }] }, 201);
+await c.req('POST', `/stock-entries/${grn3.id}/submit`, {}, 201);
+pending = await c.req('GET', '/inspections/pending');
+const l3 = pending.find((p) => p.receiptId === grn3.id);
+let r3 = await c.req('POST', '/quality/inspections/receipt', { receiptLineId: l3.receiptLineId, qty: '2' }, 201);
+await c.req('POST', `/quality/inspections/${r3.id}/results`, { results: [{ characteristicId: dia.id, sampleNo: 1, measured: '20.01', gaugeId: mic.id }, { characteristicId: dia.id, sampleNo: 2, measured: '20.03', gaugeId: mic.id }, { characteristicId: crack.id, sampleNo: 1, pass: true }] }, 201);
+r3 = await c.req('POST', `/quality/inspections/${r3.id}/submit`, { qtyAccepted: '2', qtyRejected: '0' }, 201);
+await fail('POST', `/stock-entries/${grn3.id}/cancel`, { reason: 'Wrong challan' }, 409, 'a receipt without a PO, plan-inspected, is not cancelled', /has been inspected/);
+await fail('POST', `/stock-entries/${own.id}/cancel`, { reason: 'Wrong challan' }, 409, 'nor one inspected with the quick form', /has been inspected/);
+ok('receipts without a purchase order keep the inspected check on cancel');
+
 console.log(`\nReceipt inspection plans smoke passed (${c.checks} request checks).`);

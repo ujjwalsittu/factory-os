@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
+import { type EwayBillReason, EwayBillFields } from '@/components/eway-bill-fields';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
@@ -29,6 +30,7 @@ function OrderView() {
   const ws = useWorkspace();
   const { id } = useParams<{ id: string }>();
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [ewb, setEwb] = useState<JobWorkDetail['challans'][number] | null>(null);
   const q = useQuery({ queryKey: ['job-work-order', ws.entityId, id], queryFn: () => api<JobWorkDetail>(`/manufacturing/job-work/${id}`, { scope: ws.scope }) });
   if (q.error) return <Alert tone="danger">{q.error.message}</Alert>;
   const o = q.data;
@@ -107,7 +109,15 @@ function OrderView() {
                             </Link>
                             <span className="block text-subtle">{formatDate(c.postingDate)}</span>
                             {c.status === 'cancelled' && <Badge tone="danger">Cancelled</Badge>}
-                            {c.interstate && !c.ewayBillNo && c.status === 'submitted' && <span className="block text-[12px] text-warning">Interstate · no e-way bill no.</span>}
+                            {c.ewayBillNo && <span className="block text-[12px] text-subtle">EWB {c.ewayBillNo}</span>}
+                            {c.interstate && !c.ewayBillNo && c.status === 'submitted' && (
+                              <span className="block text-[12px] text-warning">{c.ewayBillReason === 'exempt' ? 'Interstate · e-way bill exempt' : c.ewayBillReason === 'job_worker_generates' ? 'Interstate · e-way bill by the job worker' : 'Interstate · no e-way bill no.'}</span>
+                            )}
+                            {c.interstate && !c.ewayBillNo && c.status === 'submitted' && canSubmit && (
+                              <button type="button" className="block text-[12px] text-accent hover:underline" onClick={() => setEwb(c)}>
+                                Record e-way bill…
+                              </button>
+                            )}
                             {c.status === 'submitted' && canCancel && c.lines.every((x) => Number(x.open ?? 0) === Number(x.qty)) && (
                               <button type="button" className="block text-[12px] text-muted hover:text-danger" onClick={() => setDialog({ kind: 'reason', title: `Cancel challan ${c.number}`, path: `/manufacturing/job-work/challans/${c.id}/cancel`, confirm: 'Cancel challan', description: 'Only while nothing has come back against it. Stock returns to where it left from.' })}>
                                 Cancel…
@@ -191,6 +201,7 @@ function OrderView() {
       {dialog?.kind === 'send' && <SendDialog order={o} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'receive' && <ReceiveDialog order={o} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'reason' && <ReasonDialog {...dialog} onClose={() => setDialog(null)} />}
+      {ewb && <EwayBillDialog challan={ewb} onClose={() => setEwb(null)} />}
     </>
   );
 }
@@ -202,6 +213,28 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
       <p className="tabular mt-1 text-xl font-semibold">{value}</p>
       {hint && <p className="mt-1 text-[12px] text-subtle">{hint}</p>}
     </Card>
+  );
+}
+
+/** Rule 138: the job worker's e-way bill number, recorded once it is known (decision 067). */
+function EwayBillDialog({ challan, onClose }: { challan: JobWorkDetail['challans'][number]; onClose: () => void }) {
+  const ws = useWorkspace();
+  const refresh = useRefresh();
+  const [no, setNo] = useState('');
+  const m = useMutation({
+    mutationFn: () => api(`/manufacturing/job-work/challans/${challan.id}/eway-bill`, { method: 'POST', scope: ws.scope, body: { ewayBillNo: no } }),
+    onSuccess: () => {
+      refresh();
+      onClose();
+    },
+  });
+  const err = fieldErrors(m.error);
+  return (
+    <FormDialog title={`E-way bill for ${challan.number}`} description="Recorded once on the challan and its ITC-04 evidence." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Record">
+      <Field label="E-way bill no." error={err.ewayBillNo} hint="12 digits">
+        {(f) => <Input {...f} inputMode="numeric" value={no} onChange={(e) => setNo(e.target.value)} required autoFocus />}
+      </Field>
+    </FormDialog>
   );
 }
 
@@ -238,7 +271,7 @@ type SendLine = { itemId: string; batchId: string; qty: string; goodsType: '' | 
 function SendDialog({ order, onClose }: { order: JobWorkDetail; onClose: () => void }) {
   const ws = useWorkspace();
   const refresh = useRefresh();
-  const [head, setHead] = useState({ postingDate: today(), fromWarehouseId: '', ewayBillNo: '', vehicleNo: '' });
+  const [head, setHead] = useState({ postingDate: today(), fromWarehouseId: '', ewayBillNo: '', ewayBillReason: '' as EwayBillReason, vehicleNo: '' });
   const [lines, setLines] = useState<SendLine[]>(order.materials.map((m) => ({ itemId: m.itemId, batchId: '', qty: m.qty, goodsType: '' })));
   const warehouses = useQuery({ queryKey: ['warehouses', ws.entityId], queryFn: () => api<Warehouse[]>('/warehouses', { scope: ws.scope }) });
   const ours = (warehouses.data ?? []).filter((w) => w.isActive && w.availableForIssue && w.type !== 'customer_owned' && w.type !== 'at_job_worker');
@@ -251,6 +284,7 @@ function SendDialog({ order, onClose }: { order: JobWorkDetail; onClose: () => v
           postingDate: head.postingDate,
           fromWarehouseId: head.fromWarehouseId,
           ewayBillNo: head.ewayBillNo || null,
+          ewayBillReason: head.ewayBillNo ? null : head.ewayBillReason || null,
           vehicleNo: head.vehicleNo || null,
           lines: lines.map((l) => ({ itemId: l.itemId, batchId: l.batchId || null, qty: l.qty, goodsType: l.goodsType || null })),
         },
@@ -263,7 +297,7 @@ function SendDialog({ order, onClose }: { order: JobWorkDetail; onClose: () => v
   const err = fieldErrors(m.error);
   return (
     <FormDialog title="Send material (delivery challan)" description={`To ${order.supplier} for job work. The stock moves into "At ${order.supplier}" and stays ours, at its FIFO value.`} onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Issue challan" wide>
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Date" error={err.postingDate}>
           {(f) => <Input {...f} type="date" value={head.postingDate} onChange={(e) => setHead({ ...head, postingDate: e.target.value })} required />}
         </Field>
@@ -279,9 +313,7 @@ function SendDialog({ order, onClose }: { order: JobWorkDetail; onClose: () => v
             </Select>
           )}
         </Field>
-        <Field label="E-way bill no." error={err.ewayBillNo} hint="12 digits, if generated">
-          {(f) => <Input {...f} inputMode="numeric" value={head.ewayBillNo} onChange={(e) => setHead({ ...head, ewayBillNo: e.target.value })} />}
-        </Field>
+        <EwayBillFields no={head.ewayBillNo} reason={head.ewayBillReason} onNo={(v) => setHead({ ...head, ewayBillNo: v })} onReason={(v) => setHead({ ...head, ewayBillReason: v })} errors={err} />
         <Field label="Vehicle no." error={err.vehicleNo}>
           {(f) => <Input {...f} value={head.vehicleNo} onChange={(e) => setHead({ ...head, vehicleNo: e.target.value.toUpperCase() })} />}
         </Field>

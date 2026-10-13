@@ -1,6 +1,6 @@
 // Memberships, roles, scoped role assignments, invitations and the audit log.
 import { sql } from 'drizzle-orm';
-import { bigserial, boolean, check, index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { bigint, bigserial, boolean, check, index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { user } from './auth.js';
 import { tenant } from './platform.js';
 
@@ -109,4 +109,32 @@ export const auditEvent = pgTable(
     hash: text('hash').notNull(),
   },
   (t) => [index('audit_event_tenant_idx').on(t.tenantId, t.seq)],
+);
+
+/** Decision 067: why a person was erased. Fixed codes only, so no personal data reaches the audit trail. */
+export const erasureReason = pgEnum('erasure_reason', ['data_principal_request', 'left_organisation', 'duplicate_account', 'consent_withdrawn']);
+
+/**
+ * One row per erased person (decision 067): who erased them, in which workspace, and why. Written by
+ * `factoryos_erase_user` in the same transaction as the anonymisation; `txid` binds the passkey and SSO guards'
+ * erasure path to that transaction.
+ */
+export const userErasure = pgTable(
+  'user_erasure',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id),
+    erasedBy: text('erased_by')
+      .notNull()
+      .references(() => user.id),
+    reason: erasureReason('reason').notNull(),
+    txid: bigint('txid', { mode: 'number' }).notNull().default(sql`txid_current()`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('user_erasure_user_uq').on(t.userId), index('user_erasure_tenant_idx').on(t.tenantId)],
 );

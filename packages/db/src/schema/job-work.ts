@@ -29,6 +29,8 @@ export const jobWorkStatus = pgEnum('job_work_status', ['draft', 'open', 'closed
 /** Sec 143: inputs have one year, capital goods three. */
 export const jobWorkGoodsType = pgEnum('job_work_goods_type', ['input', 'capital_good']);
 export const itc04Frequency = pgEnum('itc04_frequency', ['half_yearly', 'annual']);
+/** Rule 138 (decision 067): why an interstate challan has no e-way bill number of ours. */
+export const ewayBillReason = pgEnum('eway_bill_reason', ['job_worker_generates', 'exempt']);
 
 export const jobWorkOrder = pgTable(
   'job_work_order',
@@ -103,6 +105,8 @@ export const jobWorkChallan = pgTable(
     interstate: boolean('interstate').notNull().default(false),
     placeOfSupplyStateCode: text('place_of_supply_state_code'),
     ewayBillNo: text('eway_bill_no'),
+    /** Interstate without a number: the registered job worker generates it, or the movement is exempt (rule 138). */
+    ewayBillReason: ewayBillReason('eway_bill_reason'),
     vehicleNo: text('vehicle_no'),
     remarks: text('remarks'),
     cancelReason: text('cancel_reason'),

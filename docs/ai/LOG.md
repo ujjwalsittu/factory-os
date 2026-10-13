@@ -244,3 +244,10 @@ Append-only. One entry per session: `date · who · what changed · what's next`
   - smoke 92 checks, browser walkthrough and regression.
 
   Next: PR to main; then CFX machine data when the line's interfaces are confirmed.
+- 2026-10-13 · agent · Clean-up round and user erasure (decision 067, migrations 0049, 0050):
+  - user erasure by anonymisation for owners (DPDP), guard-bound passkey/SSO removal, fixed reasons;
+  - interstate job work needs an e-way bill number or reason (rule 138);
+  - stock purpose labels, inspected check on every receipt cancel, race smoke root cause, bank M1/M2;
+  - erasure smoke 34 checks, browser walkthrough and regression.
+
+  Next: PR to main; then the UI, menu and design pass.

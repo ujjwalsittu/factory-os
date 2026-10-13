@@ -1,5 +1,5 @@
 import { calculateBankReconciliation, Dec } from '@factoryos/core';
-import { bankReconciliationEvent, bankReconciliationPeriod } from '@factoryos/db';
+import { bankReconciliationEvent, bankReconciliationPeriod, bankReconciliationProfile, glAccount } from '@factoryos/db';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
@@ -8,6 +8,8 @@ import { BankMatchService } from './match.service.js';
 import { BankImportService } from './import.service.js';
 import { evidenceHash } from './registry.service.js';
 import type { BankReport, PeriodApprovalInput } from './types.js';
+
+export interface BankIdentity { ledgerCode: string; ledgerName: string; maskedIdentifier: string; frozen: boolean }
 const nextDay=(date:string)=>{const d=new Date(`${date}T00:00:00Z`);d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10);};
 @Injectable()
 export class BankReportService {
@@ -16,7 +18,15 @@ export class BankReportService {
   // Validate the frozen profile identity even when the account is now inactive.
   const evidence=await this.imports.evidenceIn(tx,ctx,entityId,profileId);
   const periods=await tx.select().from(bankReconciliationPeriod).where(and(eq(bankReconciliationPeriod.tenantId,ctx.tenant.tenantId),eq(bankReconciliationPeriod.entityId,entityId),eq(bankReconciliationPeriod.profileId,profileId))).orderBy(bankReconciliationPeriod.createdAt,bankReconciliationPeriod.id);
-  return periods.map(p=>({...p,reopened:evidence.events.some(e=>e.periodId===p.id),reopening:evidence.events.find(e=>e.periodId===p.id)??null}));
+  // Review M2: approvals freeze the bank's identity; older ones show today's, marked as not frozen.
+  const current=await this.identityIn(tx,ctx,entityId,profileId);
+  return periods.map(p=>({...p,identity:(p.snapshot as {identity?:BankIdentity}|null)?.identity??{...current,frozen:false},reopened:evidence.events.some(e=>e.periodId===p.id),reopening:evidence.events.find(e=>e.periodId===p.id)??null}));
+ }
+ /** The bank ledger and masked account as they are now (frozen into each approval from decision 067). */
+ async identityIn(tx:Db,ctx:TenantRequestContext,entityId:string,profileId:string):Promise<BankIdentity> {
+  const [r]=await tx.select({ledgerCode:glAccount.code,ledgerName:glAccount.name,maskedIdentifier:bankReconciliationProfile.maskedIdentifier}).from(bankReconciliationProfile).innerJoin(glAccount,eq(glAccount.id,bankReconciliationProfile.accountId)).where(and(eq(bankReconciliationProfile.id,profileId),eq(bankReconciliationProfile.tenantId,ctx.tenant.tenantId),eq(bankReconciliationProfile.entityId,entityId)));
+  if(!r)throw new NotFoundException('Bank profile not found');
+  return {...r,frozen:true};
  }
  private async reviewIn(tx:Db,ctx:TenantRequestContext,entityId:string,profileId:string,asOf:string) {
   const state=await this.matches.stateIn(tx,ctx,entityId,profileId);
@@ -36,7 +46,7 @@ export class BankReportService {
   if(report.previewHash!==input.reviewedHash)throw new ConflictException('Reconciliation report changed; review again');
   if(input.asOf<startDate)throw new ConflictException('Approve the next contiguous bank period');
   if(!report.coverageComplete||!Dec.of(report.difference).isZero()||!Dec.of(report.E).isZero()||report.statementResiduals.some(x=>!Dec.of(x.remaining).isZero()))throw new ConflictException('Complete statement coverage and resolve every bank exception before approval');
-  const [period]=await tx.insert(bankReconciliationPeriod).values({tenantId:ctx.tenant.tenantId,entityId,profileId,baselineId:report.baselineId,startDate,endDate:input.asOf,previewHash:report.previewHash,createdBy:ctx.user.id,snapshot:{report,input:state.input,sourceRevision:state.revision,reviewerId:ctx.user.id,outstandingReviewed:input.outstandingReviewed,outstanding:report.bookResiduals.filter(x=>!Dec.of(x.remaining).isZero()),imports:state.imports.activeImports.map(({rawCsv,...batch})=>batch)}}).returning();
+  const [period]=await tx.insert(bankReconciliationPeriod).values({tenantId:ctx.tenant.tenantId,entityId,profileId,baselineId:report.baselineId,startDate,endDate:input.asOf,previewHash:report.previewHash,createdBy:ctx.user.id,snapshot:{report,identity:await this.identityIn(tx,ctx,entityId,profileId),input:state.input,sourceRevision:state.revision,reviewerId:ctx.user.id,outstandingReviewed:input.outstandingReviewed,outstanding:report.bookResiduals.filter(x=>!Dec.of(x.remaining).isZero()),imports:state.imports.activeImports.map(({rawCsv,...batch})=>batch)}}).returning();
   return period!;
  }
  async reopenIn(tx:Tx,ctx:TenantRequestContext,entityId:string,profileId:string,periodId:string,reason:string) {

@@ -51,6 +51,7 @@ const challanInput = z.object({
   fromWarehouseId: z.uuid().nullable().optional(),
   gstRegistrationId: z.uuid().nullable().optional(),
   ewayBillNo: z.string().trim().regex(/^\d{12}$/, 'An e-way bill number has 12 digits').nullable().optional().or(z.literal('')),
+  ewayBillReason: z.enum(['job_worker_generates', 'exempt']).nullable().optional(),
   vehicleNo: text(20),
   remarks: text(1000),
   lines: z
@@ -252,6 +253,14 @@ export class JobWorkController {
     const entityId = entityOf(ctx);
     const { reason: r } = parse(reason, body);
     return this.jobWork.run(entityId, (tx) => this.jobWork.cancelChallanIn(tx, ctx, entityId, id, r));
+  }
+
+  @Post('job-work/challans/:id/eway-bill')
+  @RequirePermission('manufacturing.job_work.submit')
+  ewayBill(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const entityId = entityOf(ctx);
+    const { ewayBillNo } = parse(z.object({ ewayBillNo: z.string().trim().regex(/^\d{12}$/, 'An e-way bill number has 12 digits') }), body);
+    return this.jobWork.run(entityId, (tx) => this.jobWork.recordEwayBillIn(tx, ctx, entityId, id, ewayBillNo));
   }
 
   @Post('job-work/receipts/:id/cancel')

@@ -1,7 +1,8 @@
 import type { BadgeTone } from '@factoryos/ui';
-import type { DocStatus } from './types';
+import type { DocStatus, StockPurpose } from './types';
 
-export const PURPOSE_LABELS = {
+/** A label for every purpose; typed by the enum so a new purpose cannot show blank. */
+export const PURPOSE_LABELS: Record<StockPurpose, string> = {
   receipt: 'Receipt',
   issue: 'Issue',
   transfer: 'Transfer',
@@ -10,8 +11,16 @@ export const PURPOSE_LABELS = {
   scrap: 'Scrap',
   sales_return: 'Sales return (credit note)',
   delivery: 'Delivery (sales invoice)',
+  purchase_return: 'Purchase return',
+  purchase_return_receipt: 'Purchase return received back',
+  production_issue: 'Production issue',
+  production_return: 'Production return',
+  production_output: 'Production output',
+  cut: 'Cut to size',
+  job_work_out: 'Job work out',
+  job_work_in: 'Job work in',
   maintenance: 'Maintenance spares',
-} as const;
+};
 export const STATUS_TONE: Record<DocStatus, BadgeTone> = { draft: 'neutral', submitted: 'success', cancelled: 'danger' };
 
 export const WASTE_CATEGORY_LABELS: Record<string, string> = {

@@ -26,7 +26,8 @@ export const SYSTEM_ROLES: readonly SystemRoleDef[] = [
     key: 'administrator',
     name: 'Administrator',
     description: 'Users, roles, entities and settings. No statutory filing.',
-    permissions: all((p) => inModule('settings', 'masters', 'plant')(p) || readOnly(p)),
+    // Erasing a person is for owners only (decision 067).
+    permissions: all((p) => (inModule('settings', 'masters', 'plant')(p) || readOnly(p)) && p !== 'settings.erasure.manage'),
   },
   {
     key: 'finance_controller',

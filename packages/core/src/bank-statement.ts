@@ -44,6 +44,10 @@ function sourceDate(value: string, mapping: CsvMapping): string {
   if (!parts) throw new Error('Invalid mapped date');
   return bankDate(`${parts[3]}-${mapping.dateFormat === 'DD/MM/YYYY' ? parts[2] : parts[1]}-${mapping.dateFormat === 'DD/MM/YYYY' ? parts[1] : parts[2]}`);
 }
+/** At most this many transactions per statement (the matching and review bounds). */
+export const MAX_STATEMENT_TRANSACTIONS = 10000;
+/** At most this many physical CSV records, including ignored balance rows. */
+export const MAX_STATEMENT_RECORDS = 20000;
 export function parseBankStatement(input: StatementParseInput, mapping: CsvMapping): NormalizedStatement {
   const result: NormalizedStatement = { rows: [], errors: [], ignoredOrdinals: [], netAmount: Dec.ZERO.toString() };
   try {
@@ -57,7 +61,9 @@ export function parseBankStatement(input: StatementParseInput, mapping: CsvMappi
     const columns = [mapping.dateColumn, mapping.referenceColumn, mapping.descriptionColumn, mapping.runningBalanceColumn, mapping.transactionIdColumn, mapping.balanceRow?.column, ...(mapping.amount.mode === 'split' ? [mapping.amount.debitColumn, mapping.amount.creditColumn] : [mapping.amount.column])].filter((x): x is string => x !== undefined);
     if (columns.some(x => !header.includes(x))) throw new Error('Mapped CSV column missing');
     const data = records.slice(mapping.skipRows + 1);
-    if (data.length > 10000) throw new Error('Statement exceeds 10000 row limit');
+    // Review M1: transactions and physical records are bounded separately, so a full statement's disclosed balance
+    // rows don't count against its transactions.
+    if (data.length > MAX_STATEMENT_RECORDS) throw new Error(`Statement exceeds ${MAX_STATEMENT_RECORDS} record limit`);
     for (const [index, fields] of data.entries()) {
       const ordinal = mapping.skipRows + index + 2;
       try {
@@ -79,6 +85,7 @@ export function parseBankStatement(input: StatementParseInput, mapping: CsvMappi
         result.rows.push({ date, signedAmount: amount.toString(), ordinal, reference: mapping.referenceColumn ? get(mapping.referenceColumn) : '', description: mapping.descriptionColumn ? get(mapping.descriptionColumn) : '', ...(mapping.transactionIdColumn && get(mapping.transactionIdColumn).trim() ? { transactionId: get(mapping.transactionIdColumn).trim() } : {}), ...(mapping.runningBalanceColumn ? { runningBalance: sourceMoney(get(mapping.runningBalanceColumn), mapping).toString() } : {}) });
       } catch (error) { result.errors.push({ ordinal, message: (error as Error).message }); }
     }
+    if (result.rows.length > MAX_STATEMENT_TRANSACTIONS) throw new Error(`Statement exceeds ${MAX_STATEMENT_TRANSACTIONS} transaction limit`);
     if (mapping.order === 'descending') result.rows.reverse();
     let balance = opening, previous = input.startDate;
     for (const row of result.rows) {

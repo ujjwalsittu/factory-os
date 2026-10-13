@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Card, CardHeader, Dialog, Field, Input, PageHeade
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { type EwayBillReason, EwayBillFields } from '@/components/eway-bill-fields';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
 import { useWorkspace } from '@/components/workspace';
 import { api, ApiError } from '@/lib/api';
@@ -359,7 +360,7 @@ function PiecesDialog({ wo, kind, op, state, onDone, onClose }: { wo: WorkOrderD
   const ws = useWorkspace();
   const today = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
   const left = Math.max(0, Number(wo.plannedQty) - Number(state?.sent ?? 0));
-  const [form, setForm] = useState({ postingDate: today, qty: kind === 'send' ? String(left || '') : (state?.atVendor ? String(Number(state.atVendor)) : ''), rejectedQty: '', ewayBillNo: '', vehicleNo: '', jobWorkerChallanNo: '' });
+  const [form, setForm] = useState({ postingDate: today, qty: kind === 'send' ? String(left || '') : (state?.atVendor ? String(Number(state.atVendor)) : ''), rejectedQty: '', ewayBillNo: '', ewayBillReason: '' as EwayBillReason, vehicleNo: '', jobWorkerChallanNo: '' });
   const m = useMutation({
     mutationFn: () =>
       api(`/manufacturing/work-orders/${wo.id}/operations/${op.id}/${kind}`, {
@@ -367,7 +368,7 @@ function PiecesDialog({ wo, kind, op, state, onDone, onClose }: { wo: WorkOrderD
         scope: ws.scope,
         body:
           kind === 'send'
-            ? { postingDate: form.postingDate, qty: form.qty, ewayBillNo: form.ewayBillNo || null, vehicleNo: form.vehicleNo || null }
+            ? { postingDate: form.postingDate, qty: form.qty, ewayBillNo: form.ewayBillNo || null, ewayBillReason: form.ewayBillNo ? null : form.ewayBillReason || null, vehicleNo: form.vehicleNo || null }
             : { postingDate: form.postingDate, qty: form.qty || '0', rejectedQty: form.rejectedQty || '0', jobWorkerChallanNo: form.jobWorkerChallanNo || null },
       }),
     onSuccess: () => {
@@ -386,9 +387,7 @@ function PiecesDialog({ wo, kind, op, state, onDone, onClose }: { wo: WorkOrderD
         <Field label={`Pieces (${wo.uom})`} error={err.qty ?? err['lines.0.qty']} hint={`${formatQty(String(left))} not yet sent`}>
           {(f) => <Input {...f} inputMode="decimal" value={form.qty} onChange={set('qty')} required autoFocus />}
         </Field>
-        <Field label="E-way bill no." error={err.ewayBillNo} hint="12 digits, if generated">
-          {(f) => <Input {...f} inputMode="numeric" value={form.ewayBillNo} onChange={set('ewayBillNo')} />}
-        </Field>
+        <EwayBillFields no={form.ewayBillNo} reason={form.ewayBillReason} onNo={(v) => setForm({ ...form, ewayBillNo: v })} onReason={(v) => setForm({ ...form, ewayBillReason: v })} errors={err} />
         <Field label="Vehicle no." error={err.vehicleNo}>
           {(f) => <Input {...f} value={form.vehicleNo} onChange={(e) => setForm({ ...form, vehicleNo: e.target.value.toUpperCase() })} />}
         </Field>

@@ -62,6 +62,7 @@ export interface Challan {
   postingDate: string;
   interstate: boolean;
   ewayBillNo: string | null;
+  ewayBillReason: 'job_worker_generates' | 'exempt' | null;
   vehicleNo: string | null;
   remarks: string | null;
   cancelReason: string | null;
