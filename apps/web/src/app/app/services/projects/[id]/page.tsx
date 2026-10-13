@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, DateInput, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -139,7 +139,7 @@ export default function ProjectPage() {
                 }
               />
               {p.milestones.length === 0 ? (
-                <p className="px-4 pb-4 text-[13px] text-muted">No milestones yet.</p>
+                <EmptyState size="compact" title="No milestones yet" />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -215,7 +215,7 @@ export default function ProjectPage() {
                   description={`${Number(p.retentionPct)}% of each invoice total is withheld by the customer. ${p.retentionDueOn ? `Due for release on ${formatDate(p.retentionDueOn)}.` : `Due ${p.dlpMonths} months after completion.`} Record its release when the money arrives; the receipt itself goes in receivables.`}
                 />
                 {p.retention.length === 0 ? (
-                  <p className="px-4 pb-4 text-[13px] text-muted">Nothing invoiced yet.</p>
+                  <EmptyState size="compact" title="Nothing invoiced yet" />
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
@@ -338,7 +338,7 @@ export default function ProjectPage() {
             <Card>
               <CardHeader title="Hours" description={p.hours.some((h) => h.cost !== null) ? 'Approved hours are valued at each person’s cost rate on the day worked.' : 'Approved hours count as labour; rates are visible only to those who manage them.'} />
               {p.hours.length === 0 ? (
-                <p className="px-4 pb-4 text-[13px] text-muted">No hours recorded.</p>
+                <EmptyState size="compact" title="No hours recorded" />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -384,7 +384,7 @@ export default function ProjectPage() {
 
 function LinkedWork({ p, canUnlink, onUnlink }: { p: ProjectDetail; canUnlink: boolean; onUnlink: (kind: LinkKind, id: string) => void }) {
   const { bookings, campaigns, workOrders, purchaseLines } = p.links;
-  if (!bookings.length && !campaigns.length && !workOrders.length && !purchaseLines.length) return <p className="px-4 pb-4 text-[13px] text-muted">Nothing linked yet.</p>;
+  if (!bookings.length && !campaigns.length && !workOrders.length && !purchaseLines.length) return <EmptyState size="compact" title="Nothing linked yet" />;
   const Unlink = ({ kind, id }: { kind: LinkKind; id: string }) =>
     canUnlink ? (
       <Button size="sm" variant="ghost" onClick={() => onUnlink(kind, id)}>
@@ -481,7 +481,7 @@ function MilestoneDialog({ projectId, milestone, onClose, onDone }: { projectId:
       <Field label="Milestone" error={err.name}>{(p) => <Input {...p} value={f.name} onChange={set('name')} required autoFocus placeholder="Design review (PDR)" />}</Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Amount (₹)" error={err.amount}>{(p) => <Input {...p} value={f.amount} onChange={set('amount')} inputMode="decimal" required />}</Field>
-        <Field label="Due" error={err.dueDate}>{(p) => <Input {...p} type="date" value={f.dueDate} onChange={set('dueDate')} />}</Field>
+        <Field label="Due" error={err.dueDate}>{(p) => <DateInput {...p} value={f.dueDate} onChange={set('dueDate')} />}</Field>
       </div>
     </FormDialog>
   );
@@ -494,7 +494,7 @@ function AchieveDialog({ milestone, onClose, onDone }: { milestone: Milestone; o
   return (
     <FormDialog title={`Achieved: ${milestone.name}`} description="Attach the customer’s acceptance certificate to the project files." onClose={onClose} onSubmit={() => m.mutate({ acceptanceRef: f.acceptanceRef, ...(f.achievedOn ? { achievedOn: f.achievedOn } : {}) })} pending={m.isPending} error={m.error} submitLabel="Mark achieved">
       <Field label="Customer’s acceptance reference" error={err.acceptanceRef}>{(p) => <Input {...p} value={f.acceptanceRef} onChange={(e) => setF({ ...f, acceptanceRef: e.target.value })} required autoFocus placeholder="Minutes of meeting, acceptance certificate no." />}</Field>
-      <Field label="Achieved on" hint="Today if left empty" error={err.achievedOn}>{(p) => <Input {...p} type="date" value={f.achievedOn} onChange={(e) => setF({ ...f, achievedOn: e.target.value })} />}</Field>
+      <Field label="Achieved on" hint="Today if left empty" error={err.achievedOn}>{(p) => <DateInput {...p} value={f.achievedOn} onChange={(e) => setF({ ...f, achievedOn: e.target.value })} />}</Field>
     </FormDialog>
   );
 }
@@ -506,7 +506,7 @@ function ReleaseDialog({ id, label, onClose, onDone }: { id: string; label: stri
   return (
     <FormDialog title={`Retention released on ${label}`} description="Enter the customer’s payment as a receipt in receivables as usual; this records that the retention is no longer held." onClose={onClose} onSubmit={() => m.mutate({ releaseRef: f.releaseRef, ...(f.releasedOn ? { releasedOn: f.releasedOn } : {}) })} pending={m.isPending} error={m.error} submitLabel="Record release">
       <Field label="Receipt or reference" error={err.releaseRef}>{(p) => <Input {...p} value={f.releaseRef} onChange={(e) => setF({ ...f, releaseRef: e.target.value })} required autoFocus />}</Field>
-      <Field label="Received on" hint="Today if left empty" error={err.releasedOn}>{(p) => <Input {...p} type="date" value={f.releasedOn} onChange={(e) => setF({ ...f, releasedOn: e.target.value })} />}</Field>
+      <Field label="Received on" hint="Today if left empty" error={err.releasedOn}>{(p) => <DateInput {...p} value={f.releasedOn} onChange={(e) => setF({ ...f, releasedOn: e.target.value })} />}</Field>
     </FormDialog>
   );
 }
@@ -587,7 +587,7 @@ function CompleteDialog({ p, onClose, onDone }: { p: ProjectDetail; onClose: () 
       error={m.error}
       submitLabel="Complete project"
     >
-      <Field label="Completed on" hint="Today if left empty" error={err.completedOn}>{(props) => <Input {...props} type="date" value={completedOn} onChange={(e) => setCompletedOn(e.target.value)} />}</Field>
+      <Field label="Completed on" hint="Today if left empty" error={err.completedOn}>{(props) => <DateInput {...props} value={completedOn} onChange={(e) => setCompletedOn(e.target.value)} />}</Field>
     </FormDialog>
   );
 }

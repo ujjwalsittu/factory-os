@@ -43,7 +43,7 @@ export function AccountingPage({
     <>
       <PageHeader
         title={title}
-        description="Separate books for each legal entity. INR ledgers retain six decimal places; document totals keep their original precision."
+        description="Books are kept separately for each legal entity."
       />
       <div className="mb-5 flex flex-wrap gap-3 print:hidden">
         {[

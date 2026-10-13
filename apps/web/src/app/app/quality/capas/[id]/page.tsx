@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, DateInput, EmptyState, Field, Input, PageHeader, Select } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
@@ -178,7 +178,7 @@ function View() {
           }
         />
         {c.actions.length === 0 ? (
-          <p className="px-5 py-4 text-[13px] text-muted">No actions yet. Starting needs at least one corrective action.</p>
+          <EmptyState size="compact" title="No actions yet" description="Starting needs at least one corrective action." />
         ) : (
           <div className="divide-y divide-line">
           {(Object.keys(CAPA_ACTION_KIND) as CapaAction['kind'][]).map((kind) => {
@@ -403,7 +403,7 @@ function ActionForm({ c, action, onClose }: { c: CapaDetail; action?: CapaAction
           )}
         </Field>
         <Field label="Due" error={err.dueOn}>
-          {(p) => <Input {...p} type="date" value={f.dueOn} onChange={set('dueOn')} required />}
+          {(p) => <DateInput {...p} value={f.dueOn} onChange={set('dueOn')} required />}
         </Field>
       </div>
     </FormDialog>
@@ -428,7 +428,7 @@ function Done({ c, action, onClose }: { c: CapaDetail; action: CapaAction; onClo
         {(p) => <Input {...p} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} required autoFocus placeholder="Evidence or reference" />}
       </Field>
       <Field label="Done on" error={err.doneOn}>
-        {(p) => <Input {...p} type="date" max={c.today} value={f.doneOn} onChange={(e) => setF({ ...f, doneOn: e.target.value })} required />}
+        {(p) => <DateInput {...p} max={c.today} value={f.doneOn} onChange={(e) => setF({ ...f, doneOn: e.target.value })} required />}
       </Field>
     </FormDialog>
   );

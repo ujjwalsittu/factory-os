@@ -1,5 +1,5 @@
 'use client';
-import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { IndianRupee } from 'lucide-react';
 import { useState } from 'react';
@@ -151,8 +151,8 @@ function RateCardDialog({ onClose }: { onClose: () => void }) {
             </Select>
           )}
         </Field>
-        <Field label="Valid from" error={err.validFrom}>{(p) => <Input {...p} type="date" value={f.validFrom} onChange={set('validFrom')} required />}</Field>
-        <Field label="Valid to" hint="Blank: until ended" error={err.validTo}>{(p) => <Input {...p} type="date" value={f.validTo} onChange={set('validTo')} />}</Field>
+        <Field label="Valid from" error={err.validFrom}>{(p) => <DateInput {...p} value={f.validFrom} onChange={set('validFrom')} required />}</Field>
+        <Field label="Valid to" hint="Blank: until ended" error={err.validTo}>{(p) => <DateInput {...p} value={f.validTo} onChange={set('validTo')} />}</Field>
       </div>
     </FormDialog>
   );
@@ -171,7 +171,7 @@ function EndDialog({ card, onClose }: { card: RateCard; onClose: () => void }) {
   });
   return (
     <FormDialog title={`End the ${card.machineCode} rate card`} description="Bookings starting after this date need a new card." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="End card">
-      <Field label="Last day">{(p) => <Input {...p} type="date" value={validTo} onChange={(e) => setValidTo(e.target.value)} required />}</Field>
+      <Field label="Last day">{(p) => <DateInput {...p} value={validTo} onChange={(e) => setValidTo(e.target.value)} required />}</Field>
     </FormDialog>
   );
 }

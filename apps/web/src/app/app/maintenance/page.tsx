@@ -93,7 +93,7 @@ function Due() {
       {q.data && rows.length === 0 ? (
         <EmptyState icon={<Wrench className="size-5" />} title="No maintenance plans" description="Add a plan per machine: a service every so many days or running hours, with its checklist." />
       ) : attention.length === 0 ? (
-        <p className="px-4 pb-4 text-[13px] text-muted">Nothing is due. Every plan is within its interval.</p>
+        <EmptyState size="compact" title="Nothing is due" description="Every plan is within its interval." />
       ) : (
         <div className="overflow-x-auto">
           <Table>
@@ -170,7 +170,7 @@ function Orders() {
       />
       {q.error && <Alert tone="danger">{q.error.message}</Alert>}
       {q.data?.length === 0 ? (
-        <p className="px-4 pb-4 text-[13px] text-muted">No orders here.</p>
+        <EmptyState size="compact" title="No orders here" />
       ) : (
         <div className="overflow-x-auto">
           <Table>

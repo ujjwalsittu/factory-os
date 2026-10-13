@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileSpreadsheet } from 'lucide-react';
 import Link from 'next/link';
@@ -299,7 +299,7 @@ function LineAction({ kind, line, onClose }: { kind: 'extend' | 'deemed'; line: 
     <FormDialog title={`Extension for ${line.challanNo}`} description={`The Commissioner may extend by up to ${line.goodsType === 'capital_good' ? 'two years' : 'one year'} (Section 143(1), second proviso).`} onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Record extension">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="New return-by date" error={err.extendedDueBy}>
-          {(f) => <Input {...f} type="date" value={form.extendedDueBy} onChange={(e) => setForm({ ...form, extendedDueBy: e.target.value })} required autoFocus />}
+          {(f) => <DateInput {...f} value={form.extendedDueBy} onChange={(e) => setForm({ ...form, extendedDueBy: e.target.value })} required autoFocus />}
         </Field>
         <Field label="Order reference" error={err.extensionRef}>
           {(f) => <Input {...f} value={form.extensionRef} onChange={(e) => setForm({ ...form, extensionRef: e.target.value })} required />}

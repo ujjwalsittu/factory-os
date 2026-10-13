@@ -190,7 +190,7 @@ try {
   await a.page.locator('tbody tr button').first().click();
   await a.page.getByText('Balance quantity').waitFor();
   await tab(a.page, 'Purchase invoices').click();
-  await a.page.locator('table, :text("No records.")').first().waitFor();
+  await a.page.locator('table, :text("No records")').first().waitFor();
   await tab(a.page, 'Accounting reports').click();
   await a.page.getByText('Books active').waitFor();
   await a.page.getByRole('button', { name: 'Trial balance' }).click();

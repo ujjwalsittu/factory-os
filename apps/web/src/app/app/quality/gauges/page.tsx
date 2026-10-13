@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Gauge as GaugeIcon } from 'lucide-react';
 import { useState } from 'react';
@@ -90,7 +90,7 @@ function GaugePanel({ id }: { id: string }) {
           actions={ws.can('quality.gauge.update') && <Button size="sm" onClick={() => setCalibrating(true)}>Record calibration</Button>}
         />
         {g.events.length === 0 ? (
-          <p className="p-4 text-[13px] text-muted">No calibration recorded in FactoryOS yet.</p>
+          <EmptyState size="compact" title="No calibration recorded in FactoryOS yet" />
         ) : (
           <ul className="divide-y divide-line">
             {g.events.map((e) => (
@@ -143,7 +143,7 @@ function NewGauge({ onClose }: { onClose: () => void }) {
           {(p) => <Input {...p} inputMode="numeric" value={f.intervalDays} onChange={set('intervalDays')} required />}
         </Field>
         <Field label="Last calibrated" error={err.lastCalibrated} hint="Sets the first due date">
-          {(p) => <Input {...p} type="date" value={f.lastCalibrated} onChange={set('lastCalibrated')} />}
+          {(p) => <DateInput {...p} value={f.lastCalibrated} onChange={set('lastCalibrated')} />}
         </Field>
       </div>
     </FormDialog>
@@ -173,7 +173,7 @@ function Calibrate({ g, onClose }: { g: GaugeDetail; onClose: () => void }) {
         </Alert>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Date">{(p) => <Input {...p} type="date" value={f.calibratedOn} onChange={set('calibratedOn')} required autoFocus />}</Field>
+          <Field label="Date">{(p) => <DateInput {...p} value={f.calibratedOn} onChange={set('calibratedOn')} required autoFocus />}</Field>
           <Field label="Result">
             {(p) => (
               <Select {...p} value={f.result} onChange={set('result')}>

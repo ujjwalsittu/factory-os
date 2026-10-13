@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, Plus, Send, Ship, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -164,7 +164,7 @@ export function LandedCostForm({ voucher }: { voucher?: LandedCostDetail }) {
             </Link>
           </p>
           <h1 className="mt-1 flex items-center gap-3 text-[22px] font-semibold tracking-tight">
-            <span className="font-mono">{voucher?.number ?? (draftId || voucher ? 'Draft landed cost' : 'New landed cost')}</span>
+            {voucher?.number ? <span className="font-mono">{voucher.number}</span> : <span>{draftId || voucher ? 'Draft landed cost' : 'New landed cost'}</span>}
             {voucher && (
               <Badge tone={STATUS_TONE[voucher.status]} dot>
                 {voucher.status[0]!.toUpperCase() + voucher.status.slice(1)}
@@ -221,9 +221,9 @@ export function LandedCostForm({ voucher }: { voucher?: LandedCostDetail }) {
 
       <Card className="p-5">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Posting date">{(p) => <Input {...p} type="date" value={header.postingDate} onChange={(e) => setHeader({ ...header, postingDate: e.target.value })} disabled={!editable} />}</Field>
+          <Field label="Posting date">{(p) => <DateInput {...p} value={header.postingDate} onChange={(e) => setHeader({ ...header, postingDate: e.target.value })} disabled={!editable} />}</Field>
           <Field label="Bill of Entry no.">{(p) => <Input {...p} className="font-mono" value={header.boeNo} onChange={(e) => setHeader({ ...header, boeNo: e.target.value })} disabled={!editable} />}</Field>
-          <Field label="Bill of Entry date">{(p) => <Input {...p} type="date" value={header.boeDate} onChange={(e) => setHeader({ ...header, boeDate: e.target.value })} disabled={!editable} />}</Field>
+          <Field label="Bill of Entry date">{(p) => <DateInput {...p} value={header.boeDate} onChange={(e) => setHeader({ ...header, boeDate: e.target.value })} disabled={!editable} />}</Field>
           <Field label="Port code" hint="e.g. INNSA1 (Nhava Sheva), INBOM4 (Mumbai air)">
             {(p) => <Input {...p} className="font-mono uppercase" value={header.portCode} onChange={(e) => setHeader({ ...header, portCode: e.target.value })} disabled={!editable} />}
           </Field>

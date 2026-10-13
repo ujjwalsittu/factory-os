@@ -11,6 +11,7 @@ import {
   Th,
   buttonClass,
   Select,
+  DateInput,
 } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -254,7 +255,7 @@ function Form({ doc,linked }: { doc?: Journal;linked?:{profileId:string;statemen
       {doc && (
         <div className="flex flex-wrap items-center gap-3">
           <Badge>{doc.status}</Badge>
-          <span className="font-mono">{doc.number ?? 'Unnumbered draft'}</span>
+          {doc.number ? <span className="font-mono">{doc.number}</span> : <span>Unnumbered draft</span>}
           {source && (
             <Link className="text-accent" href={source}>
               View source document
@@ -307,9 +308,8 @@ function Form({ doc,linked }: { doc?: Journal;linked?:{profileId:string;statemen
               <div className="grid gap-4 p-5 sm:grid-cols-2">
                 <Field label="Posting date">
                   {(p) => (
-                    <Input
+                    <DateInput
                       {...p}
-                      type="date"
                       disabled={!!reconciliation}
                       value={date}
                       onChange={(e) => setDate(e.target.value)}

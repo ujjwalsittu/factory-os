@@ -1,5 +1,5 @@
 'use client';
-import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
+import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr, DateInput } from '@factoryos/ui';
 import { useQuery } from '@tanstack/react-query';
 import { Handshake, Printer } from 'lucide-react';
 import Link from 'next/link';
@@ -56,8 +56,8 @@ function Statement() {
               </Select>
             )}
           </Field>
-          <Field label="From">{(p) => <Input {...p} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />}</Field>
-          <Field label="To">{(p) => <Input {...p} type="date" value={to} onChange={(e) => setTo(e.target.value)} />}</Field>
+          <Field label="From">{(p) => <DateInput {...p} value={from} onChange={(e) => setFrom(e.target.value)} />}</Field>
+          <Field label="To">{(p) => <DateInput {...p} value={to} onChange={(e) => setTo(e.target.value)} />}</Field>
           <Button variant="secondary" onClick={() => window.print()} disabled={!s}>
             <Printer className="size-4" /> Print / PDF
           </Button>
@@ -133,7 +133,7 @@ function Statement() {
           <Card className="print:border-0 print:shadow-none">
             <CardHeader title="Waste from their material" description="Their waste is returned, or disposed of only with their consent" />
             {s.waste.length === 0 ? (
-              <p className="px-5 py-6 text-[13px] text-muted">No waste recorded.</p>
+              <EmptyState size="compact" title="No waste recorded" />
             ) : (
               <Table>
                 <thead>

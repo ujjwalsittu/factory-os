@@ -1,5 +1,5 @@
 'use client';
-import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select } from '@factoryos/ui';
+import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Factory, Plus, Receipt } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
@@ -160,8 +160,8 @@ function LutDialog({ registration, onClose }: { registration: GstRegistration; o
   const errors = fieldErrors(m.error);
   return <FormDialog title={`LUT · ${registration.gstin}`} description="Exports under LUT require a valid ARN on the invoice date. These details are copied onto issued invoices." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error}>
     <Field label="LUT ARN" error={errors.lutArn}>{p => <Input {...p} value={f.lutArn} onChange={e => setF({ ...f, lutArn: e.target.value })} maxLength={15} className="font-mono uppercase" />}</Field>
-    <Field label="Valid from" error={errors.lutValidFrom}>{p => <Input {...p} type="date" value={f.lutValidFrom} onChange={e => setF({ ...f, lutValidFrom: e.target.value })} required={!!f.lutArn} />}</Field>
-    <Field label="Valid to" error={errors.lutValidTo}>{p => <Input {...p} type="date" value={f.lutValidTo} onChange={e => setF({ ...f, lutValidTo: e.target.value })} required={!!f.lutArn} />}</Field>
+    <Field label="Valid from" error={errors.lutValidFrom}>{p => <DateInput {...p} value={f.lutValidFrom} onChange={e => setF({ ...f, lutValidFrom: e.target.value })} required={!!f.lutArn} />}</Field>
+    <Field label="Valid to" error={errors.lutValidTo}>{p => <DateInput {...p} value={f.lutValidTo} onChange={e => setF({ ...f, lutValidTo: e.target.value })} required={!!f.lutArn} />}</Field>
   </FormDialog>;
 }
 
@@ -254,7 +254,7 @@ function GstDialog({ entity, onClose }: { entity: LegalEntity; onClose: () => vo
       </div>
       <Field label="Trade name" error={e.tradeName}>{(p) => <Input {...p} value={f.tradeName} onChange={set('tradeName')} />}</Field>
       <Field label="E-invoicing applies from" hint="Leave empty if not applicable yet. Invoices before this date are issued without IRN." error={e.einvoiceApplicableFrom}>
-        {(p) => <Input {...p} type="date" value={f.einvoiceApplicableFrom} onChange={set('einvoiceApplicableFrom')} />}
+        {(p) => <DateInput {...p} value={f.einvoiceApplicableFrom} onChange={set('einvoiceApplicableFrom')} />}
       </Field>
       <div className="grid gap-4 sm:grid-cols-3">
         {(['irpProvider', 'ewbProvider', 'returnsProvider'] as const).map((k) => (

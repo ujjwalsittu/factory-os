@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -121,7 +121,7 @@ function Order({ o }: { o: OrderDetail }) {
       <Card>
         <CardHeader title="Labour" description="Costed at the machine's work centre rate" actions={working && canWork && <Button size="sm" variant="secondary" onClick={() => setDialog('labour')}>Add time</Button>} />
         {o.labour.length === 0 ? (
-          <p className="px-5 pb-4 text-[13px] text-muted">No time recorded.</p>
+          <EmptyState size="compact" title="No time recorded" />
         ) : (
           <ul className="divide-y divide-line">
             {o.labour.map((l) => (
@@ -138,7 +138,7 @@ function Order({ o }: { o: OrderDetail }) {
       <Card>
         <CardHeader title="Spares" description="Issued from stores to repairs and maintenance" actions={working && canWork && <Button size="sm" variant="secondary" onClick={() => setDialog('spares')}>Issue spares</Button>} />
         {o.spares.length === 0 ? (
-          <p className="px-5 pb-4 text-[13px] text-muted">No spares issued.</p>
+          <EmptyState size="compact" title="No spares issued" />
         ) : (
           <ul className="divide-y divide-line">
             {o.spares.map((s) => (

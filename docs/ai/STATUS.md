@@ -1,8 +1,13 @@
 # Status
 
-_Last updated: 2026-10-13 (Asia/Kolkata) · UI, menu and connections pass claimed by this session_
+_Last updated: 2026-10-13 (Asia/Kolkata) · UI slice 1 built; slices 2–4 to follow_
 
 ## Done
+- [x] **UI slice 1: one page pattern, phone and date fixes** (decision 068; no API or data change).
+  - Dates show and are typed as DD-MM-YYYY on every form, with a calendar button; stored ISO as before. A date that is not real is flagged and clears the value.
+  - Page headers keep their actions at the top right; one empty state in a full and a compact size; monospace only for document numbers in draft headings.
+  - No page scrolls sideways on a 390 px phone (10 before); the GST rate select fits; Home loses the stale roadmap; plain Finance description.
+  - Verified: UI audit 194 page views with 0 overflow, errors or failed calls; date unit tests and a date-field browser check; browser walkthroughs (see the review); typecheck, build, tests. [Review](../superpowers/reviews/2026-10-13-ui-slice-1-review.md).
 - [x] **Clean-up round and user erasure** (decision 067, migrations 0049_eway_bill_reason and 0050_user_erasure).
   - **User erasure (DPDP):** owners erase a person by anonymisation from Settings → Users, for a fixed reason and with the email typed; sign-in methods, sessions, passkeys, factors, membership and this workspace's invitations go in one database routine; records stay under "Erased user"; retained data and its legal basis are in the design.
   - **Interstate job work:** a challan needs the e-way bill number or a reason (job worker generates it, or exempt); the job worker's number can be recorded later (rule 138, 2018 consolidated text).
@@ -184,7 +189,7 @@ _Last updated: 2026-10-13 (Asia/Kolkata) · UI, menu and connections pass claime
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
-- **UI, menu, Home and connections (decision 068)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-13. [Audit](../superpowers/reviews/2026-10-13-ui-audit.md), [design](../superpowers/specs/2026-10-13-ui-menu-connections-design.md); four slices, each its own PR. Slice 1 (page pattern, phone and date fixes) first.
+- **UI, menu, Home and connections (decision 068)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-13. [Audit](../superpowers/reviews/2026-10-13-ui-audit.md), [design](../superpowers/specs/2026-10-13-ui-menu-connections-design.md); four slices, each its own PR. Slice 1 done (PR to main); next slice 2: menu by area of work with favourites and recent, and the "My work" Home.
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
 
 

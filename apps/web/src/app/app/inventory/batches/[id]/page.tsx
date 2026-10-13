@@ -1,7 +1,7 @@
 'use client';
 // One lot, serial or remnant (decision 053): details as received, stock by warehouse, movements, quality records,
 // certificates (upload MTCs here) and the certificate pack. Read-only apart from attachments.
-import { Alert, Badge, Button, buttonClass, Card, CardHeader, PageHeader, Table, Td, Th, Tr } from '@factoryos/ui';
+import { Alert, Badge, Button, buttonClass, Card, CardHeader, EmptyState, PageHeader, Table, Td, Th, Tr } from '@factoryos/ui';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -143,7 +143,7 @@ function View() {
           <Card>
             <CardHeader title="Movements" />
             {ledger.data?.length === 0 ? (
-              <p className="px-5 py-4 text-[13px] text-muted">No movements in this entity.</p>
+              <EmptyState size="compact" title="No movements in this entity" />
             ) : (
               <Table>
                 <thead>
@@ -182,7 +182,7 @@ function View() {
           <Card>
             <CardHeader title="Quality" description="Inspections, nonconformances and first-article inspections of this batch" />
             {!(b.inspections?.length || b.ncrs?.length || b.fais?.length) ? (
-              <p className="px-5 py-4 text-[13px] text-muted">No quality records.</p>
+              <EmptyState size="compact" title="No quality records" />
             ) : (
               <ul className="divide-y divide-line">
                 {b.inspections?.map((r) => (

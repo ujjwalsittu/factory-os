@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, DateInput, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -158,7 +158,7 @@ export default function SubscriptionPage() {
                 }
               />
               {s.deliveries.length === 0 ? (
-                <p className="px-4 pb-4 text-[13px] text-muted">Nothing delivered yet.</p>
+                <EmptyState size="compact" title="Nothing delivered yet" />
               ) : (
                 <ul className="divide-y divide-line text-[13px]">
                   {s.deliveries.map((d) => (
@@ -250,7 +250,7 @@ function DeliveryDialog({ id, today, onClose, onDone }: { id: string; today: str
             </Select>
           )}
         </Field>
-        <Field label="Delivered on" error={err.deliveredOn}>{(p) => <Input {...p} type="date" value={f.deliveredOn} onChange={set('deliveredOn')} required />}</Field>
+        <Field label="Delivered on" error={err.deliveredOn}>{(p) => <DateInput {...p} value={f.deliveredOn} onChange={set('deliveredOn')} required />}</Field>
       </div>
       <Field label="Title" error={err.title}>{(p) => <Input {...p} value={f.title} onChange={set('title')} required autoFocus placeholder="Weekly crop health report" />}</Field>
       <Field label="Reference" hint="Report number or link" error={err.reference}>{(p) => <Input {...p} value={f.reference} onChange={set('reference')} />}</Field>

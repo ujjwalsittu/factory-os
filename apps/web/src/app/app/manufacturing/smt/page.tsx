@@ -224,7 +224,7 @@ function Setup({ s, machineId }: { s: SmtSetup; machineId: string }) {
       <Card>
         <CardHeader title="On the feeders" description="A panel placed now is traced to these reels and paste." />
         {s.loads.length === 0 ? (
-          <p className="px-5 py-4 text-[13px] text-muted">Nothing loaded yet.</p>
+          <EmptyState size="compact" title="Nothing loaded yet" />
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -323,7 +323,7 @@ function Panels({ s, machineId, printerId }: { s: SmtSetup; machineId: string; p
       <Card>
         <CardHeader title="Panels" description={`${s.counts.boards} boards: ${s.counts.waiting} waiting for output, ${s.counts.output} in stock, ${s.counts.scrapped} scrapped`} />
         {s.panels.length === 0 ? (
-          <p className="px-5 py-4 text-[13px] text-muted">No panels yet.</p>
+          <EmptyState size="compact" title="No panels yet" />
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -416,7 +416,7 @@ function Containers({ printerId }: { printerId: string }) {
       </div>
       {(event.error ?? print.error) && <Alert tone="danger" className="mx-5 mb-3">{(event.error ?? print.error)!.message}</Alert>}
       {list.data?.length === 0 ? (
-        <p className="px-5 py-4 text-[13px] text-muted">No reels or paste jars.</p>
+        <EmptyState size="compact" title="No reels or paste jars" />
       ) : (
         <div className="overflow-x-auto">
           <Table>

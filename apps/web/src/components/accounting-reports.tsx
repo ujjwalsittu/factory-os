@@ -9,6 +9,7 @@ import {
   Table,
   Td,
   Th,
+  DateInput,
 } from '@factoryos/ui';
 import { useQuery } from '@tanstack/react-query';
 import { Suspense, useState } from 'react';
@@ -136,9 +137,8 @@ function Content({ kind }: { kind: keyof typeof titles }) {
         <div className="grid gap-4 p-4 sm:grid-cols-3 print:hidden">
           <Field label="From date">
             {(p) => (
-              <Input
+              <DateInput
                 {...p}
-                type="date"
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
               />
@@ -146,9 +146,8 @@ function Content({ kind }: { kind: keyof typeof titles }) {
           </Field>
           <Field label="To date">
             {(p) => (
-              <Input
+              <DateInput
                 {...p}
-                type="date"
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
               />

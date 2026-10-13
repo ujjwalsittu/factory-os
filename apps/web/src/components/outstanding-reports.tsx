@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, cn, Field, Input, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, cn, Field, Input, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
 import { useState } from 'react';
@@ -78,7 +78,7 @@ function Report() {
         <>
           <Card className="p-4 print:hidden">
             <div className="flex flex-wrap items-end gap-3">
-              <Field label="As of">{(p) => <Input {...p} type="date" value={f.asOf} onChange={(e) => setF({ ...f, asOf: e.target.value })} />}</Field>
+              <Field label="As of">{(p) => <DateInput {...p} value={f.asOf} onChange={(e) => setF({ ...f, asOf: e.target.value })} />}</Field>
               <Field label="Currency">
                 {(p) => (
                   <Select {...p} value={f.currency} onChange={(e) => setF({ ...f, currency: e.target.value })}>

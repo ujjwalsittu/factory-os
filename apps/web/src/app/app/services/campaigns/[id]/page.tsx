@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, buttonClass, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, buttonClass, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -140,7 +140,7 @@ export default function CampaignPage() {
                 }
               />
               {c.steps.length === 0 ? (
-                <p className="px-4 pb-4 text-[13px] text-muted">No steps yet.</p>
+                <EmptyState size="compact" title="No steps yet" />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -200,7 +200,7 @@ export default function CampaignPage() {
                 }
               />
               {c.custody.length === 0 ? (
-                <p className="px-4 pb-4 text-[13px] text-muted">Nothing received.</p>
+                <EmptyState size="compact" title="Nothing received" />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -263,7 +263,7 @@ export default function CampaignPage() {
                   }
                 />
                 {c.bookings.length === 0 ? (
-                  <p className="px-4 pb-4 text-[13px] text-muted">No bookings.</p>
+                  <EmptyState size="compact" title="No bookings" />
                 ) : (
                   <ul className="divide-y divide-line">
                     {c.bookings.map((b) => (

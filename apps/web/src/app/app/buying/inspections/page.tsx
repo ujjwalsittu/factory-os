@@ -1,5 +1,5 @@
 'use client';
-import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
+import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardCheck } from 'lucide-react';
 import Link from 'next/link';
@@ -199,7 +199,7 @@ function InspectDialog({ line, onClose }: { line: PendingInspection; onClose: ()
       wide
     >
       <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Inspection date">{(p) => <Input {...p} type="date" value={f.inspectionDate} onChange={(e) => setF({ ...f, inspectionDate: e.target.value })} required />}</Field>
+        <Field label="Inspection date">{(p) => <DateInput {...p} value={f.inspectionDate} onChange={(e) => setF({ ...f, inspectionDate: e.target.value })} required />}</Field>
         <Field label={`Accepted (${line.uomCode})`} error={errs.qtyAccepted}>
           {(p) => <Input {...p} className="tabular text-right" inputMode="decimal" value={f.qtyAccepted} onChange={(e) => setF({ ...f, qtyAccepted: e.target.value })} autoFocus />}
         </Field>

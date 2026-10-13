@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -190,7 +190,7 @@ function CalendarDialog({ calendar, onClose }: { calendar: Calendar | null; onCl
         <div className="space-y-2">
           {holidays.map((h, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2">
-              <Input aria-label={`Holiday ${i + 1} date`} type="date" className="w-44" value={h.date} onChange={(e) => setHolidays(holidays.map((x, k) => (k === i ? { ...x, date: e.target.value } : x)))} required />
+              <DateInput aria-label={`Holiday ${i + 1} date`} className="w-44" value={h.date} onChange={(e) => setHolidays(holidays.map((x, k) => (k === i ? { ...x, date: e.target.value } : x)))} required />
               <Input aria-label={`Holiday ${i + 1} name`} className="min-w-40 flex-1" value={h.name} onChange={(e) => setHolidays(holidays.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)))} required />
               <Button size="icon" variant="ghost" aria-label={`Remove holiday ${i + 1}`} onClick={() => setHolidays(holidays.filter((_, k) => k !== i))}>
                 <Trash2 className="size-4" />
@@ -242,7 +242,7 @@ function Downtime() {
       />
       {del.error && <Alert tone="danger" className="mx-4 mb-2">{del.error.message}</Alert>}
       {q.data?.length === 0 ? (
-        <p className="px-4 py-3 text-[13px] text-muted">No downtime planned.</p>
+        <EmptyState size="compact" title="No downtime planned" />
       ) : (
         <div className="overflow-x-auto">
           <Table>

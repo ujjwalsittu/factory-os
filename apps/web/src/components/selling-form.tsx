@@ -7,6 +7,7 @@ import {
   Button,
   buttonClass,
   Card,
+  DateInput,
   Field,
   Input,
   Select,
@@ -156,15 +157,24 @@ export function SellingForm({
     hint?: string,
   ) => (
     <Field label={label} hint={hint}>
-      {(p) => (
-        <Input
-          {...p}
-          type={type}
-          value={header[key]}
-          onChange={(e) => setHeader((h) => ({ ...h, [key]: e.target.value }))}
-          disabled={!canEdit}
-        />
-      )}
+      {(p) =>
+        type === 'date' ? (
+          <DateInput
+            {...p}
+            value={header[key]}
+            onChange={(e) => setHeader((h) => ({ ...h, [key]: e.target.value }))}
+            disabled={!canEdit}
+          />
+        ) : (
+          <Input
+            {...p}
+            type={type}
+            value={header[key]}
+            onChange={(e) => setHeader((h) => ({ ...h, [key]: e.target.value }))}
+            disabled={!canEdit}
+          />
+        )
+      }
     </Field>
   );
   const update = (key: string, patch: Partial<DraftLine>) =>
@@ -402,7 +412,7 @@ export function SellingForm({
             {config.title}
           </Link>
           <h1 className="mt-1 text-[22px] font-semibold">
-            {doc?.number ?? `New ${config.singular}`}{' '}
+            {doc?.number ? <span className="font-mono">{doc.number}</span> : `New ${config.singular}`}{' '}
             {doc && (
               <Badge tone={STATUS_TONE[doc.status]}>
                 {doc.status === 'submitted'

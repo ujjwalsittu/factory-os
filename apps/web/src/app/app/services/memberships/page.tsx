@@ -1,5 +1,5 @@
 'use client';
-import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BadgePercent } from 'lucide-react';
 import Link from 'next/link';
@@ -112,7 +112,7 @@ function Plans({ onAdd }: { onAdd: () => void }) {
         }
       />
       {q.data?.length === 0 ? (
-        <p className="px-4 pb-4 text-[13px] text-muted">No plans yet.</p>
+        <EmptyState size="compact" title="No plans yet" />
       ) : (
         <div className="overflow-x-auto">
           <Table>
@@ -233,7 +233,7 @@ function MembershipDialog({ onClose, onSaved }: { onClose: () => void; onSaved: 
             </Select>
           )}
         </Field>
-        <Field label="Starts on" error={err.startsOn}>{(p) => <Input {...p} type="date" value={f.startsOn} onChange={set('startsOn')} required />}</Field>
+        <Field label="Starts on" error={err.startsOn}>{(p) => <DateInput {...p} value={f.startsOn} onChange={set('startsOn')} required />}</Field>
       </div>
     </FormDialog>
   );

@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Field, Input, Select } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, Select } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Paperclip } from 'lucide-react';
 import { useRef, useState } from 'react';
@@ -88,7 +88,7 @@ export function AttachmentsPanel({ ownerType, ownerId, defaultKind = 'other', ti
       {q.data && !q.data.storage && <Alert className="m-4">File storage is not set up for this environment yet. Ask an administrator to configure Cloudflare R2.</Alert>}
       {error && <Alert tone="danger" className="m-4">{error}</Alert>}
       {q.data?.rows.length === 0 ? (
-        <p className="p-4 text-[13px] text-muted">No files yet.</p>
+        <EmptyState size="compact" title="No files yet" />
       ) : (
         <ul className="divide-y divide-line">
           {q.data?.rows.map((a) => (

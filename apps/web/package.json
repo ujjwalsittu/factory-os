@@ -41,7 +41,8 @@
     "e2e:iot-metering": "node e2e/iot-metering.mjs",
     "e2e:smt": "node e2e/smt.mjs",
     "e2e:maintenance": "node e2e/maintenance.mjs",
-    "e2e:user-erasure": "node e2e/user-erasure.mjs"
+    "e2e:user-erasure": "node e2e/user-erasure.mjs",
+    "e2e:date-input": "node e2e/date-input.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",

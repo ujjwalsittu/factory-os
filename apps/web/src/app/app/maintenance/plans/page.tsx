@@ -1,5 +1,5 @@
 'use client';
-import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
+import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Wrench } from 'lucide-react';
 import Link from 'next/link';
@@ -158,7 +158,7 @@ function PlanDialog({ plan, onClose }: { plan: Plan | null; onClose: () => void 
           {(p) => <Input {...p} inputMode="numeric" value={f.plannedMinutes} onChange={set('plannedMinutes')} />}
         </Field>
         <Field label="Last done" error={err.lastDoneAt} hint={plan ? `Now ${formatDate(plan.lastDoneAt)}; set only to correct it` : 'Counts the first interval from here'}>
-          {(p) => <Input {...p} type="date" value={f.lastDoneAt} onChange={set('lastDoneAt')} />}
+          {(p) => <DateInput {...p} value={f.lastDoneAt} onChange={set('lastDoneAt')} />}
         </Field>
         {plan && (
           <label className="flex items-center gap-2 self-end pb-2 text-[13px]">

@@ -88,6 +88,9 @@ walk(appDir, '/app');
 found.sort();
 const notAudited = found.filter((r) => r.includes('[') && !dynamic[r]);
 const routes = found.filter((r) => !notAudited.includes(r)).map((r) => (r.includes('[') ? r.replace(/\[[a-zA-Z]+\]/, dynamic[r]) : r));
+// ROUTES=a,b limits the run to routes containing any of the given fragments (for re-checking fixes).
+const only = process.env.ROUTES?.split(',').filter(Boolean);
+if (only) routes.splice(0, routes.length, ...routes.filter((r) => only.some((o) => r.includes(o))));
 fs.writeFileSync(`${out}/routes.txt`, found.join('\n'));
 const results = [];
 let current;
@@ -96,7 +99,7 @@ page.on('pageerror', (e) => current && current.consoleErrors.push(`pageerror: ${
 page.on('response', (r) => current && r.url().includes('/api/') && r.status() >= 400 && current.failed.push(`${r.status()} ${r.request().method()} ${r.url().replace(B, '').slice(0, 120)}`));
 page.on('requestfailed', (r) => current && r.url().includes('/api/') && current.failed.push(`no response (${r.failure()?.errorText ?? 'unknown'}) ${r.method()} ${r.url().replace(B, '').slice(0, 120)}`));
 const slug = (r) => r.replace(/^\/app\/?/, '').replace(/[\/]/g, '__') || 'home';
-for (const width of [1400, 390]) {
+for (const width of process.env.WIDTHS ? process.env.WIDTHS.split(',').map(Number) : [1400, 390]) {
   await page.setViewportSize({ width, height: width > 500 ? 900 : 844 });
   for (const route of routes) {
     current = { route, width, consoleErrors: [], failed: [] };
@@ -111,6 +114,15 @@ for (const width of [1400, 390]) {
       current.h1 = (await page.locator('h1').first().textContent({ timeout: 2000 }).catch(() => null))?.trim() ?? null;
       current.title = await page.title();
       current.overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+      // The elements that are wider than the box they sit in (outside any scrolling area): what causes an overflow.
+      if (current.overflow)
+        current.wide = await page.evaluate(() => {
+          const scrolls = (el) => { for (let a = el.parentElement; a; a = a.parentElement) if (['auto', 'scroll', 'hidden'].includes(getComputedStyle(a).overflowX)) return true; return false; };
+          return [...document.querySelectorAll('body *')]
+            .filter((el) => el.parentElement && el.getBoundingClientRect().width > el.parentElement.clientWidth + 1 && el.getBoundingClientRect().right > window.innerWidth + 1 && !scrolls(el))
+            .slice(0, 6)
+            .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 70)} "${el.textContent?.trim().slice(0, 30)}"`);
+        });
       current.empty = await page.locator('text=/^No |nothing|Nothing/').count();
       current.loading = await page.locator('text=/Loading…|Loading\\.\\.\\./').count();
       current.buttons = await page.locator('main button, main a[class*="bg-accent"]').count();

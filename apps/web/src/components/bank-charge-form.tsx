@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, Field, Input, Select, Table, Td, Th, buttonClass } from '@factoryos/ui';
+import { Alert, Badge, Button, buttonClass, Card, DateInput, EmptyState, Field, Input, Select, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -29,7 +29,7 @@ function ChargeList(){
    <Td>{row.snapshot?.input?.reference??row.referenceKey}</Td><Td>{formatDate(row.postingDate)}</Td><Td>{formatMoney(row.totalAmount)}</Td><Td>{formatMoney(row.snapshot?.inputTax??'0')}</Td><Td><Badge>{row.status}</Badge></Td>
    <Td>{row.settlementId?<Link className="text-accent" href={`/app/accounts/settlements/${row.settlementId}`}>Receipt or payment</Link>:row.voucherId?<Link className="text-accent" href={`/app/accounts/journals/${row.voucherId}`}>Bank voucher</Link>:'—'}</Td>
    <Td>{ws.can('accounts.bank_charge.cancel')&&row.status==='submitted'&&!row.settlementId&&<Button variant="ghost" onClick={()=>setReverse(row)}>Reverse charge</Button>}</Td>
-  </tr>)}</tbody></Table>{q.isLoading&&<p className="p-4">Loading charges…</p>}{q.data?.length===0&&<p className="p-4 text-muted">No bank charges recorded for this entity.</p>}</Card>
+  </tr>)}</tbody></Table>{q.isLoading&&<p className="p-4">Loading charges…</p>}{q.data?.length===0&&<EmptyState size="compact" title="No bank charges recorded for this entity" />}</Card>
   {reverse&&<FormDialog title="Reverse bank charge" description="This records the exact reversal of the original bank voucher." onClose={()=>setReverse(null)} onSubmit={()=>mutation.mutate(reverse)} pending={mutation.isPending} error={mutation.error} submitLabel="Record reversal"><Field label="Reversal reason">{props=><Input {...props} value={reason} onChange={e=>setReason(e.target.value)} required minLength={5}/>}</Field></FormDialog>}
  </>;
 }
@@ -57,7 +57,7 @@ function ChargeForm({link}:{link?:ChargeLink}){
   <p className="text-sm text-muted">Record a bank-only charge in INR. Fees deducted with a receipt or added to a payment retain their linked source voucher. GST stays in expense until Finance confirms a qualifying invoice.</p>
   {(accounts.error||groups.error)&&<Alert tone="danger">{accounts.error?.message??groups.error?.message}</Alert>}
   <Card className="p-4"><div className="grid gap-4 md:grid-cols-2">
-   <Field label="Posting date">{props=><Input {...props} type="date" disabled={!!link} value={input.postingDate} onChange={e=>edit('postingDate',e.target.value)}/>}</Field>
+   <Field label="Posting date">{props=><DateInput {...props} disabled={!!link} value={input.postingDate} onChange={e=>edit('postingDate',e.target.value)}/>}</Field>
    <Field label="Bank account">{props=><Select {...props} disabled={!!link} value={input.bankAccountId} onChange={e=>edit('bankAccountId',e.target.value)}><option value="">Choose bank</option>{accounts.data?.filter(a=>a.isActive&&bankGroup(a.groupId)).map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</Select>}</Field>
    <Field label="Expense account">{props=><Select {...props} value={input.expenseAccountId} onChange={e=>edit('expenseAccountId',e.target.value)}><option value="">Choose expense</option>{accounts.data?.filter(a=>a.isActive&&root(a.groupId)==='expense').map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</Select>}</Field>
    <Field label="Base charge">{props=><Input {...props} inputMode="decimal" value={input.baseAmount} onChange={e=>edit('baseAmount',e.target.value)}/>}</Field>
@@ -68,7 +68,7 @@ function ChargeForm({link}:{link?:ChargeLink}){
    <Field label="Record bank GST invoice">{props=><Input {...props} type="checkbox" checked={withInvoice} onChange={e=>{setWithInvoice(e.target.checked);if(!e.target.checked)setInput(old=>({...old,itcEligible:false}));}}/>}</Field>
    {withInvoice&&<>
     <Field label="Bank GST invoice number">{props=><Input {...props} value={invoice.number} onChange={e=>setInvoice(old=>({...old,number:e.target.value}))}/>}</Field>
-    <Field label="Bank GST invoice date">{props=><Input {...props} type="date" value={invoice.date} onChange={e=>setInvoice(old=>({...old,date:e.target.value}))}/>}</Field>
+    <Field label="Bank GST invoice date">{props=><DateInput {...props} value={invoice.date} onChange={e=>setInvoice(old=>({...old,date:e.target.value}))}/>}</Field>
     <Field label="Bank supplier GSTIN">{props=><Input {...props} value={invoice.supplierGstin} onChange={e=>setInvoice(old=>({...old,supplierGstin:e.target.value.toUpperCase()}))}/>}</Field>
     <Field label="Our GST registration">{props=><Select {...props} value={invoice.registrationId} onChange={e=>setInvoice(old=>({...old,registrationId:e.target.value}))}><option value="">Choose registration</option>{entities.data?.find(e=>e.id===ws.entityId)?.gstRegistrations.map(reg=><option key={reg.id} value={reg.id}>{reg.gstin}</option>)}</Select>}</Field>
     <Field label="GST eligibility reason">{props=><Input {...props} value={invoice.reason} onChange={e=>setInvoice(old=>({...old,reason:e.target.value}))}/>}</Field>

@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { GraduationCap } from 'lucide-react';
 import { useState } from 'react';
@@ -247,7 +247,7 @@ function Certify({ initial, onClose }: { initial: { userId?: string; skillId?: s
           )}
         </Field>
         <Field label="Certified on" error={err.certifiedOn} hint={sk ? `Expires ${sk.recertifyMonths} months later.` : 'Blank for today.'}>
-          {(p) => <Input {...p} type="date" max={m.data?.today} value={f.certifiedOn} onChange={set('certifiedOn')} />}
+          {(p) => <DateInput {...p} max={m.data?.today} value={f.certifiedOn} onChange={set('certifiedOn')} />}
         </Field>
       </div>
       <Field label="Note" error={err.note}>

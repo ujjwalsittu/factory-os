@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Field, Input, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, Field, Input, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, Send, Trash2, Wand2 } from 'lucide-react';
 import Link from 'next/link';
@@ -184,7 +184,7 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
             </Link>
           </p>
           <h1 className="mt-1 flex items-center gap-3 text-[22px] font-semibold tracking-tight">
-            <span className="font-mono">{settlement?.number ?? (draftId || settlement ? `Draft ${label.toLowerCase()}` : `New ${label.toLowerCase()}`)}</span>
+            {settlement?.number ? <span className="font-mono">{settlement.number}</span> : <span>{draftId || settlement ? `Draft ${label.toLowerCase()}` : `New ${label.toLowerCase()}`}</span>}
             {settlement && (
               <Badge tone={STATUS_TONE[settlement.status]} dot>
                 {settlement.status[0]!.toUpperCase() + settlement.status.slice(1)}
@@ -248,7 +248,7 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
               </Select>
             )}
           </Field>
-          <Field label="Date">{(f) => <Input {...f} type="date" value={h.postingDate} onChange={(e) => setH({ ...h, postingDate: e.target.value })} disabled={!editable} />}</Field>
+          <Field label="Date">{(f) => <DateInput {...f} value={h.postingDate} onChange={(e) => setH({ ...h, postingDate: e.target.value })} disabled={!editable} />}</Field>
           <Field label={direction === 'receipt' ? 'Received into' : 'Paid from'}>
             {(f) => (
               <Select {...f} value={h.accountId} onChange={(e) => setH({ ...h, accountId: e.target.value })} disabled={!editable}>
@@ -466,7 +466,7 @@ function OnAccount({ settlement }: { settlement: Settlement }) {
             </Table>
           )}
           <div className="flex flex-wrap items-end gap-3">
-            <Field label="Allocation date">{(f) => <Input {...f} type="date" value={date} onChange={(e) => setDate(e.target.value)} />}</Field>
+            <Field label="Allocation date">{(f) => <DateInput {...f} value={date} onChange={(e) => setDate(e.target.value)} />}</Field>
             <Field label="Reason" className="min-w-64 flex-1">{(f) => <Input {...f} value={reason} onChange={(e) => setReason(e.target.value)} />}</Field>
             <Button onClick={() => apply.mutate()} loading={apply.isPending} disabled={!allocations.length || reason.trim().length < 3}>
               Apply on-account money

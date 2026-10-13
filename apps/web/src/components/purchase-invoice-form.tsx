@@ -1,7 +1,7 @@
 'use client';
 import { InvoiceBalance } from './invoice-balance';
 import { AccountingSourceLinks } from './accounting-source-links';
-import { Alert, Badge, Button, Card, Field, Input, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, Field, Input, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, Plus, Send, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -287,7 +287,7 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
             </Link>
           </p>
           <h1 className="mt-1 flex items-center gap-3 text-[22px] font-semibold tracking-tight">
-            <span className="font-mono">{invoice?.number ?? (draftId || invoice ? 'Draft purchase invoice' : 'New purchase invoice')}</span>
+            {invoice?.number ? <span className="font-mono">{invoice.number}</span> : <span>{draftId || invoice ? 'Draft purchase invoice' : 'New purchase invoice'}</span>}
             {invoice && (
               <Badge tone={STATUS_TONE[invoice.status]} dot>
                 {invoice.status[0]!.toUpperCase() + invoice.status.slice(1)}
@@ -420,10 +420,10 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
             )}
           </Field>
           <Field label="Supplier invoice date">
-            {(p) => <Input {...p} type="date" value={header.supplierInvoiceDate} onChange={(e) => setHeader({ ...header, supplierInvoiceDate: e.target.value })} disabled={!editable} />}
+            {(p) => <DateInput {...p} value={header.supplierInvoiceDate} onChange={(e) => setHeader({ ...header, supplierInvoiceDate: e.target.value })} disabled={!editable} />}
           </Field>
           <Field label="Posting date">
-            {(p) => <Input {...p} type="date" value={header.postingDate} onChange={(e) => setHeader({ ...header, postingDate: e.target.value })} disabled={!editable} />}
+            {(p) => <DateInput {...p} value={header.postingDate} onChange={(e) => setHeader({ ...header, postingDate: e.target.value })} disabled={!editable} />}
           </Field>
           <Field label="Currency">
             {(p) => (
@@ -476,7 +476,7 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
               <Th className="min-w-56">Item</Th>
               <Th className="w-32 text-right">Qty</Th>
               <Th className="w-32 text-right">Rate ({header.currency === 'INR' ? '₹' : header.currency})</Th>
-              <Th className="w-28">GST %</Th>
+              <Th className="min-w-36">GST %</Th>
               <Th className="text-right">Amount</Th>
               {!editable && <Th className="text-right">Tax</Th>}
               {editable && <Th className="w-10" />}
@@ -545,7 +545,7 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
                         {l.poRate !== null && <p className={`mt-1 text-right text-[11px] ${differs ? 'text-warning' : 'text-subtle'}`}>PO {formatAmount(l.poRate, header.currency)}</p>}
                       </Td>
                       <Td>
-                        <Select value={l.gstRate} onChange={(e) => update(l.key, { gstRate: e.target.value })} aria-label="GST rate">
+                        <Select className="min-w-32" value={l.gstRate} onChange={(e) => update(l.key, { gstRate: e.target.value })} aria-label="GST rate">
                           <option value="">HSN</option>
                           {GST_RATE_OPTIONS.map((r) => (
                             <option key={r} value={r}>

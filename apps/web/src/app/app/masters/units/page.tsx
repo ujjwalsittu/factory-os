@@ -1,5 +1,5 @@
 'use client';
-import { Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
+import { Button, Card, CardHeader, DateInput, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
@@ -65,7 +65,7 @@ export default function UnitsPage() {
               }
             />
             {hsn.data?.length === 0 ? (
-              <p className="px-5 py-8 text-center text-[13px] text-muted">No codes yet. Add the HSN/SAC codes you use; check rates against the current CBIC notification.</p>
+              <EmptyState size="compact" title="No codes yet" description="Add the HSN/SAC codes you use; check rates against the current CBIC notification." />
             ) : (
               <Table>
                 <thead>
@@ -160,7 +160,7 @@ function HsnDialog({ onClose }: { onClose: () => void }) {
         </Field>
       </div>
       <Field label="Description" error={e.description}>{(p) => <Input {...p} value={f.description} onChange={set('description')} required />}</Field>
-      <Field label="Effective from" error={e.effectiveFrom}>{(p) => <Input {...p} type="date" value={f.effectiveFrom} onChange={set('effectiveFrom')} required />}</Field>
+      <Field label="Effective from" error={e.effectiveFrom}>{(p) => <DateInput {...p} value={f.effectiveFrom} onChange={set('effectiveFrom')} required />}</Field>
     </FormDialog>
   );
 }

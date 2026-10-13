@@ -1,5 +1,5 @@
 'use client';
-import { Button, Card, Field, Input, PageHeader, Table, Td, Th } from '@factoryos/ui';
+import { Button, Card, Field, Input, PageHeader, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
@@ -80,7 +80,7 @@ function RateDialog({ person, onClose }: { person: PersonRate; onClose: () => vo
     <FormDialog title={`Cost rate for ${person.name}`} description="Applies to hours worked from this date until a later rate." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Save rate">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Rate (₹ per hour)" error={err.hourlyRate}>{(p) => <Input {...p} value={f.hourlyRate} onChange={(e) => setF({ ...f, hourlyRate: e.target.value })} inputMode="decimal" required autoFocus />}</Field>
-        <Field label="From" error={err.effectiveFrom}>{(p) => <Input {...p} type="date" value={f.effectiveFrom} onChange={(e) => setF({ ...f, effectiveFrom: e.target.value })} required />}</Field>
+        <Field label="From" error={err.effectiveFrom}>{(p) => <DateInput {...p} value={f.effectiveFrom} onChange={(e) => setF({ ...f, effectiveFrom: e.target.value })} required />}</Field>
       </div>
     </FormDialog>
   );

@@ -144,7 +144,7 @@ try {
   await page.click('nav >> text=Timesheets');
   await page.waitForURL('**/app/services/timesheets');
   await page.locator('tr', { hasText: 'Priya Analyst' }).getByRole('button', { name: 'Approve' }).click();
-  await page.getByText('Nothing to approve.').waitFor();
+  await page.getByText('Nothing to approve').waitFor();
 
   step('record own hours and submit the week');
   await page.click('button:has-text("Add hours")');
