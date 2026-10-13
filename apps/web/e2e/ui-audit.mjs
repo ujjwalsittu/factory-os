@@ -75,17 +75,26 @@ fs.writeFileSync(`${out}/seed.json`, JSON.stringify({ tenantId: T, entityId: E, 
 
 // ── Routes ──
 const dynamic = { '/app/manufacturing/work-orders/[id]': ids.wo, '/app/manufacturing/boms/[id]': ids.bom, '/app/inventory/entries/[id]': ids.entry, '/app/inventory/batches/[id]': ids.batch, '/app/machines/[id]': ids.machine, '/app/maintenance/orders/[id]': ids.mo };
-const routes = fs
-  .readFileSync(`${out}/routes.txt`, 'utf8')
-  .split('\n')
-  .filter((r) => r.startsWith('/app'))
-  .map((r) => (r.includes('[') ? (dynamic[r] ? r.replace(/\[id\]/, dynamic[r]) : null) : r))
-  .filter(Boolean);
+// Every page under src/app/app; record pages without a seeded record are listed as not audited, never dropped silently.
+const appDir = new URL('../src/app/app', import.meta.url).pathname;
+const found = [];
+const walk = (dir, route) => {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.isDirectory()) walk(`${dir}/${e.name}`, `${route}/${e.name}`);
+    else if (e.name === 'page.tsx') found.push(route);
+  }
+};
+walk(appDir, '/app');
+found.sort();
+const notAudited = found.filter((r) => r.includes('[') && !dynamic[r]);
+const routes = found.filter((r) => !notAudited.includes(r)).map((r) => (r.includes('[') ? r.replace(/\[[a-zA-Z]+\]/, dynamic[r]) : r));
+fs.writeFileSync(`${out}/routes.txt`, found.join('\n'));
 const results = [];
 let current;
 page.on('console', (m) => m.type() === 'error' && current && current.consoleErrors.push(m.text().slice(0, 200)));
 page.on('pageerror', (e) => current && current.consoleErrors.push(`pageerror: ${e.message.slice(0, 200)}`));
 page.on('response', (r) => current && r.url().includes('/api/') && r.status() >= 400 && current.failed.push(`${r.status()} ${r.request().method()} ${r.url().replace(B, '').slice(0, 120)}`));
+page.on('requestfailed', (r) => current && r.url().includes('/api/') && current.failed.push(`no response (${r.failure()?.errorText ?? 'unknown'}) ${r.method()} ${r.url().replace(B, '').slice(0, 120)}`));
 const slug = (r) => r.replace(/^\/app\/?/, '').replace(/[\/]/g, '__') || 'home';
 for (const width of [1400, 390]) {
   await page.setViewportSize({ width, height: width > 500 ? 900 : 844 });
@@ -116,6 +125,6 @@ for (const width of [1400, 390]) {
 await page.setViewportSize({ width: 1400, height: 900 });
 await page.goto(`${B}/app`);
 const nav = await page.evaluate(() => [...document.querySelectorAll('nav a, nav p, nav div > span')].map((n) => `${n.tagName}:${n.textContent?.trim()}`).filter((x) => x.length > 2));
-fs.writeFileSync(`${out}/audit.json`, JSON.stringify({ seed: ids, nav, results }, null, 2));
+fs.writeFileSync(`${out}/audit.json`, JSON.stringify({ seed: ids, nav, notAudited, results }, null, 2));
 await browser.close();
-console.log(`Audited ${results.length} page views. Output in ${out}`);
+console.log(`Audited ${results.length} page views of ${routes.length} pages; ${notAudited.length} record pages need a record and were not audited (listed in audit.json). Output in ${out}`);
