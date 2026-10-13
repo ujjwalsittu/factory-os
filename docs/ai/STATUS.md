@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-12 (Asia/Kolkata) · machine maintenance built; PR to main open_
+_Last updated: 2026-10-13 (Asia/Kolkata) · clean-up round and user erasure claimed by this session_
 
 ## Done
 - [x] **Machine maintenance, preventive and breakdown** (decision 066, migration 0048_maintenance).
@@ -179,6 +179,7 @@ _Last updated: 2026-10-12 (Asia/Kolkata) · machine maintenance built; PR to mai
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
+- **Clean-up round and user erasure (decision 067)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-13. [Design](../superpowers/specs/2026-10-13-cleanup-and-user-erasure-design.md): stock purpose labels, receipt inspected check, user erasure, ITC-04 recheck, supplier-returns race smoke, bank reconciliation M1/M2. Then the UI, menu and design pass.
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
 
 
