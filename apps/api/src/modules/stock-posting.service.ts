@@ -388,6 +388,18 @@ export class StockPostingService {
         .where(and(eq(landedCostReceipt.receiptId, entryId), eq(landedCostVoucher.status, 'submitted')))
         .limit(1);
       if (lcv) throw new ConflictException(`Landed cost voucher ${lcv.number} covers this receipt. Cancel it first.`);
+      // A submitted inspection (incoming or plan, decision 052) of any receipt line, with or without a purchase order,
+      // has moved or judged the stock: it is cancelled first.
+      if (entry.purpose === 'receipt') {
+        const lineIds = (await tx.select({ id: stockEntryLine.id }).from(stockEntryLine).where(eq(stockEntryLine.entryId, entryId))).map((l) => l.id);
+        const [incoming] = lineIds.length
+          ? await tx.select({ id: qualityInspection.id }).from(qualityInspection).where(and(inArray(qualityInspection.receiptLineId, lineIds), eq(qualityInspection.status, 'submitted'))).limit(1)
+          : [];
+        const [planned] = lineIds.length
+          ? await tx.select({ id: inspectionRecord.id }).from(inspectionRecord).where(and(eq(inspectionRecord.sourceType, 'receipt'), inArray(inspectionRecord.sourceId, lineIds), eq(inspectionRecord.status, 'submitted'))).limit(1)
+          : [];
+        if (incoming || planned) throw new ConflictException('This receipt has been inspected. Cancel the inspections first.');
+      }
       // Decision 052: draft plan inspections of this receipt's lines move nothing yet; they are withdrawn with it.
       if (entry.purpose === 'receipt')
         await tx
@@ -398,11 +410,6 @@ export class StockPostingService {
         const lines = await tx.select().from(stockEntryLine).where(eq(stockEntryLine.entryId, entryId));
         const allocations = await tx.select().from(receiptInvoiceAllocation).where(and(eq(receiptInvoiceAllocation.entityId, entityId), inArray(receiptInvoiceAllocation.receiptLineId, lines.map(l => l.id))));
         if (lines.some(l => allocations.filter(a => a.receiptLineId === l.id).reduce((sum, a) => sum.add(a.qty), Dec.ZERO).gt('0'))) throw new ConflictException('This receipt is allocated to a purchase invoice. Cancel the invoice first.');
-        const inspected = await tx
-          .select({ id: qualityInspection.id })
-          .from(qualityInspection)
-          .where(and(inArray(qualityInspection.receiptLineId, lines.map((l) => l.id)), eq(qualityInspection.status, 'submitted')));
-        if (inspected.length) throw new ConflictException('This receipt has been inspected. Cancel the inspections first.');
         for (const l of lines.filter((x) => x.poLineId)) {
           const [pl] = await tx
             .update(purchaseOrderLine)
