@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, DateInput, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -158,7 +158,7 @@ export default function SubscriptionPage() {
                 }
               />
               {s.deliveries.length === 0 ? (
-                <p className="px-4 pb-4 text-[13px] text-muted">Nothing delivered yet.</p>
+                <EmptyState size="compact" title="Nothing delivered yet" />
               ) : (
                 <ul className="divide-y divide-line text-[13px]">
                   {s.deliveries.map((d) => (

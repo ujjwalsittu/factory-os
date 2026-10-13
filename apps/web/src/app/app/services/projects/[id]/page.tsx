@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, DateInput, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -139,7 +139,7 @@ export default function ProjectPage() {
                 }
               />
               {p.milestones.length === 0 ? (
-                <p className="px-4 pb-4 text-[13px] text-muted">No milestones yet.</p>
+                <EmptyState size="compact" title="No milestones yet" />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -215,7 +215,7 @@ export default function ProjectPage() {
                   description={`${Number(p.retentionPct)}% of each invoice total is withheld by the customer. ${p.retentionDueOn ? `Due for release on ${formatDate(p.retentionDueOn)}.` : `Due ${p.dlpMonths} months after completion.`} Record its release when the money arrives; the receipt itself goes in receivables.`}
                 />
                 {p.retention.length === 0 ? (
-                  <p className="px-4 pb-4 text-[13px] text-muted">Nothing invoiced yet.</p>
+                  <EmptyState size="compact" title="Nothing invoiced yet" />
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
@@ -338,7 +338,7 @@ export default function ProjectPage() {
             <Card>
               <CardHeader title="Hours" description={p.hours.some((h) => h.cost !== null) ? 'Approved hours are valued at each person’s cost rate on the day worked.' : 'Approved hours count as labour; rates are visible only to those who manage them.'} />
               {p.hours.length === 0 ? (
-                <p className="px-4 pb-4 text-[13px] text-muted">No hours recorded.</p>
+                <EmptyState size="compact" title="No hours recorded" />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -384,7 +384,7 @@ export default function ProjectPage() {
 
 function LinkedWork({ p, canUnlink, onUnlink }: { p: ProjectDetail; canUnlink: boolean; onUnlink: (kind: LinkKind, id: string) => void }) {
   const { bookings, campaigns, workOrders, purchaseLines } = p.links;
-  if (!bookings.length && !campaigns.length && !workOrders.length && !purchaseLines.length) return <p className="px-4 pb-4 text-[13px] text-muted">Nothing linked yet.</p>;
+  if (!bookings.length && !campaigns.length && !workOrders.length && !purchaseLines.length) return <EmptyState size="compact" title="Nothing linked yet" />;
   const Unlink = ({ kind, id }: { kind: LinkKind; id: string }) =>
     canUnlink ? (
       <Button size="sm" variant="ghost" onClick={() => onUnlink(kind, id)}>

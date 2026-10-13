@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, buttonClass, Card, CardHeader, Field, Input, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
+import { Alert, Badge, Button, buttonClass, Card, CardHeader, DateInput, EmptyState, Field, Input, Select, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, CircleSlash, FileText, PackageCheck, Plus, Send, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -362,7 +362,7 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
             <Card>
               <CardHeader title="Receipts and invoices" />
               <div className="divide-y divide-line">
-                {po.receipts.length === 0 && po.invoices.length === 0 && <p className="px-5 py-4 text-[13px] text-muted">Nothing received or billed yet.</p>}
+                {po.receipts.length === 0 && po.invoices.length === 0 && <EmptyState size="compact" title="Nothing received or billed yet" />}
                 {po.receipts.map((r) => (
                   <Link key={r.id} href={`/app/inventory/entries/${r.id}`} className="flex items-center gap-3 px-5 py-3 text-[13px] hover:bg-surface-2">
                     <PackageCheck className="size-4 text-muted" />

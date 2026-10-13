@@ -132,7 +132,7 @@ function Taps() {
     <Card>
       <CardHeader title="Machine taps" description="Each tap publishes its machine's state every heartbeat. One active tap per machine." />
       {q.data?.length === 0 ? (
-        <p className="px-5 py-4 text-[13px] text-muted">No taps yet.</p>
+        <EmptyState size="compact" title="No taps yet" />
       ) : (
         <div className="overflow-x-auto">
           <Table>
@@ -388,7 +388,7 @@ function Printers() {
       />
       {act.error && <Alert tone="danger" className="m-4">{act.error.message}</Alert>}
       {printers.data?.length === 0 ? (
-        <p className="px-5 py-4 text-[13px] text-muted">No printers yet.</p>
+        <EmptyState size="compact" title="No printers yet" />
       ) : (
         <div className="overflow-x-auto">
           <Table>

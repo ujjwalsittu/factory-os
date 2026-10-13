@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select, DateInput } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, DateInput, EmptyState, Field, Input, PageHeader, Select } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
@@ -178,7 +178,7 @@ function View() {
           }
         />
         {c.actions.length === 0 ? (
-          <p className="px-5 py-4 text-[13px] text-muted">No actions yet. Starting needs at least one corrective action.</p>
+          <EmptyState size="compact" title="No actions yet" description="Starting needs at least one corrective action." />
         ) : (
           <div className="divide-y divide-line">
           {(Object.keys(CAPA_ACTION_KIND) as CapaAction['kind'][]).map((kind) => {

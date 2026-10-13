@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -156,7 +156,7 @@ export default function BookingPage() {
             <Card>
               <CardHeader title="Usage" description="Machine time recorded by the timer or by hand. Entries are kept; a correction is a new entry." />
               {b.usage.length === 0 ? (
-                <p className="px-4 pb-4 text-[13px] text-muted">Nothing recorded yet.</p>
+                <EmptyState size="compact" title="Nothing recorded yet" />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>

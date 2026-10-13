@@ -90,7 +90,7 @@ function GaugePanel({ id }: { id: string }) {
           actions={ws.can('quality.gauge.update') && <Button size="sm" onClick={() => setCalibrating(true)}>Record calibration</Button>}
         />
         {g.events.length === 0 ? (
-          <p className="p-4 text-[13px] text-muted">No calibration recorded in FactoryOS yet.</p>
+          <EmptyState size="compact" title="No calibration recorded in FactoryOS yet" />
         ) : (
           <ul className="divide-y divide-line">
             {g.events.map((e) => (

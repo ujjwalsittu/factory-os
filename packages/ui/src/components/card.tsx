@@ -8,7 +8,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
 export function CardHeader({ title, description, actions, className }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; className?: string }) {
   return (
     <div className={cn('flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b border-line px-5 py-4', className)}>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1 basis-60">
         <h3 className="text-[15px] font-semibold text-fg">{title}</h3>
         {description && <p className="mt-0.5 text-[13px] text-muted">{description}</p>}
       </div>
@@ -20,8 +20,8 @@ export function CardHeader({ title, description, actions, className }: { title: 
 /** Title, one plain-words description, and the page's actions at the right (under the title on phones). */
 export function PageHeader({ title, description, actions }: { title: ReactNode; description?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0 max-w-3xl">
+    <div className="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+      <div className="min-w-0 max-w-3xl flex-1 basis-64">
         <h1 className="text-[22px] font-semibold tracking-tight text-fg">{title}</h1>
         {description && <p className="mt-1 text-sm text-muted">{description}</p>}
       </div>

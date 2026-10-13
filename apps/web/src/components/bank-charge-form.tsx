@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, Field, Input, Select, Table, Td, Th, buttonClass, DateInput } from '@factoryos/ui';
+import { Alert, Badge, Button, buttonClass, Card, DateInput, EmptyState, Field, Input, Select, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -29,7 +29,7 @@ function ChargeList(){
    <Td>{row.snapshot?.input?.reference??row.referenceKey}</Td><Td>{formatDate(row.postingDate)}</Td><Td>{formatMoney(row.totalAmount)}</Td><Td>{formatMoney(row.snapshot?.inputTax??'0')}</Td><Td><Badge>{row.status}</Badge></Td>
    <Td>{row.settlementId?<Link className="text-accent" href={`/app/accounts/settlements/${row.settlementId}`}>Receipt or payment</Link>:row.voucherId?<Link className="text-accent" href={`/app/accounts/journals/${row.voucherId}`}>Bank voucher</Link>:'—'}</Td>
    <Td>{ws.can('accounts.bank_charge.cancel')&&row.status==='submitted'&&!row.settlementId&&<Button variant="ghost" onClick={()=>setReverse(row)}>Reverse charge</Button>}</Td>
-  </tr>)}</tbody></Table>{q.isLoading&&<p className="p-4">Loading charges…</p>}{q.data?.length===0&&<p className="p-4 text-muted">No bank charges recorded for this entity.</p>}</Card>
+  </tr>)}</tbody></Table>{q.isLoading&&<p className="p-4">Loading charges…</p>}{q.data?.length===0&&<EmptyState size="compact" title="No bank charges recorded for this entity" />}</Card>
   {reverse&&<FormDialog title="Reverse bank charge" description="This records the exact reversal of the original bank voucher." onClose={()=>setReverse(null)} onSubmit={()=>mutation.mutate(reverse)} pending={mutation.isPending} error={mutation.error} submitLabel="Record reversal"><Field label="Reversal reason">{props=><Input {...props} value={reason} onChange={e=>setReason(e.target.value)} required minLength={5}/>}</Field></FormDialog>}
  </>;
 }

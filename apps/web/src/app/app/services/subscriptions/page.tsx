@@ -117,7 +117,7 @@ function Plans({ onAdd }: { onAdd: () => void }) {
         }
       />
       {q.data?.length === 0 ? (
-        <p className="px-4 pb-4 text-[13px] text-muted">No plans yet.</p>
+        <EmptyState size="compact" title="No plans yet" />
       ) : (
         <div className="overflow-x-auto">
           <Table>

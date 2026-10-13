@@ -1,7 +1,7 @@
 'use client';
 // Decision 065: the SMT section of a batch page. For a board serial: its panel, the scans and the reels and paste it
 // was placed with. For a component lot: its reels and the boards built from them (recall).
-import { Badge, Card, CardHeader, Table, Td, Th, Tr } from '@factoryos/ui';
+import { Badge, Card, CardHeader, EmptyState, Table, Td, Th, Tr } from '@factoryos/ui';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useWorkspace } from '@/components/workspace';
@@ -25,7 +25,7 @@ export function SmtTrace({ batchId }: { batchId: string }) {
         <Card>
           <CardHeader title="Boards built with this lot" description={`Reels and paste of this lot: ${d.containers.map((c) => c.code).join(', ')}. For a recall, these are the boards placed while one of them was loaded.`} />
           {d.boards.length === 0 ? (
-            <p className="px-5 py-4 text-[13px] text-muted">No boards placed with it yet.</p>
+            <EmptyState size="compact" title="No boards placed with it yet" />
           ) : (
             <div className="overflow-x-auto">
               <Table>

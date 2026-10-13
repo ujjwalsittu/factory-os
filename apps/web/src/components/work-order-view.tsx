@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Dialog, Field, Input, PageHeader, Table, Td, Th, DateInput } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, DateInput, Dialog, EmptyState, Field, Input, PageHeader, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
@@ -241,7 +241,7 @@ export function WorkOrderView({ wo }: { wo: WorkOrderDetail }) {
       <Card className="mt-4">
         <CardHeader title="Material and output movements" description={`Output goes to ${wo.targetWarehouse}. Movements are reversed newest output first.`} />
         {wo.movements.length === 0 ? (
-          <p className="p-4 text-muted">Nothing has moved yet.</p>
+          <EmptyState size="compact" title="Nothing has moved yet" />
         ) : (
           <div className="overflow-x-auto">
             <Table>

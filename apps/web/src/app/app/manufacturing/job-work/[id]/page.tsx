@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, buttonClass, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
+import { Alert, Badge, Button, buttonClass, Card, CardHeader, DateInput, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -83,7 +83,7 @@ function OrderView() {
       <Card className="mt-4">
         <CardHeader title="Delivery challans" description="Goods sent under Section 143. Inputs come back within one year, capital goods within three; tools are exempt." />
         {o.challans.length === 0 ? (
-          <p className="p-4 text-[13px] text-muted">Nothing sent yet.</p>
+          <EmptyState size="compact" title="Nothing sent yet" />
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -154,7 +154,7 @@ function OrderView() {
       <Card className="mt-4">
         <CardHeader title="Received back" description="Each receipt discharges the oldest challan lines first; losses and scrap stay in the cost of what came back." />
         {o.receipts.length === 0 ? (
-          <p className="p-4 text-[13px] text-muted">Nothing received yet.</p>
+          <EmptyState size="compact" title="Nothing received yet" />
         ) : (
           <div className="divide-y divide-line">
             {o.receipts.map((r) => (

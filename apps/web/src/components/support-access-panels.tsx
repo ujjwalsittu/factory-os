@@ -2,7 +2,7 @@
 // Audited support access (decision 050): read-only panels for the catalogued areas. Only fixed panels are offered; no
 // edit forms, autosave, exports, downloads or attachments are mounted. Every request goes through the provider.
 import { SUPPORT_AREAS, type SupportArea, type SupportCell, type SupportPanelResult, type SupportQuery, type SupportTable, type SupportWorkspaceContext } from '@factoryos/auth';
-import { Alert, Button, Card, Table, Td, Th, Tr, cn } from '@factoryos/ui';
+import { Alert, Button, Card, cn, EmptyState, Table, Td, Th, Tr } from '@factoryos/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { supportQueryKey, useSupportAccess } from '@/components/support-access-provider';
@@ -147,7 +147,7 @@ function Result({ result, onRow, open, pager }: { result: SupportPanelResult; on
 
 function DataTable({ table, onRow, open }: { table: SupportTable; onRow: (row: Record<string, SupportCell>) => View | null; open: (v: View) => void }) {
   const columns = table.columns.filter((c) => !HIDDEN.has(c.key));
-  if (table.rows.length === 0) return <p className="px-5 py-6 text-[13px] text-muted">No records.</p>;
+  if (table.rows.length === 0) return <EmptyState size="compact" title="No records" />;
   return (
     <Table>
       <thead>

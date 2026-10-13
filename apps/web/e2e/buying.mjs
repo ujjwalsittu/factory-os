@@ -56,7 +56,7 @@ await page.waitForSelector('text=₹2,95,000.00'); // 2,50,000 + 18%
 await page.waitForSelector('option:has-text("18 (HSN)")', { state: 'attached' });
 await shot('02-po-form-live-gst');
 await page.click('button:has-text("Submit")'); await page.waitForSelector('text=AZ/PO/26-27/0001');
-await page.waitForSelector('text=Nothing received or billed yet.');
+await page.waitForSelector('text=Nothing received or billed yet');
 await shot('03-po-submitted');
 
 step('receive against the PO');

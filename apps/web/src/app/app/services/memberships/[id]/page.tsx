@@ -1,5 +1,5 @@
 'use client';
-import { Badge, Button, Card, CardHeader, Field, Input, PageHeader, Table, Td, Th } from '@factoryos/ui';
+import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Table, Td, Th } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -63,7 +63,7 @@ export default function MembershipPage() {
             <Card>
               <CardHeader title="Hours drawn" description="Bookings billed to this membership. A reversal is kept as a negative entry." />
               {m.draws.length === 0 ? (
-                <p className="px-4 pb-4 text-[13px] text-muted">No bookings billed to it yet.</p>
+                <EmptyState size="compact" title="No bookings billed to it yet" />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>

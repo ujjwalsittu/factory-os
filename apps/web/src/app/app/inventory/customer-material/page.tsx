@@ -133,7 +133,7 @@ function Statement() {
           <Card className="print:border-0 print:shadow-none">
             <CardHeader title="Waste from their material" description="Their waste is returned, or disposed of only with their consent" />
             {s.waste.length === 0 ? (
-              <p className="px-5 py-6 text-[13px] text-muted">No waste recorded.</p>
+              <EmptyState size="compact" title="No waste recorded" />
             ) : (
               <Table>
                 <thead>
