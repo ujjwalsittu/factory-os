@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-13 (Asia/Kolkata) · clean-up round and user erasure built; PR to main open_
+_Last updated: 2026-10-13 (Asia/Kolkata) · UI, menu and connections pass claimed by this session_
 
 ## Done
 - [x] **Clean-up round and user erasure** (decision 067, migrations 0049_eway_bill_reason and 0050_user_erasure).
@@ -184,12 +184,12 @@ _Last updated: 2026-10-13 (Asia/Kolkata) · clean-up round and user erasure buil
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
+- **UI, menu, Home and connections (decision 068)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-13. [Audit](../superpowers/reviews/2026-10-13-ui-audit.md), [design](../superpowers/specs/2026-10-13-ui-menu-connections-design.md); four slices, each its own PR. Slice 1 (page pattern, phone and date fixes) first.
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
 
 
 
 ## Next (user-authorized sequence; review each written design/plan)
-0. **UI, menu, design and connections pass** (asked by the user 2026-10-13, after the clean-up round): make the platform feel coherent end to end. Needs its own written design and the user's choices first.
 1. Support access live enablement (needs the user): set `SUPPORT_ACCESS_ENABLED=true` on the API app in Coolify only when wanted, then a tenant administrator turns the policy on and a real operator acceptance over HTTPS is done. PostgreSQL RLS is a separate design.
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
 3. User review of completed accounting/settlement/customer/supplier and manufacturing workflows on dev. Original shared activation states are preserved; cut-over remains a deliberate Finance action.
