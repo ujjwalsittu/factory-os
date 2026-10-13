@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
@@ -237,7 +237,7 @@ function EntryDialog({ entry, defaultDate, onClose, onDone }: { entry: Timesheet
             </Select>
           )}
         </Field>
-        <Field label="Date" error={err.workDate}>{(p) => <Input {...p} type="date" value={f.workDate} onChange={set('workDate')} required />}</Field>
+        <Field label="Date" error={err.workDate}>{(p) => <DateInput {...p} value={f.workDate} onChange={set('workDate')} required />}</Field>
         <Field label="Hours" error={err.hours}>{(p) => <Input {...p} value={f.hours} onChange={set('hours')} inputMode="decimal" required placeholder="7.5" />}</Field>
       </div>
       <Field label="What you worked on" error={err.notes}>{(p) => <Input {...p} value={f.notes} onChange={set('notes')} />}</Field>

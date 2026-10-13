@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ReceiptText } from 'lucide-react';
 import Link from 'next/link';
@@ -105,7 +105,7 @@ function NewRun({ onCancel, onDone }: { onCancel: () => void; onDone: (id: strin
       />
       <div className="space-y-4 px-4 pb-4">
         <div className="flex flex-wrap items-end gap-4">
-          <Field label="Invoice date">{(props) => <Input {...props} type="date" value={asOf} max={today()} onChange={(e) => setAsOf(e.target.value)} />}</Field>
+          <Field label="Invoice date">{(props) => <DateInput {...props} value={asOf} max={today()} onChange={(e) => setAsOf(e.target.value)} />}</Field>
           <fieldset className="flex flex-wrap gap-3 text-[13px]">
             <legend className="mb-1 text-[12px] text-subtle">Include</legend>
             {ALL.map((k) => (

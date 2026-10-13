@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -481,7 +481,7 @@ function MilestoneDialog({ projectId, milestone, onClose, onDone }: { projectId:
       <Field label="Milestone" error={err.name}>{(p) => <Input {...p} value={f.name} onChange={set('name')} required autoFocus placeholder="Design review (PDR)" />}</Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Amount (₹)" error={err.amount}>{(p) => <Input {...p} value={f.amount} onChange={set('amount')} inputMode="decimal" required />}</Field>
-        <Field label="Due" error={err.dueDate}>{(p) => <Input {...p} type="date" value={f.dueDate} onChange={set('dueDate')} />}</Field>
+        <Field label="Due" error={err.dueDate}>{(p) => <DateInput {...p} value={f.dueDate} onChange={set('dueDate')} />}</Field>
       </div>
     </FormDialog>
   );
@@ -494,7 +494,7 @@ function AchieveDialog({ milestone, onClose, onDone }: { milestone: Milestone; o
   return (
     <FormDialog title={`Achieved: ${milestone.name}`} description="Attach the customer’s acceptance certificate to the project files." onClose={onClose} onSubmit={() => m.mutate({ acceptanceRef: f.acceptanceRef, ...(f.achievedOn ? { achievedOn: f.achievedOn } : {}) })} pending={m.isPending} error={m.error} submitLabel="Mark achieved">
       <Field label="Customer’s acceptance reference" error={err.acceptanceRef}>{(p) => <Input {...p} value={f.acceptanceRef} onChange={(e) => setF({ ...f, acceptanceRef: e.target.value })} required autoFocus placeholder="Minutes of meeting, acceptance certificate no." />}</Field>
-      <Field label="Achieved on" hint="Today if left empty" error={err.achievedOn}>{(p) => <Input {...p} type="date" value={f.achievedOn} onChange={(e) => setF({ ...f, achievedOn: e.target.value })} />}</Field>
+      <Field label="Achieved on" hint="Today if left empty" error={err.achievedOn}>{(p) => <DateInput {...p} value={f.achievedOn} onChange={(e) => setF({ ...f, achievedOn: e.target.value })} />}</Field>
     </FormDialog>
   );
 }
@@ -506,7 +506,7 @@ function ReleaseDialog({ id, label, onClose, onDone }: { id: string; label: stri
   return (
     <FormDialog title={`Retention released on ${label}`} description="Enter the customer’s payment as a receipt in receivables as usual; this records that the retention is no longer held." onClose={onClose} onSubmit={() => m.mutate({ releaseRef: f.releaseRef, ...(f.releasedOn ? { releasedOn: f.releasedOn } : {}) })} pending={m.isPending} error={m.error} submitLabel="Record release">
       <Field label="Receipt or reference" error={err.releaseRef}>{(p) => <Input {...p} value={f.releaseRef} onChange={(e) => setF({ ...f, releaseRef: e.target.value })} required autoFocus />}</Field>
-      <Field label="Received on" hint="Today if left empty" error={err.releasedOn}>{(p) => <Input {...p} type="date" value={f.releasedOn} onChange={(e) => setF({ ...f, releasedOn: e.target.value })} />}</Field>
+      <Field label="Received on" hint="Today if left empty" error={err.releasedOn}>{(p) => <DateInput {...p} value={f.releasedOn} onChange={(e) => setF({ ...f, releasedOn: e.target.value })} />}</Field>
     </FormDialog>
   );
 }
@@ -587,7 +587,7 @@ function CompleteDialog({ p, onClose, onDone }: { p: ProjectDetail; onClose: () 
       error={m.error}
       submitLabel="Complete project"
     >
-      <Field label="Completed on" hint="Today if left empty" error={err.completedOn}>{(props) => <Input {...props} type="date" value={completedOn} onChange={(e) => setCompletedOn(e.target.value)} />}</Field>
+      <Field label="Completed on" hint="Today if left empty" error={err.completedOn}>{(props) => <DateInput {...props} value={completedOn} onChange={(e) => setCompletedOn(e.target.value)} />}</Field>
     </FormDialog>
   );
 }

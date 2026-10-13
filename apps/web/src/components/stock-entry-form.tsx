@@ -1,6 +1,6 @@
 'use client';
 import { AccountingSourceLinks } from './accounting-source-links';
-import { Alert, Badge, Button, Card, Field, Input, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, Field, Input, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, Plus, Send, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -315,7 +315,7 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
       <Card className="p-5">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Posting date">
-            {(p) => <Input {...p} type="date" value={header.postingDate} onChange={(e) => setHeader({ ...header, postingDate: e.target.value })} disabled={!editable} />}
+            {(p) => <DateInput {...p} value={header.postingDate} onChange={(e) => setHeader({ ...header, postingDate: e.target.value })} disabled={!editable} />}
           </Field>
           <Field label="Material belongs to" hint={customerOwned ? 'Customer-supplied: counted, never valued' : undefined}>
             {(p) => (
@@ -430,7 +430,7 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
                       ) : incoming(l) ? (
                         <div className="grid gap-1">
                           <Input placeholder="Batch / heat no." value={l.newBatchNo} onChange={(e) => update(l.key, { newBatchNo: e.target.value })} className="font-mono" aria-label="New batch number" />
-                          <Input type="date" value={l.expiryDate} onChange={(e) => update(l.key, { expiryDate: e.target.value })} aria-label="Expiry date" title="Expiry (optional; defaults from shelf life)" />
+                          <DateInput value={l.expiryDate} onChange={(e) => update(l.key, { expiryDate: e.target.value })} aria-label="Expiry date" title="Expiry (optional; defaults from shelf life)" />
                         </div>
                       ) : (
                         <BatchSelect itemId={l.item.id} warehouseId={l.fromWarehouseId} owner={header.ownerPartyId || 'company'} value={l.batchId} onChange={(v) => update(l.key, { batchId: v })} />

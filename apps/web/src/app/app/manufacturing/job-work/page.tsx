@@ -1,5 +1,5 @@
 'use client';
-import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
+import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Truck } from 'lucide-react';
 import Link from 'next/link';
@@ -177,7 +177,7 @@ function NewOrderDialog({ onClose }: { onClose: () => void }) {
           )}
         </Field>
         <Field label="Expected back by" error={err.expectedReturnDate}>
-          {(f) => <Input {...f} type="date" value={form.expectedReturnDate} onChange={set('expectedReturnDate')} />}
+          {(f) => <DateInput {...f} value={form.expectedReturnDate} onChange={set('expectedReturnDate')} />}
         </Field>
       </div>
       <div>

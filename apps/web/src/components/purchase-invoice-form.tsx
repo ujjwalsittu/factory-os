@@ -1,7 +1,7 @@
 'use client';
 import { InvoiceBalance } from './invoice-balance';
 import { AccountingSourceLinks } from './accounting-source-links';
-import { Alert, Badge, Button, Card, Field, Input, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, Field, Input, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, Plus, Send, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -420,10 +420,10 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
             )}
           </Field>
           <Field label="Supplier invoice date">
-            {(p) => <Input {...p} type="date" value={header.supplierInvoiceDate} onChange={(e) => setHeader({ ...header, supplierInvoiceDate: e.target.value })} disabled={!editable} />}
+            {(p) => <DateInput {...p} value={header.supplierInvoiceDate} onChange={(e) => setHeader({ ...header, supplierInvoiceDate: e.target.value })} disabled={!editable} />}
           </Field>
           <Field label="Posting date">
-            {(p) => <Input {...p} type="date" value={header.postingDate} onChange={(e) => setHeader({ ...header, postingDate: e.target.value })} disabled={!editable} />}
+            {(p) => <DateInput {...p} value={header.postingDate} onChange={(e) => setHeader({ ...header, postingDate: e.target.value })} disabled={!editable} />}
           </Field>
           <Field label="Currency">
             {(p) => (

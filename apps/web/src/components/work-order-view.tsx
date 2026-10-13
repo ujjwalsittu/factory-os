@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Dialog, Field, Input, PageHeader, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, Dialog, Field, Input, PageHeader, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
@@ -382,7 +382,7 @@ function PiecesDialog({ wo, kind, op, state, onDone, onClose }: { wo: WorkOrderD
     <FormDialog title={`Send to job worker · op ${op.seq} ${op.name}`} description={`A delivery challan to ${op.supplier ?? 'the job worker'} for pieces of ${wo.number}. They stay in WIP; no stock or GL moves.`} onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Issue challan">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Date" error={err.postingDate}>
-          {(f) => <Input {...f} type="date" value={form.postingDate} onChange={set('postingDate')} required />}
+          {(f) => <DateInput {...f} value={form.postingDate} onChange={set('postingDate')} required />}
         </Field>
         <Field label={`Pieces (${wo.uom})`} error={err.qty ?? err['lines.0.qty']} hint={`${formatQty(String(left))} not yet sent`}>
           {(f) => <Input {...f} inputMode="decimal" value={form.qty} onChange={set('qty')} required autoFocus />}
@@ -397,7 +397,7 @@ function PiecesDialog({ wo, kind, op, state, onDone, onClose }: { wo: WorkOrderD
     <FormDialog title={`Receive from job worker · op ${op.seq} ${op.name}`} description="Good pieces count toward output; rejected pieces stay in this work order's cost." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Receive">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Date" error={err.postingDate}>
-          {(f) => <Input {...f} type="date" value={form.postingDate} onChange={set('postingDate')} required />}
+          {(f) => <DateInput {...f} value={form.postingDate} onChange={set('postingDate')} required />}
         </Field>
         <Field label="Their challan no." error={err.jobWorkerChallanNo}>
           {(f) => <Input {...f} value={form.jobWorkerChallanNo} onChange={set('jobWorkerChallanNo')} />}

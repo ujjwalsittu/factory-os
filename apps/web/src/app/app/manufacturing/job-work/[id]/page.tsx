@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, buttonClass, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, buttonClass, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -299,7 +299,7 @@ function SendDialog({ order, onClose }: { order: JobWorkDetail; onClose: () => v
     <FormDialog title="Send material (delivery challan)" description={`To ${order.supplier} for job work. The stock moves into "At ${order.supplier}" and stays ours, at its FIFO value.`} onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Issue challan" wide>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Date" error={err.postingDate}>
-          {(f) => <Input {...f} type="date" value={head.postingDate} onChange={(e) => setHead({ ...head, postingDate: e.target.value })} required />}
+          {(f) => <DateInput {...f} value={head.postingDate} onChange={(e) => setHead({ ...head, postingDate: e.target.value })} required />}
         </Field>
         <Field label="From warehouse" error={err.fromWarehouseId}>
           {(f) => (
@@ -425,13 +425,13 @@ function ReceiveDialog({ order, onClose }: { order: JobWorkDetail; onClose: () =
     <FormDialog title="Receive back from the job worker" description="What was used up there, and what came back. The goods carry the exact FIFO cost of the material used." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error} submitLabel="Receive" wide>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Date" error={err.postingDate}>
-          {(f) => <Input {...f} type="date" value={head.postingDate} onChange={(e) => setHead({ ...head, postingDate: e.target.value })} required />}
+          {(f) => <DateInput {...f} value={head.postingDate} onChange={(e) => setHead({ ...head, postingDate: e.target.value })} required />}
         </Field>
         <Field label="Their challan / invoice no." error={err.jobWorkerChallanNo}>
           {(f) => <Input {...f} value={head.jobWorkerChallanNo} onChange={(e) => setHead({ ...head, jobWorkerChallanNo: e.target.value })} />}
         </Field>
         <Field label="Their document date" error={err.jobWorkerChallanDate}>
-          {(f) => <Input {...f} type="date" value={head.jobWorkerChallanDate} onChange={(e) => setHead({ ...head, jobWorkerChallanDate: e.target.value })} />}
+          {(f) => <DateInput {...f} value={head.jobWorkerChallanDate} onChange={(e) => setHead({ ...head, jobWorkerChallanDate: e.target.value })} />}
         </Field>
       </div>
       <div>

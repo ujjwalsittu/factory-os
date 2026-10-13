@@ -1,5 +1,5 @@
 'use client';
-import { Field, Input, Select } from '@factoryos/ui';
+import { Field, Input, Select, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
@@ -108,8 +108,8 @@ export function ProjectDialog({ project, onClose, onSaved }: { project: Project 
           )}
         </Field>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Start" error={err.startDate}>{(p) => <Input {...p} type="date" value={f.startDate} onChange={set('startDate')} />}</Field>
-          <Field label="End" error={err.endDate}>{(p) => <Input {...p} type="date" value={f.endDate} onChange={set('endDate')} />}</Field>
+          <Field label="Start" error={err.startDate}>{(p) => <DateInput {...p} value={f.startDate} onChange={set('startDate')} />}</Field>
+          <Field label="End" error={err.endDate}>{(p) => <DateInput {...p} value={f.endDate} onChange={set('endDate')} />}</Field>
         </div>
       </div>
     </FormDialog>

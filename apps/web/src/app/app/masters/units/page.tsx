@@ -1,5 +1,5 @@
 'use client';
-import { Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
+import { Button, Card, CardHeader, Field, Input, PageHeader, Select, Table, Td, Th, Tr, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
@@ -160,7 +160,7 @@ function HsnDialog({ onClose }: { onClose: () => void }) {
         </Field>
       </div>
       <Field label="Description" error={e.description}>{(p) => <Input {...p} value={f.description} onChange={set('description')} required />}</Field>
-      <Field label="Effective from" error={e.effectiveFrom}>{(p) => <Input {...p} type="date" value={f.effectiveFrom} onChange={set('effectiveFrom')} required />}</Field>
+      <Field label="Effective from" error={e.effectiveFrom}>{(p) => <DateInput {...p} value={f.effectiveFrom} onChange={set('effectiveFrom')} required />}</Field>
     </FormDialog>
   );
 }

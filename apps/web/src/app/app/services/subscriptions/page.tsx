@@ -1,5 +1,5 @@
 'use client';
-import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th } from '@factoryos/ui';
+import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Satellite } from 'lucide-react';
 import Link from 'next/link';
@@ -267,7 +267,7 @@ function SubscribeDialog({ onClose, onSaved }: { onClose: () => void; onSaved: (
         </Field>
         <Field label="Area of interest" error={err.aoiName}>{(p) => <Input {...p} value={f.aoiName} onChange={set('aoiName')} required placeholder="Nashik vineyards block A" />}</Field>
         <Field label="Area (ha)" error={err.aoiHectares}>{(p) => <Input {...p} value={f.aoiHectares} onChange={set('aoiHectares')} inputMode="decimal" />}</Field>
-        <Field label="Start" hint="Up to a year back for one agreed earlier" error={err.startDate}>{(p) => <Input {...p} type="date" value={f.startDate} onChange={set('startDate')} required />}</Field>
+        <Field label="Start" hint="Up to a year back for one agreed earlier" error={err.startDate}>{(p) => <DateInput {...p} value={f.startDate} onChange={set('startDate')} required />}</Field>
         <Field label="Customer reference" error={err.customerRef}>{(p) => <Input {...p} value={f.customerRef} onChange={set('customerRef')} />}</Field>
         <Field label="AOI notes" hint="Boundary file, coordinates or village list" error={err.aoiNotes} className="sm:col-span-2">{(p) => <Input {...p} value={f.aoiNotes} onChange={set('aoiNotes')} />}</Field>
       </div>

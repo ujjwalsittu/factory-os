@@ -1,5 +1,5 @@
 'use client';
-import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
+import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Factory } from 'lucide-react';
 import Link from 'next/link';
@@ -188,10 +188,10 @@ function NewOrderDialog({ onClose }: { onClose: () => void }) {
           )}
         </Field>
         <Field label="Planned start" error={err.plannedStart}>
-          {(f) => <Input {...f} type="date" value={form.plannedStart} onChange={set('plannedStart')} />}
+          {(f) => <DateInput {...f} value={form.plannedStart} onChange={set('plannedStart')} />}
         </Field>
         <Field label="Due" error={err.plannedEnd}>
-          {(f) => <Input {...f} type="date" value={form.plannedEnd} onChange={set('plannedEnd')} />}
+          {(f) => <DateInput {...f} value={form.plannedEnd} onChange={set('plannedEnd')} />}
         </Field>
         <Field label="Priority" error={err.priority} hint="The scheduler places higher priority first">
           {(f) => (

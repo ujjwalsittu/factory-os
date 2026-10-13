@@ -11,6 +11,7 @@ import {
   Th,
   buttonClass,
   Select,
+  DateInput,
 } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -307,9 +308,8 @@ function Form({ doc,linked }: { doc?: Journal;linked?:{profileId:string;statemen
               <div className="grid gap-4 p-5 sm:grid-cols-2">
                 <Field label="Posting date">
                   {(p) => (
-                    <Input
+                    <DateInput
                       {...p}
-                      type="date"
                       disabled={!!reconciliation}
                       value={date}
                       onChange={(e) => setDate(e.target.value)}

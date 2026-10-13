@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Badge, Button, buttonClass, Card, CardHeader, Field, Input, Select, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, buttonClass, Card, CardHeader, Field, Input, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, CircleSlash, FileText, PackageCheck, Plus, Send, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -235,8 +235,8 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
               </Select>
             )}
           </Field>
-          <Field label="Order date">{(p) => <Input {...p} type="date" value={header.orderDate} onChange={(e) => setHeader({ ...header, orderDate: e.target.value })} disabled={!editable} />}</Field>
-          <Field label="Expected by">{(p) => <Input {...p} type="date" value={header.expectedDate} onChange={(e) => setHeader({ ...header, expectedDate: e.target.value })} disabled={!editable} />}</Field>
+          <Field label="Order date">{(p) => <DateInput {...p} value={header.orderDate} onChange={(e) => setHeader({ ...header, orderDate: e.target.value })} disabled={!editable} />}</Field>
+          <Field label="Expected by">{(p) => <DateInput {...p} value={header.expectedDate} onChange={(e) => setHeader({ ...header, expectedDate: e.target.value })} disabled={!editable} />}</Field>
           {gstins.length > 1 && (
             <Field label="Bill to / ship to GSTIN">
               {(p) => (

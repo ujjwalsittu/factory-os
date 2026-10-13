@@ -1,5 +1,5 @@
 'use client';
-import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
+import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Recycle, Truck } from 'lucide-react';
 import Link from 'next/link';
@@ -304,7 +304,7 @@ function WasteDialog({
               )}
             </Field>
             <Field label="From job / work order" error={e.sourceRef}>{(p) => <Input {...p} value={f.sourceRef} onChange={set('sourceRef')} placeholder="WO-0123" />}</Field>
-            <Field label="Date" error={e.movementDate}>{(p) => <Input {...p} type="date" value={f.movementDate} onChange={set('movementDate')} />}</Field>
+            <Field label="Date" error={e.movementDate}>{(p) => <DateInput {...p} value={f.movementDate} onChange={set('movementDate')} />}</Field>
           </div>
         </>
       ) : (
@@ -375,7 +375,7 @@ function WasteDialog({
             )}
           </Field>
         ) : (
-          <Field label="Date" error={e.movementDate}>{(p) => <Input {...p} type="date" value={f.movementDate} onChange={set('movementDate')} />}</Field>
+          <Field label="Date" error={e.movementDate}>{(p) => <DateInput {...p} value={f.movementDate} onChange={set('movementDate')} />}</Field>
         )}
         <Field label="Remarks" error={e.remarks}>{(p) => <Input {...p} value={f.remarks} onChange={set('remarks')} />}</Field>
       </div>

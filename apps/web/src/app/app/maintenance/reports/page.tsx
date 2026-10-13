@@ -1,5 +1,5 @@
 'use client';
-import { Alert, Card, EmptyState, Field, Input, PageHeader, Table, Td, Th, Tr } from '@factoryos/ui';
+import { Alert, Card, EmptyState, Field, Input, PageHeader, Table, Td, Th, Tr, DateInput } from '@factoryos/ui';
 import { useQuery } from '@tanstack/react-query';
 import { BarChart3 } from 'lucide-react';
 import Link from 'next/link';
@@ -31,8 +31,8 @@ export default function MaintenanceReportsPage() {
       <EntityGate what="maintenance">
         <div className="space-y-4">
           <div className="flex flex-wrap gap-3">
-            <Field label="From">{(p) => <Input {...p} type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />}</Field>
-            <Field label="To">{(p) => <Input {...p} type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />}</Field>
+            <Field label="From">{(p) => <DateInput {...p} value={from} max={to} onChange={(e) => setFrom(e.target.value)} />}</Field>
+            <Field label="To">{(p) => <DateInput {...p} value={to} min={from} onChange={(e) => setTo(e.target.value)} />}</Field>
           </div>
           {q.error && <Alert tone="danger">{q.error.message}</Alert>}
           <Card>
