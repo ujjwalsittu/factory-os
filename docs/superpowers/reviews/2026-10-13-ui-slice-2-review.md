@@ -63,7 +63,7 @@
   Customers and Suppliers, a stores clerk seeing only the Stock and Settings areas and one tile, the phone menu.
 - **UI audit:** 194 page views, 0 overflow, 0 console errors, 0 failed calls; 73 menu links, none broken.
 - **Regression:** all browser walkthroughs pass (the 31 from slice 1 plus date field and menu/Home), including e-mail
-  delivery run with its own servers. Six needed their menu clicks updated and are the only test changes: the entry named
+  delivery run with its own servers. Four needed their clicks updated (plus a date-field check made tolerant of the entity prompt disappearing) and are the only test changes: the entry named
   "Home" is now "My work"; "Customers & suppliers" is now "Customers" or "Suppliers"; "Due and orders" is now
   "Maintenance"; "Machines" is now an area, so the walkthrough opens the Machines link; a button search for "Add time" now
   matches the exact name, because the new star button's name "Add Timesheets to favourites" also contains it.
