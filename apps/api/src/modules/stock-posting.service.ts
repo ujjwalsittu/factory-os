@@ -67,6 +67,7 @@ export const DEFAULT_SERIES: Record<string, string> = {
   subscription: '{ENTITY}/SUB/{FY}/{####}',
   billing_run: '{ENTITY}/BR/{FY}/{####}',
   custody_return: '{ENTITY}/RDC/{FY}/{####}',
+  maintenance_order: '{ENTITY}/MO/{FY}/{#####}',
 };
 
 /** Statutory documents whose number goes on a GST return: at most 16 characters. */
@@ -80,7 +81,7 @@ export const PRODUCTION_PURPOSES = new Set(['production_issue', 'production_retu
 /** Stock entries job work posts (decision 047): out = to the job worker, in = consumed there and received back. */
 export const JOB_WORK_PURPOSES = new Set(['job_work_out', 'job_work_in']);
 /** Purposes that take stock out for use, so the source must be available for issue and in date. */
-const CONSUMING = new Set(['issue', 'delivery', 'production_issue']);
+const CONSUMING = new Set(['issue', 'delivery', 'production_issue', 'maintenance']);
 
 /**
  * Posts stock entries to the append-only ledger (decision 018: FIFO per entity × item, per batch for
@@ -616,7 +617,7 @@ export class StockPostingService {
 /** receipt → in; issue → out; transfer → transfer; adjustment → in or out depending on which warehouse is set. */
 function lineDirection(purpose: string, line: Line): 'in' | 'out' | 'transfer' {
   if (purpose === 'receipt' || purpose === 'purchase_return_receipt' || purpose === 'production_return' || purpose === 'production_output') return 'in';
-  if (purpose === 'issue' || purpose === 'return' || purpose === 'scrap' || purpose === 'delivery' || purpose === 'purchase_return' || purpose === 'production_issue') return 'out';
+  if (purpose === 'issue' || purpose === 'return' || purpose === 'scrap' || purpose === 'delivery' || purpose === 'purchase_return' || purpose === 'production_issue' || purpose === 'maintenance') return 'out';
   if (purpose === 'transfer' || purpose === 'job_work_out') return 'transfer';
   if (purpose === 'cut') return 'out';
   if (line.toWarehouseId && !line.fromWarehouseId) return 'in';

@@ -29,6 +29,8 @@ const machineInput = z.object({
   code: z.string().trim().toUpperCase().min(1).max(20),
   name: z.string().trim().min(1).max(120),
   isActive: z.boolean().optional(),
+  /** Decision 066: maintenance orders on a critical machine also need a supervisor's verification. */
+  critical: z.boolean().optional(),
 });
 const bomInput = z.object({
   itemId: z.uuid(),
@@ -130,7 +132,7 @@ export class ManufacturingMastersController {
       if (!centre) throw new NotFoundException('Work centre not found');
       const [row] = await tx
         .insert(machine)
-        .values({ tenantId: ctx.tenant.tenantId, entityId, workCentreId: id, code: input.code, name: input.name, isActive: input.isActive ?? true, createdBy: ctx.user.id })
+        .values({ tenantId: ctx.tenant.tenantId, entityId, workCentreId: id, code: input.code, name: input.name, isActive: input.isActive ?? true, critical: input.critical ?? false, createdBy: ctx.user.id })
         .onConflictDoNothing()
         .returning();
       if (!row) throw new ConflictException(`Machine ${input.code} already exists`);
@@ -147,7 +149,7 @@ export class ManufacturingMastersController {
     return this.db.transaction(async (tx) => {
       const [before] = await tx.select().from(machine).where(and(eq(machine.id, id), eq(machine.entityId, entityId))).for('update');
       if (!before) throw new NotFoundException('Machine not found');
-      const [row] = await tx.update(machine).set({ name: input.name, isActive: input.isActive ?? before.isActive, updatedAt: new Date() }).where(eq(machine.id, id)).returning();
+      const [row] = await tx.update(machine).set({ name: input.name, isActive: input.isActive ?? before.isActive, critical: input.critical ?? before.critical, updatedAt: new Date() }).where(eq(machine.id, id)).returning();
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'machine.update', targetType: 'machine', targetId: id, before: { name: before.name, isActive: before.isActive }, after: input }, tx);
       return row;
     });

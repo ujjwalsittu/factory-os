@@ -52,6 +52,8 @@ export const machine = pgTable(
     code: text('code').notNull(),
     name: text('name').notNull(),
     isActive: boolean('is_active').notNull().default(true),
+    /** Decision 066: a critical machine's maintenance orders also need a supervisor's verification. */
+    critical: boolean('critical').notNull().default(false),
     ...stamps,
   },
   (t) => [uniqueIndex('machine_entity_code_uq').on(t.entityId, t.code), index('machine_centre_idx').on(t.workCentreId)],

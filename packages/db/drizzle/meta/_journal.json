@@ -337,6 +337,13 @@
       "when": 1791826589222,
       "tag": "0047_smt_traceability",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1791829656749,
+      "tag": "0048_maintenance",
+      "breakpoints": true
     }
   ]
 }

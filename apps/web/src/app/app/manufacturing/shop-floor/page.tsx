@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Selec
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pause, Play, Square, Timer } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { BreakdownDialog } from '@/components/breakdown-dialog';
 import { EntityGate } from '@/components/entity-gate';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
 import { certifiedLabel, useSkillCoverage } from '@/components/skill-coverage';
@@ -13,9 +14,23 @@ import { CARD_STATUS, formatMinutes, type JobCard, PAUSE_REASONS, type ShopFloor
 import type { CapaPerson } from '@/lib/quality';
 
 export default function ShopFloorPage() {
+  const ws = useWorkspace();
+  const [breakdown, setBreakdown] = useState(false);
   return (
     <>
-      <PageHeader title="Shop floor" description="Start the operation you're working on, pause with a reason, and stop with the quantity made. Time is taken from the clock." />
+      <PageHeader
+        title="Shop floor"
+        description="Start the operation you're working on, pause with a reason, and stop with the quantity made. Time is taken from the clock."
+        actions={
+          ws.entityId &&
+          ws.can('maintenance.breakdown.create') && (
+            <Button variant="secondary" onClick={() => setBreakdown(true)}>
+              Report breakdown
+            </Button>
+          )
+        }
+      />
+      {breakdown && <BreakdownDialog onClose={() => setBreakdown(false)} />}
       <EntityGate what="manufacturing">
         <Floor />
       </EntityGate>

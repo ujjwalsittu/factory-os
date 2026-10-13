@@ -56,6 +56,8 @@ import {
   Clock,
   Ship,
   CircuitBoard,
+  BarChart3,
+  Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -173,6 +175,14 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
       { href: '/app/accounts/day-book', label: 'Day book', icon: FileSpreadsheet, permission: 'accounts.report.read', entityScoped: true },
       { href: '/app/accounts/trial-balance', label: 'Trial balance', icon: FileSpreadsheet, permission: 'accounts.report.read', entityScoped: true },
       { href: '/app/compliance', label: 'Compliance', icon: FileSpreadsheet, phase: 1 },
+    ],
+  },
+  {
+    section: 'Maintenance',
+    items: [
+      { href: '/app/maintenance', label: 'Due and orders', icon: Wrench, permission: 'maintenance.order.read', entityScoped: true },
+      { href: '/app/maintenance/plans', label: 'Plans', icon: ListChecks, permission: 'maintenance.plan.read', entityScoped: true },
+      { href: '/app/maintenance/reports', label: 'Reliability and cost', icon: BarChart3, permission: 'maintenance.order.read', entityScoped: true },
     ],
   },
   {

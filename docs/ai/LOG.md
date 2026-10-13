@@ -236,3 +236,11 @@ Append-only. One entry per session: `date · who · what changed · what's next`
   - smoke 131 checks, browser walkthrough and regression.
 
   Next: PR to main; then CFX machine data when the line's interfaces are confirmed.
+- 2026-10-12 · agent · Machine maintenance (decision 066, migration 0048_maintenance):
+  - preventive plans by calendar and running hours with checklists; due list and orders;
+  - readings with limits, labour at the work-centre rate, spares from stores, sign-off and supervisor verification;
+  - breakdowns from the shop floor and machine page blocking the schedule; tap alarm prompt;
+  - reliability and cost report; critical machines;
+  - smoke 92 checks, browser walkthrough and regression.
+
+  Next: PR to main; then CFX machine data when the line's interfaces are confirmed.

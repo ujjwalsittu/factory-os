@@ -2,6 +2,7 @@
 import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Factory } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
@@ -66,7 +67,12 @@ function CentreList({ onEdit }: { onEdit: (c: WorkCentre) => void }) {
                 </Td>
                 <Td className="tabular text-right">{formatMoney(c.hourlyRate)}</Td>
                 <Td className="text-[13px]">
-                  {c.machines.length ? c.machines.map((m) => <span key={m.id} className="mr-2 font-mono">{m.code}</span>) : <span className="text-subtle">—</span>}
+                  {c.machines.length ? c.machines.map((m) => (
+                        <Link key={m.id} href={`/app/machines/${m.id}`} className="mr-2 font-mono hover:text-accent" title={m.critical ? 'Critical: maintenance is verified by a supervisor' : undefined}>
+                          {m.code}
+                          {m.critical && '*'}
+                        </Link>
+                      )) : <span className="text-subtle">—</span>}
                 </Td>
                 {seeSkills && (
                   <Td className="text-[13px]">
@@ -166,7 +172,7 @@ function CentreDialog({ centre, onClose }: { centre: WorkCentre | null; onClose:
 function MachineDialog({ centre, onClose }: { centre: WorkCentre; onClose: () => void }) {
   const ws = useWorkspace();
   const qc = useQueryClient();
-  const [form, setForm] = useState({ code: '', name: '' });
+  const [form, setForm] = useState({ code: '', name: '', critical: false });
   const m = useMutation({
     mutationFn: () => api(`/manufacturing/work-centres/${centre.id}/machines`, { method: 'POST', body: form, scope: ws.scope }),
     onSuccess: () => {
@@ -184,6 +190,9 @@ function MachineDialog({ centre, onClose }: { centre: WorkCentre; onClose: () =>
         <Field label="Machine name" error={err.name}>
           {(f) => <Input {...f} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="DMG Mori DMU 50" required />}
         </Field>
+        <label className="flex items-center gap-2 text-[13px] sm:col-span-2">
+          <input type="checkbox" checked={form.critical} onChange={(e) => setForm({ ...form, critical: e.target.checked })} /> Critical machine: a supervisor verifies its maintenance
+        </label>
       </div>
     </FormDialog>
   );

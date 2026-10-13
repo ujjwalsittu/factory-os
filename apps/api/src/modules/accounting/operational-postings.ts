@@ -97,7 +97,9 @@ export class OperationalPostings {
                 ? 'scrap'
                 : entry.purpose === 'issue'
                   ? 'production'
-                  : 'adjustment',
+                  : entry.purpose === 'maintenance'
+                    ? 'maintenance'
+                    : 'adjustment',
             value,
           );
           lines.add('inventory', value.neg());
