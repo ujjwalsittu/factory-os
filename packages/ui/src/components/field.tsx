@@ -1,7 +1,7 @@
 import { type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, useId } from 'react';
 import { cn } from '../cn';
 
-const control =
+export const control =
   'h-9 w-full rounded-lg border border-line bg-surface px-3 text-sm text-fg placeholder:text-subtle shadow-card transition-colors focus:border-accent focus:outline-none focus:ring-3 focus:ring-ring disabled:opacity-60 aria-[invalid=true]:border-danger';
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
