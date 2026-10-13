@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-13 (Asia/Kolkata) · UI slice 1 built; slices 2–4 to follow_
+_Last updated: 2026-10-13 (Asia/Kolkata) · UI slice 1 merged; slice 2 claimed_
 
 ## Done
 - [x] **UI slice 1: one page pattern, phone and date fixes** (decision 068; no API or data change).
@@ -189,7 +189,7 @@ _Last updated: 2026-10-13 (Asia/Kolkata) · UI slice 1 built; slices 2–4 to fo
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
-- **UI, menu, Home and connections (decision 068)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-13. [Audit](../superpowers/reviews/2026-10-13-ui-audit.md), [design](../superpowers/specs/2026-10-13-ui-menu-connections-design.md); four slices, each its own PR. Slice 1 done (PR to main); next slice 2: menu by area of work with favourites and recent, and the "My work" Home.
+- **UI, menu, Home and connections (decision 068)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-13. [Audit](../superpowers/reviews/2026-10-13-ui-audit.md), [design](../superpowers/specs/2026-10-13-ui-menu-connections-design.md); four slices, each its own PR. Slice 1 merged (PR 53). **Slice 2 in progress (claimed):** menu by area of work with favourites and recent, and the "My work" Home; [plan](../superpowers/plans/2026-10-13-ui-slice-2-menu-home.md).
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
 
 
