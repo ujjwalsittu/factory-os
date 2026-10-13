@@ -22,6 +22,7 @@ function UsersContent() {
   const params = useSearchParams();
   const [inviting, setInviting] = useState(!!params.get('invite'));
   const [editing, setEditing] = useState<Member | null>(null);
+  const [erasing, setErasing] = useState<Member | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const scope = ws.tenantScope;
 
@@ -131,6 +132,11 @@ function UsersContent() {
                           {m.status === 'active' ? 'Disable' : 'Enable'}
                         </Button>
                       )}
+                      {!m.isOwner && ws.canTenant('settings.erasure.manage') && (
+                        <Button size="sm" variant="ghost" className="text-danger" onClick={() => setErasing(m)}>
+                          Erase…
+                        </Button>
+                      )}
                     </div>
                   )}
                 </Td>
@@ -173,7 +179,64 @@ function UsersContent() {
         />
       )}
       {editing && roles.data && <EditRolesDialog member={editing} roles={roles.data} onClose={() => setEditing(null)} />}
+      {erasing && <EraseDialog member={erasing} onClose={() => setErasing(null)} />}
     </>
+  );
+}
+
+const ERASE_REASONS = [
+  ['data_principal_request', 'The person asked to be erased'],
+  ['consent_withdrawn', 'The person withdrew consent'],
+  ['left_organisation', 'The person has left the organisation'],
+  ['duplicate_account', 'Duplicate account'],
+] as const;
+
+/**
+ * Decision 067 (DPDP Act 2023): erase a person by anonymisation. Owners only; their records stay under "Erased
+ * user". The reason is a fixed choice so no personal data reaches the audit trail.
+ */
+function EraseDialog({ member, onClose }: { member: Member; onClose: () => void }) {
+  const ws = useWorkspace();
+  const qc = useQueryClient();
+  const [reason, setReason] = useState('');
+  const [confirmEmail, setConfirmEmail] = useState('');
+  const m = useMutation({
+    mutationFn: () => api(`/members/${member.id}/erase`, { method: 'POST', scope: ws.tenantScope, body: { reason, confirmEmail } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['members'] });
+      void qc.invalidateQueries({ queryKey: ['invitations'] });
+      onClose();
+    },
+  });
+  const err = fieldErrors(m.error);
+  return (
+    <FormDialog
+      title={`Erase ${member.name}`}
+      description="Their name and email are replaced, and every way they sign in is removed, with their access to this workspace. What they recorded stays, shown as “Erased user”. This cannot be undone."
+      onClose={onClose}
+      onSubmit={() => m.mutate()}
+      pending={m.isPending}
+      error={m.error}
+      submitLabel="Erase permanently"
+    >
+      <div className="grid gap-4">
+        <Field label="Reason" error={err.reason}>
+          {(f) => (
+            <Select {...f} value={reason} onChange={(e) => setReason(e.target.value)} required>
+              <option value="">Choose…</option>
+              {ERASE_REASONS.map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <Field label={`Type ${member.email} to confirm`} error={err.confirmEmail}>
+          {(f) => <Input {...f} value={confirmEmail} onChange={(e) => setConfirmEmail(e.target.value)} autoComplete="off" required />}
+        </Field>
+      </div>
+    </FormDialog>
   );
 }
 

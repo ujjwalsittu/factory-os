@@ -16,28 +16,45 @@ submitted plan inspection record (`inspection_record`, decision 052), whether or
 order. Today the check runs only for purchase-order receipts. Smoke: a receipt without a PO, inspected, cannot be
 cancelled; cancelling the inspection first allows it.
 
-## 3. User erasure (DPDP Act 2023) — anonymise on request
+## 3. User erasure (DPDP Act 2023) — partial erasure by anonymisation
 
 A full delete is impossible: vouchers, stock entries, job cards, audit entries and more reference the user who made
-them, and ledgers are append-only. Erasure therefore removes the person's identity and every way to sign in, and
-keeps their records under "Erased user".
+them, and ledgers are append-only. Erasure is therefore **partial**: it removes the person's identity and every way to
+sign in, and keeps the records they made, attached to their (random, non-identifying) user id.
 
-- **Who:** a tenant **Owner** (new permission `settings.user.delete`; owners only, not administrators). Not oneself,
-  and not the last owner. Only a person whose memberships are all in this tenant can be erased; a person who also
-  belongs to another tenant is only removed from this one (the other tenant decides for itself).
-- **What happens, in one transaction:**
-  - `user`: name becomes "Erased user", email becomes `erased-<id>@erased.invalid`, image cleared, email unverified,
-    new column `erased_at` set. Sign-in, sign-up as that row, invitations and password reset refuse an erased user.
-  - Removed: sessions, accounts (password and SSO links), verification rows, two-factor secrets, pending invitations
-    to the old email, memberships and role grants.
-  - Passkeys: removed through the existing credential guard. The guard gains one more allowed path: a delete inside
-    an erasure (a transaction setting naming this user, checked against `erased_at` set in the same transaction),
-    recorded as a passkey `removed` event. Expired passkey ceremonies are pruned like actions.
-  - An audit entry `user.erase` with the user id only (no name or email) and the reason.
-- **Kept, by law:** records the person made stay attached to their id and show "Erased user". The hash-chained audit
-  log is append-only (Companies Act audit trail); personal data already inside earlier audit entries is retained under
-  that legal obligation and is not rewritten. Documents such as invoices keep the names printed on them.
-- **UI:** Settings → Users: "Erase person…" for owners, with a typed confirmation of the email and a reason.
+- **Who:** a tenant **Owner** (permission `settings.erasure.manage`, not given to administrators; the database
+  routine also requires an active owner membership). Not oneself, not another owner (ownership is removed first), not
+  a platform administrator. Only a person whose memberships are all in this tenant is erased; a person who also
+  belongs to another tenant is only removed from this one.
+- **Reason:** one of four fixed codes (the person asked; consent withdrawn; left the organisation; duplicate
+  account). No free text, so nothing personal enters the append-only audit trail. The owner confirms by typing the
+  person's email; it is compared, not stored.
+- **One database routine, one transaction** (`factoryos_erase_user`):
+  - writes a `user_erasure` row (tenant, user, actor, reason, and the transaction id);
+  - `user`: name "Erased user", email `erased-<id>@erased.invalid`, image cleared, email unverified, two-factor off,
+    `erased_at` set;
+  - removes sessions, accounts (password and SSO links), verification rows, two-factor secrets, passkeys, passkey
+    and SSO proofs, and the membership (role grants go with it);
+  - **this tenant's** invitations to the old email are anonymised (pending ones revoked); other tenants' invitations
+    are theirs to handle.
+- **Guard binding:** passkey and SSO-link deletes normally need the owner's live consent proof. They gain one more
+  path: the transaction must hold a `user_erasure` row for that user created in the same transaction
+  (`txid_current()`) and the user must already be marked erased. A transaction setting naming an erasure id is not
+  enough on its own; a borrowed erasure id cannot remove anyone else's passkey (tested).
+- **Audit:** `user.erase` with the user id, the erasure id and the reason code only.
+- **UI:** Settings → Users: "Erase…" for owners, with the reason and the typed email.
+
+### Data kept after erasure (DPDP Act s. 8(7): erase unless retention is necessary for compliance with law)
+
+| Kept | Why | How long |
+|---|---|---|
+| The user id on records they made (vouchers, stock and production documents, job cards, inspections) | Books of account and GST records must stay complete and unaltered: Companies Act 2013 s. 128 (books kept 8 financial years) and CGST Act s. 35–36 (accounts kept 72 months from the due date of the annual return) | As long as the record itself |
+| Earlier audit entries, which may contain the person's name or email (for example an invitation) | Audit trail of the accounting software (Companies (Accounts) Rules 2014, rule 3(1)); the log is hash-chained and append-only | 8 financial years, with the books |
+| Names printed on issued documents (invoices, challans, certificates) | Issued tax documents are not altered | With the document |
+| `user_erasure` and passkey/SSO removal events (ids only, no name or email) | Evidence that the erasure happened | With the audit trail |
+
+Nothing else about the person is kept: name, email, image, sessions, credentials, factors and memberships are
+removed or replaced.
 
 ## 4. ITC-04 follow-ups
 

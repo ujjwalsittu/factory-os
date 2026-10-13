@@ -44,6 +44,7 @@ export const RESOURCES = [
   {module:'compliance',resource:'sandbox_valuation',label:'Sandbox return valuation',actions:['approve']},
   { module: 'settings', resource: 'entity', label: 'Legal entities & GST registrations', actions: ['read', 'create', 'update', 'delete'] },
   { module: 'settings', resource: 'user', label: 'Users & invitations', actions: ['read', 'create', 'update', 'delete'] },
+  { module: 'settings', resource: 'erasure', label: 'Erase a person (data protection, owners only)', actions: ['manage'] },
   { module: 'settings', resource: 'role', label: 'Roles & permissions', actions: ['read', 'create', 'update', 'delete'] },
   { module: 'settings', resource: 'audit', label: 'Audit log', actions: ['read', 'export'] },
   { module: 'settings', resource: 'support_access', label: 'Support access (approve temporary read-only operator access)', actions: ['read', 'configure', 'approve', 'cancel'] },

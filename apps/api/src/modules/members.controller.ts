@@ -2,6 +2,7 @@ import { type Database, emailDelivery, invitation, legalEntity, membership, role
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Delete,
   ForbiddenException,
@@ -15,7 +16,7 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { Ctx, Public, type RequestContext, RequirePermission, type TenantRequestContext } from '../common/access.js';
 import { AuditService } from '../common/audit.service.js';
@@ -100,6 +101,36 @@ export class MembersController {
       await this.audit.record(ctx, { tenantId, action: 'member.status', targetType: 'membership', targetId: id, before: { status: m.status }, after: { status } }, tx);
       return { ok: true };
     });
+  }
+
+  /**
+   * Decision 067 (DPDP Act 2023): erase a person by anonymisation. Owners only; the person must belong to this
+   * workspace alone. Reasons are fixed codes so no personal data enters the audit trail.
+   */
+  @Post('members/:id/erase')
+  @RequirePermission('settings.erasure.manage')
+  async erase(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const tenantId = ctx.tenant.tenantId;
+    const input = parse(z.object({ reason: z.enum(['data_principal_request', 'left_organisation', 'duplicate_account', 'consent_withdrawn']), confirmEmail: z.string().trim().min(3).max(320) }), body);
+    if (!ctx.tenant.isOwner) throw new ForbiddenException('Only an owner erases a person');
+    const [m] = await this.db.select({ userId: membership.userId, isOwner: membership.isOwner, email: user.email }).from(membership).innerJoin(user, eq(user.id, membership.userId)).where(and(eq(membership.id, id), eq(membership.tenantId, tenantId)));
+    if (!m) throw new NotFoundException('Member not found');
+    if (m.userId === ctx.user.id) throw new ForbiddenException('You cannot erase yourself');
+    if (m.isOwner) throw new ForbiddenException('Remove their ownership first');
+    if (input.confirmEmail.toLowerCase() !== m.email.toLowerCase()) throw new BadRequestException({ message: 'Type the person’s email exactly to confirm', issues: [{ path: 'confirmEmail', message: 'Does not match' }] });
+    try {
+      return await this.db.transaction(async (tx) => {
+        const r = await tx.execute<{ id: string }>(sql`select factoryos_erase_user(${m.userId}, ${tenantId}::uuid, ${ctx.user.id}, ${input.reason}::erasure_reason) as id`);
+        // The person's id and the reason code only: no name or email in the append-only audit trail.
+        await this.audit.record(ctx, { tenantId, action: 'user.erase', targetType: 'user', targetId: m.userId, after: { reason: input.reason, erasureId: r.rows[0]!.id } }, tx);
+        return { ok: true, erasureId: r.rows[0]!.id };
+      });
+    } catch (e) {
+      const msg = (e as { cause?: { message?: string }; message?: string }).cause?.message ?? (e as Error).message ?? '';
+      const refused = /Erasure refused: ([^\n]+)/.exec(msg);
+      if (refused) throw new ConflictException(`This person cannot be erased: ${refused[1]}`);
+      throw e;
+    }
   }
 
   @Get('invitations')
