@@ -21,12 +21,19 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'onC
  */
 export function DateInput({ value, onChange, min, max, className, disabled, onBlur, ...rest }: Props) {
   const [text, setText] = useState(formatDateIndian(value));
+  const [problem, setProblem] = useState('');
   const last = useRef(value);
   const picker = useRef<HTMLInputElement>(null);
+  const field = useRef<HTMLInputElement>(null);
+  const clearProblem = () => {
+    field.current?.setCustomValidity('');
+    setProblem('');
+  };
   useEffect(() => {
     if (value !== last.current) {
       last.current = value;
       setText(formatDateIndian(value));
+      clearProblem();
     }
   }, [value]);
   const emit = (iso: string) => {
@@ -37,20 +44,27 @@ export function DateInput({ value, onChange, min, max, className, disabled, onBl
     <div className="relative">
       <input
         {...rest}
+        ref={field}
         type="text"
         inputMode="numeric"
         autoComplete="off"
         placeholder={rest.placeholder ?? 'DD-MM-YYYY'}
         disabled={disabled}
         value={text}
+        aria-invalid={problem ? true : rest['aria-invalid']}
+        title={problem || rest.title}
         className={cn(control, 'pr-9 tabular-nums', className)}
         onChange={(e) => {
           const t = e.target.value;
           setText(t);
           const iso = parseDateIndian(t);
           const outside = iso && ((min && iso < min) || (max && iso > max));
-          e.target.setCustomValidity(iso === null ? 'Enter a date as DD-MM-YYYY' : outside ? `Choose a date ${min && iso! < min ? `from ${formatDateIndian(min)}` : `up to ${formatDateIndian(max!)}`}` : '');
-          if (iso !== null && iso !== last.current) emit(iso);
+          const message = iso === null ? 'Enter a date as DD-MM-YYYY' : outside ? `Choose a date ${min && iso! < min ? `from ${formatDateIndian(min)}` : `up to ${formatDateIndian(max!)}`}` : '';
+          e.target.setCustomValidity(message);
+          setProblem(message);
+          // Text that is not a date clears the value, so a form never submits the previous date by mistake.
+          const next = iso ?? '';
+          if (next !== last.current) emit(next);
         }}
         onBlur={(e) => {
           const iso = parseDateIndian(text);
@@ -89,6 +103,7 @@ export function DateInput({ value, onChange, min, max, className, disabled, onBl
         min={min}
         max={max}
         onChange={(e) => {
+          clearProblem();
           setText(formatDateIndian(e.target.value));
           emit(e.target.value);
         }}
