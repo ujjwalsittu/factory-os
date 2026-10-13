@@ -1,8 +1,13 @@
 # Status
 
-_Last updated: 2026-10-13 (Asia/Kolkata) · UI slice 1 merged; slice 2 claimed_
+_Last updated: 2026-10-13 (Asia/Kolkata) · UI slice 2 built; slices 3–4 to follow_
 
 ## Done
+- [x] **UI slice 2: menu by area of work and "My work" Home** (decision 068, migration 0051_user_preference).
+  - **Menu:** nine collapsible areas hold every page once (73 links); favourites, recent pages and closed areas are saved per person and workspace, so they follow the person across browsers; Customers and Suppliers open one parties page filtered by role; Account ledger and Stock ledger get links; the row of Finance links under each Finance title is gone.
+  - **Home:** `GET /home` gives each person the tiles they may read (18 sources: approvals waiting, drafts, overdue bills, quotations and purchase orders, reorder level, job work, work orders, job cards, NCRs, CAPA, gauges, machines, maintenance, silent taps); Home shows only tiles with something waiting and lists the rest as all clear.
+  - **Not yet value-tested:** 11 tiles are checked for no error and zero on an empty workspace, not for non-zero counts (listed in the review).
+  - Verified: new smokes (preferences 41, Home 52), new browser walkthrough, UI audit (0 overflow, 0 errors, 73 menu links, none broken), browser walkthroughs, typecheck, build, tests. [Review](../superpowers/reviews/2026-10-13-ui-slice-2-review.md).
 - [x] **UI slice 1: one page pattern, phone and date fixes** (decision 068; no API or data change).
   - Dates show and are typed as DD-MM-YYYY on every form, with a calendar button; stored ISO as before. A date that is not real is flagged and clears the value.
   - Page headers keep their actions at the top right; one empty state in a full and a compact size; monospace only for document numbers in draft headings.
@@ -189,7 +194,7 @@ _Last updated: 2026-10-13 (Asia/Kolkata) · UI slice 1 merged; slice 2 claimed_
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
-- **UI, menu, Home and connections (decision 068)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-13. [Audit](../superpowers/reviews/2026-10-13-ui-audit.md), [design](../superpowers/specs/2026-10-13-ui-menu-connections-design.md); four slices, each its own PR. Slice 1 merged (PR 53). **Slice 2 in progress (claimed):** menu by area of work with favourites and recent, and the "My work" Home; [plan](../superpowers/plans/2026-10-13-ui-slice-2-menu-home.md).
+- **UI, menu, Home and connections (decision 068)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-13. [Audit](../superpowers/reviews/2026-10-13-ui-audit.md), [design](../superpowers/specs/2026-10-13-ui-menu-connections-design.md); four slices, each its own PR. Slices 1 (PR 53) merged; slice 2 built (PR to main, [plan](../superpowers/plans/2026-10-13-ui-slice-2-menu-home.md)). Next slice 3: item and party pages, Related and Accounting panels on documents, record search.
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
 
 
