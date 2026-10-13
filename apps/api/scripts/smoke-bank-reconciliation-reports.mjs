@@ -30,6 +30,11 @@ try {
  assert.equal(period.startDate,date);assert.equal(period.snapshot.report.U,'-1000.000000');assert.ok(period.createdBy);
  const exported=await fetch(c.base+`${path}/report/export?asOf=${date}`,{headers:{Cookie:c.cookie,'x-tenant-id':c.tenantId,'x-entity-id':c.entityId}});assert.equal(exported.status,200);assert.ok((await exported.text()).includes('100000.000000'));
  assert.deepEqual((await c.req('GET',`${path}/periods/${period.id}`)).snapshot,period.snapshot);
+ // Review M2: the approval froze the bank's identity; renaming the ledger later does not change it.
+ const bankName=c.accounts.find(a=>a.id===c.account('bank')).name;assert.deepEqual([period.snapshot.identity.ledgerName,period.snapshot.identity.maskedIdentifier,period.snapshot.identity.frozen],[bankName,'••1234',true]);
+ await c.req('PUT',`/accounts/accounts/${c.account('bank')}`,{name:'Renamed bank ledger'});
+ const frozen=await c.req('GET',`${path}/periods/${period.id}`);assert.deepEqual([frozen.identity.ledgerName,frozen.identity.frozen],[bankName,true]);
+ await c.req('PUT',`/accounts/accounts/${c.account('bank')}`,{name:bankName});
  await c.req('POST',`${path}/imports/${quiet.batch.id}/reverse`,{reason:'Closed period protects evidence'},409);
  const late=await upload(`Date,Ref,Amount\n${date},LATE,1`,'101001');await c.req('POST',`${path}/imports/${late.batch.id}/submit`,{reviewedHash:late.review.previewHash},409);
  await c.req('POST',`${path}/periods/${period.id}/reopen`,{reason:''},400);
