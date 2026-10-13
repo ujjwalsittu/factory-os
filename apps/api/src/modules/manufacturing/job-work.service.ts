@@ -56,6 +56,8 @@ export interface ChallanInput {
   fromWarehouseId?: string | null;
   gstRegistrationId?: string | null;
   ewayBillNo?: string | null;
+  /** Rule 138: interstate without a number needs a reason (decision 067). */
+  ewayBillReason?: 'job_worker_generates' | 'exempt' | null;
   vehicleNo?: string | null;
   remarks?: string | null;
   /** Conversion: our stock by batch. Operation: one line, the number of pieces. */
@@ -227,6 +229,11 @@ export class JobWorkService {
       const value = inProgress.gt('0') && wip.gt('0') ? Dec.min(wip, wip.mul(q).div(inProgress)) : Dec.ZERO;
       lines = [{ itemId: it!.id, batchId: null, qty: q.toString(), value: value.toString(), goodsType: input.lines[0]!.goodsType ?? 'input', it: it! }];
     }
+    // Rule 138 (decision 067): interstate job work needs an e-way bill at any value, by us or the registered job worker.
+    // Checked after the lines, so their errors come first; the transaction undoes any stock already moved.
+    const ewayBillNo = input.ewayBillNo?.trim() || null;
+    if (interstate && !ewayBillNo && !input.ewayBillReason)
+      throw new BadRequestException({ message: 'Interstate job work needs an e-way bill: enter its number, or say why there is none (the job worker generates it, or the movement is exempt)', issues: [{ path: 'ewayBillNo', message: 'Required for interstate movement' }] });
     const number = await this.posting.allocateNumber(tx, ctx.tenant.tenantId, entityId, `job_work_challan:${reg?.id ?? 'none'}`, input.postingDate);
     const [c] = await tx
       .insert(jobWorkChallan)
@@ -242,7 +249,8 @@ export class JobWorkService {
         stockEntryId: entryId,
         interstate,
         placeOfSupplyStateCode: supplierState,
-        ewayBillNo: input.ewayBillNo?.trim() || null,
+        ewayBillNo,
+        ewayBillReason: interstate && !ewayBillNo ? input.ewayBillReason! : null,
         vehicleNo: input.vehicleNo?.trim() || null,
         remarks: input.remarks ?? null,
         createdBy: ctx.user.id,
@@ -263,7 +271,18 @@ export class JobWorkService {
     );
     if (order.status === 'draft') await tx.update(jobWorkOrder).set({ status: 'open', updatedAt: new Date() }).where(eq(jobWorkOrder.id, order.id));
     await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'job_work.challan', targetType: 'job_work_challan', targetId: c!.id, after: { number, order: order.number, lines: lines.length } }, tx);
-    return { ...c!, warning: interstate && !c!.ewayBillNo ? 'Interstate movement: record the e-way bill number if one was generated' : null };
+    return { ...c!, warning: c!.ewayBillReason === 'job_worker_generates' ? 'Record the e-way bill number when the job worker shares it' : null };
+  }
+
+  /** Rule 138: the e-way bill number arrives later (the job worker generated it); recorded once, audited. */
+  async recordEwayBillIn(tx: Tx, ctx: TenantRequestContext, entityId: string, challanId: string, ewayBillNo: string) {
+    const [c] = await tx.select().from(jobWorkChallan).where(and(eq(jobWorkChallan.id, challanId), eq(jobWorkChallan.entityId, entityId))).for('update');
+    if (!c) throw new NotFoundException('Challan not found');
+    if (c.status !== 'submitted') throw new ConflictException(`Challan ${c.number ?? ''} is ${c.status}`);
+    if (c.ewayBillNo) throw new ConflictException(`Challan ${c.number ?? ''} already has e-way bill ${c.ewayBillNo}`);
+    const [u] = await tx.update(jobWorkChallan).set({ ewayBillNo, ewayBillReason: null }).where(eq(jobWorkChallan.id, c.id)).returning();
+    await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'job_work.eway_bill', targetType: 'job_work_challan', targetId: c.id, before: { ewayBillReason: c.ewayBillReason }, after: { ewayBillNo } }, tx);
+    return u!;
   }
 
   async cancelChallanIn(tx: Tx, ctx: TenantRequestContext, entityId: string, challanId: string, reason: string) {
