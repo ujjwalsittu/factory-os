@@ -62,3 +62,10 @@
   Finance row, fold and favourites surviving a reload and following the person to a second browser, recent pages,
   Customers and Suppliers, a stores clerk seeing only the Stock and Settings areas and one tile, the phone menu.
 - **UI audit:** 194 page views, 0 overflow, 0 console errors, 0 failed calls; 73 menu links, none broken.
+- **Regression:** all browser walkthroughs pass (the 31 from slice 1 plus date field and menu/Home), including e-mail
+  delivery run with its own servers. Six needed their menu clicks updated and are the only test changes: the entry named
+  "Home" is now "My work"; "Customers & suppliers" is now "Customers" or "Suppliers"; "Due and orders" is now
+  "Maintenance"; "Machines" is now an area, so the walkthrough opens the Machines link; a button search for "Add time" now
+  matches the exact name, because the new star button's name "Add Timesheets to favourites" also contains it.
+  API smokes: user erasure 34 (the erase routine was replaced), ITC-04 33 (its deadline logic moved to a shared function),
+  maintenance 92. Root typecheck 20, build 12, tests 15.
