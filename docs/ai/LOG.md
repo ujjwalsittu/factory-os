@@ -251,3 +251,10 @@ Append-only. One entry per session: `date · who · what changed · what's next`
   - erasure smoke 34 checks, browser walkthrough and regression.
 
   Next: PR to main; then the UI, menu and design pass.
+- 2026-10-13 · agent · UI slice 1 (decision 068; no API or data change):
+  - DD-MM-YYYY date field with a calendar on every form; invalid dates flagged and cleared;
+  - page headers keep actions at the right; compact empty state; monospace only for document numbers;
+  - no page scrolls sideways on a 390 px phone (fieldsets, cards in grids, button rows); GST select fits; stale Home roadmap removed;
+  - UI audit as a regression check (0 overflow, 0 errors), date unit tests and browser check, walkthroughs.
+
+  Next: PR to main; then slice 2 (menu by area of work, favourites and recent, "My work" Home).
