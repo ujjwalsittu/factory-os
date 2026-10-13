@@ -64,6 +64,54 @@ interface Table5Row {
   scrapQty: string;
 }
 
+/** The open challan lines and their return deadlines for one entity; shared by the ITC-04 page and the Home tile. */
+export async function itc04Deadlines(db: Database, entityId: string) {
+    const today = businessDate();
+    const rows = await db
+      .select({
+        id: jobWorkChallanLine.id,
+        orderId: jobWorkOrder.id,
+        orderNumber: jobWorkOrder.number,
+        challanNo: jobWorkChallan.number,
+        challanDate: jobWorkChallan.postingDate,
+        jobWorker: party.name,
+        itemCode: item.code,
+        itemName: item.name,
+        uqc: uom.code,
+        qty: jobWorkChallanLine.qty,
+        value: jobWorkChallanLine.value,
+        goodsType: jobWorkChallanLine.goodsType,
+        dueBy: jobWorkChallanLine.dueBy,
+        extendedDueBy: jobWorkChallanLine.extendedDueBy,
+        extensionRef: jobWorkChallanLine.extensionRef,
+        deemedSupplyInvoiceNo: jobWorkChallanLine.deemedSupplyInvoiceNo,
+      })
+      .from(jobWorkChallanLine)
+      .innerJoin(jobWorkChallan, eq(jobWorkChallan.id, jobWorkChallanLine.challanId))
+      .innerJoin(jobWorkOrder, eq(jobWorkOrder.id, jobWorkChallan.orderId))
+      .innerJoin(party, eq(party.id, jobWorkOrder.supplierId))
+      .innerJoin(item, eq(item.id, jobWorkChallanLine.itemId))
+      .innerJoin(uom, eq(uom.id, item.stockUomId))
+      .where(and(eq(jobWorkChallan.entityId, entityId), eq(jobWorkChallan.status, 'submitted')))
+      .orderBy(asc(jobWorkChallan.postingDate), asc(jobWorkChallanLine.lineNo));
+    const used = rows.length
+      ? await db
+          .select({ challanLineId: jobWorkConsumption.challanLineId, qty: jobWorkConsumption.qty })
+          .from(jobWorkConsumption)
+          .where(inArray(jobWorkConsumption.challanLineId, rows.map((r) => r.id)))
+      : [];
+    const lines = rows
+      .map((r) => {
+        const back = used.filter((u) => u.challanLineId === r.id).reduce((s, u) => s.add(u.qty), Dec.ZERO);
+        const open = Dec.of(r.qty).sub(back);
+        const due = r.extendedDueBy ?? r.dueBy;
+        return { ...r, open: open.toString(), due, state: r.deemedSupplyInvoiceNo ? 'deemed_supply' : deadlineState(due, today) };
+      })
+      .filter((r) => Dec.of(r.open).gt('0'))
+      .sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999'));
+    return { today, soon: lines.filter((l) => l.state === 'due_soon' || l.state === 'overdue').length, lines };
+}
+
 @Controller('compliance/itc04')
 export class Itc04Controller {
   constructor(
@@ -126,51 +174,7 @@ export class Itc04Controller {
   @Get('deadlines')
   @RequirePermission('compliance.job_work_return.read')
   async deadlines(@Ctx() ctx: TenantRequestContext) {
-    const entityId = entityOf(ctx);
-    const today = businessDate();
-    const rows = await this.db
-      .select({
-        id: jobWorkChallanLine.id,
-        orderId: jobWorkOrder.id,
-        orderNumber: jobWorkOrder.number,
-        challanNo: jobWorkChallan.number,
-        challanDate: jobWorkChallan.postingDate,
-        jobWorker: party.name,
-        itemCode: item.code,
-        itemName: item.name,
-        uqc: uom.code,
-        qty: jobWorkChallanLine.qty,
-        value: jobWorkChallanLine.value,
-        goodsType: jobWorkChallanLine.goodsType,
-        dueBy: jobWorkChallanLine.dueBy,
-        extendedDueBy: jobWorkChallanLine.extendedDueBy,
-        extensionRef: jobWorkChallanLine.extensionRef,
-        deemedSupplyInvoiceNo: jobWorkChallanLine.deemedSupplyInvoiceNo,
-      })
-      .from(jobWorkChallanLine)
-      .innerJoin(jobWorkChallan, eq(jobWorkChallan.id, jobWorkChallanLine.challanId))
-      .innerJoin(jobWorkOrder, eq(jobWorkOrder.id, jobWorkChallan.orderId))
-      .innerJoin(party, eq(party.id, jobWorkOrder.supplierId))
-      .innerJoin(item, eq(item.id, jobWorkChallanLine.itemId))
-      .innerJoin(uom, eq(uom.id, item.stockUomId))
-      .where(and(eq(jobWorkChallan.entityId, entityId), eq(jobWorkChallan.status, 'submitted')))
-      .orderBy(asc(jobWorkChallan.postingDate), asc(jobWorkChallanLine.lineNo));
-    const used = rows.length
-      ? await this.db
-          .select({ challanLineId: jobWorkConsumption.challanLineId, qty: jobWorkConsumption.qty })
-          .from(jobWorkConsumption)
-          .where(inArray(jobWorkConsumption.challanLineId, rows.map((r) => r.id)))
-      : [];
-    const lines = rows
-      .map((r) => {
-        const back = used.filter((u) => u.challanLineId === r.id).reduce((s, u) => s.add(u.qty), Dec.ZERO);
-        const open = Dec.of(r.qty).sub(back);
-        const due = r.extendedDueBy ?? r.dueBy;
-        return { ...r, open: open.toString(), due, state: r.deemedSupplyInvoiceNo ? 'deemed_supply' : deadlineState(due, today) };
-      })
-      .filter((r) => Dec.of(r.open).gt('0'))
-      .sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999'));
-    return { today, soon: lines.filter((l) => l.state === 'due_soon' || l.state === 'overdue').length, lines };
+    return itc04Deadlines(this.db, entityOf(ctx));
   }
 
   private async build(tenantId: string, entityId: string, period: string | undefined) {
