@@ -1,216 +1,16 @@
 'use client';
 import { cn, Logo } from '@factoryos/ui';
-import {
-  ArrowLeftRight,
-  Boxes,
-  Contact,
-  Handshake,
-  Package,
-  Ruler,
-  Tags,
-  CalendarCheck2,
-  IndianRupee,
-  BadgePercent,
-  FlaskConical,
-  FolderKanban,
-  Satellite,
-  Wallet,
-  Warehouse,
-  Building2,
-  CalendarClock,
-  ChevronDown,
-  ClipboardCheck,
-  Cpu,
-  Factory,
-  FileCheck2,
-  Gauge,
-  ListChecks,
-  OctagonAlert,
-  ListTree,
-  GitBranch,
-  Timer,
-  Cog,
-  FileSpreadsheet,
-  GanttChart,
-  Home,
-  KeyRound,
-  Landmark,
-  LifeBuoy,
-  LogOut,
-  Menu,
-  type LucideIcon,
-  Recycle,
-  ScrollText,
-  Search,
-  GraduationCap,
-  Router,
-  SearchCheck,
-  ShieldCheck,
-  ShoppingCart,
-  Truck,
-  Users,
-  X,
-  ReceiptText,
-  ScanSearch,
-  Banknote,
-  Clock,
-  Ship,
-  CircuitBoard,
-  BarChart3,
-  Wrench,
-} from 'lucide-react';
+import { Building2, ChevronDown, LifeBuoy, LogOut, Menu, Search, ShieldCheck, Star, X } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { type ReactNode, Suspense, useEffect, useRef, useState } from 'react';
 import { authClient } from '@/lib/auth-client';
 import { fyLabel, initials } from '@/lib/format';
 import { CommandPalette } from './command-palette';
+import { ALL_ITEMS, AREAS, areaOf, HOME, isActive, type NavItem } from './nav-data';
 import { ThemeToggle } from './theme';
+import { MAX_RECENT, usePreferences } from './use-preferences';
 import { useWorkspace } from './workspace';
-
-interface NavItem {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  /** Shown disabled with the phase it arrives in (docs/09). */
-  phase?: number;
-  permission?: string;
-  /** Permission is evaluated for the active entity (inventory, masters) rather than tenant-wide. */
-  entityScoped?: boolean;
-}
-
-export const NAV: { section?: string; items: NavItem[] }[] = [
-  { items: [{ href: '/app', label: 'Home', icon: Home }] },
-  {
-    section: 'Operations',
-    items: [
-      { href: '/app/manufacturing', label: 'Work orders', icon: Factory, permission: 'manufacturing.work_order.read', entityScoped: true },
-      { href: '/app/manufacturing/shop-floor', label: 'Shop floor', icon: Timer, permission: 'manufacturing.job_card.read', entityScoped: true },
-      { href: '/app/manufacturing/smt', label: 'SMT line', icon: CircuitBoard, permission: 'manufacturing.smt.read', entityScoped: true },
-      { href: '/app/manufacturing/schedule', label: 'Schedule', icon: GanttChart, permission: 'manufacturing.schedule.read', entityScoped: true },
-      { href: '/app/manufacturing/genealogy', label: 'Genealogy', icon: GitBranch, permission: 'manufacturing.genealogy.read', entityScoped: true },
-      { href: '/app/manufacturing/job-work', label: 'Job work', icon: Truck, permission: 'manufacturing.job_work.read', entityScoped: true },
-      { href: '/app/manufacturing/boms', label: 'Bills of materials', icon: ListTree, permission: 'manufacturing.bom.read', entityScoped: true },
-      { href: '/app/manufacturing/work-centres', label: 'Work centres', icon: Cog, permission: 'manufacturing.work_centre.read', entityScoped: true },
-      { href: '/app/manufacturing/calendars', label: 'Calendars', icon: CalendarClock, permission: 'manufacturing.calendar.read', entityScoped: true },
-    ],
-  },
-  {
-    section: 'Services',
-    items: [
-      { href: '/app/services/bookings', label: 'Machine bookings', icon: CalendarCheck2, permission: 'services.booking.read', entityScoped: true },
-      { href: '/app/services/memberships', label: 'Memberships', icon: BadgePercent, permission: 'services.membership.read', entityScoped: true },
-      { href: '/app/services/campaigns', label: 'Test campaigns', icon: FlaskConical, permission: 'services.campaign.read', entityScoped: true },
-      { href: '/app/services/subscriptions', label: 'Subscriptions', icon: Satellite, permission: 'services.subscription.read', entityScoped: true },
-      { href: '/app/services/billing-runs', label: 'Billing runs', icon: ReceiptText, permission: 'services.billing_run.read', entityScoped: true },
-      { href: '/app/services/projects', label: 'Projects', icon: FolderKanban, permission: 'services.project.read', entityScoped: true },
-      { href: '/app/services/timesheets', label: 'Timesheets', icon: Clock, permission: 'services.timesheet.read', entityScoped: true },
-      { href: '/app/services/cost-rates', label: 'Cost rates', icon: Wallet, permission: 'services.cost_rate.read', entityScoped: true },
-      { href: '/app/services/rate-cards', label: 'Rate cards', icon: IndianRupee, permission: 'services.rate_card.read', entityScoped: true },
-    ],
-  },
-  {
-    section: 'Quality',
-    items: [
-      { href: '/app/quality/inspections', label: 'Inspections', icon: ClipboardCheck, permission: 'quality.inspection.read', entityScoped: true },
-      { href: '/app/quality/ncrs', label: 'NCR / MRB', icon: OctagonAlert, permission: 'quality.ncr.read', entityScoped: true },
-      { href: '/app/quality/capas', label: 'CAPA', icon: SearchCheck, permission: 'quality.capa.read', entityScoped: true },
-      { href: '/app/quality/skills', label: 'Skill matrix', icon: GraduationCap, permission: 'quality.skill.read', entityScoped: true },
-      { href: '/app/quality/fai', label: 'First article', icon: FileCheck2, permission: 'quality.fai.read', entityScoped: true },
-      { href: '/app/quality/plans', label: 'Inspection plans', icon: ListChecks, permission: 'quality.plan.read', entityScoped: true },
-      { href: '/app/quality/gauges', label: 'Gauges', icon: Gauge, permission: 'quality.gauge.read', entityScoped: true },
-    ],
-  },
-  {
-    section: 'Sales',
-    items: [
-      { href: '/app/selling/quotations', label: 'Quotations', icon: FileSpreadsheet, permission: 'selling.quotation.read', entityScoped: true },
-      { href: '/app/selling/orders', label: 'Sales orders', icon: Truck, permission: 'selling.sales_order.read', entityScoped: true },
-      { href: '/app/selling/notes', label: 'Credit/debit notes', icon: ReceiptText, permission: 'selling.sales_note.read', entityScoped: true },
-      { href: '/app/selling/invoices', label: 'Sales invoices', icon: ReceiptText, permission: 'selling.sales_invoice.read', entityScoped: true },
-    ],
-  },
-  {
-    section: 'Buying',
-    items: [
-      { href: '/app/buying/orders', label: 'Purchase orders', icon: ShoppingCart, permission: 'buying.purchase_order.read', entityScoped: true },
-      { href: '/app/buying/inspections', label: 'Incoming inspection', icon: ScanSearch, permission: 'quality.inspection.read', entityScoped: true },
-      { href: '/app/buying/return-claims', label: 'Return claims', icon: ReceiptText, permission: 'buying.return_claim.read', entityScoped: true },
-      { href: '/app/buying/supplier-notes', label: 'Supplier notes', icon: ReceiptText, permission: 'buying.supplier_note.read', entityScoped: true },
-      { href: '/app/buying/invoices', label: 'Purchase invoices', icon: ReceiptText, permission: 'buying.purchase_invoice.read', entityScoped: true },
-      { href: '/app/buying/landed-costs', label: 'Landed cost', icon: Ship, permission: 'buying.landed_cost.read', entityScoped: true },
-    ],
-  },
-  {
-    section: 'Inventory',
-    items: [
-      { href: '/app/inventory/entries', label: 'Stock entries', icon: ArrowLeftRight, permission: 'inventory.stock_entry.read', entityScoped: true },
-      { href: '/app/inventory/balance', label: 'Stock balance', icon: Boxes, permission: 'inventory.report.read', entityScoped: true },
-      { href: '/app/inventory/batches', label: 'Batches & serials', icon: Tags, permission: 'inventory.batch.read', entityScoped: true },
-      { href: '/app/inventory/customer-material', label: 'Customer material', icon: Handshake, permission: 'inventory.report.read', entityScoped: true },
-      { href: '/app/inventory/remnants', label: 'Remnants', icon: Ruler, permission: 'inventory.batch.read', entityScoped: true },
-      { href: '/app/inventory/warehouses', label: 'Warehouses', icon: Warehouse, permission: 'inventory.warehouse.read', entityScoped: true },
-    ],
-  },
-  {
-    section: 'Masters',
-    items: [
-      { href: '/app/masters/items', label: 'Items', icon: Package, permission: 'masters.item.read', entityScoped: true },
-      { href: '/app/masters/parties', label: 'Customers & suppliers', icon: Contact, permission: 'masters.party.read', entityScoped: true },
-      { href: '/app/masters/units', label: 'Units & HSN/SAC', icon: Ruler, permission: 'masters.uom.read', entityScoped: true },
-    ],
-  },
-  {
-    section: 'Finance',
-    items: [
-      { href: '/app/compliance/itc04', label: 'ITC-04', icon: FileSpreadsheet, permission: 'compliance.job_work_return.read', entityScoped: true },
-      { href: '/app/compliance/sandbox', label: 'Sandbox operations', icon: ReceiptText, permission: 'compliance.sandbox_operation.read', entityScoped: true },
-      { href: '/app/accounts/setup', label: 'Accounting setup', icon: Landmark, permission: 'accounts.setup.read', entityScoped: true },
-      { href: '/app/accounts/chart', label: 'Chart of accounts', icon: ScrollText, permission: 'accounts.account.read', entityScoped: true },
-      { href: '/app/accounts/journals', label: 'Journals', icon: ReceiptText, permission: 'accounts.voucher.read', entityScoped: true },
-      { href: '/app/accounts/bank-reconciliation', label: 'Bank reconciliation', icon: Banknote, permission: 'accounts.bank_reconciliation.read', entityScoped: true },
-      { href: '/app/accounts/bank-charges', label: 'Bank charges', icon: Banknote, permission: 'accounts.bank_charge.read', entityScoped: true },
-      { href: '/app/accounts/settlements', label: 'Receipts & payments', icon: Banknote, permission: 'accounts.settlement.read', entityScoped: true },
-      { href: '/app/accounts/outstanding', label: 'Outstanding', icon: Clock, permission: 'accounts.report.read', entityScoped: true },
-      { href: '/app/accounts/day-book', label: 'Day book', icon: FileSpreadsheet, permission: 'accounts.report.read', entityScoped: true },
-      { href: '/app/accounts/trial-balance', label: 'Trial balance', icon: FileSpreadsheet, permission: 'accounts.report.read', entityScoped: true },
-      { href: '/app/compliance', label: 'Compliance', icon: FileSpreadsheet, phase: 1 },
-    ],
-  },
-  {
-    section: 'Maintenance',
-    items: [
-      { href: '/app/maintenance', label: 'Due and orders', icon: Wrench, permission: 'maintenance.order.read', entityScoped: true },
-      { href: '/app/maintenance/plans', label: 'Plans', icon: ListChecks, permission: 'maintenance.plan.read', entityScoped: true },
-      { href: '/app/maintenance/reports', label: 'Reliability and cost', icon: BarChart3, permission: 'maintenance.order.read', entityScoped: true },
-    ],
-  },
-  {
-    section: 'Plant',
-    items: [
-      { href: '/app/machines', label: 'Machines', icon: Cpu, permission: 'plant.machine_state.read', entityScoped: true },
-      { href: '/app/plant/devices', label: 'Devices', icon: Router, permission: 'plant.device.read', entityScoped: true },
-      { href: '/app/ehs/waste', label: 'Waste register', icon: Recycle, permission: 'ehs.waste.read', entityScoped: true },
-    ],
-  },
-  {
-    section: 'Settings',
-    items: [
-      { href: '/app/settings/gst-integrations', label: 'GST sandbox connections', icon: ReceiptText, permission: 'compliance.sandbox_connection.read', entityScoped: true },
-      { href: '/app/settings/supplier-returns', label: 'Supplier return policies', icon: ReceiptText, permission: 'buying.return_policy.read', entityScoped: true },
-      { href: '/app/settings/entities', label: 'Entities & GST', icon: Building2, permission: 'settings.entity.read' },
-      { href: '/app/settings/number-series', label: 'Number series', icon: FileSpreadsheet, permission: 'settings.entity.read', entityScoped: true },
-      { href: '/app/settings/users', label: 'Users', icon: Users, permission: 'settings.user.read' },
-      { href: '/app/settings/roles', label: 'Roles', icon: KeyRound, permission: 'settings.role.read' },
-      { href: '/app/settings/audit', label: 'Audit log', icon: ScrollText, permission: 'settings.audit.read' },
-      { href: '/app/settings/support-access', label: 'Support access', icon: LifeBuoy, permission: 'settings.support_access.read' },
-      { href: '/app/settings/security', label: 'My security', icon: ShieldCheck },
-    ],
-  },
-];
-
-/** Nested entries (e.g. /app/manufacturing/boms under /app/manufacturing): the most specific one is highlighted. */
-const LONGER = NAV.flatMap((g) => g.items.map((i) => i.href));
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -235,7 +35,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Logo />
           </Link>
         </div>
-        <SideNav />
+        <Suspense fallback={null}>
+          <SideNav />
+          <MenuTracker />
+        </Suspense>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -276,7 +79,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <X className="size-5" />
               </button>
             </div>
-            <SideNav onNavigate={() => setMenuOpen(false)} />
+            <Suspense fallback={null}>
+              <SideNav onNavigate={() => setMenuOpen(false)} />
+            </Suspense>
           </div>
         </div>
       )}
@@ -285,57 +90,123 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
+function visibleTo(ws: ReturnType<typeof useWorkspace>) {
+  return (item: NavItem) => !item.permission || (item.entityScoped ? ws.can(item.permission) : ws.canTenant(item.permission));
+}
+
+/** Keeps "Recent" current and the area of the page being shown open. Renders nothing. */
+function MenuTracker() {
+  const pathname = usePathname();
+  const role = useSearchParams().get('role');
+  const { settled, visit, openArea } = usePreferences();
+  const item = ALL_ITEMS.find((i) => isActive(i, pathname, role));
+  const area = areaOf(pathname, role);
+  useEffect(() => {
+    if (!settled || !item) return;
+    if (item.href !== HOME.href) visit(item.href);
+    if (area) openArea(area);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settled, item?.href, area]);
+  return null;
+}
+
+function NavLink({ item, active, starred, onStar, onNavigate }: { item: NavItem; active: boolean; starred?: boolean; onStar?: (href: string) => void; onNavigate?: () => void }) {
+  const Icon = item.icon;
+  return (
+    <div className="group relative">
+      <Link
+        href={item.href}
+        onClick={onNavigate}
+        aria-current={active ? 'page' : undefined}
+        className={cn(
+          'flex h-9 items-center gap-2.5 rounded-lg px-3 text-[13px] font-medium transition-colors md:h-8',
+          onStar && 'pr-9',
+          active ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-fg',
+        )}
+      >
+        <Icon className="size-4 shrink-0" />
+        <span className="truncate">{item.label}</span>
+      </Link>
+      {onStar && (
+        <button
+          type="button"
+          aria-label={starred ? `Remove ${item.label} from favourites` : `Add ${item.label} to favourites`}
+          aria-pressed={!!starred}
+          onClick={() => onStar(item.href)}
+          className={cn(
+            'absolute top-1/2 right-1.5 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-subtle hover:bg-surface hover:text-fg focus-visible:opacity-100',
+            starred ? 'text-warning opacity-100' : 'md:opacity-0 md:group-hover:opacity-100',
+          )}
+        >
+          <Star className={cn('size-3.5', starred && 'fill-current')} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function SideNav({ onNavigate }: { onNavigate?: () => void }) {
   const ws = useWorkspace();
   const pathname = usePathname();
+  const role = useSearchParams().get('role');
+  const { prefs, toggleFavourite, toggleArea } = usePreferences();
+  const visible = visibleTo(ws);
+  const byHref = new Map(ALL_ITEMS.map((i) => [i.href, i]));
+  // Stored links the person can no longer open (permission removed) stay stored but are not shown.
+  const pick = (hrefs: string[]) => hrefs.map((h) => byHref.get(h)).filter((i): i is NavItem => !!i && visible(i));
+  const active = (i: NavItem) => isActive(i, pathname, role);
+  const favourites = pick(prefs.favourites);
+  const recent = pick(prefs.recent).filter((i) => !active(i)).slice(0, MAX_RECENT);
   return (
     <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label="Main">
-          {NAV.map((group, i) => (
-            <div key={i} className="mt-3">
-              {group.section && <p className="px-3 pb-1 text-[11px] font-semibold tracking-wider text-subtle uppercase">{group.section}</p>}
-              {group.items
-                .filter((item) => !item.permission || (item.entityScoped ? ws.can(item.permission) : ws.canTenant(item.permission)))
-                .map((item) => {
-                  const active = item.href === '/app' ? pathname === '/app' : pathname.startsWith(item.href) && !LONGER.some((h) => h.length > item.href.length && h.startsWith(item.href) && pathname.startsWith(h));
-                  const Icon = item.icon;
-                  if (item.phase) {
-                    return (
-                      <span
-                        key={item.href}
-                        title={`Arrives in Phase ${item.phase}`}
-                        className="flex h-8 cursor-not-allowed items-center gap-2.5 rounded-lg px-3 text-[13px] text-subtle"
-                      >
-                        <Icon className="size-4" />
-                        {item.label}
-                        <span className="ml-auto rounded bg-surface-2 px-1.5 text-[10px] font-medium">P{item.phase}</span>
-                      </span>
-                    );
-                  }
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={onNavigate}
-                      aria-current={active ? 'page' : undefined}
-                      className={cn(
-                        'flex h-8 items-center gap-2.5 rounded-lg px-3 text-[13px] font-medium transition-colors',
-                        active ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-fg',
-                      )}
-                    >
-                      <Icon className="size-4" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-            </div>
+      <div className="mt-3">
+        <NavLink item={HOME} active={active(HOME)} onNavigate={onNavigate} />
+      </div>
+      {favourites.length > 0 && (
+        <div className="mt-3" aria-label="Favourites">
+          <p className="px-3 pb-1 text-[11px] font-semibold tracking-wider text-subtle uppercase">Favourites</p>
+          {favourites.map((i) => (
+            <NavLink key={i.href} item={i} active={active(i)} starred onStar={toggleFavourite} onNavigate={onNavigate} />
           ))}
-          {ws.me.platformAdmin === 'superadmin' && (
-            <div className="mt-3 border-t border-line pt-3">
-              <Link href="/platform" onClick={onNavigate} className="flex h-8 items-center gap-2.5 rounded-lg px-3 text-[13px] font-medium text-muted hover:bg-surface-2 hover:text-fg">
-                <ShieldCheck className="size-4" /> Platform console
-              </Link>
-            </div>
-          )}
+        </div>
+      )}
+      {recent.length > 0 && (
+        <div className="mt-3" aria-label="Recent">
+          <p className="px-3 pb-1 text-[11px] font-semibold tracking-wider text-subtle uppercase">Recent</p>
+          {recent.map((i) => (
+            <NavLink key={i.href} item={i} active={false} starred={prefs.favourites.includes(i.href)} onStar={toggleFavourite} onNavigate={onNavigate} />
+          ))}
+        </div>
+      )}
+      {AREAS.map((area) => {
+        const items = area.items.filter(visible);
+        if (!items.length) return null;
+        const open = !prefs.collapsed.includes(area.id);
+        return (
+          <div key={area.id} className="mt-3" data-area={area.id}>
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => toggleArea(area.id)}
+              className="flex h-9 w-full items-center gap-1 rounded-lg px-3 text-left text-[11px] font-semibold tracking-wider text-subtle uppercase hover:bg-surface-2 hover:text-fg md:h-7"
+            >
+              {area.label}
+              <ChevronDown className={cn('ml-auto size-3.5 transition-transform', !open && '-rotate-90')} />
+            </button>
+            {open &&
+              items.map((i) => (
+                <NavLink key={i.href} item={i} active={active(i)} starred={prefs.favourites.includes(i.href)} onStar={toggleFavourite} onNavigate={onNavigate} />
+              ))}
+          </div>
+        );
+      })}
+      {ws.me.platformAdmin === 'superadmin' && (
+        <div className="mt-3 border-t border-line pt-3">
+          <Link href="/platform" onClick={onNavigate} className="flex h-8 items-center gap-2.5 rounded-lg px-3 text-[13px] font-medium text-muted hover:bg-surface-2 hover:text-fg">
+            <ShieldCheck className="size-4" /> Platform console
+          </Link>
+        </div>
+      )}
     </nav>
   );
 }

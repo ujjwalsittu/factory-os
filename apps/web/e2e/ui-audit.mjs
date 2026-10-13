@@ -97,7 +97,8 @@ let current;
 page.on('console', (m) => m.type() === 'error' && current && current.consoleErrors.push(m.text().slice(0, 200)));
 page.on('pageerror', (e) => current && current.consoleErrors.push(`pageerror: ${e.message.slice(0, 200)}`));
 page.on('response', (r) => current && r.url().includes('/api/') && r.status() >= 400 && current.failed.push(`${r.status()} ${r.request().method()} ${r.url().replace(B, '').slice(0, 120)}`));
-page.on('requestfailed', (r) => current && r.url().includes('/api/') && current.failed.push(`no response (${r.failure()?.errorText ?? 'unknown'}) ${r.method()} ${r.url().replace(B, '').slice(0, 120)}`));
+// The menu saves its recent pages as a page is left; the browser reports that request as aborted, and it still completes.
+page.on('requestfailed', (r) => current && r.url().includes('/api/') && !(r.url().endsWith('/api/me/preferences') && r.failure()?.errorText === 'net::ERR_ABORTED') && current.failed.push(`no response (${r.failure()?.errorText ?? 'unknown'}) ${r.method()} ${r.url().replace(B, '').slice(0, 120)}`));
 const slug = (r) => r.replace(/^\/app\/?/, '').replace(/[\/]/g, '__') || 'home';
 for (const width of process.env.WIDTHS ? process.env.WIDTHS.split(',').map(Number) : [1400, 390]) {
   await page.setViewportSize({ width, height: width > 500 ? 900 : 844 });
@@ -137,6 +138,17 @@ for (const width of process.env.WIDTHS ? process.env.WIDTHS.split(',').map(Numbe
 await page.setViewportSize({ width: 1400, height: 900 });
 await page.goto(`${B}/app`);
 const nav = await page.evaluate(() => [...document.querySelectorAll('nav a, nav p, nav div > span')].map((n) => `${n.tagName}:${n.textContent?.trim()}`).filter((x) => x.length > 2));
-fs.writeFileSync(`${out}/audit.json`, JSON.stringify({ seed: ids, nav, notAudited, results }, null, 2));
+// Menu links as the owner sees them: every one must open a real page, and every page that is not a record page (no
+// [id]) must be the menu's own, under one of its paths, or a create/print page of one.
+await page.waitForSelector('nav[aria-label="Main"] a[href^="/app"]', { timeout: 15000 });
+const menuPaths = await page.evaluate(() => [...document.querySelectorAll('nav[aria-label="Main"] a[href^="/app"]')].map((a) => a.getAttribute('href').split('?')[0]));
+const menu = [...new Set(menuPaths)];
+const pageRoutes = new Set(found.map((r) => r.replace(/\/\[[^/]+\]/g, '/:id')));
+const menuBroken = menu.filter((m) => !found.includes(m));
+const unreachable = found.filter((r) => !r.includes('[') && r !== '/app' && !menu.some((m) => r === m || r.startsWith(`${m}/`)));
+fs.writeFileSync(`${out}/audit.json`, JSON.stringify({ seed: ids, nav, menu, menuBroken, unreachable, notAudited, results }, null, 2));
+void pageRoutes;
 await browser.close();
+if (menuBroken.length || unreachable.length) console.log(`Menu links that open no page: ${menuBroken.join(', ') || 'none'}. Pages outside every menu path: ${unreachable.join(', ') || 'none'}.`);
 console.log(`Audited ${results.length} page views of ${routes.length} pages; ${notAudited.length} record pages need a record and were not audited (listed in audit.json). Output in ${out}`);
+if (menuBroken.length) process.exit(1);

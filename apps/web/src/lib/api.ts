@@ -19,7 +19,7 @@ export interface Scope {
   entityId?: string | null;
 }
 
-export async function api<T>(path: string, init: { method?: string; body?: unknown; scope?: Scope } = {}): Promise<T> {
+export async function api<T>(path: string, init: { method?: string; body?: unknown; scope?: Scope; keepalive?: boolean } = {}): Promise<T> {
   const headers: Record<string, string> = { accept: 'application/json' };
   if (init.body !== undefined) headers['content-type'] = 'application/json';
   if (init.scope?.tenantId) headers['x-tenant-id'] = init.scope.tenantId;
@@ -29,6 +29,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
     headers,
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
     credentials: 'include',
+    keepalive: init.keepalive,
   });
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;

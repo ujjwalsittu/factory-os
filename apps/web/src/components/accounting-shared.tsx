@@ -10,7 +10,6 @@ import {
   PageHeader,
 } from '@factoryos/ui';
 import { useQuery } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -45,31 +44,6 @@ export function AccountingPage({
         title={title}
         description="Books are kept separately for each legal entity."
       />
-      <div className="mb-5 flex flex-wrap gap-3 print:hidden">
-        {[
-          ['setup', 'Accounting setup', 'accounts.setup.read'],
-          ['chart', 'Chart of accounts', 'accounts.account.read'],
-          ['journals', 'Journals', 'accounts.voucher.read'],
-          ['bank-charges', 'Bank charges', 'accounts.bank_charge.read'],
-          ['bank-reconciliation', 'Bank reconciliation', 'accounts.bank_reconciliation.read'],
-          ['settlements', 'Receipts & payments', 'accounts.settlement.read'],
-          ['outstanding', 'Outstanding', 'accounts.report.read'],
-          ['day-book', 'Day book', 'accounts.report.read'],
-          ['ledger', 'Account ledger', 'accounts.report.read'],
-          ['trial-balance', 'Trial balance', 'accounts.report.read'],
-        ].map(
-          ([path, label, p]) =>
-            ws.can(p!) && (
-              <Link
-                className="text-sm text-accent hover:underline"
-                key={path}
-                href={`/app/accounts/${path}`}
-              >
-                {label}
-              </Link>
-            ),
-        )}
-      </div>
       <EntityGate what="accounting">
         {ws.can(permission) ? (
           <div key={ws.entityId}>{children}</div>

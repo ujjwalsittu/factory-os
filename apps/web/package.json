@@ -42,7 +42,8 @@
     "e2e:smt": "node e2e/smt.mjs",
     "e2e:maintenance": "node e2e/maintenance.mjs",
     "e2e:user-erasure": "node e2e/user-erasure.mjs",
-    "e2e:date-input": "node e2e/date-input.mjs"
+    "e2e:date-input": "node e2e/date-input.mjs",
+    "e2e:menu-home": "node e2e/menu-home.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",
