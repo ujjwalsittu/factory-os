@@ -38,5 +38,12 @@ This is slice 1 of the [design](../specs/2026-10-13-ui-menu-connections-design.m
 
 - UI audit: 194 page views (97 pages at 1400 px and 390 px), **0 overflowing pages** (10 before), 0 console errors, 0
   failed calls, every page has a heading.
-- Browser walkthroughs: see the PR for the full list and results.
-- `@factoryos/ui` date tests (3), web and root typecheck, build and tests.
+- New browser check `e2e:date-input` (desktop and 390 px): today shows as DD-MM-YYYY, 31-02-2026 is flagged and fails
+  validity, 1/4/2026 becomes 01-04-2026, a pasted ISO date is shown as DD-MM-YYYY, calendar button, no sideways scroll.
+- Browser walkthroughs, all passing: walkthrough, selling, buying, imports, accounting, settlements, inventory,
+  customer material, manufacturing, genealogy, job work, quality, scheduling, bank charges, bank reconciliation,
+  receipt inspection plans, batch page, schedule no-time, MaaS, memberships, test campaigns, projects, subscriptions,
+  billing runs, CAPA, skill matrix, IoT metering, SMT, maintenance, user erasure, e-mail delivery. Date-heavy ones
+  (selling, accounting, settlements) were re-run on the final build.
+- Four walkthroughs matched the old empty-state text by its full stop; they now match the same words without it.
+- `@factoryos/ui` date tests (3). Root typecheck 20, build 12, tests 15.
