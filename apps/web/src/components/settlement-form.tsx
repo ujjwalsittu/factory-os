@@ -184,7 +184,7 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
             </Link>
           </p>
           <h1 className="mt-1 flex items-center gap-3 text-[22px] font-semibold tracking-tight">
-            <span className="font-mono">{settlement?.number ?? (draftId || settlement ? `Draft ${label.toLowerCase()}` : `New ${label.toLowerCase()}`)}</span>
+            {settlement?.number ? <span className="font-mono">{settlement.number}</span> : <span>{draftId || settlement ? `Draft ${label.toLowerCase()}` : `New ${label.toLowerCase()}`}</span>}
             {settlement && (
               <Badge tone={STATUS_TONE[settlement.status]} dot>
                 {settlement.status[0]!.toUpperCase() + settlement.status.slice(1)}

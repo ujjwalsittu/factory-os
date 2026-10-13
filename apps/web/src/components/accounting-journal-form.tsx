@@ -255,7 +255,7 @@ function Form({ doc,linked }: { doc?: Journal;linked?:{profileId:string;statemen
       {doc && (
         <div className="flex flex-wrap items-center gap-3">
           <Badge>{doc.status}</Badge>
-          <span className="font-mono">{doc.number ?? 'Unnumbered draft'}</span>
+          {doc.number ? <span className="font-mono">{doc.number}</span> : <span>Unnumbered draft</span>}
           {source && (
             <Link className="text-accent" href={source}>
               View source document

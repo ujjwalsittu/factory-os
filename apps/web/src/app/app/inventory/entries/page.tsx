@@ -29,7 +29,7 @@ export default function StockEntriesPage() {
         actions={
           ws.entityId &&
           ws.can('inventory.stock_entry.create') && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {(['receipt', 'issue', 'transfer'] as const).map((p, i) => (
                 <Link key={p} href={`/app/inventory/entries/new?purpose=${p}`} className={buttonClass(i === 0 ? 'primary' : 'secondary', 'md')}>
                   New {p}

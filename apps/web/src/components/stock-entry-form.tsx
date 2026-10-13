@@ -252,7 +252,7 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
             / {PURPOSE_LABELS[purpose]}
           </p>
           <h1 className="mt-1 flex items-center gap-3 text-[22px] font-semibold tracking-tight">
-            <span className="font-mono">{entry?.number ?? (draftId ? `Draft ${PURPOSE_LABELS[purpose].toLowerCase()}` : `New ${PURPOSE_LABELS[purpose].toLowerCase()}`)}</span>
+            {entry?.number ? <span className="font-mono">{entry.number}</span> : <span>{draftId ? `Draft ${PURPOSE_LABELS[purpose].toLowerCase()}` : `New ${PURPOSE_LABELS[purpose].toLowerCase()}`}</span>}
             {entry && (
               <Badge tone={STATUS_TONE[entry.status]} dot>
                 {entry.status[0]!.toUpperCase() + entry.status.slice(1)}

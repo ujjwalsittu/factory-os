@@ -164,7 +164,7 @@ export function LandedCostForm({ voucher }: { voucher?: LandedCostDetail }) {
             </Link>
           </p>
           <h1 className="mt-1 flex items-center gap-3 text-[22px] font-semibold tracking-tight">
-            <span className="font-mono">{voucher?.number ?? (draftId || voucher ? 'Draft landed cost' : 'New landed cost')}</span>
+            {voucher?.number ? <span className="font-mono">{voucher.number}</span> : <span>{draftId || voucher ? 'Draft landed cost' : 'New landed cost'}</span>}
             {voucher && (
               <Badge tone={STATUS_TONE[voucher.status]} dot>
                 {voucher.status[0]!.toUpperCase() + voucher.status.slice(1)}

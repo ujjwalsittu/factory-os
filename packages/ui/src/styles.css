@@ -84,6 +84,10 @@
 }
 
 @layer base {
+  /* Browsers size fieldsets to their widest content, which pushes forms past a phone's width. */
+  fieldset {
+    min-width: 0;
+  }
   html {
     font-family: var(--font-sans);
     font-feature-settings: 'cv11', 'ss01';

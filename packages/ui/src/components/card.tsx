@@ -2,7 +2,7 @@ import type { HTMLAttributes, ReactNode } from 'react';
 import { cn } from '../cn';
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('rounded-xl border border-line bg-surface shadow-card', className)} {...props} />;
+  return <div className={cn('min-w-0 rounded-xl border border-line bg-surface shadow-card', className)} {...props} />;
 }
 
 export function CardHeader({ title, description, actions, className }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; className?: string }) {
@@ -12,7 +12,7 @@ export function CardHeader({ title, description, actions, className }: { title: 
         <h3 className="text-[15px] font-semibold text-fg">{title}</h3>
         {description && <p className="mt-0.5 text-[13px] text-muted">{description}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
@@ -25,7 +25,7 @@ export function PageHeader({ title, description, actions }: { title: ReactNode; 
         <h1 className="text-[22px] font-semibold tracking-tight text-fg">{title}</h1>
         {description && <p className="mt-1 text-sm text-muted">{description}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

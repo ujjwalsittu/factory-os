@@ -8,15 +8,6 @@ import { api } from '@/lib/api';
 import { formatDate, fyLabel } from '@/lib/format';
 import type { LegalEntity, Member } from '@/lib/types';
 
-const PHASES: { n: number; title: string; body: string; done?: boolean; current?: boolean }[] = [
-  { n: 0, title: 'Foundation', body: 'Tenancy, entities, users, roles, audit, design system', done: true },
-  { n: 1, title: 'Inventory, buying, selling, GST', body: 'Inventory and buying are live: FIFO stock ledger, purchase orders, receipts into quarantine, incoming inspection, purchase invoices with GST. Next: sales and tax invoices.', current: true },
-  { n: 2, title: 'Manufacturing & quality', body: 'BOM, routing, work orders, job cards, genealogy, FAI, NCR' },
-  { n: 3, title: 'Services', body: 'Machine-hours, test campaigns, memberships, subscriptions' },
-  { n: 4, title: 'Accounts & returns', body: 'GSTR-1/3B, 2B reconciliation, TDS, MSME, Tally sync' },
-  { n: 5, title: 'Machines & EHS', body: 'Edge agent, OEE, metering, waste register' },
-];
-
 function greeting() {
   const h = Number(new Date().toLocaleString('en-IN', { hour: 'numeric', hour12: false, timeZone: 'Asia/Kolkata' }));
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
@@ -101,7 +92,7 @@ export default function HomePage() {
               </Link>
             </div>
           ) : (
-            <EmptyState icon={<Inbox className="size-5" />} title="Nothing to approve" description="Approvals for POs, payments and GST returns will appear here from Phase 1." />
+            <EmptyState icon={<Inbox className="size-5" />} title="Nothing to approve" description="Things that need you, such as job work goods due back, appear here." />
           )}
         </Card>
 
@@ -139,25 +130,6 @@ export default function HomePage() {
             )}
           </Card>
         )}
-
-        <Card className={canEntities ? '' : 'lg:col-span-3'}>
-          <CardHeader title="Roadmap" description="What arrives next" />
-          <ol className="space-y-3 px-5 py-4">
-            {PHASES.map((p) => (
-              <li key={p.n} className="flex gap-3">
-                <span
-                  className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${p.done ? 'bg-success-soft text-success' : p.current ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-muted'}`}
-                >
-                  {p.n}
-                </span>
-                <div>
-                  <p className="text-[13px] font-medium">{p.title}</p>
-                  <p className="text-[12px] text-muted">{p.body}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </Card>
       </div>
     </div>
   );

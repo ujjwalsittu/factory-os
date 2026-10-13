@@ -165,7 +165,7 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
             </Link>
           </p>
           <h1 className="mt-1 flex items-center gap-3 text-[22px] font-semibold tracking-tight">
-            <span className="font-mono">{po?.number ?? (draftId || po ? 'Draft purchase order' : 'New purchase order')}</span>
+            {po?.number ? <span className="font-mono">{po.number}</span> : <span>{draftId || po ? 'Draft purchase order' : 'New purchase order'}</span>}
             {po && (state ? <Badge tone={state.tone} dot>{state.label}</Badge> : <Badge tone={STATUS_TONE[po.status]} dot>Draft</Badge>)}
           </h1>
           {po?.status === 'submitted' && <p className="mt-1 text-[13px] text-muted">{po.supplierName} · ordered {formatDate(po.orderDate)}</p>}
@@ -285,7 +285,7 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
               <Th className="min-w-64">Item</Th>
               <Th className="w-32 text-right">Qty</Th>
               <Th className="w-32 text-right">Rate ({header.currency === 'INR' ? '₹' : header.currency})</Th>
-              <Th className="w-28">GST %</Th>
+              <Th className="min-w-36">GST %</Th>
               <Th className="text-right">Amount</Th>
               {!editable && <Th className="text-right">Received</Th>}
               {!editable && <Th className="text-right">Billed</Th>}
@@ -311,7 +311,7 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
                       <Input className="tabular text-right" inputMode="decimal" value={l.rate} onChange={(e) => update(l.key, { rate: e.target.value })} aria-label="Rate" />
                     </Td>
                     <Td>
-                      <Select value={l.gstRate} onChange={(e) => update(l.key, { gstRate: e.target.value })} aria-label="GST rate">
+                      <Select className="min-w-32" value={l.gstRate} onChange={(e) => update(l.key, { gstRate: e.target.value })} aria-label="GST rate">
                         <option value="">{previewRate(l.key) ? `${previewRate(l.key)} (HSN)` : 'From HSN'}</option>
                         {GST_RATE_OPTIONS.map((r) => (
                           <option key={r} value={r}>
