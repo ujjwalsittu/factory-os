@@ -146,7 +146,7 @@ try {
   await page.locator('tr', { hasText: 'Total' }).getByText('1 h 25 min').waitFor();
 
   step('Plant → Machines and the machine page');
-  await page.click('nav >> text=Machines');
+  await page.locator('nav').getByRole('link', { name: 'Machines', exact: true }).first().click();
   await page.waitForURL('**/app/machines');
   await page.locator('tr', { hasText: 'M5X' }).getByText('Idle').waitFor();
   await page.click('main a:has-text("M5X")');

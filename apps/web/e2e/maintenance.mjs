@@ -92,7 +92,7 @@ try {
   await shot('01-plans');
 
   step('the due list opens its order');
-  await page.click('nav >> text=Due and orders');
+  await page.locator('nav').getByRole('link', { name: 'Maintenance', exact: true }).first().click();
   await page.waitForURL('**/app/maintenance');
   await page.locator('tr', { hasText: 'Quarterly service' }).getByText('Due soon').waitFor();
   await page.getByRole('button', { name: 'Open due orders' }).click();
@@ -117,7 +117,7 @@ try {
   expect((await L('Spare 1').inputValue()) === belt.id, 'the plan’s spare is suggested');
   await dialog().getByRole('button', { name: 'Issue', exact: true }).click();
   await page.getByText('SP-BELT × 1 NOS').waitFor();
-  await page.getByRole('button', { name: 'Add time' }).click();
+  await page.getByRole('button', { name: 'Add time', exact: true }).click();
   await L('Minutes').fill('90');
   await L('Note').fill('Belt change');
   await dialog().getByRole('button', { name: 'Add' }).click();
