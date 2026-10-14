@@ -36,7 +36,7 @@ await page.getByRole('button', { name: 'Save' }).click(); await page.waitForSele
 await shot('02-items');
 
 step('supplier');
-await page.click('nav >> text=Customers & suppliers'); await page.click('button:has-text("New party")');
+await page.click('nav >> text=Suppliers'); await page.click('button:has-text("New party")');
 const C='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', f='29AAACT1234B1Z'; let s=0; for(let i=0;i<14;i++){const p=C.indexOf(f[i])*(i%2?2:1); s+=Math.floor(p/36)+p%36}
 await L('Code').fill('TIMET'); await L('Legal name').fill('Titanium Metals India Pvt Ltd'); await L('GSTIN').fill(f + C[(36 - s % 36) % 36]);
 await L('Credit days').fill('60'); await L('Udyam number').fill('UDYAM-KA-03-0001234'); await L('Category').selectOption('small');

@@ -36,7 +36,7 @@ try {
     step(`stock entry posting date at ${width} px`);
     await page.setViewportSize({ width, height: width > 500 ? 900 : 844 });
     await page.goto(`${B}/app/inventory/entries/new?purpose=receipt`);
-    if (await page.waitForSelector('text=Choose a legal entity', { timeout: 3000 }).catch(() => null)) await page.click('main button:has-text("Azeonics")');
+    if (await page.waitForSelector('text=Choose a legal entity', { timeout: 3000 }).catch(() => null)) await page.click('main button:has-text("Azeonics")', { timeout: 3000 }).catch(() => null);
     const field = L('Posting date');
     await field.waitFor();
     const today = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);

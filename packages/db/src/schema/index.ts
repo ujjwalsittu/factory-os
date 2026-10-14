@@ -32,3 +32,4 @@ export * from './services.js';
 export * from './iot.js';
 export * from './smt.js';
 export * from './maintenance.js';
+export * from './user-preference.js';

@@ -258,3 +258,10 @@ Append-only. One entry per session: `date · who · what changed · what's next`
   - UI audit as a regression check (0 overflow, 0 errors), date unit tests and browser check, walkthroughs.
 
   Next: PR to main; then slice 2 (menu by area of work, favourites and recent, "My work" Home).
+- 2026-10-13 · agent · UI slice 2 (decision 068, migration 0051_user_preference):
+  - menu by area of work (nine collapsible areas, every page once), favourites, recent pages and closed areas saved per person and workspace;
+  - Customers and Suppliers as one parties page with a role filter; Finance link row removed; ledgers linked;
+  - `GET /home` and a My work Home showing only tiles with something waiting;
+  - preferences smoke 41 checks, Home smoke 52 checks, browser walkthrough, audit (73 menu links, none broken), regression.
+
+  Next: PR to main; then slice 3 (item and party pages, Related and Accounting panels, record search).

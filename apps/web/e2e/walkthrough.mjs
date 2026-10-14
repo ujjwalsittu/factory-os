@@ -95,7 +95,7 @@ await shot('12-2fa-setup');
 await page.click('button:has-text("Verify and turn on")'); await page.waitForSelector('text=Two-factor is on');
 
 step('entity switch'); await page.click('header button[aria-haspopup=listbox]'); await page.click('[role=option]:has-text("EarthNow")');
-await page.click('nav >> text=Home'); await page.waitForSelector('text=EarthNow Private Limited'); await shot('13-home-earthnow');
+await page.click('nav >> text=My work'); await page.waitForSelector('text=EarthNow Private Limited'); await shot('13-home-earthnow');
 
 step('dark mode'); await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }); await page.click('nav >> text=Entities & GST'); await page.waitForSelector('text=Navi Mumbai'); await shot('14-entities-dark');
 await page.evaluate(() => { document.documentElement.dataset.theme = 'light'; });

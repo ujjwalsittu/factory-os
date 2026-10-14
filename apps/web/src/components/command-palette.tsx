@@ -3,7 +3,7 @@ import { cn } from '@factoryos/ui';
 import { CornerDownLeft, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { NAV } from './app-shell';
+import { AREAS, HOME } from './nav-data';
 import { useWorkspace } from './workspace';
 
 interface Command {
@@ -28,11 +28,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       router.push(href);
       onClose();
     };
-    const nav = NAV.flatMap((g) =>
-      g.items
-        .filter((i) => !i.phase && (!i.permission || (i.entityScoped ? ws.can(i.permission) : ws.canTenant(i.permission))))
-        .map((i) => ({ id: i.href, label: i.label, group: g.section ?? 'Go to', run: go(i.href) })),
+    const nav = AREAS.flatMap((a) =>
+      a.items
+        .filter((i) => !i.permission || (i.entityScoped ? ws.can(i.permission) : ws.canTenant(i.permission)))
+        .map((i) => ({ id: i.href, label: i.label, group: a.label, run: go(i.href) })),
     );
+    nav.unshift({ id: HOME.href, label: HOME.label, group: 'Go to', run: go(HOME.href) });
     const actions: Command[] = [];
     for (const [resource, path, label] of [['quotation', 'quotations', 'quotation'], ['sales_order', 'orders', 'sales order'], ['sales_invoice', 'invoices', 'sales invoice']] as const) {
       if (ws.can(`selling.${resource}.create`)) actions.push({ id: resource, label: `New ${label}`, group: 'Actions', run: go(`/app/selling/${path}/new`) });

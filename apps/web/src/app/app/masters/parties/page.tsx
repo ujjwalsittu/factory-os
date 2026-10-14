@@ -2,7 +2,7 @@
 import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Contact, Plus, Search } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
 import { useWorkspace } from '@/components/workspace';
@@ -23,7 +23,12 @@ function PartiesPage() {
   const ws = useWorkspace();
   const params = useSearchParams();
   const [q, setQ] = useState('');
-  const [role, setRole] = useState('');
+  const router = useRouter();
+  const pathname = usePathname();
+  // The role filter lives in the address, so the menu's Customers and Suppliers links open this page already filtered.
+  const roleParam = params.get('role');
+  const role = roleParam === 'customer' || roleParam === 'supplier' ? roleParam : '';
+  const setRole = (value: string) => router.replace(value ? `${pathname}?role=${value}` : pathname);
   const [editing, setEditing] = useState<Party | 'new' | null>(params.get('new') ? 'new' : null);
   const parties = useQuery({
     queryKey: ['parties', ws.tenantId, q, role],
@@ -33,7 +38,7 @@ function PartiesPage() {
   return (
     <>
       <PageHeader
-        title="Customers & suppliers"
+        title={role === 'customer' ? 'Customers' : role === 'supplier' ? 'Suppliers' : 'Customers & suppliers'}
         description="One record per business, whether you buy from them, sell to them, or both."
         actions={
           ws.can('masters.party.create') && (
