@@ -16,6 +16,7 @@ export function ItemPicker({
   stockOnly = true,
   autoFocus,
   newType,
+  sellable,
 }: {
   value: Pick<Item, 'id' | 'code' | 'name'> | null;
   onChange: (item: Item) => void;
@@ -24,6 +25,8 @@ export function ItemPicker({
   autoFocus?: boolean;
   /** Type a new item starts with (an asset line starts as an asset). */
   newType?: string;
+  /** Sales screens: assets are bought, never sold (asset disposal is not built yet). */
+  sellable?: boolean;
 }) {
   const ws = useWorkspace();
   const id = useId();
@@ -34,8 +37,8 @@ export function ItemPicker({
   const canAdd = useCanAdd('item');
   const ref = useRef<HTMLDivElement>(null);
   const results = useQuery({
-    queryKey: ['items', 'pick', ws.tenantId, q, stockOnly],
-    queryFn: () => api<Item[]>(`/items?limit=20${stockOnly ? '&stockOnly=true' : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`, { scope: ws.scope }),
+    queryKey: ['items', 'pick', ws.tenantId, q, stockOnly, !!sellable],
+    queryFn: () => api<Item[]>(`/items?limit=20${stockOnly ? '&stockOnly=true' : ''}${sellable ? '&sellable=true' : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`, { scope: ws.scope }),
     enabled: open,
   });
   const list = (results.data ?? []).filter((i) => i.isActive);

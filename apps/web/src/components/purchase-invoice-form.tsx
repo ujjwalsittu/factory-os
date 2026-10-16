@@ -11,6 +11,7 @@ import { api, ApiError } from '@/lib/api';
 import { CURRENCIES, errorText, GST_RATE_OPTIONS, MSME_LABELS, useTaxPreview } from '@/lib/buying';
 import { formatAmount, formatDate, formatDateTime, formatQty, today } from '@/lib/format';
 import { STATUS_TONE } from '@/lib/stock';
+import type { Account, AccountGroup } from '@/lib/accounting';
 import type { Item, Party, PurchaseInvoiceDetail, PurchaseOrderDetail, PurchaseOrderRow } from '@/lib/types';
 import { fieldErrors, FormDialog } from './form-dialog';
 import { ItemPicker } from './item-picker';
@@ -21,10 +22,12 @@ import { LookupSelect } from '@/components/lookup-select';
 
 interface DraftLine {
   key: string;
-  item: (Pick<Item, 'id' | 'code' | 'name'> & { uomCode?: string; isStockItem?: boolean }) | null;
+  item: (Pick<Item, 'id' | 'code' | 'name'> & { uomCode?: string; isStockItem?: boolean; type?: string }) | null;
   poLineId: string | null;
   /** Service lines may charge a job work receipt of this supplier (decision 047). */
   jobWorkReceiptId: string;
+  /** Asset lines: the ledger to capitalise to; empty uses the Fixed assets mapping (decision 069). */
+  assetAccountId: string;
   /** For PO lines: the ordered rate and what is still billable, to flag variances before submit. */
   poRate: string | null;
   billable: string | null;
@@ -39,6 +42,7 @@ const blank = (): DraftLine => ({
   item: null,
   poLineId: null,
   jobWorkReceiptId: '',
+  assetAccountId: '',
   poRate: null,
   billable: null,
   qty: '',
@@ -58,6 +62,7 @@ const fromPo = (po: PurchaseOrderDetail): DraftLine[] =>
       },
       poLineId: l.id,
       jobWorkReceiptId: '',
+      assetAccountId: '',
       poRate: l.rate,
       billable: l.unbilledQty,
       qty: String(Number(l.unbilledQty)),
@@ -99,9 +104,11 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
             code: l.itemCode,
             name: l.itemName,
             uomCode: l.uomCode,
+            ...(l.itemType && { type: l.itemType }),
           },
           poLineId: l.poLineId,
           jobWorkReceiptId: l.jobWorkReceiptId ?? '',
+          assetAccountId: l.assetAccountId ?? '',
           poRate: l.poRate,
           billable: null,
           qty: String(Number(l.qty)),
@@ -176,6 +183,12 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
   });
   const update = (key: string, patch: Partial<DraftLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const supplier = suppliers.data?.find((s) => s.id === header.supplierId);
+  // Asset lines are capitalised to a ledger: the line names one, else the Fixed assets mapping is used (decision 069).
+  const canPickLedger = ws.can('accounts.account.read');
+  const ledgers = useQuery({ queryKey: ['accounts', ws.tenantId, ws.entityId], queryFn: () => api<Account[]>('/accounts/accounts', { scope: ws.scope }), enabled: editable && canPickLedger && !!ws.entityId, retry: false });
+  const ledgerGroups = useQuery({ queryKey: ['account-groups', ws.tenantId, ws.entityId], queryFn: () => api<AccountGroup[]>('/accounts/groups', { scope: ws.scope }), enabled: editable && canPickLedger && !!ws.entityId, retry: false });
+  const assetGroupIds = new Set((ledgerGroups.data ?? []).filter((g) => g.root === 'asset').map((g) => g.id));
+  const assetLedgers = (ledgers.data ?? []).filter((a) => a.isActive && assetGroupIds.has(a.groupId));
   const jobWorkReceipts = useQuery({
     queryKey: ['job-work-receipts', ws.entityId, header.supplierId],
     queryFn: () => api<{ id: string; number: string; postingDate: string; orderNumber: string; natureOfWork: string | null; chargedBy: string | null }[]>(`/manufacturing/job-work-receipts?supplierId=${header.supplierId}`, { scope: ws.scope }),
@@ -200,6 +213,7 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
         itemId: l.item!.id,
         poLineId: l.poLineId,
         jobWorkReceiptId: l.jobWorkReceiptId || null,
+        ...(l.item!.type === 'asset' && { assetAccountId: l.assetAccountId || null }),
         qty: l.qty,
         rate: l.rate,
         ...(l.gstRate && { gstRate: l.gstRate }),
@@ -508,11 +522,31 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
                                   name: it.name,
                                   uomCode: it.uomCode,
                                   isStockItem: it.isStockItem,
+                                  type: it.type,
                                 },
                                 jobWorkReceiptId: '',
+                                assetAccountId: '',
                               })
                             }
                           />
+                        )}
+                        {l.item?.type === 'asset' && canPickLedger && !!ledgers.data?.length && (
+                          <LookupSelect
+                            kind="account"
+                            noun="asset ledger"
+                            prefill={{ root: 'asset' }}
+                            className="mt-1"
+                            aria-label={`Asset ledger for line ${i + 1}`}
+                            value={l.assetAccountId}
+                            onChange={(e) => update(l.key, { assetAccountId: e.target.value })}
+                          >
+                            <option value="">Fixed assets (default)</option>
+                            {assetLedgers.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.code} · {a.name}
+                              </option>
+                            ))}
+                          </LookupSelect>
                         )}
                         {!l.poLineId && (l.item?.isStockItem === false || l.jobWorkReceiptId) && jobWorkReceipts.data && jobWorkReceipts.data.length > 0 && (
                           <Select className="mt-1" aria-label={`Job work receipt for line ${i + 1}`} value={l.jobWorkReceiptId} onChange={(e) => update(l.key, { jobWorkReceiptId: e.target.value })}>

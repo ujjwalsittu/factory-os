@@ -739,6 +739,7 @@ export function SellingForm({
                         <ItemPicker
                           value={l.item}
                           stockOnly={false}
+                          sellable
                           onChange={(it) =>
                             update(l.key, {
                               item: it,

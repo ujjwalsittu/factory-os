@@ -137,7 +137,8 @@ export type ItemType =
   | 'tool'
   | 'gauge'
   | 'service'
-  | 'scrap';
+  | 'scrap'
+  | 'asset';
 
 export interface Item {
   id: string;
@@ -535,6 +536,9 @@ export interface PurchaseInvoiceLine {
   id: string;
   /** Processing charge for a job work receipt (decision 047). */
   jobWorkReceiptId?: string | null;
+  /** Asset lines: the ledger the line is capitalised to (decision 069). */
+  assetAccountId?: string | null;
+  itemType?: string;
   lineNo: number;
   itemId: string;
   itemCode: string;
