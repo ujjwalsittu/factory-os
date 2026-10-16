@@ -780,6 +780,7 @@ export class SellingController {
       const it = items.get(l.itemId);
       if (!it) throw new BadRequestException(`Line ${idx + 1}: unknown item`);
       if (!it.isActive) throw new BadRequestException(`Line ${idx + 1}: ${it.code} is inactive`);
+      if (it.type === 'asset') throw new BadRequestException({ message: `Line ${idx + 1}: ${it.code} is an asset; asset disposal is not built yet`, issues: [{ path: `lines.${idx}.itemId`, message: 'Assets cannot be sold yet' }] });
       if (!Dec.of(l.qty).gt('0')) throw new BadRequestException({ message: `Line ${idx + 1}: quantity must be positive`, issues: [{ path: `lines.${idx}.qty`, message: 'Must be positive' }] });
       let rate = l.gstRate;
       let cess = '0';

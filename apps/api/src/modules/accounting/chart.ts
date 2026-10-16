@@ -29,6 +29,8 @@ export const DEFAULT_ACCOUNTS = [
   ['production_variance', 'Manufacturing variance', 'Direct Expenses', 'expense'],
   ['cogs', 'Cost of goods sold', 'Direct Expenses', 'expense'],
   ['scrap', 'Scrap expense', 'Direct Expenses', 'expense'],
+  /** Decision 069: the default ledger for asset purchases; a purchase invoice line can name another. */
+  ['fixed_assets', 'Fixed assets', 'Fixed Assets', 'asset'],
   /** Decision 066: spares issued to maintenance orders. */
   ['maintenance', 'Repairs and maintenance (machinery)', 'Indirect Expenses', 'expense'],
   ['adjustment', 'Stock adjustments', 'Indirect Expenses', 'expense'],

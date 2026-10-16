@@ -25,6 +25,7 @@ export class SupplierNotePostingService {
  if(!row)throw new ConflictException('Original purchase line missing');
  const taxable=Dec.of(l.taxableAmount).mul(note.exchangeRate),pending=Dec.of(l.pendingValueInr);
  let adjustment=role('return_variance');
+ if(row.i.type==='asset')throw new ConflictException('Returns of asset purchases are not built yet; cancel the purchase invoice or post a journal');
  if(!row.i.isStockItem){const expense=originals.filter(x=>!x.l.partyId&&!x.l.gstRegistrationId&&Dec.of(x.l.debit).gt('0')&&(x.a.role==='purchases'||x.a.id===role('purchases')||(settings!.controlHistory.purchases??[]).includes(x.a.id)));if(expense.length!==1)throw new ConflictException('Original service purchase account evidence is ambiguous');adjustment=expense[0]!.l.accountId;}
  const returned=l.claimLineId?await returnAccountsIn(tx,ctx,e,l.claimLineId):null;if(returned)evidenceVoucherIds.push(...returned.evidenceVoucherIds);add(returned?.pending??role('pending_returns'),pending.mul(sign).neg());
  add(adjustment,taxable.sub(pending).mul(sign).neg());

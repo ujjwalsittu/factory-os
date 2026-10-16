@@ -58,6 +58,8 @@ export const itemType = pgEnum('item_type', [
   'gauge',
   'service',
   'scrap',
+  /** Decision 069: plant, machinery, equipment, furniture, IT. Never stocked; bought through the purchase flow like a service. */
+  'asset',
 ]);
 export const itemTracking = pgEnum('item_tracking', ['none', 'batch', 'serial']);
 

@@ -7,6 +7,8 @@ import { Dec, fyCode } from '@factoryos/core';
 import {
   batch,
   type Database,
+  accountGroup,
+  glAccount,
   gstRegistration,
   hsnCode,
   item,
@@ -69,7 +71,7 @@ const poInput = z.object({
   lines: z.array(poLineInput).min(1).max(300),
 });
 
-const piLineInput = z.object({ itemId: z.string().uuid(), poLineId: z.string().uuid().nullable().optional(), jobWorkReceiptId: z.string().uuid().nullable().optional(), qty: qtyString, rate: qtyString, gstRate: gstRate.optional() });
+const piLineInput = z.object({ itemId: z.string().uuid(), poLineId: z.string().uuid().nullable().optional(), jobWorkReceiptId: z.string().uuid().nullable().optional(), assetAccountId: z.string().uuid().nullable().optional(), qty: qtyString, rate: qtyString, gstRate: gstRate.optional() });
 const piInput = z.object({
   supplierId: z.string().uuid(),
   gstRegistrationId: z.string().uuid().nullable().optional(),
@@ -713,7 +715,7 @@ export class BuyingController {
   /** Fill each line's GST rate from its HSN/SAC (effective on `date`) unless given. */
   private async withRates<T extends { itemId: string; qty: string; rate: string; gstRate?: string | undefined }>(ctx: TenantRequestContext, lines: T[], date: string) {
     const items = new Map((await this.db.select().from(item).where(and(eq(item.tenantId, ctx.tenant.tenantId), inArray(item.id, [...new Set(lines.map((l) => l.itemId))])))).map((i) => [i.id, i]));
-    const out: (T & { gstRate: string; isService: boolean; hsn: string | null })[] = [];
+    const out: (T & { gstRate: string; isService: boolean; isAsset: boolean; hsn: string | null })[] = [];
     for (const [idx, l] of lines.entries()) {
       const it = items.get(l.itemId);
       if (!it) throw new BadRequestException(`Line ${idx + 1}: unknown item`);
@@ -729,9 +731,37 @@ export class BuyingController {
         if (!h) throw new BadRequestException({ message: `Line ${idx + 1}: no GST rate on file for HSN ${it.hsnCode}; add it under Units & HSN/SAC or enter the rate`, issues: [{ path: `lines.${idx}.gstRate`, message: 'Required' }] });
         rate = String(Number(h.rate));
       }
-      out.push({ ...l, gstRate: rate, isService: it.type === 'service', hsn: it.hsnCode });
+      out.push({ ...l, gstRate: rate, isService: it.type === 'service', isAsset: it.type === 'asset', hsn: it.hsnCode });
     }
     return out;
+  }
+
+  /**
+   * Decision 069: an asset line may name the ledger it is capitalised to; it must be an active asset ledger of this
+   * entity. An account on any other line is a mistake, not ignored. With none named, the Fixed assets mapping is used at
+   * submit.
+   */
+  private async checkAssetAccounts(ctx: TenantRequestContext, entityId: string, input: { assetAccountId?: string | null | undefined }[], lines: { isAsset: boolean }[]) {
+    const ids = [...new Set(input.map((l) => l.assetAccountId).filter((x): x is string => !!x))];
+    input.forEach((l, i) => {
+      if (l.assetAccountId && !lines[i]!.isAsset) {
+        throw new BadRequestException({ message: `Line ${i + 1}: an asset account is only for asset items`, issues: [{ path: `lines.${i}.assetAccountId`, message: 'Only for asset items' }] });
+      }
+    });
+    if (!ids.length) return;
+    const found = await this.db
+      .select({ id: glAccount.id, isActive: glAccount.isActive, root: accountGroup.root })
+      .from(glAccount)
+      .innerJoin(accountGroup, eq(accountGroup.id, glAccount.groupId))
+      .where(and(eq(glAccount.tenantId, ctx.tenant.tenantId), eq(glAccount.entityId, entityId), inArray(glAccount.id, ids)));
+    const byId = new Map(found.map((a) => [a.id, a]));
+    input.forEach((l, i) => {
+      if (!l.assetAccountId) return;
+      const a = byId.get(l.assetAccountId);
+      if (!a || !a.isActive || a.root !== 'asset') {
+        throw new BadRequestException({ message: `Line ${i + 1}: choose an active asset ledger of this entity`, issues: [{ path: `lines.${i}.assetAccountId`, message: 'Not an active asset ledger' }] });
+      }
+    });
   }
 
   /** Decision 026: foreign currency only for overseas suppliers, with an exchange rate; INR is always 1. */
@@ -795,6 +825,7 @@ export class BuyingController {
     if (input.supplierInvoiceDate > input.postingDate) throw new BadRequestException({ message: 'The supplier invoice date is after the posting date', issues: [{ path: 'supplierInvoiceDate', message: 'Check the date' }] });
     await this.jobWork.validateChargeLines(this.db, entityId, supplier.id, input.lines);
     const lines = await this.withRates(ctx, input.lines, input.supplierInvoiceDate);
+    await this.checkAssetAccounts(ctx, entityId, input.lines, lines);
     const t = this.tax(supplier, reg, lines, input.reverseCharge);
     // MSME: micro and small suppliers must be paid within 45 days of acceptance (Sec 43B(h)).
     const msme = ['micro', 'small'].includes(supplier.msmeCategory ?? '');
@@ -828,6 +859,7 @@ export class BuyingController {
         itemId: l.itemId,
         poLineId: l.poLineId ?? null,
         jobWorkReceiptId: l.jobWorkReceiptId ?? null,
+        assetAccountId: l.isAsset ? (l.assetAccountId ?? null) : null,
         hsnCode: l.hsn,
         qty: l.qty,
         rate: l.rate,

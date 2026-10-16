@@ -1,7 +1,7 @@
 import { isValidPan, validateGstin } from '@factoryos/compliance-in';
 import { type Database, hsnCode, item, party, uom } from '@factoryos/db';
 import { BadRequestException, Body, ConflictException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { and, asc, desc, eq, ilike, or, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, ne, or, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../common/access.js';
 import { AuditService } from '../common/audit.service.js';
@@ -30,7 +30,7 @@ const hsnInput = z.object({
   effectiveFrom: z.string().date(),
 });
 
-const ITEM_TYPES = ['raw_material', 'powder', 'component', 'consumable', 'sub_assembly', 'finished_good', 'kit', 'tool', 'gauge', 'service', 'scrap'] as const;
+const ITEM_TYPES = ['raw_material', 'powder', 'component', 'consumable', 'sub_assembly', 'finished_good', 'kit', 'tool', 'gauge', 'service', 'scrap', 'asset'] as const;
 const itemInput = z.object({
   code: z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9._/-]{0,39}$/, 'Up to 40 letters, digits, . _ / -'),
   name: z.string().trim().min(2).max(200),
@@ -168,11 +168,13 @@ export class MastersController {
   @Get('items')
   @RequirePermission('masters.item.read')
   async items(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
-    const { q, limit, offset, type, stockOnly } = parse(pageQuery.extend({ type: z.enum(ITEM_TYPES).optional(), stockOnly: z.enum(['true', 'false']).optional() }), query);
+    const { q, limit, offset, type, stockOnly, sellable } = parse(pageQuery.extend({ type: z.enum(ITEM_TYPES).optional(), stockOnly: z.enum(['true', 'false']).optional(), sellable: z.enum(['true', 'false']).optional() }), query);
     const where: SQL[] = [eq(item.tenantId, ctx.tenant.tenantId)];
     if (q) where.push(or(ilike(item.code, `%${q}%`), ilike(item.name, `%${q}%`), ilike(item.drawingNo, `%${q}%`))!);
     if (type) where.push(eq(item.type, type));
     if (stockOnly === 'true') where.push(eq(item.isStockItem, true));
+    // Assets are bought, never sold (asset disposal is not built yet): sales pickers ask for sellable items only.
+    if (sellable === 'true') where.push(ne(item.type, 'asset'));
     return this.db
       .select({ item, uomCode: uom.code, uomDecimals: uom.decimals })
       .from(item)
@@ -197,8 +199,9 @@ export class MastersController {
   async createItem(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
     const input = parse(itemInput, body);
     await this.assertUom(ctx, input.stockUomId);
-    assertPaste({ ...input, tracking: input.type === 'service' ? 'none' : input.tracking });
-    const values = { ...input, isStockItem: input.type !== 'service', tracking: input.type === 'service' ? ('none' as const) : input.tracking, tenantId: ctx.tenant.tenantId };
+    const unstocked = input.type === 'service' || input.type === 'asset';
+    assertPaste({ ...input, tracking: unstocked ? 'none' : input.tracking });
+    const values = { ...input, isStockItem: !unstocked, tracking: unstocked ? ('none' as const) : input.tracking, tenantId: ctx.tenant.tenantId };
     return this.insertAudited(ctx, 'item', (tx) => tx.insert(item).values(values).onConflictDoNothing().returning(), 'An item with this code exists');
   }
 
@@ -213,6 +216,9 @@ export class MastersController {
     const before = await this.getItem(ctx, id);
     if (input.stockUomId && input.stockUomId !== before.stockUomId) {
       throw new BadRequestException({ message: 'Stock unit cannot change once set', issues: [{ path: 'stockUomId', message: 'Create a new item instead' }] });
+    }
+    if (input.type && input.type !== before.type && (input.type === 'asset' || before.type === 'asset')) {
+      throw new BadRequestException({ message: 'An item cannot become an asset or stop being one', issues: [{ path: 'type', message: 'Create a new item instead' }] });
     }
     if (input.tracking && input.tracking !== before.tracking) {
       throw new BadRequestException({ message: 'Tracking cannot change once set', issues: [{ path: 'tracking', message: 'Create a new item instead' }] });
