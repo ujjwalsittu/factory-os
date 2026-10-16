@@ -13,6 +13,7 @@ export function FormDialog({
   error,
   submitLabel = 'Save',
   wide,
+  duplicate,
   children,
 }: {
   title: string;
@@ -23,11 +24,15 @@ export function FormDialog({
   error: unknown;
   submitLabel?: string;
   wide?: boolean;
+  /** Offered when the save fails because the code is already used: selects the record that has it. */
+  duplicate?: { label: string; onUse: () => void | Promise<void> };
   children: ReactNode;
 }) {
   const id = useId();
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    // A form opened from a field inside another form must not submit that outer form.
+    e.stopPropagation();
     onSubmit();
   };
   return (
@@ -49,7 +54,16 @@ export function FormDialog({
       }
     >
       <form id={id} onSubmit={submit} className="space-y-4">
-        {error instanceof ApiError && !error.issues.length && <Alert tone="danger">{error.message}</Alert>}
+        {error instanceof ApiError && !error.issues.length && (
+          <Alert tone="danger">
+            {error.message}
+            {error.status === 409 && duplicate && (
+              <Button type="button" variant="secondary" size="sm" className="ml-3" onClick={() => void duplicate.onUse()}>
+                {duplicate.label}
+              </Button>
+            )}
+          </Alert>
+        )}
         {error instanceof Error && !(error instanceof ApiError) && <Alert tone="danger">{error.message}</Alert>}
         {children}
       </form>

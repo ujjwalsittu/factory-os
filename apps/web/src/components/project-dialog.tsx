@@ -9,15 +9,15 @@ import type { Project } from '@/lib/services';
 import type { Item, Party } from '@/lib/types';
 
 /** New project, or change one: commercial terms are fixed once active. */
-export function ProjectDialog({ project, onClose, onSaved }: { project: Project | null; onClose: () => void; onSaved: (id: string) => void }) {
+export function ProjectDialog({ project, onClose, onSaved, prefill }: { project: Project | null; onClose: () => void; onSaved: (id: string) => void; prefill?: Partial<{ title: string; customerId: string }> }) {
   const ws = useWorkspace();
   const qc = useQueryClient();
   const parties = useQuery({ queryKey: ['parties', ws.tenantId, 'all'], queryFn: () => api<Party[]>('/parties', { scope: ws.scope }) });
   const items = useQuery({ queryKey: ['items', ws.tenantId, 'all'], queryFn: () => api<Item[]>('/items', { scope: ws.scope }) });
   const people = useQuery({ queryKey: ['project-people', ws.tenantId], queryFn: () => api<{ id: string; name: string }[]>('/services/projects-people', { scope: ws.scope }) });
   const [f, setF] = useState({
-    customerId: project?.customerId ?? '',
-    title: project?.title ?? '',
+    customerId: project?.customerId ?? prefill?.customerId ?? '',
+    title: project?.title ?? prefill?.title ?? '',
     description: project?.description ?? '',
     customerRef: project?.customerRef ?? '',
     managerUserId: project?.managerUserId ?? '',

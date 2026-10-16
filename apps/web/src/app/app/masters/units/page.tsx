@@ -3,7 +3,7 @@ import { Button, Card, CardHeader, DateInput, EmptyState, Field, Input, PageHead
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { fieldErrors, FormDialog } from '@/components/form-dialog';
+import { HsnDialog, UomDialog } from '@/components/master-dialogs';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/format';
@@ -99,68 +99,3 @@ export default function UnitsPage() {
   );
 }
 
-function UomDialog({ onClose }: { onClose: () => void }) {
-  const ws = useWorkspace();
-  const qc = useQueryClient();
-  const [f, setF] = useState({ code: '', name: '', decimals: '0' });
-  const m = useMutation({
-    mutationFn: () => api('/uoms', { method: 'POST', body: { ...f, decimals: Number(f.decimals) }, scope: ws.scope }),
-    onSuccess: () => (void qc.invalidateQueries({ queryKey: ['uoms'] }), onClose()),
-  });
-  const e = fieldErrors(m.error);
-  return (
-    <FormDialog title="Add unit" onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error}>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Code" error={e.code}>{(p) => <Input {...p} value={f.code} onChange={(ev) => setF({ ...f, code: ev.target.value })} className="font-mono uppercase" required />}</Field>
-        <Field label="Name" error={e.name}>{(p) => <Input {...p} value={f.name} onChange={(ev) => setF({ ...f, name: ev.target.value })} required />}</Field>
-        <Field label="Decimals" error={e.decimals}>
-          {(p) => (
-            <Select {...p} value={f.decimals} onChange={(ev) => setF({ ...f, decimals: ev.target.value })}>
-              {[0, 1, 2, 3, 4, 5, 6].map((d) => (
-                <option key={d}>{d}</option>
-              ))}
-            </Select>
-          )}
-        </Field>
-      </div>
-    </FormDialog>
-  );
-}
-
-function HsnDialog({ onClose }: { onClose: () => void }) {
-  const ws = useWorkspace();
-  const qc = useQueryClient();
-  const [f, setF] = useState({ code: '', kind: 'hsn', description: '', gstRate: '18', effectiveFrom: '2017-07-01' });
-  const set = (k: keyof typeof f) => (ev: { target: { value: string } }) => setF({ ...f, [k]: ev.target.value });
-  const m = useMutation({
-    mutationFn: () => api('/hsn-codes', { method: 'POST', body: f, scope: ws.scope }),
-    onSuccess: () => (void qc.invalidateQueries({ queryKey: ['hsn'] }), onClose()),
-  });
-  const e = fieldErrors(m.error);
-  return (
-    <FormDialog title="Add HSN / SAC code" description="Confirm the rate against the current CBIC rate notification." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error}>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Code" error={e.code}>{(p) => <Input {...p} value={f.code} onChange={set('code')} inputMode="numeric" className="font-mono" required />}</Field>
-        <Field label="Kind" error={e.kind}>
-          {(p) => (
-            <Select {...p} value={f.kind} onChange={set('kind')}>
-              <option value="hsn">HSN (goods)</option>
-              <option value="sac">SAC (services)</option>
-            </Select>
-          )}
-        </Field>
-        <Field label="GST rate %" error={e.gstRate}>
-          {(p) => (
-            <Select {...p} value={f.gstRate} onChange={set('gstRate')}>
-              {GST_RATES.map((r) => (
-                <option key={r} value={r}>{r}%</option>
-              ))}
-            </Select>
-          )}
-        </Field>
-      </div>
-      <Field label="Description" error={e.description}>{(p) => <Input {...p} value={f.description} onChange={set('description')} required />}</Field>
-      <Field label="Effective from" error={e.effectiveFrom}>{(p) => <DateInput {...p} value={f.effectiveFrom} onChange={set('effectiveFrom')} required />}</Field>
-    </FormDialog>
-  );
-}

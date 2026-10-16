@@ -5,6 +5,7 @@ import { ChevronsUpDown } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import type { Item } from '@/lib/types';
+import { CreateDialog, useCanAdd } from './lookup-select';
 import { useWorkspace } from './workspace';
 
 /** Type-ahead item search (code, name or drawing number). Keyboard: ↑ ↓ Enter Esc. */
@@ -14,18 +15,23 @@ export function ItemPicker({
   invalid,
   stockOnly = true,
   autoFocus,
+  newType,
 }: {
   value: Pick<Item, 'id' | 'code' | 'name'> | null;
   onChange: (item: Item) => void;
   invalid?: boolean;
   stockOnly?: boolean;
   autoFocus?: boolean;
+  /** Type a new item starts with (an asset line starts as an asset). */
+  newType?: string;
 }) {
   const ws = useWorkspace();
   const id = useId();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [index, setIndex] = useState(0);
+  const [adding, setAdding] = useState(false);
+  const canAdd = useCanAdd('item');
   const ref = useRef<HTMLDivElement>(null);
   const results = useQuery({
     queryKey: ['items', 'pick', ws.tenantId, q, stockOnly],
@@ -33,6 +39,8 @@ export function ItemPicker({
     enabled: open,
   });
   const list = (results.data ?? []).filter((i) => i.isActive);
+  // The last row, "＋ Add … as a new item", is reachable with ↓ then Enter.
+  const rows = list.length + (canAdd ? 1 : 0);
 
   useEffect(() => {
     const close = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
@@ -62,9 +70,10 @@ export function ItemPicker({
           onFocus={() => setOpen(true)}
           onChange={(e) => (setQ(e.target.value), setOpen(true))}
           onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') (e.preventDefault(), setIndex((i) => Math.min(i + 1, list.length - 1)));
+            if (e.key === 'ArrowDown') (e.preventDefault(), setIndex((i) => Math.min(i + 1, rows - 1)));
             if (e.key === 'ArrowUp') (e.preventDefault(), setIndex((i) => Math.max(i - 1, 0)));
             if (e.key === 'Enter' && open && list[index]) (e.preventDefault(), pick(list[index]!));
+            else if (e.key === 'Enter' && open && canAdd && index === list.length) (e.preventDefault(), setAdding(true));
             if (e.key === 'Escape') setOpen(false);
           }}
           role="combobox"
@@ -99,7 +108,29 @@ export function ItemPicker({
               </div>
             </li>
           ))}
+          {canAdd && !results.isLoading && (
+            <li
+              role="option"
+              aria-selected={index === list.length}
+              onMouseDown={(e) => (e.preventDefault(), setAdding(true))}
+              onMouseEnter={() => setIndex(list.length)}
+              className={cn('cursor-pointer rounded-lg px-3 py-1.5 text-[13px] text-accent', index === list.length && 'bg-accent-soft')}
+            >
+              {q.trim() ? `＋ Add “${q.trim()}” as a new item` : '＋ Add a new item…'}
+            </li>
+          )}
         </ul>
+      )}
+      {adding && (
+        <CreateDialog
+          kind="item"
+          prefill={{ name: q.trim(), ...(newType && { type: newType }) }}
+          onClose={() => setAdding(false)}
+          onCreated={(r) => {
+            pick(r as unknown as Item);
+            setAdding(false);
+          }}
+        />
       )}
     </div>
   );
