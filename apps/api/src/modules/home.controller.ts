@@ -115,9 +115,13 @@ export class HomeController {
     const env: Env = { entityId, tenantId: ctx.tenant.tenantId, userId: ctx.user.id, today: asOf };
     const mine = this.defs(ctx).filter((d) => d.needs.every((p) => ctx.tenant.permissions.has(p)) && (!d.needsAny || d.needsAny.some((p) => ctx.tenant.permissions.has(p))));
     const settled = await Promise.allSettled(
-      mine.map((d) =>
-        Promise.race([d.run(env), new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), TILE_TIMEOUT_MS))]),
-      ),
+      mine.map((d) => {
+        let timer: NodeJS.Timeout | undefined;
+        const limit = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('timeout')), TILE_TIMEOUT_MS);
+        });
+        return Promise.race([d.run(env), limit]).finally(() => clearTimeout(timer));
+      }),
     );
     const tiles = mine.map((d, i): Tile => {
       const r = settled[i]!;

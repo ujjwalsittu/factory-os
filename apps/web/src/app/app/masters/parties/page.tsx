@@ -28,7 +28,13 @@ function PartiesPage() {
   // The role filter lives in the address, so the menu's Customers and Suppliers links open this page already filtered.
   const roleParam = params.get('role');
   const role = roleParam === 'customer' || roleParam === 'supplier' ? roleParam : '';
-  const setRole = (value: string) => router.replace(value ? `${pathname}?role=${value}` : pathname);
+  const setRole = (value: string) => {
+    const next = new URLSearchParams(params.toString());
+    if (value) next.set('role', value);
+    else next.delete('role');
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  };
   const [editing, setEditing] = useState<Party | 'new' | null>(params.get('new') ? 'new' : null);
   const parties = useQuery({
     queryKey: ['parties', ws.tenantId, q, role],

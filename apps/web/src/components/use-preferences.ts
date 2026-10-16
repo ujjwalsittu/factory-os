@@ -2,7 +2,7 @@
 import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { api, type Scope } from '@/lib/api';
-import type { AreaId } from './nav-data';
+import { ALL_ITEMS, AREAS, type AreaId } from './nav-data';
 import { useWorkspace } from './workspace';
 
 export interface Preferences {
@@ -18,25 +18,48 @@ export const MAX_RECENT = 5;
 const SAVE_DELAY_MS = 1500;
 
 /**
- * One pending save per workspace for the whole page, whichever part of the menu made the change: the save always sends
- * what the cache holds when it fires, so two writers can never send an older set after a newer one.
+ * One pending save per person and workspace for the whole page, whichever part of the menu made the change: the save
+ * always sends what the cache holds when it fires, so two writers can never send an older set after a newer one. The key
+ * includes the person, so on a shared computer one person's menu is never saved under another's sign-in.
  */
-const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; qc: QueryClient; scope: Scope }>();
+const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; qc: QueryClient; scope: Scope; userId: string; tenantId: string }>();
+const idOf = (userId: string, tenantId: string) => `${userId}:${tenantId}`;
+const keyOf = (userId: string, tenantId: string) => ['preferences', userId, tenantId] as const;
 
-function flush(tenantId: string) {
-  const p = pending.get(tenantId);
+function flush(id: string) {
+  const p = pending.get(id);
   if (!p) return;
   clearTimeout(p.timer);
-  pending.delete(tenantId);
-  const data = p.qc.getQueryData<Preferences>(['preferences', tenantId]);
+  pending.delete(id);
+  const data = p.qc.getQueryData<Preferences>(keyOf(p.userId, p.tenantId));
   // keepalive lets the save finish even when it is sent as the tab closes or the page reloads.
   if (data) api('/me/preferences', { method: 'PUT', body: data, scope: p.scope, keepalive: true }).catch(() => undefined);
 }
 
-function schedule(tenantId: string, qc: QueryClient, scope: Scope) {
-  const old = pending.get(tenantId);
+function schedule(userId: string, tenantId: string, qc: QueryClient, scope: Scope) {
+  const id = idOf(userId, tenantId);
+  const old = pending.get(id);
   if (old) clearTimeout(old.timer);
-  pending.set(tenantId, { timer: setTimeout(() => flush(tenantId), SAVE_DELAY_MS), qc, scope });
+  pending.set(id, { timer: setTimeout(() => flush(id), SAVE_DELAY_MS), qc, scope, userId, tenantId });
+}
+
+/** Drops saves that have not been sent. Called at sign-out, before the session ends, so nothing is sent for the next person. */
+export function cancelPendingPreferences() {
+  for (const p of pending.values()) clearTimeout(p.timer);
+  pending.clear();
+}
+
+/** Restored or fetched choices cleaned against the menu: known links only, no repeats, within the limits. */
+function clean(x: Partial<Preferences> | null | undefined): Preferences | null {
+  if (!x || !Array.isArray(x.favourites) || !Array.isArray(x.recent) || !Array.isArray(x.collapsed)) return null;
+  const known = new Set(ALL_ITEMS.map((i) => i.href));
+  const areas = new Set<string>(AREAS.map((a) => a.id));
+  const links = (xs: unknown[], max: number) => [...new Set(xs.filter((h): h is string => typeof h === 'string' && known.has(h)))].slice(0, max);
+  return {
+    favourites: links(x.favourites, MAX_FAVOURITES),
+    recent: links(x.recent, MAX_RECENT),
+    collapsed: [...new Set(x.collapsed.filter((a): a is AreaId => typeof a === 'string' && areas.has(a)))],
+  };
 }
 
 /**
@@ -46,26 +69,29 @@ function schedule(tenantId: string, qc: QueryClient, scope: Scope) {
 export function usePreferences() {
   const ws = useWorkspace();
   const qc = useQueryClient();
-  const key = ['preferences', ws.tenantId];
+  const userId = ws.me.user.id;
+  const tenantId = ws.tenantId ?? '';
+  const id = idOf(userId, tenantId);
+  const key = keyOf(userId, tenantId);
   const query = useQuery({
     queryKey: key,
     queryFn: async () => {
       const server = await api<Preferences>('/me/preferences', { scope: ws.tenantScope });
       // A change made while this was loading (from the copy kept in this browser) is waiting to be saved; keep it.
-      return (pending.has(ws.tenantId ?? '') ? qc.getQueryData<Preferences>(key) : undefined) ?? server;
+      return (pending.has(id) ? qc.getQueryData<Preferences>(key) : undefined) ?? server;
     },
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     retry: 1,
   });
   // The last values are kept in this browser too, so the menu opens in the right shape before the server answers.
-  const storageKey = `factoryos.menu.${ws.tenantId}`;
+  const storageKey = `factoryos.menu.${userId}.${tenantId}`;
   useEffect(() => {
     try {
       if (qc.getQueryData(key)) return;
       const raw = window.localStorage.getItem(storageKey);
-      const saved = raw ? (JSON.parse(raw) as Partial<Preferences>) : null;
-      if (saved && Array.isArray(saved.favourites) && Array.isArray(saved.recent) && Array.isArray(saved.collapsed)) qc.setQueryData(key, saved as Preferences);
+      const saved = clean(raw ? (JSON.parse(raw) as Partial<Preferences>) : null);
+      if (saved) qc.setQueryData(key, saved);
     } catch {
       /* storage unavailable: the menu waits for the server */
     }
@@ -81,10 +107,10 @@ export function usePreferences() {
   }, [query.data, storageKey]);
   // Leaving the page sends what is waiting.
   useEffect(() => {
-    const send = () => flush(ws.tenantId ?? '');
+    const send = () => flush(id);
     window.addEventListener('pagehide', send);
     return () => window.removeEventListener('pagehide', send);
-  }, [ws.tenantId]);
+  }, [id]);
 
   const prefs = query.data ?? EMPTY;
   const update = useCallback(
@@ -95,10 +121,10 @@ export function usePreferences() {
       const next = change(current);
       if (JSON.stringify(next) === JSON.stringify(current)) return;
       qc.setQueryData(key, next);
-      schedule(ws.tenantId ?? '', qc, ws.tenantScope);
+      schedule(userId, tenantId, qc, ws.tenantScope);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [qc, ws.tenantId],
+    [qc, id],
   );
 
   return {
