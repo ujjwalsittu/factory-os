@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-13 (Asia/Kolkata) · UI slice 2 built; slices 3–4 to follow_
+_Last updated: 2026-10-16 (Asia/Kolkata) · UI slice 3 (add new from any list, asset purchases) claimed_
 
 ## Done
 - [x] **UI slice 2: menu by area of work and "My work" Home** (decision 068, migration 0051_user_preference).
@@ -194,7 +194,7 @@ _Last updated: 2026-10-13 (Asia/Kolkata) · UI slice 2 built; slices 3–4 to fo
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
-- **UI, menu, Home and connections (decision 068)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-13. [Audit](../superpowers/reviews/2026-10-13-ui-audit.md), [design](../superpowers/specs/2026-10-13-ui-menu-connections-design.md); four slices, each its own PR. Slices 1 (PR 53) merged; slice 2 built (PR to main, [plan](../superpowers/plans/2026-10-13-ui-slice-2-menu-home.md)). Next slice 3: item and party pages, Related and Accounting panels on documents, record search.
+- **UI, menu, Home and connections (decision 068)** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-13. [Audit](../superpowers/reviews/2026-10-13-ui-audit.md), [design](../superpowers/specs/2026-10-13-ui-menu-connections-design.md); four slices, each its own PR. Slices 1 (PR 53) and 2 (PR 55) merged. **Slice 3 in progress (claimed 2026-10-16):** add new from any list (modal), asset item type and purchases, plus four carried slice 2 review notes; [design](../superpowers/specs/2026-10-16-create-from-lists-and-asset-items-design.md). Then slice 4 (item and party pages, Related and Accounting panels, record search) and slice 5 (Connections, hand-offs).
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
 
 
