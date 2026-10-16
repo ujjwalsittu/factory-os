@@ -13,6 +13,7 @@ import { STATUS_TONE } from '@/lib/stock';
 import type { AllocationBasis, LandedChargeType, LandedCostAllocationLine, LandedCostDetail, LandedCostReceiptOption, Party } from '@/lib/types';
 import { fieldErrors, FormDialog } from './form-dialog';
 import { useWorkspace } from './workspace';
+import { LookupSelect } from '@/components/lookup-select';
 
 interface DraftCharge {
   key: string;
@@ -341,14 +342,14 @@ export function LandedCostForm({ voucher }: { voucher?: LandedCostDetail }) {
                 </Td>
                 <Td>
                   {editable ? (
-                    <Select value={c.partyId} onChange={(e) => update(c.key, { partyId: e.target.value })} aria-label="Billed by">
+                    <LookupSelect kind="party" noun="party" value={c.partyId} onChange={(e) => update(c.key, { partyId: e.target.value })} aria-label="Billed by">
                       <option value="">{c.chargeType === 'bcd' || c.chargeType === 'sws' || c.chargeType === 'other_duty' ? 'Customs' : '—'}</option>
                       {parties.data?.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name}
                         </option>
                       ))}
-                    </Select>
+                    </LookupSelect>
                   ) : (
                     <span className="text-[13px]">{voucher?.charges[i]?.partyName ?? (['bcd', 'sws', 'other_duty'].includes(c.chargeType) ? 'Customs' : '—')}</span>
                   )}

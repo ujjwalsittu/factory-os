@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { formatDate, formatQty, today } from '@/lib/format';
 import { PURPOSE_LABELS, WASTE_CATEGORY_LABELS } from '@/lib/stock';
 import type { CustomerStatement, Party } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 const monthStart = () => `${today().slice(0, 8)}01`;
 
@@ -46,14 +47,14 @@ function Statement() {
         <div className="flex flex-wrap items-end gap-3">
           <Field label="Customer" className="min-w-64 flex-1">
             {(p) => (
-              <Select {...p} value={partyId} onChange={(e) => setPartyId(e.target.value)}>
+              <LookupSelect kind="party" noun="customer" prefill={{ roles: { isCustomer: true } }} {...p} value={partyId} onChange={(e) => setPartyId(e.target.value)}>
                 <option value="">Choose…</option>
                 {customers.data?.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
                 ))}
-              </Select>
+              </LookupSelect>
             )}
           </Field>
           <Field label="From">{(p) => <DateInput {...p} value={from} onChange={(e) => setFrom(e.target.value)} />}</Field>

@@ -11,6 +11,7 @@ import { api, ApiError } from '@/lib/api';
 import { formatMoney } from '@/lib/format';
 import { BOM_STATUS, type BomDetail, type WorkCentre } from '@/lib/manufacturing';
 import type { Item } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 type ItemRef = Pick<Item, 'id' | 'code' | 'name'> & { tracking?: string; uomCode?: string };
 interface MaterialRow {
@@ -224,7 +225,7 @@ export function BomEditor({ bom }: { bom: BomDetail | null }) {
                       <Input aria-label={`Name of operation ${i + 1}`} value={o.name} onChange={(e) => set({ name: e.target.value })} disabled={!editable} placeholder="Mill complete" />
                     </Td>
                     <Td className="min-w-48">
-                      <Select
+                      <LookupSelect kind="workCentre" noun="work centre"
                         aria-label={`Work centre of operation ${i + 1}`}
                         value={o.outsourced ? 'job_worker' : o.workCentreId}
                         onChange={(e) => (e.target.value === 'job_worker' ? set({ outsourced: true, workCentreId: '' }) : set({ outsourced: false, workCentreId: e.target.value, supplierId: '' }))}
@@ -237,16 +238,16 @@ export function BomEditor({ bom }: { bom: BomDetail | null }) {
                           </option>
                         ))}
                         <option value="job_worker">Outsourced to a job worker</option>
-                      </Select>
+                      </LookupSelect>
                       {o.outsourced && (
-                        <Select className="mt-1" aria-label={`Job worker of operation ${i + 1}`} value={o.supplierId} onChange={(e) => set({ supplierId: e.target.value })} disabled={!editable}>
+                        <LookupSelect kind="party" noun="job worker" prefill={{ roles: { isJobWorker: true } }} className="mt-1" aria-label={`Job worker of operation ${i + 1}`} value={o.supplierId} onChange={(e) => set({ supplierId: e.target.value })} disabled={!editable}>
                           <option value="">Choose when sending</option>
                           {workers.data?.map((p) => (
                             <option key={p.id} value={p.id}>
                               {p.name}
                             </option>
                           ))}
-                        </Select>
+                        </LookupSelect>
                       )}
                       {centre && <p className="mt-1 text-[12px] text-subtle">{formatMoney(centre.hourlyRate)}/h</p>}
                       {/* Decision 054: in-house work with no time is planned but takes no machine time; warn, don't refuse. */}

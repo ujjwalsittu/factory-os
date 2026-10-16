@@ -37,6 +37,7 @@ import { ItemPicker } from './item-picker';
 import { useOurGstins } from './purchase-order-form';
 import { TaxSummary } from './tax-summary';
 import { useWorkspace } from './workspace';
+import { LookupSelect } from '@/components/lookup-select';
 
 interface DraftLine {
   key: string;
@@ -548,7 +549,7 @@ export function SellingForm({
               hint={customer?.gstin ?? customer?.gstTreatment}
             >
               {(p) => (
-                <Select
+                <LookupSelect kind="party" noun="customer" prefill={{ roles: { isCustomer: true } }} empty={customers.data?.length === 0}
                   {...p}
                   value={header.customerId}
                   onChange={(e) =>
@@ -571,7 +572,7 @@ export function SellingForm({
                         {c.name}
                       </option>
                     ))}
-                </Select>
+                </LookupSelect>
               )}
             </Field>
             {input(
@@ -819,7 +820,7 @@ export function SellingForm({
                     <Td className="min-w-44">
                       {canEdit && l.item?.isStockItem ? (
                         <>
-                          <Select
+                          <LookupSelect kind="warehouse" noun="warehouse"
                             aria-label="Warehouse"
                             value={l.warehouseId}
                             onChange={(e) =>
@@ -837,7 +838,7 @@ export function SellingForm({
                                   {w.code} · {w.name}
                                 </option>
                               ))}
-                          </Select>
+                          </LookupSelect>
                           {l.item.tracking !== 'none' && (
                             <div className="mt-2">
                               <DispatchBatch

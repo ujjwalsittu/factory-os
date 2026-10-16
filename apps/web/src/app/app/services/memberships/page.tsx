@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import { formatDate, formatMoney, today } from '@/lib/format';
 import { formatMinutes, type Membership, type Plan } from '@/lib/services';
 import type { Item, Party } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 /** Studio memberships: a pool of machine-hours per term, fee invoiced upfront (decision 056). */
 export default function MembershipsPage() {
@@ -175,14 +176,14 @@ function PlanDialog({ onClose }: { onClose: () => void }) {
         <Field label="Fee (₹)" error={err.fee}>{(p) => <Input {...p} value={f.fee} onChange={set('fee')} inputMode="decimal" required />}</Field>
         <Field label="Service item" hint="A service item (SAC) for the fee" error={err.serviceItemId} className="sm:col-span-3">
           {(p) => (
-            <Select {...p} value={f.serviceItemId} onChange={set('serviceItemId')} required>
+            <LookupSelect kind="item" noun="service item" prefill={{ type: "service" }} {...p} value={f.serviceItemId} onChange={set('serviceItemId')} required>
               <option value="">Choose…</option>
               {items.data?.filter((i) => i.type === 'service' && i.isActive).map((i) => (
                 <option key={i.id} value={i.id}>
                   {i.code} · {i.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
       </div>
@@ -211,14 +212,14 @@ function MembershipDialog({ onClose, onSaved }: { onClose: () => void; onSaved: 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Customer" error={err.customerId}>
           {(p) => (
-            <Select {...p} value={f.customerId} onChange={set('customerId')} required autoFocus>
+            <LookupSelect kind="party" noun="customer" prefill={{ roles: { isCustomer: true } }} {...p} value={f.customerId} onChange={set('customerId')} required autoFocus>
               <option value="">Choose…</option>
               {parties.data?.filter((c) => c.isCustomer && c.isActive).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         <Field label="Plan" error={err.planId}>

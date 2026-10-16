@@ -1,7 +1,7 @@
 'use client';
 import { Select } from '@factoryos/ui';
 import { useQuery } from '@tanstack/react-query';
-import { type ReactNode, type SelectHTMLAttributes, useState } from 'react';
+import { type ChangeEvent, type ReactNode, type SelectHTMLAttributes, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 import type { HsnCode } from '@/lib/types';
@@ -77,6 +77,9 @@ const NEW = '__new__';
 
 type SelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, 'value' | 'onChange'>;
 
+/** What a select's onChange handler reads: the new value. */
+const asChange = (value: string) => ({ target: { value }, currentTarget: { value } }) as unknown as ChangeEvent<HTMLSelectElement>;
+
 /**
  * A native select whose last choice is "＋ Add new …". Picking it opens the form; on save the new record is selected.
  * Without the permission the choice is not shown. `empty` shows a hint under the field instead of a blank control.
@@ -85,6 +88,7 @@ export function LookupSelect({
   kind,
   noun,
   value,
+  onChange,
   onValue,
   prefill,
   empty,
@@ -95,7 +99,10 @@ export function LookupSelect({
   /** Singular noun for the choice, e.g. "supplier". */
   noun: string;
   value: string;
-  onValue: (id: string, record?: Created) => void;
+  /** Same as a select's onChange: used for real choices, and for the new record once it is saved. */
+  onChange?: (e: ChangeEvent<HTMLSelectElement>) => void;
+  /** Alternative to onChange when only the id is needed. */
+  onValue?: (id: string, record?: Created) => void;
   prefill?: Prefill;
   empty?: boolean;
   children: ReactNode;
@@ -109,7 +116,8 @@ export function LookupSelect({
         value={value}
         onChange={(e) => {
           if (e.target.value === NEW) return setOpen(true);
-          onValue(e.target.value);
+          onChange?.(e);
+          onValue?.(e.target.value);
         }}
       >
         {children}
@@ -129,7 +137,8 @@ export function LookupSelect({
           {...(prefill && { prefill })}
           onClose={() => setOpen(false)}
           onCreated={(r) => {
-            onValue(r.id, r);
+            onChange?.(asChange(r.id));
+            onValue?.(r.id, r);
           }}
         />
       )}

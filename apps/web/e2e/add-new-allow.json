@@ -1,0 +1,23 @@
+{
+  "app/app/inventory/balance/page.tsx#party": "report filter",
+  "app/app/inventory/balance/page.tsx#warehouse": "report filter",
+  "app/app/inventory/warehouses/page.tsx#warehouse": "the warehouse list page; its New button opens the shared form",
+  "app/app/manufacturing/calendars/page.tsx#workCentre": "picks a machine (machines are added under their work centre)",
+  "app/app/manufacturing/smt/page.tsx#workCentre": "picks a machine (machines are added under their work centre)",
+  "app/app/manufacturing/work-orders/[id]/page.tsx#workCentre": "picks a machine of the operation's work centre",
+  "app/app/plant/devices/page.tsx#workCentre": "picks a machine (machines are added under their work centre)",
+  "app/app/services/rate-cards/page.tsx#workCentre": "picks a machine (machines are added under their work centre)",
+  "components/booking-dialog.tsx#workCentre": "picks a machine (machines are added under their work centre)",
+  "app/app/manufacturing/work-centres/page.tsx#workCentre": "the work centre list page; its New button opens the shared form",
+  "app/app/masters/items/page.tsx#item": "the item list page; its New button opens the shared form",
+  "app/app/masters/parties/page.tsx#party": "the party list page; its New button opens the shared form",
+  "app/app/masters/units/page.tsx#uom": "the units list page; Add opens the shared form",
+  "app/app/masters/units/page.tsx#hsn": "the HSN/SAC list page; Add opens the shared form",
+  "app/app/services/projects/[id]/page.tsx#project": "a project's own page and its actions",
+  "app/app/services/projects/page.tsx#project": "the project list page; New opens the shared dialog",
+  "components/project-dialog.tsx#project": "the project form itself",
+  "components/accounting-chart.tsx#account": "the chart page; New opens the shared form",
+  "components/accounting-journal-form.tsx#account": "ledger fields are the shared lines in accounting-shared.tsx",
+  "components/accounting-setup.tsx#account": "maps existing ledgers to roles; the Fixed assets and other ledgers are added from the chart",
+  "components/bank-reconciliation/workspace.tsx#account": "chooses which bank to reconcile (a selector, not a saved reference)"
+}

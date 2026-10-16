@@ -14,6 +14,7 @@ import { formatDate, formatMoney, formatQty } from '@/lib/format';
 import { PRIORITY } from '@/lib/scheduling';
 import { type BomRow, WO_STATUS, type WorkOrderDetail, type WorkOrderRow, type WorkOrderStatus } from '@/lib/manufacturing';
 import type { Item, Warehouse } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 export default function WorkOrdersPage() {
   const ws = useWorkspace();
@@ -165,26 +166,26 @@ function NewOrderDialog({ onClose }: { onClose: () => void }) {
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Issue material from" error={err.sourceWarehouseId}>
           {(f) => (
-            <Select {...f} value={form.sourceWarehouseId} onChange={set('sourceWarehouseId')} required>
+            <LookupSelect kind="warehouse" noun="warehouse" {...f} value={form.sourceWarehouseId} onChange={set('sourceWarehouseId')} required>
               <option value="">Choose…</option>
               {active.filter((w) => w.availableForIssue).map((w) => (
                 <option key={w.id} value={w.id}>
                   {w.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         <Field label="Receive output into" error={err.targetWarehouseId}>
           {(f) => (
-            <Select {...f} value={form.targetWarehouseId} onChange={set('targetWarehouseId')} required>
+            <LookupSelect kind="warehouse" noun="warehouse" {...f} value={form.targetWarehouseId} onChange={set('targetWarehouseId')} required>
               <option value="">Choose…</option>
               {active.map((w) => (
                 <option key={w.id} value={w.id}>
                   {w.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         <Field label="Planned start" error={err.plannedStart}>

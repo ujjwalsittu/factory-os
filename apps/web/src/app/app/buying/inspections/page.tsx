@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import { formatDate, formatQty, today } from '@/lib/format';
 import { STATUS_TONE } from '@/lib/stock';
 import type { InspectionRow, PendingInspection, Warehouse } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 const RESULT: Record<string, { label: string; tone: 'success' | 'danger' | 'warning' }> = {
   accepted: { label: 'Accepted', tone: 'success' },
@@ -140,14 +141,14 @@ function PlanDialog({ line, onClose }: { line: PendingInspection; onClose: () =>
         </Field>
         <Field label="Accepted to" error={errs.acceptWarehouseId}>
           {(p) => (
-            <Select {...p} value={f.acceptWarehouseId} onChange={(e) => setF({ ...f, acceptWarehouseId: e.target.value })}>
+            <LookupSelect kind="warehouse" noun="warehouse" {...p} value={f.acceptWarehouseId} onChange={(e) => setF({ ...f, acceptWarehouseId: e.target.value })}>
               <option value="">Default ({whs.find((w) => w.type === 'stores')?.code ?? 'none'})</option>
               {whs.map((w) => (
                 <option key={w.id} value={w.id}>
                   {w.code} · {w.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
       </div>
@@ -178,14 +179,14 @@ function InspectDialog({ line, onClose }: { line: PendingInspection; onClose: ()
   const errs = fieldErrors(m.error);
   const rejected = Number(f.qtyRejected) > 0;
   const whSelect = (value: string, onChange: (v: string) => void, type: string, p: object) => (
-    <Select {...p} value={value} onChange={(e) => onChange(e.target.value)}>
+    <LookupSelect kind="warehouse" noun="warehouse" {...p} value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">Default ({whs.find((w) => w.type === type)?.code ?? 'none'})</option>
       {whs.map((w) => (
         <option key={w.id} value={w.id}>
           {w.code} · {w.name}
         </option>
       ))}
-    </Select>
+    </LookupSelect>
   );
   return (
     <FormDialog

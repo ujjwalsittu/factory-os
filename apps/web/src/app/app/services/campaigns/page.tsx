@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import { formatDate, formatMoney } from '@/lib/format';
 import { CAMPAIGN_STATUS, type Campaign, type Project } from '@/lib/services';
 import type { Item, Party } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 /** Test campaigns: quoted test services with the customer's payload in custody (decision 057). */
 export default function CampaignsPage() {
@@ -95,14 +96,14 @@ function CampaignDialog({ onClose, onSaved }: { onClose: () => void; onSaved: (i
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Customer" error={err.customerId}>
           {(p) => (
-            <Select {...p} value={f.customerId} onChange={(e) => setF({ ...f, customerId: e.target.value, projectId: '' })} required autoFocus>
+            <LookupSelect kind="party" noun="customer" prefill={{ roles: { isCustomer: true } }} {...p} value={f.customerId} onChange={(e) => setF({ ...f, customerId: e.target.value, projectId: '' })} required autoFocus>
               <option value="">Choose…</option>
               {parties.data?.filter((c) => c.isCustomer && c.isActive).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         <Field label="Customer reference" hint="Their PO or the quotation number" error={err.customerRef}>{(p) => <Input {...p} value={f.customerRef} onChange={set('customerRef')} />}</Field>
@@ -110,28 +111,28 @@ function CampaignDialog({ onClose, onSaved }: { onClose: () => void; onSaved: (i
         <Field label="Scope" error={err.scope} className="sm:col-span-2">{(p) => <Input {...p} value={f.scope} onChange={set('scope')} placeholder="8 thermal cycles, −40 °C to +80 °C at 1e-5 mbar" />}</Field>
         <Field label="Service item" hint="A service item (SAC) for the test" error={err.serviceItemId}>
           {(p) => (
-            <Select {...p} value={f.serviceItemId} onChange={set('serviceItemId')} required>
+            <LookupSelect kind="item" noun="service item" prefill={{ type: "service" }} {...p} value={f.serviceItemId} onChange={set('serviceItemId')} required>
               <option value="">Choose…</option>
               {items.data?.filter((i) => i.type === 'service' && i.isActive).map((i) => (
                 <option key={i.id} value={i.id}>
                   {i.code} · {i.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         <Field label="Quoted amount (₹)" error={err.quotedAmount}>{(p) => <Input {...p} value={f.quotedAmount} onChange={set('quotedAmount')} inputMode="decimal" required />}</Field>
         {open.length > 0 && (
           <Field label="Project" hint="Billed through the project's milestones instead of its own invoice" error={err.projectId} className="sm:col-span-2">
             {(p) => (
-              <Select {...p} value={f.projectId} onChange={set('projectId')}>
+              <LookupSelect kind="project" noun="project" {...p} value={f.projectId} onChange={set('projectId')}>
                 <option value="">None: invoice the campaign itself</option>
                 {open.map((x) => (
                   <option key={x.id} value={x.id}>
                     {x.number} · {x.title}
                   </option>
                 ))}
-              </Select>
+              </LookupSelect>
             )}
           </Field>
         )}

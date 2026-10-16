@@ -17,6 +17,7 @@ import { ItemPicker } from './item-picker';
 import { useOurGstins } from './purchase-order-form';
 import { TaxSummary } from './tax-summary';
 import { useWorkspace } from './workspace';
+import { LookupSelect } from '@/components/lookup-select';
 
 interface DraftLine {
   key: string;
@@ -370,14 +371,14 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Supplier" className="lg:col-span-2" hint={supplier ? (supplier.gstin ?? supplier.gstTreatment) : undefined}>
             {(p) => (
-              <Select {...p} value={header.supplierId} onChange={(e) => (setHeader({ ...header, supplierId: e.target.value }), choosePo(''))} disabled={!editable || !!header.purchaseOrderId}>
+              <LookupSelect kind="party" noun="supplier" prefill={{ roles: { isSupplier: true } }} {...p} value={header.supplierId} onChange={(e) => (setHeader({ ...header, supplierId: e.target.value }), choosePo(''))} disabled={!editable || !!header.purchaseOrderId}>
                 <option value="">{invoice && !editable ? invoice.supplierName : 'Choose…'}</option>
                 {suppliers.data?.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
                 ))}
-              </Select>
+              </LookupSelect>
             )}
           </Field>
           <Field label="Against purchase order" hint={editable ? 'Lines are matched to what was received' : undefined}>

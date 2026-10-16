@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { formatDate, formatQty, today } from '@/lib/format';
 import { DISPOSAL_LABELS, HAZARDOUS_CATEGORIES, WASTE_CATEGORY_LABELS } from '@/lib/stock';
 import type { Party, Uom, WasteBalance, WasteMovement } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 /** Hazardous waste may be stored for a limited period under the HW Rules 2016; we warn at 90 days. */
 const HAZARDOUS_HOLD_DAYS = 90;
@@ -291,7 +292,7 @@ function WasteDialog({
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Belongs to" hint="Waste from customer material is theirs" error={e.ownerPartyId}>
               {(p) => (
-                <Select {...p} value={f.ownerPartyId} onChange={set('ownerPartyId')}>
+                <LookupSelect kind="party" noun="customer" prefill={{ roles: { isCustomer: true } }} {...p} value={f.ownerPartyId} onChange={set('ownerPartyId')}>
                   <option value="">Us</option>
                   {parties.data
                     ?.filter((x) => x.isCustomer)
@@ -300,7 +301,7 @@ function WasteDialog({
                         {c.name}
                       </option>
                     ))}
-                </Select>
+                </LookupSelect>
               )}
             </Field>
             <Field label="From job / work order" error={e.sourceRef}>{(p) => <Input {...p} value={f.sourceRef} onChange={set('sourceRef')} placeholder="WO-0123" />}</Field>
@@ -338,14 +339,14 @@ function WasteDialog({
             {f.disposalMethod !== 'returned_to_customer' && (
               <Field label="Handed to" error={e.counterpartyId}>
                 {(p) => (
-                  <Select {...p} value={f.counterpartyId} onChange={set('counterpartyId')}>
+                  <LookupSelect kind="party" noun="party" {...p} value={f.counterpartyId} onChange={set('counterpartyId')}>
                     <option value="">—</option>
                     {parties.data?.map((x) => (
                       <option key={x.id} value={x.id}>
                         {x.name}
                       </option>
                     ))}
-                  </Select>
+                  </LookupSelect>
                 )}
               </Field>
             )}
@@ -365,13 +366,13 @@ function WasteDialog({
         {kind === 'generated' ? (
           <Field label="Unit" error={e.uomId}>
             {(p) => (
-              <Select {...p} value={f.uomId || kg} onChange={set('uomId')}>
+              <LookupSelect kind="uom" noun="unit" {...p} value={f.uomId || kg} onChange={set('uomId')}>
                 {uoms.data?.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.code}
                   </option>
                 ))}
-              </Select>
+              </LookupSelect>
             )}
           </Field>
         ) : (

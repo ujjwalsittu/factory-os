@@ -33,6 +33,7 @@ import {
 } from './accounting-shared';
 import { useWorkspace } from './workspace';
 import { FormDialog } from './form-dialog';
+import { LookupSelect } from '@/components/lookup-select';
 export default function Setup() {
   return (
     <AccountingPage title="Accounting setup" permission="accounts.setup.read">
@@ -251,7 +252,7 @@ function Content() {
               <div className="p-4 space-y-3">
                 {bills.map((b, i) => (
                   <div className="grid gap-2 sm:grid-cols-5" key={i}>
-                    <Select
+                    <LookupSelect kind="party" noun="party"
                       aria-label={`Bill party ${i + 1}`}
                       disabled={!canEdit}
                       value={b.partyId}
@@ -270,7 +271,7 @@ function Content() {
                           {p.name}
                         </option>
                       ))}
-                    </Select>
+                    </LookupSelect>
                     <Input
                       aria-label={`Outstanding reference ${i + 1}`}
                       disabled={!canEdit}
