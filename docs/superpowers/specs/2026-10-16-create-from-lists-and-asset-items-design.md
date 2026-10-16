@@ -70,7 +70,9 @@ the API refuses an asset on a sales document ("Asset disposal is not built yet")
 - The posting debits the line's asset account (not purchases or inventory) with the taxable value; the party's payable
   and input GST post as for any purchase. **When the invoice is not eligible for input credit, the tax is added to the
   asset's cost** (non-refundable tax is part of the cost of an asset) instead of the non-creditable-tax expense.
-- With no account on the line and no Fixed assets mapping, submitting is refused with the reason and a link to
+- On submit the order is: first the chart step (it adds the Fixed assets ledger and mapping if they are missing, and
+  never changes anything else), then the check. With no account on the line and still no Fixed assets mapping (the
+  mapping was removed and the ledger code is taken by another ledger), submitting is refused with the reason, pointing to
   Accounting setup; nothing posts partially. With books not active, nothing posts, as for every document.
 - **Existing entities with active books** get the Fixed assets account and mapping the first time an asset invoice is
   submitted there, through the same idempotent chart step the maintenance spares use (it only adds what is missing); no
