@@ -71,9 +71,12 @@ export async function seedChart(
   tx: Tx,
   ctx: TenantRequestContext,
   entityId: string,
+  /** Only these roles are added (first-use steps such as the first asset invoice); all roles when omitted. */
+  onlyRoles?: readonly string[],
 ) {
   const scope = { tenantId: ctx.tenant.tenantId, entityId };
   for (const [key, name, group, root] of DEFAULT_ACCOUNTS) {
+    if (onlyRoles && !onlyRoles.includes(key)) continue;
     const groupKey = `${group}:${root}`;
     await tx
       .insert(accountGroup)

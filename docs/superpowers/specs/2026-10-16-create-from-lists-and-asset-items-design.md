@@ -86,7 +86,7 @@ on imported assets, and an assets report. Until then, the asset lines are on the
 
 The one open review thread on the merged slice 2 and three small notes are fixed first, in this slice:
 - menu favourites and their saved copy are keyed by the signed-in user as well as the workspace, and pending saves are
-  cancelled at sign-out, so a second person on a shared computer never sees or overwrites the first person's menu;
+  sent and awaited at sign-out, so a second person on a shared computer never sees or overwrites the first person's menu;
 - restored saved menu choices are cleaned against the menu before use;
 - changing the Customers/Suppliers role filter keeps other address parameters (such as `new`);
 - the Home tile time limit clears its timer when the tile finishes.

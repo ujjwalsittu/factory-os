@@ -428,6 +428,7 @@ export interface PurchaseOrderLine {
   itemId: string;
   itemCode: string;
   itemName: string;
+  itemType?: string;
   tracking: 'none' | 'batch' | 'serial';
   uomCode: string;
   requiresInspection: boolean;

@@ -29,7 +29,7 @@ bought, not sold) and one new posting path (asset lines).
   code taken by another ledger) and the line names no ledger, the submit is refused and nothing posts. With books not
   active nothing posts, as for every document. No migration touches any books.
 - **Carried from slice 2.** Menu favourites and their saved copy are keyed by person as well as workspace and pending saves
-  are cancelled at sign-out; restored choices are cleaned against the menu; the parties role filter keeps other address
+  are sent and awaited at sign-out; restored choices are cleaned against the menu; the parties role filter keeps other address
   parameters; the Home tile time limit clears its timer.
 
 ## Where the build differs from the design

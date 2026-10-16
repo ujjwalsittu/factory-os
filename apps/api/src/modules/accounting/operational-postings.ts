@@ -164,7 +164,7 @@ export class OperationalPostings {
     // Decision 069: the first asset invoice of an entity whose books are already active adds the Fixed assets ledger
     // and mapping (the chart step only adds what is missing), then the check below runs.
     if (rows.some((r) => r.item.type === 'asset')) {
-      await seedChart(tx, ctx, entityId);
+      await seedChart(tx, ctx, entityId, ['fixed_assets']);
       settings = (await this.gl.active(tx, entityId)) ?? settings;
     }
     const lines = new Lines(settings.mappings),

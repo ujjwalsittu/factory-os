@@ -59,6 +59,7 @@ const fromPo = (po: PurchaseOrderDetail): DraftLine[] =>
         code: l.itemCode,
         name: l.itemName,
         uomCode: l.uomCode,
+        ...(l.itemType && { type: l.itemType }),
       },
       poLineId: l.id,
       jobWorkReceiptId: '',

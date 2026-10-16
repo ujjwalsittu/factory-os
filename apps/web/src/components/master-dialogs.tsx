@@ -50,7 +50,7 @@ const GST_RATES = [
 /** Finds the saved item with the list shape the item search returns (unit code and decimals included). */
 async function findItem(scope: Scope, id: string, code: string): Promise<Item> {
   const rows = await api<Item[]>(
-    `/items?limit=5&q=${encodeURIComponent(code)}`,
+    `/items?limit=50&q=${encodeURIComponent(code)}`,
     { scope },
   );
   const hit = rows.find((r) =>
@@ -148,9 +148,10 @@ export function ItemDialog({
           });
     },
     onSuccess: async (r) => {
-      const saved = r as { id: string };
       void qc.invalidateQueries({ queryKey: ["items"] });
-      if (onSaved) onSaved(await findItem(ws.scope, saved.id, f.code));
+      // The POST returns the saved row; add the unit fields the item lists carry, so no search is needed to find it again.
+      const unit = uoms.data?.find((u) => u.id === f.stockUomId);
+      if (onSaved) onSaved({ ...(r as Item), uomCode: unit?.code, uomDecimals: unit?.decimals });
       onClose();
     },
   });

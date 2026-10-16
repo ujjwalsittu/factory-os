@@ -26,14 +26,15 @@ const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; qc: Quer
 const idOf = (userId: string, tenantId: string) => `${userId}:${tenantId}`;
 const keyOf = (userId: string, tenantId: string) => ['preferences', userId, tenantId] as const;
 
-function flush(id: string) {
+function flush(id: string): Promise<unknown> | undefined {
   const p = pending.get(id);
   if (!p) return;
   clearTimeout(p.timer);
   pending.delete(id);
   const data = p.qc.getQueryData<Preferences>(keyOf(p.userId, p.tenantId));
   // keepalive lets the save finish even when it is sent as the tab closes or the page reloads.
-  if (data) api('/me/preferences', { method: 'PUT', body: data, scope: p.scope, keepalive: true }).catch(() => undefined);
+  if (data) return api('/me/preferences', { method: 'PUT', body: data, scope: p.scope, keepalive: true }).catch(() => undefined);
+  return undefined;
 }
 
 function schedule(userId: string, tenantId: string, qc: QueryClient, scope: Scope) {
@@ -43,8 +44,12 @@ function schedule(userId: string, tenantId: string, qc: QueryClient, scope: Scop
   pending.set(id, { timer: setTimeout(() => flush(id), SAVE_DELAY_MS), qc, scope, userId, tenantId });
 }
 
-/** Drops saves that have not been sent. Called at sign-out, before the session ends, so nothing is sent for the next person. */
-export function cancelPendingPreferences() {
+/**
+ * Sends the saves that are waiting and waits for them. Called at sign-out, while the session is still the person's own, so
+ * their last change is kept and nothing is left to be sent for the next person.
+ */
+export async function flushPendingPreferences() {
+  await Promise.all([...pending.keys()].map((id) => flush(id)));
   for (const p of pending.values()) clearTimeout(p.timer);
   pending.clear();
 }

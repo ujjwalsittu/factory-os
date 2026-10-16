@@ -9,7 +9,7 @@ import { fyLabel, initials } from '@/lib/format';
 import { CommandPalette } from './command-palette';
 import { ALL_ITEMS, AREAS, areaOf, HOME, isActive, type NavItem } from './nav-data';
 import { ThemeToggle } from './theme';
-import { cancelPendingPreferences, MAX_RECENT, usePreferences } from './use-preferences';
+import { flushPendingPreferences, MAX_RECENT, usePreferences } from './use-preferences';
 import { useWorkspace } from './workspace';
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -285,7 +285,7 @@ function UserMenu() {
   const ref = useRef<HTMLDivElement>(null);
   useOutsideClick(ref, () => setOpen(false));
   const signOut = async () => {
-    cancelPendingPreferences();
+    await flushPendingPreferences();
     await authClient.signOut();
     router.replace('/sign-in');
   };

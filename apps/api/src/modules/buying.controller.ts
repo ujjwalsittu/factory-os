@@ -194,7 +194,7 @@ export class BuyingController {
       .where(and(eq(purchaseOrder.id, id), eq(purchaseOrder.entityId, entityId)));
     if (!po) throw new NotFoundException('Purchase order not found');
     const lines = await this.db
-      .select({ line: purchaseOrderLine, itemCode: item.code, itemName: item.name, tracking: item.tracking, uomCode: uom.code, requiresInspection: item.requiresIncomingInspection })
+      .select({ line: purchaseOrderLine, itemCode: item.code, itemName: item.name, itemType: item.type, tracking: item.tracking, uomCode: uom.code, requiresInspection: item.requiresIncomingInspection })
       .from(purchaseOrderLine)
       .innerJoin(item, eq(item.id, purchaseOrderLine.itemId))
       .innerJoin(uom, eq(uom.id, item.stockUomId))
@@ -217,6 +217,7 @@ export class BuyingController {
         ...l.line,
         itemCode: l.itemCode,
         itemName: l.itemName,
+        itemType: l.itemType,
         tracking: l.tracking,
         uomCode: l.uomCode,
         requiresInspection: l.requiresInspection,
