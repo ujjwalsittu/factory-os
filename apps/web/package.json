@@ -43,7 +43,9 @@
     "e2e:maintenance": "node e2e/maintenance.mjs",
     "e2e:user-erasure": "node e2e/user-erasure.mjs",
     "e2e:date-input": "node e2e/date-input.mjs",
-    "e2e:menu-home": "node e2e/menu-home.mjs"
+    "e2e:menu-home": "node e2e/menu-home.mjs",
+    "e2e:create-from-lists": "node e2e/create-from-lists.mjs",
+    "guard:add-new": "node e2e/guard-add-new.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",
