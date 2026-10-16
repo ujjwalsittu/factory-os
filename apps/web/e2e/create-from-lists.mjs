@@ -26,6 +26,18 @@ const dialogs = (p) => p.locator('dialog[open]');
 /** Rejects when the page scrolls sideways. */
 const noSideways = async (p, what) => expect(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `${what}: the page scrolls sideways`);
 
+
+/** A GSTIN with a valid check character built from a 14-character prefix. */
+function gstin(first) {
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let sum = 0;
+  [...first].forEach((ch, i) => {
+    const v = chars.indexOf(ch) * (i % 2 === 0 ? 1 : 2);
+    sum += Math.floor(v / 36) + (v % 36);
+  });
+  return first + chars[(36 - (sum % 36)) % 36];
+}
+
 async function signUp(ctx, page, tag) {
   const email = `${tag}${run}@azeonics.com`;
   await page.goto(`${B}/sign-up`);
@@ -94,7 +106,7 @@ async function purchaseOrder(page, suffix, shotName) {
   await L(units, 'Name').fill('Box');
   await units.getByRole('button', { name: 'Save' }).click();
   await page.waitForFunction(() => document.querySelectorAll('dialog[open]').length === 1);
-  expect(await L(dialogs(page), 'Stock unit').evaluate((s) => s.selectedOptions[0]?.textContent?.startsWith('BX')), 'the new unit is selected in the item form');
+  await page.waitForFunction((code) => [...document.querySelectorAll('dialog[open] select')].some((s) => s.selectedOptions[0]?.textContent?.startsWith(code)), `BX${suffix}`, { timeout: 8000 }); // the new unit is selected in the item form
   await L(dialogs(page), 'HSN').fill('74071010');
   await dialogs(page).getByRole('button', { name: 'Add 74071010 to the HSN/SAC list' }).click();
   const hsn = dialogs(page).last();
@@ -191,6 +203,51 @@ try {
     await d.waitFor({ state: 'detached' });
     await page.waitForFunction(() => [...document.querySelectorAll('select')].some((s) => s.selectedOptions[0]?.textContent?.startsWith('LATHE')), null, { timeout: 8000 });
   }
+
+  step('asset purchase: an asset item, a new asset ledger from the line, posted to that ledger');
+  const supplierRec = await call('POST', '/parties', { code: 'MACHCO', name: 'Machine Co', isSupplier: true, gstTreatment: 'unregistered' });
+  await call('POST', `/entities/${E}/gst-registrations`, { gstin: gstin('27AAACA1234B1Z') });
+  await call('POST', '/hsn-codes', { code: '8479', kind: 'hsn', description: 'Machinery', gstRate: '18', effectiveFrom: '2025-04-01' });
+  const nos = (await call('GET', '/uoms')).find((u) => u.code === 'NOS').id;
+  await call('POST', '/items', { code: 'LATHE-1', name: 'CNC lathe', type: 'asset', stockUomId: nos, hsnCode: '8479' });
+  const sheet = await call('PUT', '/accounts/opening', { lines: [], bills: [], settlements: [], receiptBaselines: [] });
+  const recon = await call('GET', '/accounts/opening/reconciliation');
+  await call('POST', '/accounts/opening/activate', { worksheetId: sheet.id, reviewedToken: recon.snapshotToken });
+  await page.goto(`${B}/app/buying/invoices/new`);
+  await entity(page);
+  await page.getByLabel('Supplier', { exact: true }).selectOption({ label: 'Machine Co' });
+  await L(page, 'Supplier invoice no.').fill('MC-1');
+  const pick = page.getByRole('combobox', { name: 'Item' }).first();
+  await pick.click();
+  await pick.fill('LATHE');
+  await page.getByRole('option', { name: /LATHE-1/ }).click();
+  await page.getByLabel('Quantity', { exact: true }).first().fill('1');
+  await page.getByLabel('Rate', { exact: true }).first().fill('50000');
+  const ledgerField = page.locator('select[aria-label^="Asset ledger for line"]');
+  await ledgerField.waitFor();
+  expect((await ledgerField.evaluate((s) => s.selectedOptions[0]?.textContent)) === 'Fixed assets (default)', 'the default is the Fixed assets mapping');
+  await ledgerField.selectOption({ label: NEW('asset ledger') });
+  d = dialogs(page);
+  expect(await d.getByRole('heading', { name: 'New ledger' }).count(), 'the ledger form opens');
+  await L(d, 'Ledger code').fill('PLANT');
+  await L(d, 'Ledger name').fill('Plant and machinery');
+  const groupOptions = await L(d, 'Account group').locator('option').allTextContents();
+  expect(groupOptions.length > 1 && groupOptions.slice(1).every((t) => t.endsWith('· asset')), `only asset groups are offered (${groupOptions.join(' | ')})`);
+  await L(d, 'Account group').selectOption({ index: 1 });
+  await d.getByRole('button', { name: 'Save' }).click();
+  await d.waitFor({ state: 'detached' });
+  await page.waitForFunction(() => document.querySelector('select[aria-label^="Asset ledger for line"]')?.selectedOptions[0]?.textContent?.startsWith('PLANT'), null, { timeout: 8000 });
+  await shot(page, 'desktop-asset-invoice');
+  await page.getByRole('button', { name: /Save draft/ }).click();
+  await page.waitForURL(/\/buying\/invoices\/[0-9a-f-]{36}$/, { timeout: 15000 });
+  await page.getByRole('button', { name: 'Submit', exact: true }).click();
+  await page.getByText(/Submitted|submitted/).first().waitFor({ timeout: 15000 });
+  const journals = await call('GET', '/accounts/journals');
+  const pv = journals.find((j) => j.sourceType === 'purchase_invoice' && j.purpose === 'main');
+  expect(!!pv, 'the purchase invoice posted a voucher');
+  const detail = await call('GET', `/accounts/journals/${pv.id}`);
+  const plant = (await call('GET', '/accounts/accounts')).find((a) => a.code === 'PLANT');
+  expect(detail.entries.some((e) => e.accountId === plant.id && Number(e.debit) === 50000), 'the new asset ledger was debited with the taxable value');
 
   step('a person without create permission sees no Add new option');
   const role = await call('POST', '/roles', { name: 'Buyer (read only)', permissions: ['masters.party.read', 'masters.item.read', 'buying.purchase_order.create', 'buying.purchase_order.read'] });
