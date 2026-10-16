@@ -13,6 +13,7 @@ import { api } from '@/lib/api';
 import { formatDate, formatMoney, formatQty } from '@/lib/format';
 import { DEADLINE, type JobWorkDetail, JW_STATUS } from '@/lib/job-work';
 import type { Batch, Warehouse } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 const today = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
 
@@ -303,14 +304,14 @@ function SendDialog({ order, onClose }: { order: JobWorkDetail; onClose: () => v
         </Field>
         <Field label="From warehouse" error={err.fromWarehouseId}>
           {(f) => (
-            <Select {...f} value={head.fromWarehouseId} onChange={(e) => setHead({ ...head, fromWarehouseId: e.target.value })} required>
+            <LookupSelect kind="warehouse" noun="warehouse" {...f} value={head.fromWarehouseId} onChange={(e) => setHead({ ...head, fromWarehouseId: e.target.value })} required>
               <option value="">Choose…</option>
               {ours.map((w) => (
                 <option key={w.id} value={w.id}>
                   {w.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         <EwayBillFields no={head.ewayBillNo} reason={head.ewayBillReason} onNo={(v) => setHead({ ...head, ewayBillNo: v })} onReason={(v) => setHead({ ...head, ewayBillReason: v })} errors={err} />
@@ -479,14 +480,14 @@ function ReceiveDialog({ order, onClose }: { order: JobWorkDetail; onClose: () =
               )}
               <Field label="Into" error={err[`received.${i}.warehouseId`]}>
                 {(f) => (
-                  <Select {...f} value={l.warehouseId} onChange={(e) => setLines(lines.map((y, k) => (k === i ? { ...y, warehouseId: e.target.value } : y)))}>
+                  <LookupSelect kind="warehouse" noun="warehouse" {...f} value={l.warehouseId} onChange={(e) => setLines(lines.map((y, k) => (k === i ? { ...y, warehouseId: e.target.value } : y)))}>
                     <option value="">Choose…</option>
                     {ours.map((w) => (
                       <option key={w.id} value={w.id}>
                         {w.name}
                       </option>
                     ))}
-                  </Select>
+                  </LookupSelect>
                 )}
               </Field>
               {lines.length > 1 ? (

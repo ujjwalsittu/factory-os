@@ -17,6 +17,7 @@ import type { Account, JournalLine } from '@/lib/accounting';
 import type { Party } from '@/lib/types';
 import { EntityGate } from './entity-gate';
 import { useWorkspace } from './workspace';
+import { LookupSelect } from '@/components/lookup-select';
 export function AccountingPage({
   title,
   permission,
@@ -103,7 +104,7 @@ export function JournalLines({
           {lines.map((l, i) => (
             <tr key={i}>
               <Td>
-                <Select
+                <LookupSelect kind="account" noun="ledger"
                   aria-label={`Account ${i + 1}`}
                   value={l.accountId}
                   disabled={disabled || accounts.isLoading}
@@ -117,7 +118,7 @@ export function JournalLines({
                         {a.code} · {a.name}
                       </option>
                     ))}
-                </Select>
+                </LookupSelect>
               </Td>
               <Td>
                 <Input
@@ -139,7 +140,7 @@ export function JournalLines({
               </Td>
               <Td>
                 <div className="grid gap-2">
-                  <Select
+                  <LookupSelect kind="party" noun="party"
                     aria-label={`Party ${i + 1}`}
                     value={l.partyId ?? ''}
                     disabled={disabled}
@@ -153,7 +154,7 @@ export function JournalLines({
                         {p.name}
                       </option>
                     ))}
-                  </Select>
+                  </LookupSelect>
                   <Input
                     aria-label={`Bill reference ${i + 1}`}
                     value={l.billReference ?? ''}

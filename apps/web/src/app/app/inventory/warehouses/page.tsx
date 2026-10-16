@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Sparkles, Warehouse as WarehouseIcon } from 'lucide-react';
 import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
-import { fieldErrors, FormDialog } from '@/components/form-dialog';
+import { WarehouseDialog } from '@/components/master-dialogs';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { WAREHOUSE_TYPE_LABELS } from '@/lib/format';
@@ -58,7 +58,7 @@ function Warehouses() {
             )
           }
         />
-        {adding && <WarehouseDialog warehouses={[]} onClose={() => setAdding(false)} />}
+        {adding && <WarehouseDialog onClose={() => setAdding(false)} />}
       </Card>
     );
   }
@@ -111,48 +111,8 @@ function Warehouses() {
         </Table>
       </Card>
       <p className="mt-3 text-[12px] text-subtle">Customer-owned stock is held in custody: it's counted but never valued, and can't be mixed with company stock.</p>
-      {adding && <WarehouseDialog warehouses={list.data ?? []} onClose={() => setAdding(false)} />}
+      {adding && <WarehouseDialog onClose={() => setAdding(false)} />}
     </>
   );
 }
 
-function WarehouseDialog({ warehouses, onClose }: { warehouses: Warehouse[]; onClose: () => void }) {
-  const ws = useWorkspace();
-  const qc = useQueryClient();
-  const [f, setF] = useState({ code: '', name: '', type: 'stores', parentId: '' });
-  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
-  const m = useMutation({
-    mutationFn: () => api('/warehouses', { method: 'POST', body: { ...f, parentId: f.parentId || null }, scope: ws.scope }),
-    onSuccess: () => (void qc.invalidateQueries({ queryKey: ['warehouses'] }), onClose()),
-  });
-  const e = fieldErrors(m.error);
-  return (
-    <FormDialog title="Add warehouse or bin" description="A bin is a warehouse inside another one, e.g. rack R2 in Main stores." onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error}>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Code" error={e.code}>{(p) => <Input {...p} value={f.code} onChange={set('code')} className="font-mono uppercase" required placeholder="R2-B3" />}</Field>
-        <Field label="Name" error={e.name} className="sm:col-span-2">{(p) => <Input {...p} value={f.name} onChange={set('name')} required />}</Field>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Type" error={e.type}>
-          {(p) => (
-            <Select {...p} value={f.type} onChange={set('type')}>
-              {Object.entries(WAREHOUSE_TYPE_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </Select>
-          )}
-        </Field>
-        <Field label="Inside" error={e.parentId}>
-          {(p) => (
-            <Select {...p} value={f.parentId} onChange={set('parentId')}>
-              <option value="">— (top level)</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>{w.code} · {w.name}</option>
-              ))}
-            </Select>
-          )}
-        </Field>
-      </div>
-    </FormDialog>
-  );
-}

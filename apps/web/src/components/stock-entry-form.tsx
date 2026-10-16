@@ -13,6 +13,7 @@ import type { Batch, Item, Party, PurchaseOrderDetail, StockEntryDetail, StockPu
 import { fieldErrors, FormDialog } from './form-dialog';
 import { ItemPicker } from './item-picker';
 import { useWorkspace } from './workspace';
+import { LookupSelect } from '@/components/lookup-select';
 
 interface DraftLine {
   key: string;
@@ -319,7 +320,7 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
           </Field>
           <Field label="Material belongs to" hint={customerOwned ? 'Customer-supplied: counted, never valued' : undefined}>
             {(p) => (
-              <Select
+              <LookupSelect kind="party" noun="customer" prefill={{ roles: { isCustomer: true } }}
                 {...p}
                 value={header.ownerPartyId}
                 onChange={(e) => (setHeader({ ...header, ownerPartyId: e.target.value }), setLines((ls) => ls.map((l) => ({ ...l, batchId: '' }))))}
@@ -331,20 +332,20 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
                     {c.name}
                   </option>
                 ))}
-              </Select>
+              </LookupSelect>
             )}
           </Field>
           {purpose === 'receipt' && !customerOwned && (
             <Field label="Supplier">
               {(p) => (
-                <Select {...p} value={header.partyId} onChange={(e) => setHeader({ ...header, partyId: e.target.value })} disabled={!editable || !!header.purchaseOrderId}>
+                <LookupSelect kind="party" noun="party" {...p} value={header.partyId} onChange={(e) => setHeader({ ...header, partyId: e.target.value })} disabled={!editable || !!header.purchaseOrderId}>
                   <option value="">—</option>
                   {suppliers.data?.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
                     </option>
                   ))}
-                </Select>
+                </LookupSelect>
               )}
             </Field>
           )}
@@ -521,7 +522,7 @@ function Muted() {
 
 function WarehouseSelect({ value, onChange, warehouses, label }: { value: string; onChange: (v: string) => void; warehouses: Warehouse[]; label: string }) {
   return (
-    <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
+    <LookupSelect kind="warehouse" noun="warehouse" value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
       <option value="">Choose…</option>
       {warehouses
         .filter((w) => w.isActive)
@@ -530,7 +531,7 @@ function WarehouseSelect({ value, onChange, warehouses, label }: { value: string
             {w.code} · {WAREHOUSE_TYPE_LABELS[w.type] ?? w.type}
           </option>
         ))}
-    </Select>
+    </LookupSelect>
   );
 }
 

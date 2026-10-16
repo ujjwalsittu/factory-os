@@ -11,6 +11,7 @@ import type { AccountGroup } from '@/lib/accounting';
 import { AccountingPage, useAccounts } from './accounting-shared';
 import { useWorkspace } from './workspace';
 import { FormDialog } from './form-dialog';
+import { LookupSelect } from '@/components/lookup-select';
 type Split={cgst:string;sgst:string;igst:string;cess:string};
 type InputData={postingDate:string;bankAccountId:string;expenseAccountId:string;baseAmount:string;gst:Split;reference:string;evidence:{document:string;reason:string};itcEligible:boolean;gstInvoice?:{number:string;date:string;supplierGstin:string;registrationId:string;reason:string}};
 type Preview={totalAmount:string;inputTax:string;gstAmount:string;lines:{accountId:string;debit:string;credit:string}[]};
@@ -58,8 +59,8 @@ function ChargeForm({link}:{link?:ChargeLink}){
   {(accounts.error||groups.error)&&<Alert tone="danger">{accounts.error?.message??groups.error?.message}</Alert>}
   <Card className="p-4"><div className="grid gap-4 md:grid-cols-2">
    <Field label="Posting date">{props=><DateInput {...props} disabled={!!link} value={input.postingDate} onChange={e=>edit('postingDate',e.target.value)}/>}</Field>
-   <Field label="Bank account">{props=><Select {...props} disabled={!!link} value={input.bankAccountId} onChange={e=>edit('bankAccountId',e.target.value)}><option value="">Choose bank</option>{accounts.data?.filter(a=>a.isActive&&bankGroup(a.groupId)).map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</Select>}</Field>
-   <Field label="Expense account">{props=><Select {...props} value={input.expenseAccountId} onChange={e=>edit('expenseAccountId',e.target.value)}><option value="">Choose expense</option>{accounts.data?.filter(a=>a.isActive&&root(a.groupId)==='expense').map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</Select>}</Field>
+   <Field label="Bank account">{props=><LookupSelect kind="account" noun="ledger" prefill={{ root: "asset" }} {...props} disabled={!!link} value={input.bankAccountId} onChange={e=>edit('bankAccountId',e.target.value)}><option value="">Choose bank</option>{accounts.data?.filter(a=>a.isActive&&bankGroup(a.groupId)).map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</LookupSelect>}</Field>
+   <Field label="Expense account">{props=><LookupSelect kind="account" noun="ledger" prefill={{ root: "expense" }} {...props} value={input.expenseAccountId} onChange={e=>edit('expenseAccountId',e.target.value)}><option value="">Choose expense</option>{accounts.data?.filter(a=>a.isActive&&root(a.groupId)==='expense').map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</LookupSelect>}</Field>
    <Field label="Base charge">{props=><Input {...props} inputMode="decimal" value={input.baseAmount} onChange={e=>edit('baseAmount',e.target.value)}/>}</Field>
    {(['cgst','sgst','igst','cess'] as const).map(kind=><Field key={kind} label={kind.toUpperCase()}>{props=><Input {...props} inputMode="decimal" value={input.gst[kind]} onChange={e=>setInput(old=>({...old,gst:{...old.gst,[kind]:e.target.value}}))}/>}</Field>)}
    <Field label="Charge reference">{props=><Input {...props} value={input.reference} onChange={e=>edit('reference',e.target.value)}/>}</Field>

@@ -14,6 +14,7 @@ import { STATUS_TONE } from '@/lib/stock';
 import type { Party } from '@/lib/types';
 import { fieldErrors, FormDialog } from './form-dialog';
 import { useWorkspace } from './workspace';
+import { LookupSelect } from '@/components/lookup-select';
 
 const CASH_GROUPS = ['Cash-in-Hand', 'Bank Accounts'];
 const isMoney = (s: string) => /^\d+(\.\d{1,2})?$/.test(s.trim()) && Number(s) > 0;
@@ -238,27 +239,27 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label={direction === 'receipt' ? 'Customer' : 'Supplier'} className="lg:col-span-2">
             {(f) => (
-              <Select {...f} value={h.partyId} onChange={(e) => (setH({ ...h, partyId: e.target.value }), setAlloc({}))} disabled={!editable}>
+              <LookupSelect kind="party" noun="party" prefill={{ roles: direction === 'receipt' ? { isCustomer: true } : { isSupplier: true } }} {...f} value={h.partyId} onChange={(e) => (setH({ ...h, partyId: e.target.value }), setAlloc({}))} disabled={!editable}>
                 <option value="">{settlement && !editable ? settlement.partyName : 'Choose…'}</option>
                 {parties.data?.map((x) => (
                   <option key={x.id} value={x.id}>
                     {x.name}
                   </option>
                 ))}
-              </Select>
+              </LookupSelect>
             )}
           </Field>
           <Field label="Date">{(f) => <DateInput {...f} value={h.postingDate} onChange={(e) => setH({ ...h, postingDate: e.target.value })} disabled={!editable} />}</Field>
           <Field label={direction === 'receipt' ? 'Received into' : 'Paid from'}>
             {(f) => (
-              <Select {...f} value={h.accountId} onChange={(e) => setH({ ...h, accountId: e.target.value })} disabled={!editable}>
+              <LookupSelect kind="account" noun="ledger" {...f} value={h.accountId} onChange={(e) => setH({ ...h, accountId: e.target.value })} disabled={!editable}>
                 <option value="">{settlement && !editable ? settlement.accountName : 'Choose…'}</option>
                 {cash.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
                   </option>
                 ))}
-              </Select>
+              </LookupSelect>
             )}
           </Field>
           <Field label="Currency">
@@ -288,7 +289,7 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
         {withCharge&&<><p className="text-sm text-muted">INR bank fees only. GST stays in expense unless a qualifying invoice has been separately reviewed by Finance.</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Bank charge amount">{f=><Input {...f} inputMode="decimal" value={charge.baseAmount} onChange={e=>setCharge({...charge,baseAmount:e.target.value})}/>}</Field>
-            <Field label="Bank charge expense account">{f=><Select {...f} value={charge.expenseAccountId} onChange={e=>setCharge({...charge,expenseAccountId:e.target.value})}><option value="">Choose expense</option>{expenseAccounts.data?.filter(a=>a.isActive&&chargeGroups.data?.find(g=>g.id===a.groupId)?.root==='expense').map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</Select>}</Field>
+            <Field label="Bank charge expense account">{f=><LookupSelect kind="account" noun="ledger" prefill={{ root: "expense" }} {...f} value={charge.expenseAccountId} onChange={e=>setCharge({...charge,expenseAccountId:e.target.value})}><option value="">Choose expense</option>{expenseAccounts.data?.filter(a=>a.isActive&&chargeGroups.data?.find(g=>g.id===a.groupId)?.root==='expense').map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</LookupSelect>}</Field>
             {(['cgst','sgst','igst','cess'] as const).map(kind=><Field key={kind} label={`Bank charge ${kind.toUpperCase()}`}>{f=><Input {...f} inputMode="decimal" value={charge.gst[kind]} onChange={e=>setCharge({...charge,gst:{...charge.gst,[kind]:e.target.value}})}/>}</Field>)}
             <Field label="Bank charge reference">{f=><Input {...f} value={charge.reference} onChange={e=>setCharge({...charge,reference:e.target.value})}/>}</Field>
             <Field label="Bank charge document">{f=><Input {...f} value={charge.evidence.document} onChange={e=>setCharge({...charge,evidence:{...charge.evidence,document:e.target.value}})}/>}</Field>

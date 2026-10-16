@@ -280,3 +280,12 @@ at the end of the relevant section, with a date.
     Container events are append-only; the clocks are computed from them in `@factoryos/core` `smt.ts`.
   - **Printing.** Print jobs are claimed by the edge with a 60 s lease and fail after 3 attempts. The edge agent prints
     only to `PRINTER_PORTS` (default 9100) and `PRINTER_HOSTS`.
+- 2026-10-16 UI slice 3 (decision 069):
+  - **Reference fields.** Use `LookupSelect` (dropdown) or `ItemPicker` (item search) from `components/` for any field that
+    saves a master record; they add "Add new …" when the person may create it. The forms are in `master-dialogs.tsx`, one per
+    record, shared with the master pages. `pnpm --filter @factoryos/web guard:add-new` must stay empty; list pages, filters and
+    machine pickers are allowed by name in `e2e/add-new-allow.json` with a reason.
+  - **Assets.** Item type `asset` is never stocked (`isStockItem` false), cannot be sold yet and cannot change type. An asset
+    purchase line debits `assetAccountId`, else the `fixed_assets` mapping; `seedChart` runs first at submit and adds
+    the ledger on books that predate it. There is no register or depreciation yet.
+

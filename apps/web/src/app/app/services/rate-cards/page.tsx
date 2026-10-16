@@ -11,6 +11,7 @@ import { formatDate, formatMoney, today } from '@/lib/format';
 import type { WorkCentre } from '@/lib/manufacturing';
 import { formatMinutes, type RateCard, ROUNDING_STEPS } from '@/lib/services';
 import type { Item } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 /** Hourly prices per machine (decision 055). */
 export default function RateCardsPage() {
@@ -127,14 +128,14 @@ function RateCardDialog({ onClose }: { onClose: () => void }) {
         </Field>
         <Field label="Service item" hint="A service item (SAC), e.g. machine time" error={err.serviceItemId}>
           {(p) => (
-            <Select {...p} value={f.serviceItemId} onChange={set('serviceItemId')} required>
+            <LookupSelect kind="item" noun="service item" prefill={{ type: "service" }} {...p} value={f.serviceItemId} onChange={set('serviceItemId')} required>
               <option value="">Choose…</option>
               {items.data?.filter((i) => i.type === 'service' && i.isActive).map((i) => (
                 <option key={i.id} value={i.id}>
                   {i.code} · {i.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         <Field label="Standard rate (₹/h)" error={err.standardRate}>{(p) => <Input {...p} value={f.standardRate} onChange={set('standardRate')} inputMode="decimal" required />}</Field>

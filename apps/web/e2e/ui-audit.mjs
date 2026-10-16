@@ -3,11 +3,16 @@ import { chromium } from 'playwright';
 // records the heading, load time, console errors, failed API calls, horizontal overflow and whether it shows an empty
 // state, and saves screenshots plus contact sheets. Output: AUDIT_DIR (default e2e/shots/ui-audit) with audit.json.
 // Usage: CHROMIUM_PATH=… node e2e/ui-audit.mjs   (WEB_URL, AUDIT_DIR optional)
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 const B = process.env.WEB_URL ?? 'http://localhost:3000';
 const out = process.env.AUDIT_DIR ?? new URL('./shots/ui-audit', import.meta.url).pathname;
 fs.mkdirSync(`${out}/desktop`, { recursive: true });
 fs.mkdirSync(`${out}/mobile`, { recursive: true });
+// Add-new guard (decision 069): every reference list is fetched with the shared add-new field or allowed by name.
+const guard = spawnSync(process.execPath, [new URL('./guard-add-new.mjs', import.meta.url).pathname], { encoding: 'utf8' });
+console.log(guard.stdout.trim());
+if (guard.status !== 0) process.exitCode = 1;
 const run = Date.now() % 100000;
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });

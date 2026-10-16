@@ -5,6 +5,7 @@ import { Factory } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
+import { CentreDialog } from '@/components/master-dialogs';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
@@ -112,60 +113,6 @@ function CentreList({ onEdit }: { onEdit: (c: WorkCentre) => void }) {
       {adding && <MachineDialog centre={adding} onClose={() => setAdding(null)} />}
       {skilling && reqs.data && skills.data && <SkillsDialog centre={skilling} skills={skills.data.filter((x) => x.isActive)} reqs={reqs.data} onClose={() => setSkilling(null)} />}
     </Card>
-  );
-}
-
-function CentreDialog({ centre, onClose }: { centre: WorkCentre | null; onClose: () => void }) {
-  const ws = useWorkspace();
-  const qc = useQueryClient();
-  const [form, setForm] = useState({ code: centre?.code ?? '', name: centre?.name ?? '', hourlyRate: centre ? String(Number(centre.hourlyRate)) : '', calendarId: centre?.calendarId ?? '', isActive: centre?.isActive ?? true });
-  const calendars = useQuery({ queryKey: ['calendars', ws.entityId], queryFn: () => api<Calendar[]>('/manufacturing/calendars', { scope: ws.scope }), enabled: ws.can('manufacturing.calendar.read') });
-  const m = useMutation({
-    mutationFn: () =>
-      centre
-        ? api(`/manufacturing/work-centres/${centre.id}`, { method: 'PUT', body: { name: form.name, hourlyRate: form.hourlyRate, calendarId: form.calendarId || null, isActive: form.isActive }, scope: ws.scope })
-        : api('/manufacturing/work-centres', { method: 'POST', body: { ...form, calendarId: form.calendarId || null }, scope: ws.scope }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['work-centres'] });
-      onClose();
-    },
-  });
-  const err = fieldErrors(m.error);
-  return (
-    <FormDialog title={centre ? `Edit ${centre.code}` : 'New work centre'} description={centre ? 'A new rate applies to job cards completed from now on.' : undefined} onClose={onClose} onSubmit={() => m.mutate()} pending={m.isPending} error={m.error}>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Code" error={err.code}>
-          {(f) => <Input {...f} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} disabled={!!centre} required autoFocus={!centre} />}
-        </Field>
-        <Field label="Hourly rate (₹)" error={err.hourlyRate} hint="Machine + operator cost per hour">
-          {(f) => <Input {...f} inputMode="decimal" value={form.hourlyRate} onChange={(e) => setForm({ ...form, hourlyRate: e.target.value })} required />}
-        </Field>
-      </div>
-      <Field label="Name" error={err.name}>
-        {(f) => <Input {...f} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />}
-      </Field>
-      {calendars.data && calendars.data.length > 0 && (
-        <Field label="Working calendar" error={err.calendarId} hint="For scheduling">
-          {(f) => (
-            <Select {...f} value={form.calendarId} onChange={(e) => setForm({ ...form, calendarId: e.target.value })}>
-              <option value="">Default ({calendars.data.find((c) => c.isDefault)?.name ?? 'none'})</option>
-              {calendars.data
-                .filter((c) => c.isActive && !c.isDefault)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-            </Select>
-          )}
-        </Field>
-      )}
-      {centre && (
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Active
-        </label>
-      )}
-    </FormDialog>
   );
 }
 

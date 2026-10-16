@@ -48,14 +48,14 @@ export async function purchaseInvoiceDetail(db: SupportExecutor, s: ReadScope, i
     .where(and(eq(purchaseInvoice.id, id), eq(purchaseInvoice.entityId, s.entityId)));
   if (!inv) return null;
   const lines = await db
-    .select({ line: purchaseInvoiceLine, itemCode: item.code, itemName: item.name, uomCode: uom.code, poRate: purchaseOrderLine.rate })
+    .select({ line: purchaseInvoiceLine, itemCode: item.code, itemName: item.name, itemType: item.type, uomCode: uom.code, poRate: purchaseOrderLine.rate })
     .from(purchaseInvoiceLine)
     .innerJoin(item, and(eq(item.id, purchaseInvoiceLine.itemId), eq(item.tenantId, s.tenantId)))
     .innerJoin(uom, eq(uom.id, item.stockUomId))
     .leftJoin(purchaseOrderLine, eq(purchaseOrderLine.id, purchaseInvoiceLine.poLineId))
     .where(eq(purchaseInvoiceLine.invoiceId, inv.inv.id))
     .orderBy(asc(purchaseInvoiceLine.lineNo));
-  return { ...inv.inv, supplierName: inv.supplierName, supplierGstin: inv.supplierGstin, poNumber: inv.poNumber, lines: lines.map((l) => ({ ...l.line, itemCode: l.itemCode, itemName: l.itemName, uomCode: l.uomCode, poRate: l.poRate })) };
+  return { ...inv.inv, supplierName: inv.supplierName, supplierGstin: inv.supplierGstin, poNumber: inv.poNumber, lines: lines.map((l) => ({ ...l.line, itemCode: l.itemCode, itemName: l.itemName, itemType: l.itemType, uomCode: l.uomCode, poRate: l.poRate })) };
 }
 
 const LIST = [

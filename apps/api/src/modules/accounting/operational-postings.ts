@@ -21,6 +21,7 @@ import { AcquisitionCostService } from './acquisition-cost.service.js';
 import { GlPostingService } from './gl-posting.service.js';
 import { ReceiptAllocationService } from './receipt-allocation.service.js';
 import type { Tx } from './accounting-lock.js';
+import { seedChart } from './chart.js';
 class Lines {
   readonly entries: AccountingLine[] = [];
   constructor(private readonly mappings: Record<string, string>) {}
@@ -30,6 +31,17 @@ class Lines {
     const accountId = this.mappings[role];
     if (!accountId)
       throw new BadRequestException(`Missing accounting mapping: ${role}`);
+    this.entries.push({
+      ...ref,
+      accountId,
+      debit: n.gt('0') ? n.toString() : '0',
+      credit: n.lt('0') ? n.neg().toString() : '0',
+    });
+  }
+  /** A debit to a ledger named on the document rather than one chosen by role (asset purchases). */
+  addAccount(accountId: string, debit: Dec | string, ref: Partial<AccountingLine> = {}) {
+    const n = Dec.of(debit);
+    if (n.isZero()) return;
     this.entries.push({
       ...ref,
       accountId,
@@ -142,8 +154,19 @@ export class OperationalPostings {
     /** Job work processing charges (decision 047): per invoice line, the roles that replace purchases. */
     jobWork: Map<string, [string, string][]> = new Map(),
   ) {
-    const settings = await this.gl.active(tx, entityId);
+    let settings = await this.gl.active(tx, entityId);
     if (!settings) return;
+    const rows = await tx
+      .select({ line: purchaseInvoiceLine, item })
+      .from(purchaseInvoiceLine)
+      .innerJoin(item, eq(item.id, purchaseInvoiceLine.itemId))
+      .where(eq(purchaseInvoiceLine.invoiceId, invoice.id));
+    // Decision 069: the first asset invoice of an entity whose books are already active adds the Fixed assets ledger
+    // and mapping (the chart step only adds what is missing), then the check below runs.
+    if (rows.some((r) => r.item.type === 'asset')) {
+      await seedChart(tx, ctx, entityId, ['fixed_assets']);
+      settings = (await this.gl.active(tx, entityId)) ?? settings;
+    }
     const lines = new Lines(settings.mappings),
       rate = Dec.of(invoice.exchangeRate);
     const allocations = await this.allocation.allocateIn(
@@ -152,11 +175,6 @@ export class OperationalPostings {
       entityId,
       invoice.id,
     );
-    const rows = await tx
-      .select({ line: purchaseInvoiceLine, item })
-      .from(purchaseInvoiceLine)
-      .innerJoin(item, eq(item.id, purchaseInvoiceLine.itemId))
-      .where(eq(purchaseInvoiceLine.invoiceId, invoice.id));
     const taxCosts: { receiptLineId: string; amount: string }[] = [];
     for (const { line, item: it } of rows) {
       if (it.isStockItem) {
@@ -202,6 +220,23 @@ export class OperationalPostings {
             });
           });
         }
+      } else if (it.type === 'asset') {
+        const accountId = line.assetAccountId ?? settings.mappings.fixed_assets;
+        if (!accountId)
+          throw new BadRequestException(
+            `Line ${line.lineNo}: choose an asset ledger, or map Fixed assets in Accounting setup`,
+          );
+        // Tax that cannot be claimed back is part of what the asset cost.
+        const tax = invoice.itcEligible
+          ? Dec.ZERO
+          : Dec.of(line.cgst ?? '0')
+              .add(line.sgst ?? '0')
+              .add(line.igst ?? '0')
+              .add(line.cess ?? '0');
+        lines.addAccount(
+          accountId,
+          Dec.of(line.taxableValue ?? '0').add(tax).mul(rate),
+        );
       } else {
         const charge = jobWork.get(line.id);
         if (charge) for (const [role, amount] of charge) lines.add(role, amount);

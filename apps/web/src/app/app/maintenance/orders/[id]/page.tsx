@@ -12,6 +12,7 @@ import { formatDateTime, formatMoney, formatQty } from '@/lib/format';
 import { limitsLabel, type OrderDetail, STATUS_LABEL, trimNum } from '@/lib/maintenance';
 import { formatMinutes } from '@/lib/services';
 import type { Item, Warehouse } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 const localIst = (d: Date) => new Date(d.getTime() + 5.5 * 3600e3).toISOString().slice(0, 16);
 
@@ -365,26 +366,26 @@ function SparesDialog({ o, onClose }: { o: OrderDetail; onClose: () => void }) {
       <div className="grid gap-4">
         <Field label="From warehouse" error={err.warehouseId}>
           {(p) => (
-            <Select {...p} value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} required>
+            <LookupSelect kind="warehouse" noun="warehouse" {...p} value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} required>
               <option value="">Choose…</option>
               {warehouses.data?.map((w) => (
                 <option key={w.id} value={w.id}>
                   {w.code} · {w.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         {lines.map((l, n) => (
           <div key={n} className="grid grid-cols-[1fr_8rem] gap-2">
-            <Select aria-label={`Spare ${n + 1}`} value={l.itemId} onChange={(e) => set(n, { itemId: e.target.value })}>
+            <LookupSelect kind="item" noun="item" aria-label={`Spare ${n + 1}`} value={l.itemId} onChange={(e) => set(n, { itemId: e.target.value })}>
               <option value="">Choose a spare…</option>
               {items.data?.map((it) => (
                 <option key={it.id} value={it.id}>
                   {it.code} · {it.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
             <Input aria-label={`Quantity ${n + 1}`} inputMode="decimal" value={l.qty} onChange={(e) => set(n, { qty: e.target.value })} />
           </div>
         ))}

@@ -29,6 +29,8 @@ export const DEFAULT_ACCOUNTS = [
   ['production_variance', 'Manufacturing variance', 'Direct Expenses', 'expense'],
   ['cogs', 'Cost of goods sold', 'Direct Expenses', 'expense'],
   ['scrap', 'Scrap expense', 'Direct Expenses', 'expense'],
+  /** Decision 069: the default ledger for asset purchases; a purchase invoice line can name another. */
+  ['fixed_assets', 'Fixed assets', 'Fixed Assets', 'asset'],
   /** Decision 066: spares issued to maintenance orders. */
   ['maintenance', 'Repairs and maintenance (machinery)', 'Indirect Expenses', 'expense'],
   ['adjustment', 'Stock adjustments', 'Indirect Expenses', 'expense'],
@@ -69,9 +71,12 @@ export async function seedChart(
   tx: Tx,
   ctx: TenantRequestContext,
   entityId: string,
+  /** Only these roles are added (first-use steps such as the first asset invoice); all roles when omitted. */
+  onlyRoles?: readonly string[],
 ) {
   const scope = { tenantId: ctx.tenant.tenantId, entityId };
   for (const [key, name, group, root] of DEFAULT_ACCOUNTS) {
+    if (onlyRoles && !onlyRoles.includes(key)) continue;
     const groupKey = `${group}:${root}`;
     await tx
       .insert(accountGroup)

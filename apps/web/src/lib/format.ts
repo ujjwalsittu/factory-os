@@ -58,6 +58,7 @@ export const ITEM_TYPE_LABELS: Record<string, string> = {
   gauge: 'Gauge / instrument',
   service: 'Service',
   scrap: 'Scrap',
+  asset: 'Asset (plant, machinery, equipment)',
 };
 
 export const WAREHOUSE_TYPE_LABELS: Record<string, string> = {

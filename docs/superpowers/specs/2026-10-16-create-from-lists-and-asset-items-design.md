@@ -70,7 +70,9 @@ the API refuses an asset on a sales document ("Asset disposal is not built yet")
 - The posting debits the line's asset account (not purchases or inventory) with the taxable value; the party's payable
   and input GST post as for any purchase. **When the invoice is not eligible for input credit, the tax is added to the
   asset's cost** (non-refundable tax is part of the cost of an asset) instead of the non-creditable-tax expense.
-- With no account on the line and no Fixed assets mapping, submitting is refused with the reason and a link to
+- On submit the order is: first the chart step (it adds the Fixed assets ledger and mapping if they are missing, and
+  never changes anything else), then the check. With no account on the line and still no Fixed assets mapping (the
+  mapping was removed and the ledger code is taken by another ledger), submitting is refused with the reason, pointing to
   Accounting setup; nothing posts partially. With books not active, nothing posts, as for every document.
 - **Existing entities with active books** get the Fixed assets account and mapping the first time an asset invoice is
   submitted there, through the same idempotent chart step the maintenance spares use (it only adds what is missing); no
@@ -84,7 +86,7 @@ on imported assets, and an assets report. Until then, the asset lines are on the
 
 The one open review thread on the merged slice 2 and three small notes are fixed first, in this slice:
 - menu favourites and their saved copy are keyed by the signed-in user as well as the workspace, and pending saves are
-  cancelled at sign-out, so a second person on a shared computer never sees or overwrites the first person's menu;
+  sent and awaited at sign-out, so a second person on a shared computer never sees or overwrites the first person's menu;
 - restored saved menu choices are cleaned against the menu before use;
 - changing the Customers/Suppliers role filter keeps other address parameters (such as `new`);
 - the Home tile time limit clears its timer when the tile finishes.

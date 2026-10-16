@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Contact, Plus, Search } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
-import { fieldErrors, FormDialog } from '@/components/form-dialog';
+import { PartyDialog } from '@/components/master-dialogs';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import type { Party } from '@/lib/types';
@@ -28,7 +28,13 @@ function PartiesPage() {
   // The role filter lives in the address, so the menu's Customers and Suppliers links open this page already filtered.
   const roleParam = params.get('role');
   const role = roleParam === 'customer' || roleParam === 'supplier' ? roleParam : '';
-  const setRole = (value: string) => router.replace(value ? `${pathname}?role=${value}` : pathname);
+  const setRole = (value: string) => {
+    const next = new URLSearchParams(params.toString());
+    if (value) next.set('role', value);
+    else next.delete('role');
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  };
   const [editing, setEditing] = useState<Party | 'new' | null>(params.get('new') ? 'new' : null);
   const parties = useQuery({
     queryKey: ['parties', ws.tenantId, q, role],
@@ -100,143 +106,6 @@ function PartiesPage() {
       </Card>
       {editing && <PartyDialog party={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </>
-  );
-}
-
-function PartyDialog({ party, onClose }: { party: Party | null; onClose: () => void }) {
-  const ws = useWorkspace();
-  const qc = useQueryClient();
-  const [f, setF] = useState({
-    code: party?.code ?? '',
-    name: party?.name ?? '',
-    isCustomer: party?.isCustomer ?? false,
-    isSupplier: party?.isSupplier ?? true,
-    isJobWorker: party?.isJobWorker ?? false,
-    gstTreatment: party?.gstTreatment ?? 'registered',
-    gstin: party?.gstin ?? '',
-    pan: party?.pan ?? '',
-    stateCode: party?.stateCode ?? '',
-    msmeUdyam: party?.msmeUdyam ?? '',
-    msmeCategory: party?.msmeCategory ?? '',
-    creditDays: party?.creditDays?.toString() ?? '',
-    creditLimit: party?.creditLimit ?? '',
-    email: party?.email ?? '',
-    phone: party?.phone ?? '',
-    isActive: party?.isActive ?? true,
-    maasMember: party?.maasMember ?? false,
-  });
-  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
-  const canEdit = party ? ws.can('masters.party.update') : ws.can('masters.party.create');
-  const needsGstin = NEEDS_GSTIN.has(f.gstTreatment);
-  const m = useMutation({
-    mutationFn: () => {
-      const body = {
-        name: f.name,
-        isCustomer: f.isCustomer,
-        isSupplier: f.isSupplier,
-        isJobWorker: f.isJobWorker,
-        gstTreatment: f.gstTreatment,
-        gstin: f.gstin || null,
-        pan: needsGstin ? null : f.pan || null,
-        stateCode: needsGstin ? null : f.stateCode || null,
-        msmeUdyam: f.msmeUdyam || null,
-        msmeCategory: f.msmeCategory || null,
-        creditDays: f.creditDays ? Number(f.creditDays) : null,
-        creditLimit: f.creditLimit || null,
-        email: f.email || null,
-        phone: f.phone || null,
-        isActive: f.isActive,
-        maasMember: f.isCustomer && f.maasMember,
-      };
-      return party ? api(`/parties/${party.id}`, { method: 'PATCH', body, scope: ws.scope }) : api('/parties', { method: 'POST', body: { ...body, code: f.code }, scope: ws.scope });
-    },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['parties'] });
-      onClose();
-    },
-  });
-  const e = fieldErrors(m.error);
-  const msmeLate = f.isSupplier && f.msmeCategory && Number(f.creditDays) > 45;
-
-  return (
-    <FormDialog title={party ? party.name : 'New customer or supplier'} onClose={onClose} onSubmit={() => (canEdit ? m.mutate() : onClose())} pending={m.isPending} error={m.error} submitLabel={canEdit ? 'Save' : 'Close'} wide>
-      <fieldset disabled={!canEdit} className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Code" error={e.code}>{(p) => <Input {...p} value={f.code} onChange={set('code')} className="font-mono uppercase" disabled={!!party} required placeholder="TIMET" />}</Field>
-          <Field label="Legal name" error={e.name} className="sm:col-span-2">{(p) => <Input {...p} value={f.name} onChange={set('name')} required />}</Field>
-        </div>
-        <div className="flex gap-6 text-[13px]">
-          {(
-            [
-              ['isSupplier', 'Supplier'],
-              ['isJobWorker', 'Job worker'],
-              ['isCustomer', 'Customer'],
-              ['isActive', 'Active'],
-            ] as const
-          ).map(([k, label]) => (
-            <label key={k} className="flex items-center gap-2">
-              <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={f[k]} onChange={(ev) => setF({ ...f, [k]: ev.target.checked })} />
-              {label}
-            </label>
-          ))}
-          {e.isCustomer && <span className="text-danger">{e.isCustomer}</span>}
-          {e.isJobWorker && <span className="text-danger">{e.isJobWorker}</span>}
-        </div>
-        {f.isCustomer && (
-          <label className="flex items-center gap-2 text-[13px]">
-            <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={f.maasMember} onChange={(ev) => setF({ ...f, maasMember: ev.target.checked })} />
-            Studio member (member rates on machine-hour bookings)
-          </label>
-        )}
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="GST treatment" error={e.gstTreatment}>
-            {(p) => (
-              <Select {...p} value={f.gstTreatment} onChange={set('gstTreatment')}>
-                {TREATMENTS.map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </Select>
-            )}
-          </Field>
-          {needsGstin ? (
-            <Field label="GSTIN" hint="State and PAN are taken from it" error={e.gstin} className="sm:col-span-2">
-              {(p) => <Input {...p} value={f.gstin} onChange={set('gstin')} maxLength={15} className="font-mono uppercase" required />}
-            </Field>
-          ) : (
-            <>
-              <Field label="PAN" error={e.pan}>{(p) => <Input {...p} value={f.pan} onChange={set('pan')} className="font-mono uppercase" />}</Field>
-              <Field label="State code" hint="Place of supply, e.g. 27" error={e.stateCode}>{(p) => <Input {...p} value={f.stateCode} onChange={set('stateCode')} maxLength={2} className="font-mono" />}</Field>
-            </>
-          )}
-        </div>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Credit days" error={e.creditDays}>{(p) => <Input {...p} value={f.creditDays} onChange={set('creditDays')} inputMode="numeric" />}</Field>
-          {f.isCustomer && <Field label="Credit limit (₹)" hint="Leave blank for no limit. Submitting above the limit requires an approver." error={e.creditLimit}>{(p) => <Input {...p} value={f.creditLimit} onChange={set('creditLimit')} inputMode="decimal" />}</Field>}
-          <Field label="Email" error={e.email}>{(p) => <Input {...p} type="email" value={f.email} onChange={set('email')} />}</Field>
-          <Field label="Phone" error={e.phone}>{(p) => <Input {...p} value={f.phone} onChange={set('phone')} />}</Field>
-        </div>
-        {f.isSupplier && (
-          <div className="rounded-lg border border-line p-4">
-            <p className="text-[13px] font-medium">MSME (Udyam)</p>
-            <p className="mb-3 text-[12px] text-muted">Payments to micro and small enterprises are due within 45 days (Sec 43B(h)).</p>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Udyam number" error={e.msmeUdyam} className="sm:col-span-2">{(p) => <Input {...p} value={f.msmeUdyam} onChange={set('msmeUdyam')} className="font-mono uppercase" placeholder="UDYAM-MH-12-0001234" />}</Field>
-              <Field label="Category" error={e.msmeCategory}>
-                {(p) => (
-                  <Select {...p} value={f.msmeCategory} onChange={set('msmeCategory')}>
-                    <option value="">Not MSME</option>
-                    <option value="micro">Micro</option>
-                    <option value="small">Small</option>
-                    <option value="medium">Medium</option>
-                  </Select>
-                )}
-              </Field>
-            </div>
-            {msmeLate && <p className="mt-2 text-[12px] text-warning">Credit days above 45 aren't allowed for micro and small suppliers: late payments are disallowed as expense.</p>}
-          </div>
-        )}
-      </fieldset>
-    </FormDialog>
   );
 }
 

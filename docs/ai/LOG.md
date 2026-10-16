@@ -265,3 +265,10 @@ Append-only. One entry per session: `date · who · what changed · what's next`
   - preferences smoke 41 checks, Home smoke 52 checks, browser walkthrough, audit (73 menu links, none broken), regression.
 
   Next: PR to main; then slice 3 (item and party pages, Related and Accounting panels, record search).
+- 2026-10-16 · agent · UI slice 3 (decision 069, migration 0052_asset_items):
+  - add new from any reference list: shared master forms in a popup (nested once), a lookup dropdown and an add row in the item search, duplicate-code recovery, permission-gated, plus a guard script run by the UI audit;
+  - Asset item type and asset purchases (ledger on the invoice line or the Fixed assets mapping; unclaimable tax into cost; chart step adds the ledger on first use);
+  - slice 2 review notes fixed (per-person menu cache, sign-out saves pending changes, restored-choice cleaning, role filter parameters, Home timer);
+  - asset smoke 69 checks, create-from-lists walkthrough, audit and full regression.
+
+  Next: PR to main; then slice 4 (item and party pages, Related and Accounting panels, record search).

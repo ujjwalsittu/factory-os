@@ -13,6 +13,7 @@ import type { MachineRow } from '@/lib/iot';
 import { DUE_LABEL, intervalLabel, type Plan, trimNum } from '@/lib/maintenance';
 import { formatMinutes } from '@/lib/services';
 import type { Item } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 /** Preventive maintenance plans (decision 066): an interval by calendar and/or running hours, and a checklist. */
 export default function MaintenancePlansPage() {
@@ -181,14 +182,14 @@ function PlanDialog({ plan, onClose }: { plan: Plan | null; onClose: () => void 
             <Input aria-label={`Unit ${n + 1}`} value={l.unit} onChange={(e) => setLine(n, { unit: e.target.value })} placeholder="Unit" />
             <Input aria-label={`Min ${n + 1}`} inputMode="decimal" value={l.min} onChange={(e) => setLine(n, { min: e.target.value })} placeholder="Min" />
             <Input aria-label={`Max ${n + 1}`} inputMode="decimal" value={l.max} onChange={(e) => setLine(n, { max: e.target.value })} placeholder="Max" />
-            <Select aria-label={`Spare ${n + 1}`} value={l.spareItemId} onChange={(e) => setLine(n, { spareItemId: e.target.value })}>
+            <LookupSelect kind="item" noun="item" aria-label={`Spare ${n + 1}`} value={l.spareItemId} onChange={(e) => setLine(n, { spareItemId: e.target.value })}>
               <option value="">No spare</option>
               {items.data?.map((it) => (
                 <option key={it.id} value={it.id}>
                   {it.code}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
             <Input aria-label={`Spare qty ${n + 1}`} inputMode="decimal" value={l.spareQty} onChange={(e) => setLine(n, { spareQty: e.target.value })} placeholder="Qty" disabled={!l.spareItemId} />
           </div>
         ))}

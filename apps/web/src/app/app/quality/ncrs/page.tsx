@@ -13,6 +13,7 @@ import { api } from '@/lib/api';
 import { formatDate, formatQty } from '@/lib/format';
 import { NCR_STATUS, type NcrDetail, type NcrRow } from '@/lib/quality';
 import type { Batch, Item, Warehouse } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 export default function NcrsPage() {
   const ws = useWorkspace();
@@ -121,14 +122,14 @@ function Raise({ onClose }: { onClose: () => void }) {
         </Field>
         <Field label="Where it is" error={err.fromWarehouseId}>
           {(p) => (
-            <Select {...p} value={f.fromWarehouseId} onChange={set('fromWarehouseId')} required>
+            <LookupSelect kind="warehouse" noun="warehouse" {...p} value={f.fromWarehouseId} onChange={set('fromWarehouseId')} required>
               <option value="">Choose…</option>
               {ours.map((w) => (
                 <option key={w.id} value={w.id}>
                   {w.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         {item && item.tracking !== 'none' && (

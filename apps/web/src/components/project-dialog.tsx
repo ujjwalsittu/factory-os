@@ -7,17 +7,18 @@ import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import type { Project } from '@/lib/services';
 import type { Item, Party } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 /** New project, or change one: commercial terms are fixed once active. */
-export function ProjectDialog({ project, onClose, onSaved }: { project: Project | null; onClose: () => void; onSaved: (id: string) => void }) {
+export function ProjectDialog({ project, onClose, onSaved, prefill }: { project: Project | null; onClose: () => void; onSaved: (id: string) => void; prefill?: Partial<{ title: string; customerId: string }> }) {
   const ws = useWorkspace();
   const qc = useQueryClient();
   const parties = useQuery({ queryKey: ['parties', ws.tenantId, 'all'], queryFn: () => api<Party[]>('/parties', { scope: ws.scope }) });
   const items = useQuery({ queryKey: ['items', ws.tenantId, 'all'], queryFn: () => api<Item[]>('/items', { scope: ws.scope }) });
   const people = useQuery({ queryKey: ['project-people', ws.tenantId], queryFn: () => api<{ id: string; name: string }[]>('/services/projects-people', { scope: ws.scope }) });
   const [f, setF] = useState({
-    customerId: project?.customerId ?? '',
-    title: project?.title ?? '',
+    customerId: project?.customerId ?? prefill?.customerId ?? '',
+    title: project?.title ?? prefill?.title ?? '',
     description: project?.description ?? '',
     customerRef: project?.customerRef ?? '',
     managerUserId: project?.managerUserId ?? '',
@@ -67,14 +68,14 @@ export function ProjectDialog({ project, onClose, onSaved }: { project: Project 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Customer" error={err.customerId}>
           {(p) => (
-            <Select {...p} value={f.customerId} onChange={set('customerId')} required autoFocus disabled={fixed}>
+            <LookupSelect kind="party" noun="customer" prefill={{ roles: { isCustomer: true } }} {...p} value={f.customerId} onChange={set('customerId')} required autoFocus disabled={fixed}>
               <option value="">Choose…</option>
               {parties.data?.filter((c) => c.isCustomer && c.isActive).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         <Field label="Customer reference" hint="Their PO, work order or letter of award" error={err.customerRef}>{(p) => <Input {...p} value={f.customerRef} onChange={set('customerRef')} />}</Field>
@@ -82,14 +83,14 @@ export function ProjectDialog({ project, onClose, onSaved }: { project: Project 
         <Field label="Description" error={err.description} className="sm:col-span-2">{(p) => <Input {...p} value={f.description} onChange={set('description')} />}</Field>
         <Field label="Service item" hint="The SAC the milestones are invoiced on" error={err.serviceItemId}>
           {(p) => (
-            <Select {...p} value={f.serviceItemId} onChange={set('serviceItemId')} required disabled={fixed}>
+            <LookupSelect kind="item" noun="service item" prefill={{ type: "service" }} {...p} value={f.serviceItemId} onChange={set('serviceItemId')} required disabled={fixed}>
               <option value="">Choose…</option>
               {items.data?.filter((i) => i.type === 'service' && i.isActive).map((i) => (
                 <option key={i.id} value={i.id}>
                   {i.code} · {i.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         <Field label="Contract value (₹)" hint="Before GST" error={err.contractValue}>{(p) => <Input {...p} value={f.contractValue} onChange={set('contractValue')} inputMode="decimal" required disabled={fixed} />}</Field>

@@ -190,6 +190,8 @@ export const purchaseInvoiceLine = pgTable(
     jobWorkReceiptId: uuid('job_work_receipt_id'),
     /** Decision 058: the project this line is a cost of (FK added in migration 0039). */
     projectId: uuid('project_id'),
+    /** Decision 069: the ledger an asset line is capitalised to (FK to gl_account added in migration 0052). */
+    assetAccountId: uuid('asset_account_id'),
     hsnCode: text('hsn_code'),
     qty: qty('qty').notNull(),
     rate: qty('rate').notNull(),

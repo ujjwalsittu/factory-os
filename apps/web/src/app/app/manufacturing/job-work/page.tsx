@@ -13,6 +13,7 @@ import { api } from '@/lib/api';
 import { formatDate, formatQty } from '@/lib/format';
 import { type JobWorkDetail, type JobWorkRow, type JobWorkStatus, JW_STATUS } from '@/lib/job-work';
 import type { Item, Party, Warehouse } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 export default function JobWorkPage() {
   const ws = useWorkspace();
@@ -145,14 +146,14 @@ function NewOrderDialog({ onClose }: { onClose: () => void }) {
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Job worker" error={err.supplierId} hint={workers.data?.length === 0 ? 'Mark a supplier as a job worker in Customers & suppliers' : undefined}>
           {(f) => (
-            <Select {...f} value={form.supplierId} onChange={set('supplierId')} required autoFocus>
+            <LookupSelect kind="party" noun="job worker" prefill={{ roles: { isJobWorker: true } }} {...f} value={form.supplierId} onChange={set('supplierId')} required autoFocus>
               <option value="">Choose…</option>
               {workers.data?.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         <Field label="Nature of job work" error={err.natureOfWork}>
@@ -166,14 +167,14 @@ function NewOrderDialog({ onClose }: { onClose: () => void }) {
         </Field>
         <Field label="Receive into" error={err.targetWarehouseId}>
           {(f) => (
-            <Select {...f} value={form.targetWarehouseId} onChange={set('targetWarehouseId')}>
+            <LookupSelect kind="warehouse" noun="warehouse" {...f} value={form.targetWarehouseId} onChange={set('targetWarehouseId')}>
               <option value="">Choose on receipt</option>
               {ours.map((w) => (
                 <option key={w.id} value={w.id}>
                   {w.name}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         <Field label="Expected back by" error={err.expectedReturnDate}>

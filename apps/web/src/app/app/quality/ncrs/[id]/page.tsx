@@ -15,6 +15,7 @@ import { formatQty } from '@/lib/format';
 import type { WorkCentre } from '@/lib/manufacturing';
 import { CAPA_STATUS, type CapaRow, DISPOSITION, type Disposition, NCR_STATUS, type NcrDetail } from '@/lib/quality';
 import type { Warehouse } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 const WASTE = ['rejected_parts', 'metal_swarf', 'metal_offcut', 'metal_powder', 'e_waste', 'coolant_oil', 'solvent', 'packaging', 'other'];
 
@@ -253,26 +254,26 @@ function Approve({ n, onClose }: { n: NcrDetail; onClose: () => void }) {
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Rework at work centre" error={err.reworkWorkCentreId}>
             {(p) => (
-              <Select {...p} value={f.reworkWorkCentreId} onChange={(e) => setF({ ...f, reworkWorkCentreId: e.target.value })} required>
+              <LookupSelect kind="workCentre" noun="work centre" {...p} value={f.reworkWorkCentreId} onChange={(e) => setF({ ...f, reworkWorkCentreId: e.target.value })} required>
                 <option value="">Choose…</option>
                 {centres.data?.filter((c) => c.isActive).map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.code} · {c.name}
                   </option>
                 ))}
-              </Select>
+              </LookupSelect>
             )}
           </Field>
           <Field label="Reworked goods go to" error={err.reworkTargetWarehouseId}>
             {(p) => (
-              <Select {...p} value={f.reworkTargetWarehouseId} onChange={(e) => setF({ ...f, reworkTargetWarehouseId: e.target.value })} required>
+              <LookupSelect kind="warehouse" noun="warehouse" {...p} value={f.reworkTargetWarehouseId} onChange={(e) => setF({ ...f, reworkTargetWarehouseId: e.target.value })} required>
                 <option value="">Choose…</option>
                 {warehouses.data?.filter((w) => w.isActive && !['mrb', 'at_job_worker', 'customer_owned'].includes(w.type)).map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name}
                   </option>
                 ))}
-              </Select>
+              </LookupSelect>
             )}
           </Field>
         </div>

@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import type { WorkCentre } from '@/lib/manufacturing';
 import { type Booking, fromLocal, toLocal } from '@/lib/services';
 import type { Party } from '@/lib/types';
+import { LookupSelect } from '@/components/lookup-select';
 
 /** New booking, or move/resize/change a tentative or confirmed one (decision 055). Times are IST. */
 export function BookingDialog({ booking, onClose, onSaved, campaign, project }: { booking: Booking | null; onClose: () => void; onSaved?: (id: string) => void; campaign?: { id: string; number: string; customerId: string }; project?: { id: string; number: string; customerId: string } }) {
@@ -56,7 +57,7 @@ export function BookingDialog({ booking, onClose, onSaved, campaign, project }: 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Customer" error={err.customerId}>
           {(p) => (
-            <Select {...p} value={f.customerId} onChange={set('customerId')} required autoFocus disabled={!!campaign || !!project}>
+            <LookupSelect kind="party" noun="customer" prefill={{ roles: { isCustomer: true } }} {...p} value={f.customerId} onChange={set('customerId')} required autoFocus disabled={!!campaign || !!project}>
               <option value="">Choose…</option>
               {parties.data?.filter((c) => c.isCustomer && c.isActive).map((c) => (
                 <option key={c.id} value={c.id}>
@@ -64,7 +65,7 @@ export function BookingDialog({ booking, onClose, onSaved, campaign, project }: 
                   {c.maasMember ? ' · member' : ''}
                 </option>
               ))}
-            </Select>
+            </LookupSelect>
           )}
         </Field>
         <Field label="Machine" error={err.machineId}>

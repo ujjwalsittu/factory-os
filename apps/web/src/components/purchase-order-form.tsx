@@ -14,6 +14,7 @@ import { fieldErrors, FormDialog } from './form-dialog';
 import { ItemPicker } from './item-picker';
 import { TaxSummary } from './tax-summary';
 import { useWorkspace } from './workspace';
+import { LookupSelect } from '@/components/lookup-select';
 
 interface DraftLine {
   key: string;
@@ -225,14 +226,14 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Supplier" className="lg:col-span-2" hint={supplier ? [supplier.gstin ?? supplier.gstTreatment, supplier.msmeCategory && `MSME ${supplier.msmeCategory}`].filter(Boolean).join(' · ') : undefined}>
             {(p) => (
-              <Select {...p} value={header.supplierId} onChange={(e) => setHeader({ ...header, supplierId: e.target.value })} disabled={!editable}>
+              <LookupSelect kind="party" noun="supplier" prefill={{ roles: { isSupplier: true } }} empty={suppliers.data?.length === 0} {...p} value={header.supplierId} onChange={(e) => setHeader({ ...header, supplierId: e.target.value })} disabled={!editable}>
                 <option value="">{po && !editable ? po.supplierName : 'Choose…'}</option>
                 {suppliers.data?.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
                 ))}
-              </Select>
+              </LookupSelect>
             )}
           </Field>
           <Field label="Order date">{(p) => <DateInput {...p} value={header.orderDate} onChange={(e) => setHeader({ ...header, orderDate: e.target.value })} disabled={!editable} />}</Field>
