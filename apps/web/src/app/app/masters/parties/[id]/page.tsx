@@ -26,7 +26,7 @@ export default function PartyPage() {
   const { id } = useParams<{ id: string }>();
   const ws = useWorkspace();
   const [editing, setEditing] = useState(false);
-  const party = useQuery({ queryKey: ['party', ws.tenantId, id], queryFn: () => api<Party>(`/parties/${id}`, { scope: ws.scope }) });
+  const party = useQuery({ queryKey: ['party', ws.tenantId, ws.entityId, id], queryFn: () => api<Party>(`/parties/${id}`, { scope: ws.scope }) });
   const overview = useQuery({ queryKey: ['party-overview', ws.tenantId, ws.entityId, id], queryFn: () => api<Overview>(`/parties/${id}/overview`, { scope: ws.scope }) });
   const p = party.data;
   const roles = p && [p.isCustomer && 'Customer', p.isSupplier && 'Supplier', p.isJobWorker && 'Job worker'].filter(Boolean).join(' · ');

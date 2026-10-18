@@ -29,8 +29,8 @@ export default function ItemPage() {
   const { id } = useParams<{ id: string }>();
   const ws = useWorkspace();
   const [editing, setEditing] = useState(false);
-  const item = useQuery({ queryKey: ['item', ws.tenantId, id], queryFn: () => api<Item>(`/items/${id}`, { scope: ws.scope }) });
-  const uoms = useQuery({ queryKey: ['uoms', ws.tenantId], queryFn: () => api<Uom[]>('/uoms', { scope: ws.scope }), enabled: ws.can('masters.uom.read') });
+  const item = useQuery({ queryKey: ['item', ws.tenantId, ws.entityId, id], queryFn: () => api<Item>(`/items/${id}`, { scope: ws.scope }) });
+  const uoms = useQuery({ queryKey: ['uoms', ws.tenantId, ws.entityId], queryFn: () => api<Uom[]>('/uoms', { scope: ws.scope }), enabled: ws.can('masters.uom.read') });
   const overview = useQuery({ queryKey: ['item-overview', ws.tenantId, ws.entityId, id], queryFn: () => api<Overview>(`/items/${id}/overview`, { scope: ws.scope }) });
   const it = item.data;
   const unit = uoms.data?.find((u) => u.id === it?.stockUomId);

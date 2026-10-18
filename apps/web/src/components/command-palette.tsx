@@ -87,7 +87,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     const pages = needle ? commands.filter((c) => c.label.toLowerCase().includes(needle) || c.group.toLowerCase().includes(needle)) : commands;
     // Results that belong to an older search are not shown against the newer text.
     const found: Command[] =
-      needle.length >= 2 && term === needle
+      needle.length >= 2 && term === q.trim()
         ? (records.data?.results ?? []).map((r) => ({
             id: `rec-${r.type}-${r.id}`,
             label: r.detail ? `${r.number} · ${r.detail}` : r.number,
