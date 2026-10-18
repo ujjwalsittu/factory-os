@@ -6,7 +6,12 @@
 //   - a second workspace sees nothing of the first.
 // Usage: API=http://localhost:4000 node apps/api/scripts/smoke-records.mjs   (DATABASE_URL from the env or ../../.env)
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import { Client, gstin } from './accounting-test-helpers.mjs';
+
+const dbUrl = process.env.DATABASE_URL ?? fs.readFileSync(new URL('../../../.env', import.meta.url), 'utf8').match(/^DATABASE_URL=(.*)$/m)?.[1];
+const psql = (q) => execFileSync('psql', [dbUrl, '-qtAc', q]).toString().trim();
 
 let checks = 0;
 const ok = (label) => (checks++, console.log(`✓ ${label}`));
@@ -99,6 +104,15 @@ const status = await c.req('GET', `/accounts/source-status?sourceType=settlement
 assert.equal(status.state, 'posted');
 assert.ok(status.vouchers.length >= 1, 'the settlement voucher is listed');
 ok('the Accounting panel read works for a receipt or payment');
+// A payment allocated to the invoice shows on the invoice's chain.
+const billId = psql(`select id from trade_bill where entity_id = '${c.entityId}' and source_type = 'purchase_invoice' and source_id = '${bill.id}'`);
+assert.ok(billId, 'the invoice created a payable bill');
+const pay2 = await c.req('POST', '/accounts/settlements', { direction: 'payment', partyId: supplier.id, postingDate: date, accountId: bank, amount: '20', allocations: [{ billId, amount: '20' }] }, 201);
+await c.req('POST', `/accounts/settlements/${pay2.id}/submit`, {}, 200);
+const relBill2 = await rel('purchase_invoice', bill.id);
+assert.ok(has(relBill2, 'settlement', pay2.id), 'invoice → the payment allocated to it');
+assert.ok(!has(relBill2, 'settlement', pay.id), 'an unallocated payment is not on the invoice');
+ok('a payment allocated to an invoice appears on the invoice chain');
 const supAfter = await c.req('GET', `/parties/${supplier.id}/overview`);
 assert.ok(sec(supAfter, 'settlements')?.rows.some((r) => r.id === pay.id), 'the payment is on the supplier page');
 ok('a payment appears on the supplier page');
