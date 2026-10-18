@@ -288,4 +288,7 @@ at the end of the relevant section, with a date.
   - **Assets.** Item type `asset` is never stocked (`isStockItem` false), cannot be sold yet and cannot change type. An asset
     purchase line debits `assetAccountId`, else the `fixed_assets` mapping; `seedChart` runs first at submit and adds
     the ledger on books that predate it. There is no register or depreciation yet.
+- 2026-10-18 CI runner: the user added a self-hosted GitHub runner. When a workflow run is blocked on GitHub for billing,
+  switch that workflow's `runs-on` to `self-hosted` in the same PR and say why in the commit message. Workflows use
+  `ubuntu-latest` today (`message-guard`, `handoff-guard`) and have been running.
 
