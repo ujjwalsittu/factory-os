@@ -171,18 +171,26 @@ try {
 
   step('phone: the menu opens, areas fold, the page does not scroll sideways');
   await page.setViewportSize({ width: 390, height: 844 });
+  // A change made before the saved choices have loaded is held back by design, so wait for them before clicking.
+  const loaded = page.waitForResponse((r) => r.url().endsWith('/api/me/preferences') && r.request().method() === 'GET', { timeout: 15000 });
   await page.goto(`${B}/app`);
   if (await page.waitForSelector('text=Choose a legal entity', { timeout: 3000 }).catch(() => null)) await page.click('main button:has-text(\"Azeonics\")', { timeout: 3000 }).catch(() => null);
   await page.locator('[data-tile="below-reorder"]').waitFor();
   expect(!(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)), 'Home does not scroll sideways');
   await shot(page, 'home-phone');
+  await loaded.catch(() => undefined);
+  await page.waitForTimeout(300);
   await page.getByRole('button', { name: 'Open menu' }).click();
   const pn = page.getByRole('dialog', { name: 'Menu' }).getByRole('navigation', { name: 'Main' });
   await pn.getByRole('button', { name: 'Sell', exact: true }).waitFor();
   const box = await pn.getByRole('button', { name: 'Sell', exact: true }).boundingBox();
   expect(box.height >= 36, `area headers are easy to tap (${box.height}px)`);
-  await pn.getByRole('button', { name: 'Sell', exact: true }).click();
-  expect((await pn.getByRole('button', { name: 'Sell', exact: true }).getAttribute('aria-expanded')) === 'false', 'an area folds on the phone');
+  // Whatever state the saved choices left the area in, tapping its header flips it.
+  const sell = pn.getByRole('button', { name: 'Sell', exact: true });
+  const before = await sell.getAttribute('aria-expanded');
+  await sell.click();
+  await page.waitForFunction(([el, was]) => el && el.getAttribute('aria-expanded') !== was, [await sell.elementHandle(), before]);
+  expect((await sell.getAttribute('aria-expanded')) !== before, 'an area folds on the phone');
   await shot(page, 'menu-phone');
   await pn.getByRole('link', { name: 'Items', exact: true }).first().click();
   await page.waitForURL('**/masters/items');

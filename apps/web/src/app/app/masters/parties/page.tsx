@@ -79,7 +79,6 @@ function PartiesPage() {
                 <Th>State</Th>
                 <Th>MSME</Th>
                 <Th className="text-right">Credit days</Th>
-                <Th className="w-16"><span className="sr-only">Open</span></Th>
               </tr>
             </thead>
             <tbody>
@@ -87,7 +86,12 @@ function PartiesPage() {
                 <Tr key={p.id} className="cursor-pointer" onClick={() => setEditing(p)}>
                   <Td>
                     <p className={p.isActive ? 'font-medium' : 'font-medium text-subtle line-through'}>{p.name}</p>
-                    <p className="font-mono text-[12px] text-subtle">{p.code}</p>
+                    <p className="font-mono text-[12px] text-subtle">
+                      {p.code}
+                      <Link href={`/app/masters/parties/${p.id}`} className="ml-2 font-sans text-accent hover:underline" aria-label={`Open ${p.name}`} onClick={(e) => e.stopPropagation()}>
+                        Open
+                      </Link>
+                    </p>
                   </Td>
                   <Td>
                     <div className="flex gap-1">
@@ -100,11 +104,6 @@ function PartiesPage() {
                   <Td className="font-mono text-[12px]">{p.stateCode ?? '—'}</Td>
                   <Td>{p.msmeCategory ? <Badge tone="warning">{p.msmeCategory}</Badge> : <span className="text-subtle">—</span>}</Td>
                   <Td className="tabular text-right">{p.creditDays ?? '—'}</Td>
-                  <Td className="text-right text-[13px]">
-                    <Link href={`/app/masters/parties/${p.id}`} className="text-accent hover:underline" aria-label={`Open ${p.name}`} onClick={(e) => e.stopPropagation()}>
-                      Open
-                    </Link>
-                  </Td>
                 </Tr>
               ))}
             </tbody>

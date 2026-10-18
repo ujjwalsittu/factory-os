@@ -19,5 +19,8 @@
   "components/accounting-chart.tsx#account": "the chart page; New opens the shared form",
   "components/accounting-journal-form.tsx#account": "ledger fields are the shared lines in accounting-shared.tsx",
   "components/accounting-setup.tsx#account": "maps existing ledgers to roles; the Fixed assets and other ledgers are added from the chart",
-  "components/bank-reconciliation/workspace.tsx#account": "chooses which bank to reconcile (a selector, not a saved reference)"
+  "components/bank-reconciliation/workspace.tsx#account": "chooses which bank to reconcile (a selector, not a saved reference)",
+  "app/app/masters/items/[id]/page.tsx#item": "a record page: reads one item and its overview",
+  "app/app/masters/items/[id]/page.tsx#uom": "shows the unit code of one item",
+  "app/app/masters/parties/[id]/page.tsx#party": "a record page: reads one party and its overview"
 }
