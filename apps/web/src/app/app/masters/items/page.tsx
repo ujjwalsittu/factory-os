@@ -2,6 +2,7 @@
 import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Package, Plus, Search } from 'lucide-react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { ItemDialog } from '@/components/master-dialogs';
@@ -76,7 +77,12 @@ function ItemsPage() {
             <tbody>
               {items.data?.map((it) => (
                 <Tr key={it.id} className="cursor-pointer" onClick={() => setEditing(it)}>
-                  <Td className="font-mono text-[13px] font-medium">{it.code}</Td>
+                  <Td className="font-mono text-[13px] font-medium">
+                    {it.code}
+                    <Link href={`/app/masters/items/${it.id}`} className="ml-2 font-sans text-[12px] font-normal text-accent hover:underline" aria-label={`Open ${it.code}`} onClick={(e) => e.stopPropagation()}>
+                      Open
+                    </Link>
+                  </Td>
                   <Td>
                     <span className={it.isActive ? '' : 'text-subtle line-through'}>{it.name}</span>
                     {it.exportControlled && (

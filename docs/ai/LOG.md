@@ -272,3 +272,10 @@ Append-only. One entry per session: `date · who · what changed · what's next`
   - asset smoke 69 checks, create-from-lists walkthrough, audit and full regression.
 
   Next: PR to main; then slice 4 (item and party pages, Related and Accounting panels, record search).
+- 2026-10-18 · agent · UI slice 4 (decision 070; no migration):
+  - item and party pages from one permission-scoped overview read each; Related panel on nine document types; Accounting panel extended to notes and receipts/payments;
+  - record search in the palette (document numbers, items, parties, batches and serials, machines, vouchers);
+  - records smoke 97 checks, records walkthrough, audit (0 problems) and regression; a flaky phone-menu check in `menu-home` made state-independent.
+
+  Next: PR to main; then slice 5 (Connections page and hand-offs).
+

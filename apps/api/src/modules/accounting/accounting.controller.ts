@@ -35,7 +35,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   Ctx,
@@ -621,6 +621,9 @@ export class AccountingController {
             'purchase_invoice',
             'sales_invoice',
             'landed_cost',
+            'sales_note',
+            'supplier_note',
+            'settlement',
           ]),
           sourceId: z.uuid(),
         }),
@@ -632,6 +635,9 @@ export class AccountingController {
       purchase_invoice: 'buying.purchase_invoice.read',
       sales_invoice: 'selling.sales_invoice.read',
       landed_cost: 'buying.landed_cost.read',
+      sales_note: 'selling.sales_note.read',
+      supplier_note: 'buying.supplier_note.read',
+      settlement: 'accounts.settlement.read',
     };
     const canVouchers = ctx.tenant.permissions.has('accounts.voucher.read');
     if (
@@ -694,6 +700,15 @@ export class AccountingController {
             eq(landedCostVoucher.entityId, entityId),
           ),
         );
+    // Decision 070: notes and receipts/payments show their vouchers too.
+    const noteTables = { sales_note: 'sales_note', supplier_note: 'supplier_note', settlement: 'party_settlement' } as const;
+    if (input.sourceType === 'sales_note' || input.sourceType === 'supplier_note' || input.sourceType === 'settlement') {
+      const found = await this.db.execute<{ status: string; submitted_at: Date | null }>(
+        sql`select status, submitted_at from ${sql.raw(noteTables[input.sourceType])} where id = ${input.sourceId} and entity_id = ${entityId}`,
+      );
+      const row = found.rows[0];
+      if (row) source = { status: row.status, submittedAt: row.submitted_at ? new Date(row.submitted_at) : null };
+    }
     if (!source) throw new NotFoundException('Source document not found');
     const [settings] = await this.db
       .select()
@@ -754,6 +769,9 @@ export class AccountingController {
             'purchase_invoice',
             'sales_invoice',
             'landed_cost',
+            'sales_note',
+            'supplier_note',
+            'settlement',
           ])
           .optional(),
         sourceId: z.uuid().optional(),

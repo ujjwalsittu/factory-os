@@ -1,6 +1,7 @@
 'use client';
 import { InvoiceBalance } from './invoice-balance';
 import { AccountingSourceLinks } from './accounting-source-links';
+import { RelatedPanel } from './related-panel';
 import { Alert, Badge, Button, Card, Field, Input, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, Plus, Send, Trash2 } from 'lucide-react';
@@ -294,6 +295,7 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
   return (
     <div className="space-y-6">
       {invoice && invoice.status !== 'draft' && <AccountingSourceLinks type="purchase_invoice" id={invoice.id} />}
+      {invoice && invoice.status !== 'draft' && <RelatedPanel type="purchase_invoice" id={invoice.id} />}
       {invoice && invoice.status !== 'draft' && <InvoiceBalance type="purchase" id={invoice.id} />}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>

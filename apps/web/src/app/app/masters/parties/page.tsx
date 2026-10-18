@@ -2,6 +2,7 @@
 import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Contact, Plus, Search } from 'lucide-react';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { PartyDialog } from '@/components/master-dialogs';
@@ -85,7 +86,12 @@ function PartiesPage() {
                 <Tr key={p.id} className="cursor-pointer" onClick={() => setEditing(p)}>
                   <Td>
                     <p className={p.isActive ? 'font-medium' : 'font-medium text-subtle line-through'}>{p.name}</p>
-                    <p className="font-mono text-[12px] text-subtle">{p.code}</p>
+                    <p className="font-mono text-[12px] text-subtle">
+                      {p.code}
+                      <Link href={`/app/masters/parties/${p.id}`} className="ml-2 font-sans text-accent hover:underline" aria-label={`Open ${p.name}`} onClick={(e) => e.stopPropagation()}>
+                        Open
+                      </Link>
+                    </p>
                   </Td>
                   <Td>
                     <div className="flex gap-1">
