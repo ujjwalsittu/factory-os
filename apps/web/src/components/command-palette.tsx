@@ -1,8 +1,10 @@
 'use client';
 import { cn } from '@factoryos/ui';
 import { CornerDownLeft, Search } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { api } from '@/lib/api';
 import { AREAS, HOME } from './nav-data';
 import { useWorkspace } from './workspace';
 
@@ -14,14 +16,27 @@ interface Command {
 }
 
 /**
- * ⌘K palette (docs/13 X2). Phase 0 covers navigation and actions; document search
- * (numbers, parties, serials, heat numbers) plugs in here in Phase 1.
+ * ⌘K palette (docs/13 X2): pages and actions, and (decision 070) records: document numbers, items, parties, batches and
+ * serials, machines, found by the API after two typed characters. A failed search never hides the pages.
  */
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const ws = useWorkspace();
   const router = useRouter();
   const [q, setQ] = useState('');
   const [index, setIndex] = useState(0);
+  // Records are searched a moment after the person stops typing, so each key press is not a request.
+  const [term, setTerm] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setTerm(q.trim()), 250);
+    return () => clearTimeout(t);
+  }, [q]);
+  const records = useQuery({
+    queryKey: ['palette-records', ws.tenantId, ws.entityId, term],
+    queryFn: () => api<{ results: { id: string; type: string; label: string; number: string; detail: string; href: string }[] }>(`/search?q=${encodeURIComponent(term)}`, { scope: ws.scope }),
+    enabled: open && term.length >= 2,
+    retry: false,
+    staleTime: 15_000,
+  });
 
   const commands = useMemo<Command[]>(() => {
     const go = (href: string) => () => {
@@ -69,8 +84,23 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return needle ? commands.filter((c) => c.label.toLowerCase().includes(needle) || c.group.toLowerCase().includes(needle)) : commands;
-  }, [q, commands]);
+    const pages = needle ? commands.filter((c) => c.label.toLowerCase().includes(needle) || c.group.toLowerCase().includes(needle)) : commands;
+    // Results that belong to an older search are not shown against the newer text.
+    const found: Command[] =
+      needle.length >= 2 && term === needle
+        ? (records.data?.results ?? []).map((r) => ({
+            id: `rec-${r.type}-${r.id}`,
+            label: r.detail ? `${r.number} · ${r.detail}` : r.number,
+            group: r.label,
+            run: () => {
+              router.push(r.href);
+              onClose();
+            },
+          }))
+        : [];
+    return [...pages, ...found];
+  }, [q, term, commands, records.data, router, onClose]);
+  const searching = q.trim().length >= 2 && (term !== q.trim() || records.isFetching);
 
   useEffect(() => {
     if (open) {
@@ -101,7 +131,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               if (e.key === 'ArrowUp') (e.preventDefault(), setIndex((i) => Math.max(i - 1, 0)));
               if (e.key === 'Enter') results[index]?.run();
             }}
-            placeholder="Type a command or page…"
+            placeholder="Search pages, documents, items, parties…"
             className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-subtle"
             role="combobox"
             aria-expanded
@@ -111,7 +141,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           <kbd className="rounded border border-line px-1.5 font-mono text-[11px] text-subtle">Esc</kbd>
         </div>
         <ul id="cmdk-list" role="listbox" className="max-h-80 overflow-y-auto p-1.5">
-          {results.length === 0 && <li className="px-3 py-6 text-center text-[13px] text-muted">No matches</li>}
+          {results.length === 0 && !searching && <li className="px-3 py-6 text-center text-[13px] text-muted">No matches</li>}
+          {searching && <li className="px-3 py-2 text-center text-[12px] text-subtle" role="status">Searching records…</li>}
           {results.map((c, i) => (
             <li
               key={c.id}
@@ -122,7 +153,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               onClick={c.run}
               className={cn('flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-[13px]', i === index && 'bg-accent-soft text-accent')}
             >
-              <span className="w-20 shrink-0 text-[11px] text-subtle">{c.group}</span>
+              <span className="w-28 shrink-0 truncate text-[11px] text-subtle">{c.group}</span>
               <span className="truncate">{c.label}</span>
               {i === index && <CornerDownLeft className="ml-auto size-3.5" />}
             </li>

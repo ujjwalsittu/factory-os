@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
 import { WorkOrderView } from '@/components/work-order-view';
+import { RelatedPanel } from '@/components/related-panel';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDateTime, formatQty } from '@/lib/format';
@@ -33,6 +34,7 @@ function Order() {
         </Alert>
       )}
       <WorkOrderView wo={q.data} />
+      {q.data.status !== 'draft' && <RelatedPanel type="work_order" id={q.data.id} />}
       {ws.can('manufacturing.schedule.read') && q.data.status !== 'cancelled' && q.data.status !== 'completed' && <SchedulePanel wo={q.data} />}
       {ws.can('quality.inspection.read') && <Inspections wo={q.data} />}
       {ws.can('quality.skill.read') && <Allowances wo={q.data} />}

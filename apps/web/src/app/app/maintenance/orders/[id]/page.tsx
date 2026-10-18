@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
+import { RelatedPanel } from '@/components/related-panel';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDateTime, formatMoney, formatQty } from '@/lib/format';
@@ -58,6 +59,7 @@ function Order({ o }: { o: OrderDetail }) {
   return (
     <div className="space-y-4">
       {act.error && <Alert tone="danger">{act.error.message}</Alert>}
+      <RelatedPanel type="maintenance_order" id={o.id} />
       {o.needsVerification && (
         <Alert tone="warning">
           Done by {o.doneByName} on {o.doneAt && formatDateTime(o.doneAt)}. This is a critical machine: a supervisor other than the technician verifies the work.

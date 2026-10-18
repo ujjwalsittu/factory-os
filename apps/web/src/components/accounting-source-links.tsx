@@ -9,7 +9,7 @@ export function AccountingSourceLinks({
   type,
   id,
 }: {
-  type: 'stock_entry' | 'purchase_invoice' | 'sales_invoice' | 'landed_cost';
+  type: 'stock_entry' | 'purchase_invoice' | 'sales_invoice' | 'landed_cost' | 'sales_note' | 'supplier_note' | 'settlement';
   id: string;
 }) {
   const ws = useWorkspace();
@@ -30,6 +30,9 @@ export function AccountingSourceLinks({
           purchase_invoice: 'buying.purchase_invoice.read',
           sales_invoice: 'selling.sales_invoice.read',
           landed_cost: 'buying.landed_cost.read',
+          sales_note: 'selling.sales_note.read',
+          supplier_note: 'buying.supplier_note.read',
+          settlement: 'accounts.settlement.read',
         }[type],
       ),
     retry: false,
@@ -40,7 +43,12 @@ export function AccountingSourceLinks({
     return (
       <Alert tone="info">
         Accounting inactive. This document has no GL posting; configure and
-        reconcile the opening books before cut-over.
+        reconcile the opening books before cut-over.{' '}
+        {ws.can('accounts.setup.read') && (
+          <Link className="font-medium underline" href="/app/accounts/setup">
+            Accounting setup
+          </Link>
+        )}
       </Alert>
     );
   if (q.data.state === 'historical')

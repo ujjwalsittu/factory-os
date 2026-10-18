@@ -2,6 +2,7 @@
 import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Package, Plus, Search } from 'lucide-react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { ItemDialog } from '@/components/master-dialogs';
@@ -71,6 +72,7 @@ function ItemsPage() {
                 <Th>HSN</Th>
                 <Th>Rev.</Th>
                 <Th className="text-right">Reorder at</Th>
+                <Th className="w-16"><span className="sr-only">Open</span></Th>
               </tr>
             </thead>
             <tbody>
@@ -91,6 +93,11 @@ function ItemsPage() {
                   <Td className="font-mono text-[12px] text-muted">{it.hsnCode ?? '—'}</Td>
                   <Td className="font-mono text-[12px]">{it.revision ?? '—'}</Td>
                   <Td className="tabular text-right text-[13px]">{formatQty(it.reorderLevel, it.uomDecimals)}</Td>
+                  <Td className="text-right text-[13px]">
+                    <Link href={`/app/masters/items/${it.id}`} className="text-accent hover:underline" aria-label={`Open ${it.code}`} onClick={(e) => e.stopPropagation()}>
+                      Open
+                    </Link>
+                  </Td>
                 </Tr>
               ))}
             </tbody>

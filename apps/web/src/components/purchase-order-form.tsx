@@ -12,6 +12,8 @@ import { STATUS_TONE } from '@/lib/stock';
 import type { Item, LegalEntity, Party, PurchaseOrderDetail } from '@/lib/types';
 import { fieldErrors, FormDialog } from './form-dialog';
 import { ItemPicker } from './item-picker';
+import { RelatedPanel } from './related-panel';
+
 import { TaxSummary } from './tax-summary';
 import { useWorkspace } from './workspace';
 import { LookupSelect } from '@/components/lookup-select';
@@ -158,6 +160,7 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
 
   return (
     <div className="space-y-6">
+      {po && po.status !== 'draft' && <RelatedPanel type="purchase_order" id={po.id} />}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[13px] text-muted">

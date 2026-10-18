@@ -13,6 +13,7 @@ import { type BankChargeInput, type BillBalance, type Direction, DIRECTION_LABEL
 import { STATUS_TONE } from '@/lib/stock';
 import type { Party } from '@/lib/types';
 import { fieldErrors, FormDialog } from './form-dialog';
+import { AccountingSourceLinks } from './accounting-source-links';
 import { useWorkspace } from './workspace';
 import { LookupSelect } from '@/components/lookup-select';
 
@@ -387,6 +388,7 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
         </Card>
       </div>
 
+      {settlement && settlement.status !== 'draft' && <AccountingSourceLinks type="settlement" id={settlement.id} />}
       {settlement?.status === 'submitted' && <OnAccount settlement={settlement} />}
       {settlement?.vouchers && settlement.vouchers.length > 0 && ws.can('accounts.voucher.read') && (
         <p className="text-[12px] text-subtle">

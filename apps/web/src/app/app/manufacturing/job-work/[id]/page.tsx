@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
 import { type EwayBillReason, EwayBillFields } from '@/components/eway-bill-fields';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
+import { RelatedPanel } from '@/components/related-panel';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDate, formatMoney, formatQty } from '@/lib/format';
@@ -42,6 +43,7 @@ function OrderView() {
   const live = (o.status === 'draft' || o.status === 'open');
   return (
     <>
+      {o.workOrderId && <RelatedPanel type="job_work_order" id={o.id} />}
       <PageHeader
         title={`${o.number} · ${o.supplier}`}
         description={conversion ? `Subcontract: ${formatQty(o.targetQty)} ${o.target?.code} ${o.target?.name}${o.natureOfWork ? ` — ${o.natureOfWork}` : ''}` : `Outsourced operation ${o.operation} of work order ${o.workOrder}`}

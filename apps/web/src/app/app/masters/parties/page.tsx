@@ -2,6 +2,7 @@
 import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Contact, Plus, Search } from 'lucide-react';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { PartyDialog } from '@/components/master-dialogs';
@@ -78,6 +79,7 @@ function PartiesPage() {
                 <Th>State</Th>
                 <Th>MSME</Th>
                 <Th className="text-right">Credit days</Th>
+                <Th className="w-16"><span className="sr-only">Open</span></Th>
               </tr>
             </thead>
             <tbody>
@@ -98,6 +100,11 @@ function PartiesPage() {
                   <Td className="font-mono text-[12px]">{p.stateCode ?? '—'}</Td>
                   <Td>{p.msmeCategory ? <Badge tone="warning">{p.msmeCategory}</Badge> : <span className="text-subtle">—</span>}</Td>
                   <Td className="tabular text-right">{p.creditDays ?? '—'}</Td>
+                  <Td className="text-right text-[13px]">
+                    <Link href={`/app/masters/parties/${p.id}`} className="text-accent hover:underline" aria-label={`Open ${p.name}`} onClick={(e) => e.stopPropagation()}>
+                      Open
+                    </Link>
+                  </Td>
                 </Tr>
               ))}
             </tbody>
