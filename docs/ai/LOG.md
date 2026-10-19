@@ -282,3 +282,9 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 - 2026-10-19 · agent · UI slice 4 merged (PR 59) and deployed. The user reported the chart of accounts and Accounting setup as a mess; a walkthrough found flat seeded groups (two "Duties & Taxes", no Purchase Accounts or other standard groups), a flat ledger list with raw codes and roles, a wall of unordered posting dropdowns, an empty card before activation and stale copy. Wrote the design and proposed decision 071; claimed.
 
   Next: user approves the design and merges the claim; then build (migration 0053, chart tree, setup sections).
+- 2026-10-19 · agent · Chart of accounts and Accounting setup clean-up (decision 071, migration 0053, data only):
+  - every entity gets Tally's standard group tree; input taxes get their own asset group; Service purchases, TDS/TCS receivable move to their standard groups; ledger ids, mappings and entries unchanged (verified on 969 local entities);
+  - chart is one searchable tree with "Used for" labels and add ledger/sub-group per group; setup shows posting accounts in sections with fitting options only; spacing and stale copy fixed;
+  - chart smoke (8 checks incl. both migration paths), chart walkthrough (desktop and 390 px), 17 API smokes, 14 browser walkthroughs and the UI audit pass.
+
+  Next: build PR to main; then slice 5 (Connections page and hand-offs) when the user asks.

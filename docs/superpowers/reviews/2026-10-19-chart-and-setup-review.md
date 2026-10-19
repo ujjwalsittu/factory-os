@@ -45,7 +45,32 @@ claim (PR 60).
 
 ## Verification
 
-RESULTS
+- **`smoke-chart.mjs`**, 8 checks:
+  - the tree and default-ledger placement for a new entity;
+  - `roleRoots`;
+  - a refused shared or wrong-type mapping;
+  - receipts through a sub-group of Bank Accounts;
+  - migration 0053 on an entity rebuilt to the old flat groups: the same tree as a new entity, with ledger ids,
+    mappings and entries unchanged;
+  - the collision case, where an existing "Input tax credits" group gets the merged ledgers and the old group stays
+    empty;
+  - both migration runs are rolled back.
+- **Migration on the local database.** 969 entities migrated. A hash of all ledger ids and codes, all mappings, and
+  every `gl_entry` id and count is identical before and after. Every entity has at least the 27 groups, and no
+  asset-side "Duties & Taxes" remains.
+- **`e2e/chart.mjs`**, desktop and 390 px:
+  - setup sections, labels, hints and filtered, grouped options;
+  - chart classifications, search, filter and collapsing;
+  - adding a sub-group and a ledger from a group;
+  - no sideways scroll.
+- **API smokes, all pass.**
+  - accounting: accounting, operations, baseline, opening FX, imports;
+  - money and documents: settlements, bank charges, asset items, records, supplier notes, sales notes and returns;
+  - other: maintenance, home, buying, selling, inventory.
+- **Browser walkthroughs, all pass.** accounting, settlements, bank charges, bank reconciliation, walkthrough, selling,
+  buying, imports, records, create-from-lists, menu-home, manufacturing, maintenance.
+- **UI audit.** 194 page views, 0 overflow, 0 console errors, 0 failed requests; the add-new guard is clean.
+- **Build checks.** Typecheck passes 20 tasks, build passes 12 tasks, and unit tests pass.
 
 ## Minor, not fixed
 
