@@ -46,7 +46,8 @@
     "e2e:menu-home": "node e2e/menu-home.mjs",
     "e2e:create-from-lists": "node e2e/create-from-lists.mjs",
     "guard:add-new": "node e2e/guard-add-new.mjs",
-    "e2e:records": "node e2e/records.mjs"
+    "e2e:records": "node e2e/records.mjs",
+    "e2e:chart": "node e2e/chart.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",
