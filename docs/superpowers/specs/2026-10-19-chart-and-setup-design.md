@@ -67,11 +67,14 @@ Branch / Divisions and Misc. Expenses (Asset) are left out. Divisions are legal 
 obsolete under current schedules.
 
 **Existing entities.** Migration `0053_chart_groups` changes data only, and it runs once for each entity that already
-has groups. It:
+has groups. In this order, it:
 
-- adds the missing standard groups;
+- renames the asset-root "Duties & Taxes" group (key and name) to "Input tax credits", reusing that row so its id
+  stays the same. If an "Input tax credits" asset group already exists for the entity, the migration keeps that one,
+  moves the old group's ledgers and sub-groups into it, and leaves the empty old group in place. The per-entity unique
+  key therefore never clashes;
+- adds the missing standard groups (insert only where the key is absent);
 - sets the parent of standard-named groups that have no parent and the right root;
-- renames the asset-root "Duties & Taxes" group (key and name) to "Input tax credits";
 - moves the default ledgers listed above, matched by their role, only while they are still in the seeded group.
 
 It does not touch groups or ledgers that people created, or any group or ledger they have already moved. The migration
@@ -110,6 +113,8 @@ does not change `gl_entry`, mappings or ledger ids.
 - **Dropdown options.**
   - Each role's dropdown lists only active ledgers of the classification the role requires; the API already refuses
     other ledgers.
+  - A ledger can serve only one role (the API refuses the same ledger for two roles), so each dropdown leaves out
+    ledgers already chosen for another role.
   - Options are grouped by group and show as "Name · CODE".
   - The settings read returns each role's required classification, so the web does not keep its own copy.
 - **Before activation:** the card explains that the default ledgers are created at activation, and that roles can then
