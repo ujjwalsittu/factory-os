@@ -279,3 +279,6 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 
   Next: PR to main; then slice 5 (Connections page and hand-offs).
 
+- 2026-10-19 · agent · UI slice 4 merged (PR 59) and deployed. The user reported the chart of accounts and Accounting setup as a mess; a walkthrough found flat seeded groups (two "Duties & Taxes", no Purchase Accounts or other standard groups), a flat ledger list with raw codes and roles, a wall of unordered posting dropdowns, an empty card before activation and stale copy. Wrote the design and proposed decision 071; claimed.
+
+  Next: user approves the design and merges the claim; then build (migration 0053, chart tree, setup sections).
