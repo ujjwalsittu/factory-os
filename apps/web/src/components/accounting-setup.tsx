@@ -186,7 +186,12 @@ function Content() {
           title="Posting accounts"
           description="Each role uses a distinct ledger of the required classification. Changes affect future postings."
         />
-        {!settings.data || !accounts.data || !groups.data ? (
+        {accounts.error || groups.error ? (
+          // The ledger list needs accounts.account.read, which a setup reader may not hold.
+          <p className="p-5 text-sm text-muted">
+            Posting accounts could not be loaded: {(accounts.error ?? groups.error)!.message}
+          </p>
+        ) : !settings.data || !accounts.data || !groups.data ? (
           <p className="p-5 text-sm text-muted">Loading posting accounts…</p>
         ) : (
           <div className="space-y-6 p-5">
@@ -232,7 +237,7 @@ function Content() {
             })}
           </div>
         )}
-        {ws.can('accounts.setup.update') && (
+        {ws.can('accounts.setup.update') && accounts.data && groups.data && (
           <div className="px-5 pb-5">
             <Button
               variant="secondary"
