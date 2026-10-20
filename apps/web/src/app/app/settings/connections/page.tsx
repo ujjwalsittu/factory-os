@@ -7,7 +7,7 @@ export default function Page() {
   return (
     <>
       <PageHeader title="Connections" description="Everything this workspace talks to outside FactoryOS, whether it is working, and where to set it up." />
-      <EntityGate what="connections">
+      <EntityGate what="connection status">
         <Connections />
       </EntityGate>
     </>

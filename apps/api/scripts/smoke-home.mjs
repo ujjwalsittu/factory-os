@@ -3,6 +3,7 @@
 // tiles that can be seeded through the API (reorder level, expiring quotations, old drafts, late purchase orders,
 // maintenance due, gauges due), permission scoping (a tile is absent when its data is unreadable), other people's
 // drafts never counted, tenant and entity isolation, no active entity, and one slow tile never blocks the rest.
+// Slice 5: rows carry their hand-off action (here "Create purchase order" for the reorder shortfall).
 // Usage: API=http://localhost:4000 node --env-file=.env apps/api/scripts/smoke-home.mjs
 import assert from 'node:assert/strict';
 import { createDb } from '../../../packages/db/dist/index.js';
@@ -82,6 +83,12 @@ try {
     assert.equal(t.count, 2);
     assert.deepEqual(t.rows.map((r) => r.label.split(' ')[0]).sort(), ['LOW-ITEM', 'NEVER-ITEM']);
     assert.match(t.rows.find((r) => r.label.startsWith('LOW')).detail, /40 on hand, reorder at 100/);
+    // Slice 5 hand-off: the row offers a purchase order for the shortfall; the item page knows the same shortfall.
+    assert.deepEqual(t.rows.find((r) => r.label.startsWith('LOW')).action, { label: 'Create purchase order', href: `/app/buying/orders/new?item=${low.id}&qty=60`, permission: 'buying.purchase_order.create' });
+    const overview = await c.req('GET', `/items/${low.id}/overview`);
+    assert.equal(Number(overview.belowReorder.shortfall), 60);
+    assert.equal((await c.req('GET', `/items/${fine.id}/overview`)).belowReorder, null);
+    assert.equal((await c.req('GET', `/items/${low.id}`)).uomCode, 'NOS');
   });
   await check('quotations expiring within 7 days: submitted only, not already ordered', async () => {
     const t = tile(home, 'quotations-expiring');
@@ -165,6 +172,7 @@ try {
     assert.equal(tile(h, 'my-drafts').count, 1);
     assert.equal(tile(h, 'my-drafts').rows[0].href, `/app/selling/quotations/${mine.id}`);
     assert.equal(tile(h, 'below-reorder').count, 2);
+    assert.ok(tile(h, 'below-reorder').rows.every((r) => !r.action), 'no purchase order hand-off without permission to create one');
     // The owner's old draft is still the owner's only.
     assert.equal(tile(await tiles(), 'my-drafts').count, 1);
   });
