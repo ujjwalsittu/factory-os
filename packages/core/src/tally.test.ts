@@ -48,7 +48,7 @@ describe('reading Tally XML exports', () => {
     expect(r.warnings).toEqual([]);
     expect(r.company).toBe('Fixture Engineering Private Limited');
     expect(r.objects.map((o) => o.tag)).toEqual([
-      'GROUP', 'GROUP', 'GROUP', 'GROUP',
+      'GROUP', 'GROUP', 'GROUP', 'GROUP', 'GROUP', 'GROUP', 'LEDGER',
       'LEDGER', 'LEDGER', 'LEDGER', 'LEDGER', 'LEDGER',
       'UNIT', 'UNIT', 'GODOWN', 'GODOWN', 'STOCKGROUP', 'STOCKITEM', 'STOCKITEM', 'VOUCHERTYPE',
     ]);
@@ -56,7 +56,7 @@ describe('reading Tally XML exports', () => {
 
   it('reads the same file exported as UTF-16, the way Tally usually writes it', () => {
     const [file] = unpackTallyFiles([{ name: 'Master.xml', bytes: utf16(xml) }]);
-    expect(readTallyXml(file!.xml).objects).toHaveLength(17);
+    expect(readTallyXml(file!.xml).objects).toHaveLength(20);
   });
 
   it('expands a zip of exports and ignores other files', () => {
@@ -176,6 +176,13 @@ describe('masters', () => {
     expect(byName('Flange Assembly FA-40')).toMatchObject({ hsn: '84819090', gstRate: null, batchwise: false, opening: null });
   });
 
+  it("reads Tally's Not Applicable unit as no unit", () => {
+    const item = readTallyXml(
+      '<ENVELOPE><BODY><TALLYMESSAGE><STOCKITEM NAME="Freight"><BASEUNITS>&#4; Not Applicable</BASEUNITS></STOCKITEM></TALLYMESSAGE></BODY></ENVELOPE>',
+    ).objects.map(toTallyMaster)[0] as TallyStockItem;
+    expect(item.unit).toBeNull();
+  });
+
   it('keeps the sign of negative opening stock', () => {
     const neg = readTallyXml(
       '<ENVELOPE><BODY><TALLYMESSAGE><STOCKITEM NAME="Short Item"><BASEUNITS>Nos</BASEUNITS><OPENINGBALANCE>-5 Nos</OPENINGBALANCE><OPENINGVALUE>500.00</OPENINGVALUE></STOCKITEM></TALLYMESSAGE></BODY></ENVELOPE>',
@@ -200,6 +207,22 @@ describe('classification', () => {
     expect(tallyRoot('Domestic Debtors', (n) => parents[n])).toBe('asset');
     expect(tallyRoot('Factory Overheads', (n) => parents[n])).toBe('expense');
     expect(tallyRoot('Capital Account', () => null)).toBe('equity');
+  });
+  it("reads a company's own primary group from Tally's flags", () => {
+    const groups = Object.fromEntries(
+      readTallyXml(xml)
+        .objects.map(toTallyMaster)
+        .filter((m): m is TallyGroup => m?.kind === 'group')
+        .map((g) => [g.name, g]),
+    );
+    expect(groups['Statutory Receivables']).toMatchObject({ parent: null, nature: 'asset' });
+    const parentOf = (n: string) => (n in groups ? groups[n]!.parent : undefined);
+    const nature = (n: string) => groups[n]?.nature;
+    expect(tallyRoot('GST Receivables', parentOf, nature)).toBe('asset');
+    expect(tallyRoot('GST Receivables', parentOf)).toBeNull();
+    const flags = (rev: string, debit: string) =>
+      (readTallyXml(`<ENVELOPE><BODY><TALLYMESSAGE><GROUP NAME="G"><PARENT/><ISREVENUE>${rev}</ISREVENUE><ISDEEMEDPOSITIVE>${debit}</ISDEEMEDPOSITIVE></GROUP></TALLYMESSAGE></BODY></ENVELOPE>`).objects.map(toTallyMaster)[0] as TallyGroup).nature;
+    expect([flags('No', 'Yes'), flags('No', 'No'), flags('Yes', 'Yes'), flags('Yes', 'No')]).toEqual(['asset', 'liability', 'expense', 'income']);
   });
   it('returns null for an unknown chain or a loop', () => {
     expect(tallyRoot('Nowhere', () => null)).toBeNull();

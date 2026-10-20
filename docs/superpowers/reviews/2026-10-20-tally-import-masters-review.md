@@ -84,8 +84,43 @@ Build of the first of three PRs in the [design](../specs/2026-10-20-tally-import
   - After the review fixes (upload and zip limits, unit codes, the GSTIN lock, negative stock, the preview's page
     clamp), the core tests (168), `smoke-tally` and `e2e/tally` were run again on the rebuilt code, and all passed.
 
+## Check against a real export (follow-up)
+
+The user supplied a masters export and a Day Book export from their TallyPrime. These files are company-confidential.
+They were read only inside the session's container, with throwaway scripts kept outside the repository that printed
+counts and shapes, never names, GSTINs or amounts. Afterwards the local database that held the trial imports was
+dropped and recreated. Neither the files nor any figures from them are in the repository. The fixtures reproduce only
+the shapes found.
+
+- **What worked as built:**
+  - UTF-16 with a byte-order mark;
+  - every object read with no warnings;
+  - a valid GSTIN check on every party;
+  - unit synonyms (Kgs, Nos, Sqm link to KG, NOS, SQM);
+  - the invalid-GSTIN party offered as a decision;
+  - re-import proposes nothing new.
+- **Fixed, each with a test:**
+  - **A primary group the company created** (empty parent) was unclassifiable, so everything under it needed a
+    decision. Its classification now comes from Tally's `ISREVENUE` and `ISDEEMEDPOSITIVE` flags.
+  - **Input tax ledgers under Duties & Taxes.** Tally files Input CGST and SGST under Duties & Taxes (a liability);
+    FactoryOS keeps them under Input tax credits (an asset). A tax ledger with the same name now links instead of
+    asking.
+  - **Two party ledgers with one GSTIN.** The commit failed: FactoryOS keeps one party per GSTIN, but the link table
+    allowed one Tally ledger per FactoryOS record. Migration 0055 lifts that rule for parties only, so both ledgers link
+    to the one party (their balances and vouchers need it in PR 2 and PR 3). The other kinds keep it. The preview
+    notes the shared GSTIN.
+  - **An item with Tally's "Not Applicable" unit** was proposed as new and then failed at commit. It now reads as no
+    unit and needs a decision. Create is refused for it, and an item whose unit is neither in the export nor in
+    FactoryOS is flagged in the preview.
+  - **Masters repeated within one export** were already handled. The warning no longer says they came from more than
+    one file.
+- **After the fixes**, the real masters export staged with the invalid-GSTIN party and the unit-less item as the only
+  decisions. It committed in about a second, and a re-import proposed nothing new.
+- **Day Book, for PR 3.** The vouchers read without warnings. Every ledger and stock item they use is in the masters
+  export, and every voucher balances to the paisa. In invoice-mode vouchers the sales or purchase ledger amount sits
+  inside the inventory lines (`ACCOUNTINGALLOCATIONS.LIST`), not in the ledger lines; PR 3 must read both.
+- The `.001` file the user sent is a Tally backup segment, which is not readable, as the design says.
+
 ## Not in this PR
 
 - Opening balances and stock (PR 2), and voucher history and the history screens (PR 3).
-- **Real Tally export.** The fixtures are hand-written to Tally's schema. One real export from the user's Tally is
-  still needed, to check the parser against their release before PR 2 builds on it.

@@ -291,4 +291,7 @@ at the end of the relevant section, with a date.
 - 2026-10-18 CI runner: the user added a self-hosted GitHub runner. When a workflow run is blocked on GitHub for billing,
   switch that workflow's `runs-on` to `self-hosted` in the same PR and say why in the commit message. Workflows use
   `ubuntu-latest` today (`message-guard`, `handoff-guard`) and have been running.
-
+- 2026-10-20 Real Tally exports from the user are company-confidential and this repository is public. Read them only in
+  the session container with scripts outside the repo that print counts and shapes. Never commit the files, names,
+  GSTINs, amounts or counts from them, and drop any local database that held trial imports. Fixtures reproduce shapes
+  only, with invented names.

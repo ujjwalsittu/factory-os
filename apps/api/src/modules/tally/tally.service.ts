@@ -182,7 +182,7 @@ export class TallyService {
       if (prior) dupes++;
       if (!prior || (m.alterId ?? 0) >= (prior.alterId ?? 0)) byGuid.set(m.guid, m);
     }
-    if (dupes) warnings.push(`${dupes} object${dupes === 1 ? '' : 's'} appeared in more than one file; the latest version of each is used.`);
+    if (dupes) warnings.push(`${dupes} object${dupes === 1 ? '' : 's'} appeared more than once in the upload (Tally repeats some masters within an export, and exports can overlap); the latest version of each is used.`);
     return [...out, ...byGuid.values()];
   }
 
@@ -208,8 +208,11 @@ export class TallyService {
     const link = (kind: Kind, guid: string | null) => (guid ? links.find((l) => l.kind === kind && l.guid === guid) : undefined);
 
     // Group classification comes from Tally's own tree, so it is known before anything is written.
-    const groupParent = groupTree(masters.filter((m): m is TallyGroup => m.kind === 'group'), groups);
-    const rootOf = (name: string | null) => (name ? (tallyRoot(name, (n) => groupParent.get(n)) as Root | null) : null);
+    const tallyGroups = masters.filter((m): m is TallyGroup => m.kind === 'group');
+    const exportUnits = new Set(masters.filter((m) => m.kind === 'unit').map((m) => m.name));
+    const groupParent = groupTree(tallyGroups, groups);
+    const nature = primaryNatures(tallyGroups);
+    const rootOf = (name: string | null) => (name ? (tallyRoot(name, (n) => groupParent.get(n), (n) => nature.get(n)) as Root | null) : null);
     const under = (name: string | null, target: string) => {
       const seen = new Set<string>();
       for (let c = name; c && !seen.has(c); c = groupParent.get(c) ?? null) {
@@ -286,11 +289,17 @@ export class TallyService {
           const groupRoot = (id: string) => groups.find((g) => g.id === id)?.root;
           const named = ledgers.filter((a) => norm(a.name) === norm(m.name) || m.aliases.some((x) => a.code === x.toUpperCase()));
           const fit = named.filter((a) => groupRoot(a.groupId) === root);
+          const taxLedger = m.taxType === 'GST' || under(m.parent, 'Duties & Taxes');
+          // Tally keeps input tax under Duties & Taxes; FactoryOS keeps it under Input tax credits. Same name, same ledger.
+          if (taxLedger && named.length === 1 && !fit.length) {
+            push(m, 'ledger', decide([{ id: named[0]!.id, label: `${named[0]!.name} · ${named[0]!.code}`, reason: 'Same tax ledger name' }]));
+            break;
+          }
           if (named.length && !fit.length) {
             push(m, 'ledger', { proposed: 'conflict', notes: [`A ledger named "${named[0]!.name}" exists with a different classification. Create a separate ledger or skip.`] });
             break;
           }
-          if (!fit.length && (m.taxType === 'GST' || under(m.parent, 'Duties & Taxes'))) {
+          if (!fit.length && taxLedger) {
             push(m, 'ledger', {
               proposed: 'skip',
               notes: ['Tax ledgers are matched to the posting ledgers (Input/Output CGST, TDS payable…) when opening balances are imported. Choose Create only for a tax ledger FactoryOS does not have.'],
@@ -338,11 +347,25 @@ export class TallyService {
             .filter((i) => keys.has(i.code) || norm(i.name) === norm(m.name))
             .map((i) => ({ id: i.id, label: `${i.code} · ${i.name}`, reason: keys.has(i.code) ? 'Same code' : 'Same name' }));
           const notes = cands.length ? [] : ['Created as raw material; change the item type after the import if needed.'];
-          if (!m.unit) notes.push('Tally gives no unit for this item.');
-          push(m, 'stockitem', !cands.length && !m.unit ? { proposed: 'conflict', notes } : decide(cands, notes));
+          if (!m.unit) notes.push('Tally gives no unit for this item. Link it to an existing item, or skip it.');
+          // The commit finds units among the export's units and FactoryOS's unit codes; anything else cannot be saved.
+          const unitKnown = !m.unit || exportUnits.has(m.unit) || units.some((u) => u.code === m.unit);
+          if (!unitKnown) notes.push(`Its unit "${m.unit}" is not in the export. Export the units too, or skip the item.`);
+          push(m, 'stockitem', !cands.length && (!m.unit || !unitKnown) ? { proposed: 'conflict', notes } : decide(cands, notes));
           break;
         }
       }
+    }
+    // Two Tally ledgers with one GSTIN become one FactoryOS party: the first creates it, the next links to it.
+    const firstByGstin = new Map<string, string>();
+    for (const r of out) {
+      if (r.kind !== 'party' || r.proposed !== 'new') continue;
+      const g = (r.payload as unknown as TallyLedger).gstin;
+      const v = g ? validateGstin(g) : null;
+      if (!v?.valid) continue;
+      const first = firstByGstin.get(v.gstin);
+      if (first) r.notes.push(`Same GSTIN as "${first}" in this export; both are saved as one party.`);
+      else firstByGstin.set(v.gstin, r.name);
     }
     // Groups first (by depth), then the rest in commit order: the preview and the commit read the same sequence.
     const depth = (name: string) => {
@@ -435,12 +458,14 @@ export class TallyService {
         const row = rows.find((r) => r.id === d.id)!;
         const allowed = this.allowedActions(row);
         if (!allowed.includes(d.action)) throw new BadRequestException(`"${row.name}" cannot be set to ${d.action}`);
+        if (d.action === 'new' && row.kind === 'stockitem' && !(row.payload as unknown as TallyStockItem).unit)
+          throw new BadRequestException(`"${row.name}" has no unit in Tally, so it cannot be created. Link it to an existing item, or skip it.`);
         let targetId: string | null = null;
         if (d.action === 'link' || d.action === 'update' || d.action === 'unchanged') {
           targetId = d.targetId ?? row.targetId;
           if (!targetId) throw new BadRequestException(`Choose the FactoryOS record to link "${row.name}" to`);
           const taken = await this.assertTarget(tx, ctx, entityId, row.kind as Kind, targetId);
-          if (taken && taken.guid !== row.guid) throw new BadRequestException(`That record is already linked to the Tally ${row.kind} "${taken.name}"`);
+          if (taken && taken.guid !== row.guid && row.kind !== 'party') throw new BadRequestException(`That record is already linked to the Tally ${row.kind} "${taken.name}"`);
         }
         await tx.update(tallyStaged).set({ action: d.action, targetId }).where(eq(tallyStaged.id, row.id));
       }
@@ -542,6 +567,11 @@ function groupTree(tally: TallyGroup[], existing: (typeof accountGroup.$inferSel
   return tree;
 }
 
+/** The primary groups the company created in Tally, with the classification their flags give. */
+function primaryNatures(tally: TallyGroup[]) {
+  return new Map(tally.filter((g) => !g.parent && !g.reservedName && g.nature).map((g) => [g.name, g.nature]));
+}
+
 const warehouses = (list: (typeof warehouse.$inferSelect)[], id: string) => {
   const w = list.find((x) => x.id === id);
   return w ? `${w.code} · ${w.name}` : null;
@@ -554,6 +584,7 @@ class CommitWriter {
   private usedCodes = { party: new Set<string>(), item: new Set<string>(), uom: new Set<string>(), warehouse: new Set<string>(), ledger: new Set<string>() };
   private groups: (typeof accountGroup.$inferSelect)[] = [];
   private tree = new Map<string, string | null>();
+  private natures = new Map<string, string>();
 
   constructor(
     private readonly tx: Tx,
@@ -569,7 +600,9 @@ class CommitWriter {
   async prepare(rows: (typeof tallyStaged.$inferSelect)[]) {
     const tx = this.tx;
     this.groups = await tx.select().from(accountGroup).where(eq(accountGroup.entityId, this.entityId));
-    this.tree = groupTree(rows.filter((r) => r.kind === 'group').map((r) => r.payload as unknown as TallyGroup), this.groups);
+    const tallyGroups = rows.filter((r) => r.kind === 'group').map((r) => r.payload as unknown as TallyGroup);
+    this.tree = groupTree(tallyGroups, this.groups);
+    this.natures = primaryNatures(tallyGroups);
     // Standard group names resolve directly, so a ledger under "Bank Accounts" lands there even when the group row was skipped.
     for (const g of this.groups) if (!this.groupByTallyName.has(g.name)) this.groupByTallyName.set(g.name, g.id);
     const [p, i, u, w, a] = await Promise.all([
@@ -617,11 +650,15 @@ class CommitWriter {
 
   private async link(kind: Kind, m: TallyMaster, targetId: string) {
     const tx = this.tx;
-    // A FactoryOS record already linked to another Tally object of this kind keeps its first link.
-    const [other] = await tx
-      .select()
-      .from(tallyLink)
-      .where(and(eq(tallyLink.entityId, this.entityId), eq(tallyLink.kind, kind), eq(tallyLink.targetId, targetId)));
+    // A FactoryOS record already linked to another Tally object of this kind keeps its first link. Parties are the
+    // exception: two Tally ledgers with one GSTIN are one FactoryOS party.
+    const [other] =
+      kind === 'party'
+        ? []
+        : await tx
+            .select()
+            .from(tallyLink)
+            .where(and(eq(tallyLink.entityId, this.entityId), eq(tallyLink.kind, kind), eq(tallyLink.targetId, targetId)));
     if (other && other.guid !== m.guid) throw new ConflictException(`"${m.name}" is linked to a record that another Tally ${kind} already uses ("${other.name}"). Create a new record or skip it.`);
     await tx
       .insert(tallyLink)
@@ -639,7 +676,7 @@ class CommitWriter {
   }
 
   private rootOf(name: string | null): Root {
-    const root = tallyRoot(name ?? '', (n) => this.tree.get(n)) as Root | null;
+    const root = tallyRoot(name ?? '', (n) => this.tree.get(n), (n) => this.natures.get(n)) as Root | null;
     if (root) return root;
     throw new BadRequestException(`The classification of group "${name}" is unknown`);
   }
