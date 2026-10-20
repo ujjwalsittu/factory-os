@@ -58,7 +58,13 @@ The last of three PRs in the [design](../specs/2026-10-20-tally-import-design.md
   - Vouchers whose party is a real party linked it in all but two cases, both from masters the trial skipped. Where
     Tally names a bank or cash ledger as the party, it links as an account.
   - A second import of the same Day Book was all unchanged, with nothing missing.
-- **Regression**, against the built API and web app on a fresh database: see the PR.
+- **Regression**, run locally against the built API and web app on a fresh database:
+  - 13 of 13 API smokes passed: tally, chart, accounting, accounting operations, settlements, bank charges, asset
+    items, records, home, preferences, buying, selling and inventory.
+  - 10 of 10 browser walkthroughs passed: tally, chart, accounting, walkthrough, selling, buying, records,
+    create-from-lists, menu-home and inventory.
+  - The UI audit passed.
+  - `pnpm typecheck` and `pnpm build` pass.
 
 ## Not in this PR
 
