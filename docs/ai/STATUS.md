@@ -213,7 +213,7 @@ _Last updated: 2026-10-16 (Asia/Kolkata) · UI slice 3 (add new from any list, a
 
 
 ## Next (user-authorized sequence; review each written design/plan)
-0. **Tally transactions as FactoryOS documents (decision 075, accepted 2026-10-20):** [design](../superpowers/specs/2026-10-20-tally-transactions-design.md). Books by month (Tally or FactoryOS, only after the cut-over); PR 1 sales and purchase invoices and notes with stock, PR 2 receipts, payments, journals. Not yet claimed. Feeds the GST returns below.
+0. **Tally transactions as FactoryOS documents (decision 075, accepted 2026-10-20):** [design](../superpowers/specs/2026-10-20-tally-transactions-design.md). Books by month (Tally or FactoryOS, only after the cut-over); PR 1 sales and purchase invoices and notes with stock, PR 2 receipts, payments, journals. **PR 1 claimed** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-20. Feeds the GST returns below.
 0. **GST returns from the books (decision 074, accepted 2026-10-20):** [design](../superpowers/specs/2026-10-20-gst-returns-design.md). PR 1 (GSTR-1 and 3B prepared, reviewed, exported for portal upload) needs the GSTR-1 offline-tool JSON schema pinned in `docs/compliance/` first. Not yet claimed.
 1. Support access live enablement (needs the user): set `SUPPORT_ACCESS_ENABLED=true` on the API app in Coolify only when wanted, then a tenant administrator turns the policy on and a real operator acceptance over HTTPS is done. PostgreSQL RLS is a separate design.
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
