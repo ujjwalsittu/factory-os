@@ -48,7 +48,7 @@ export interface OutwardDoc {
 }
 
 export type Gstr1Section = 'b2b' | 'b2cl' | 'b2cs' | 'exp' | 'cdnr' | 'cdnur' | 'nil';
-export type Attention = { documentId: string; number: string; reason: string; blocking: boolean };
+export type Attention = { documentId: string; documentType: OutwardDoc['type']; number: string; reason: string; blocking: boolean };
 
 /**
  * Inter-State invoices to unregistered persons above this value are listed one by one (B2CL). Rule 59(2) in the
@@ -162,7 +162,7 @@ export function buildGstr1(docs: OutwardDoc[], ourState: string, opts: { turnove
     const sign = doc.type === 'credit_note' ? -1 : 1;
     const placed = sectionOf(doc, ourState);
     if (!placed.section) {
-      attention.push({ documentId: doc.id, number: doc.number, reason: placed.reason!, blocking: true });
+      attention.push({ documentId: doc.id, documentType: doc.type, number: doc.number, reason: placed.reason!, blocking: true });
       continue;
     }
     const section = placed.section;
@@ -176,12 +176,12 @@ export function buildGstr1(docs: OutwardDoc[], ourState: string, opts: { turnove
       nil.set(table, (nil.get(table) ?? Dec.ZERO).add(nilLines.reduce((s, l) => s.add(l.taxable), Dec.ZERO).mul(String(sign))));
     }
     if (isExport(doc.supplyType) && doc.type === 'invoice' && (!doc.portCode || !doc.shippingBillNo || !doc.shippingBillDate))
-      attention.push({ documentId: doc.id, number: doc.number, reason: 'An export without its port code, shipping bill number and date: add them before filing.', blocking: false });
+      attention.push({ documentId: doc.id, documentType: doc.type, number: doc.number, reason: 'An export without its port code, shipping bill number and date: add them before filing.', blocking: false });
     const part: HsnRow['part'] = section === 'b2b' || section === 'cdnr' ? 'b2b' : 'b2c';
     for (const l of doc.lines) {
       const code = (l.hsn ?? '').trim();
       if (part === 'b2b' && (!/^\d+$/.test(code) || code.length < digits))
-        attention.push({ documentId: doc.id, number: doc.number, reason: `HSN "${code || 'missing'}" has fewer than ${digits} digits for a B2B supply.`, blocking: false });
+        attention.push({ documentId: doc.id, documentType: doc.type, number: doc.number, reason: `HSN "${code || 'missing'}" has fewer than ${digits} digits for a B2B supply.`, blocking: false });
       const uqc = l.uqc ?? 'OTH';
       const key = `${part}|${code}|${uqc}|${Dec.of(l.gstRate).toFixed(2)}`;
       const row = hsn.get(key) ?? { part, hsn: code, uqc, rate: Dec.of(l.gstRate).toFixed(2), qty: '0.00', ...zero() };

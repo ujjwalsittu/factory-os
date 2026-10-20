@@ -22,6 +22,13 @@ export class GstReturnsController {
     return this.returns.list(entityOf(ctx));
   }
 
+  /** The entity's GSTINs, for choosing which one a return is for. */
+  @Get('registrations')
+  @RequirePermission('compliance.gst_return.read')
+  registrations(@Ctx() ctx: TenantRequestContext) {
+    return this.returns.registrations(entityOf(ctx));
+  }
+
   /** What the books give for a GSTIN and month right now, without saving anything. */
   @Get('preview')
   @RequirePermission('compliance.gst_return.read')

@@ -85,6 +85,8 @@ try {
   await c.req('POST', `/sales-invoices/${b2b.id}/cancel`, { reason: 'Wrong buyer', confirmFiledReturn: true }, 201);
   const changed = await c.req('GET', `/gst-returns/${g1.id}`);
   assert.ok(changed.changedSinceFiling.some((x) => x.documentId === b2b.id), 'The cancelled invoice shows as changed since filing');
+  const changed3b = await c.req('GET', `/gst-returns/${g3.id}`);
+  assert.deepEqual(changed3b.changedSinceFiling.map((x) => [x.documentId, x.what]), [[b2b.id, 'Cancelled or no longer in this month since filing']], 'The filed 3B names the cancelled invoice, nothing else');
   const audit = await db.$client.query("select 1 from audit_event where action = 'gst_return.filed_month_change' and target_id = $1", [b2b.id]);
   assert.equal(audit.rowCount, 1);
 

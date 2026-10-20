@@ -396,6 +396,10 @@ export class GstReturnsService {
 
   // ───────────────────────── returns and workflow ─────────────────────────
 
+  async registrations(entityId: string) {
+    return this.db.select({ id: gstRegistration.id, gstin: gstRegistration.gstin, stateCode: gstRegistration.stateCode }).from(gstRegistration).where(eq(gstRegistration.entityId, entityId)).orderBy(gstRegistration.gstin);
+  }
+
   async list(entityId: string) {
     return this.db
       .select({ id: gstReturn.id, gstRegistrationId: gstReturn.gstRegistrationId, gstin: gstRegistration.gstin, period: gstReturn.period, kind: gstReturn.kind, status: gstReturn.status, preparedAt: gstReturn.preparedAt, arn: gstReturn.arn, filedOn: gstReturn.filedOn })
@@ -448,7 +452,8 @@ export class GstReturnsService {
       for (const s of p.sources) if ((s.documentType === 'sales_invoice' || s.documentType === 'sales_note') && !listed.has(s.documentId)) out.push(line(s, 'summary', {}));
       return out;
     }
-    return p.sources.filter((s) => s.documentType !== 'sales_invoice' && s.documentType !== 'sales_note').map((s) => line(s, 'inward', {}));
+    // 3B reads outward documents for 3.1 and inward ones for 4; both are recorded so later changes show.
+    return p.sources.map((s) => line(s, s.documentType === 'sales_invoice' || s.documentType === 'sales_note' ? 'outward' : 'inward', {}));
   }
 
   async get(entityId: string, id: string) {
