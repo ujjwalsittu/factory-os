@@ -134,10 +134,15 @@ export const partySettlement = pgTable(
     /** Bill holding the unapplied amount, created on submit when money is left over. */
     advanceBillId: uuid('advance_bill_id'),
     voucherId: uuid('voucher_id'),
+    /** Decision 075 PR 2: factoryos, or tally for a receipt or payment created from a voucher in a Tally month. */
+    source: text('source').notNull().default('factoryos'),
+    tallyGuid: text('tally_guid'),
     ...lifecycle,
   },
   (t) => [
-    uniqueIndex('party_settlement_number_uq').on(t.entityId, t.number),
+    // Tally numbers its voucher types separately, so its numbers repeat across receipts and payments; GUIDs do not.
+    uniqueIndex('party_settlement_number_uq').on(t.entityId, t.number).where(sql`${t.source} = 'factoryos'`),
+    uniqueIndex('party_settlement_tally_guid_uq').on(t.entityId, t.tallyGuid).where(sql`${t.tallyGuid} is not null and ${t.status} <> 'cancelled'`),
     index('party_settlement_party_idx').on(t.entityId, t.partyId),
     check('party_settlement_direction', sql`${t.direction} in ('receipt', 'payment')`),
     check('party_settlement_amount', sql`${t.amount} > 0`),
