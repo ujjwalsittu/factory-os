@@ -437,3 +437,64 @@ export function checkDocumentSeries(rows: DocSummaryRow[]): Check {
   const gaps = rows.flatMap((r) => r.gaps);
   return { name: 'Document series have no unexplained gaps', ok: !gaps.length, detail: gaps.length ? `Missing: ${gaps.slice(0, 20).join(', ')}` : 'No gaps' };
 }
+
+// ───────────────────────── sheets for the portal (decision 074a: until the offline-tool JSON is pinned) ─────────────────────────
+
+const csvCell = (v: unknown) => {
+  const s = v === null || v === undefined ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const csv = (head: string[], rows: unknown[][]) => [head, ...rows].map((r) => r.map(csvCell).join(',')).join('\n') + '\n';
+
+/** GSTR-1 as one CSV per section, in the order of Form GSTR-1's tables. */
+export function gstr1Sheets(g: Gstr1 & { documents?: DocSummaryRow[] }): { name: string; csv: string }[] {
+  const docRows = (section: Gstr1Section) =>
+    g.entries
+      .filter((e) => e.section === section)
+      .flatMap((e) => e.byRate.map((r) => [e.counterpartyGstin, e.number, e.date, e.value, e.placeOfSupply, e.reverseCharge ? 'Y' : 'N', e.subtype, r.rate, r.taxable, r.igst, r.cgst, r.sgst, r.cess]));
+  const head = ['GSTIN', 'Number', 'Date', 'Value', 'Place of supply', 'Reverse charge', 'Type', 'Rate', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess'];
+  const exp = g.entries
+    .filter((e) => e.section === 'exp')
+    .flatMap((e) => e.byRate.map((r) => [e.subtype, e.number, e.date, e.value, e.portCode, e.shippingBillNo, e.shippingBillDate, r.rate, r.taxable, r.igst, r.cess]));
+  return [
+    { name: 'b2b.csv', csv: csv(head, docRows('b2b')) },
+    { name: 'b2cl.csv', csv: csv(head, docRows('b2cl')) },
+    { name: 'b2cs.csv', csv: csv(['Place of supply', 'Rate', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess'], g.b2cs.map((r) => [r.placeOfSupply, r.rate, r.taxable, r.igst, r.cgst, r.sgst, r.cess])) },
+    { name: 'exp.csv', csv: csv(['Type', 'Number', 'Date', 'Value', 'Port code', 'Shipping bill', 'Shipping bill date', 'Rate', 'Taxable value', 'IGST', 'Cess'], exp) },
+    { name: 'cdnr.csv', csv: csv(head, docRows('cdnr')) },
+    { name: 'cdnur.csv', csv: csv(head, docRows('cdnur')) },
+    { name: 'nil.csv', csv: csv(['Table', 'Nil rated'], g.nil.map((n) => [n.table, n.nil])) },
+    { name: 'hsn.csv', csv: csv(['Part', 'HSN', 'UQC', 'Rate', 'Quantity', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess'], g.hsn.map((h) => [h.part.toUpperCase(), h.hsn, h.uqc, h.rate, h.qty, h.taxable, h.igst, h.cgst, h.sgst, h.cess])) },
+    { name: 'docs.csv', csv: csv(['Nature', 'Series', 'From', 'To', 'Total', 'Cancelled'], (g.documents ?? []).map((d) => [d.nature, d.series, d.from, d.to, d.total, d.cancelled])) },
+  ];
+}
+
+/** GSTR-3B as one sheet; rows of table 4 are named by what they hold (the current portal labels are not pinned). */
+export function gstr3bSheet(g: Gstr3b): string {
+  const rows: unknown[][] = [];
+  const amounts = (table: string, label: string, a: Amounts) => rows.push([table, label, a.taxable, a.igst, a.cgst, a.sgst, a.cess]);
+  const tx = (table: string, label: string, t: Taxes) => rows.push([table, label, '', t.igst, t.cgst, t.sgst, t.cess]);
+  amounts('3.1(a)', 'Outward taxable supplies (other than zero rated, nil rated and exempted)', g['3.1'].a);
+  amounts('3.1(b)', 'Outward taxable supplies (zero rated)', g['3.1'].b);
+  amounts('3.1(c)', 'Other outward supplies (nil rated, exempted)', g['3.1'].c);
+  amounts('3.1(d)', 'Inward supplies (liable to reverse charge)', g['3.1'].d);
+  amounts('3.1(e)', 'Non-GST outward supplies', g['3.1'].e);
+  for (const r of g['3.2']) {
+    rows.push(['3.2', `Unregistered persons, place of supply ${r.placeOfSupply}`, r.unregistered.taxable, r.unregistered.igst, '', '', '']);
+    if (!Dec.of(r.composition.taxable).isZero()) rows.push(['3.2', `Composition taxable persons, place of supply ${r.placeOfSupply}`, r.composition.taxable, r.composition.igst, '', '', '']);
+  }
+  tx('4(A)(1)', 'ITC available: import of goods', g['4'].a1);
+  tx('4(A)(2)', 'ITC available: import of services', g['4'].a2);
+  tx('4(A)(3)', 'ITC available: inward supplies liable to reverse charge', g['4'].a3);
+  tx('4(A)(4)', 'ITC available: inward supplies from ISD', g['4'].a4);
+  tx('4(A)(5)', 'ITC available: all other ITC', g['4'].a5);
+  tx('4(B)(1)', 'ITC reversed: as per rules', g['4'].b1);
+  tx('4(B)(2)', 'ITC reversed: others', g['4'].b2);
+  tx('4(C)', 'Net ITC available', g['4'].c);
+  tx('4(D)(1)', 'Ineligible ITC (blocked, section 17(5))', g['4'].d1);
+  tx('4(D)(2)', 'Ineligible ITC: others', g['4'].d2);
+  rows.push(['5', 'Composition, exempt and nil rated inward supplies', '', g['5'].compositionExemptNil.inter, g['5'].compositionExemptNil.intra, '', '']);
+  rows.push(['5', 'Non-GST inward supplies', '', g['5'].nonGst.inter, g['5'].nonGst.intra, '', '']);
+  tx('6.1', 'Tax payable (pay through ITC or cash on the portal)', g['6.1']);
+  return csv(['Table', 'Description', 'Taxable value / Inter-State', 'IGST / Intra-State', 'CGST', 'SGST', 'Cess'], rows);
+}

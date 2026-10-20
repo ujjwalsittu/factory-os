@@ -2,6 +2,7 @@ import {supplierReturnClaim,supplierNote} from '@factoryos/db';
 import { OperationalPostings } from './accounting/operational-postings.js';
 import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
+import { GstReturnsService } from './gst-returns/gst-returns.service.js';
 import { assertFactoryOsBook, assertNotFromTally } from './tally/tally-books.js';
 import { computeGst, GST_RATES, inwardSupplyType, type TaxResult } from '@factoryos/compliance-in';
 import { Dec, fyCode } from '@factoryos/core';
@@ -122,6 +123,7 @@ export class BuyingController {
     private readonly posting: StockPostingService,
     private readonly jobWork: JobWorkService,
     private readonly quality: QualityService,
+    private readonly gst: GstReturnsService,
   ) {}
 
   // ───────────────────────── Tax preview ─────────────────────────
@@ -613,6 +615,7 @@ export class BuyingController {
       if (!inv) throw new NotFoundException('Purchase invoice not found');
       if (inv.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
       await assertFactoryOsBook(tx, entityId, inv.postingDate, 'purchase invoice');
+      await this.gst.assertDocumentFiled(tx, ctx, entityId, 'purchase_invoice', id, body);
 
       // The same supplier invoice can't be booked twice in a financial year.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`pinv:${entityId}:${inv.supplierId}`}))`);
@@ -675,6 +678,7 @@ export class BuyingController {
       if (!inv) throw new NotFoundException('Purchase invoice not found');
       if (inv.status !== 'submitted') throw new ConflictException('Only submitted invoices can be cancelled');
       assertNotFromTally(inv, 'invoice');
+      await this.gst.assertDocumentFiled(tx, ctx, entityId, 'purchase_invoice', id, body);
       const [claimDependency]=await tx.select().from(supplierReturnClaim).where(and(eq(supplierReturnClaim.entityId,entityId),eq(supplierReturnClaim.originalInvoiceId,id),eq(supplierReturnClaim.status,'submitted')));
       const [noteDependency]=await tx.select().from(supplierNote).where(and(eq(supplierNote.entityId,entityId),eq(supplierNote.originalInvoiceId,id),eq(supplierNote.status,'submitted')));
       if(claimDependency||noteDependency)throw new ConflictException('Resolve and cancel dependent supplier claims/notes first');

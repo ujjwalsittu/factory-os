@@ -4,6 +4,7 @@ import { OperationalPostings } from './accounting/operational-postings.js';
 import { BillService } from './accounting/bill.service.js';
 import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
+import { GstReturnsService } from './gst-returns/gst-returns.service.js';
 import { assertFactoryOsBook, assertNotFromTally } from './tally/tally-books.js';
 import { computeGst, GST_RATES, type SupplyType, type TaxResult } from '@factoryos/compliance-in';
 import { Dec } from '@factoryos/core';
@@ -137,6 +138,7 @@ export class SellingController {
     private readonly posting: StockPostingService,
     private readonly bills: BillService,
     private readonly fai: FaiService,
+    private readonly gst: GstReturnsService,
   ) {}
 
   // ───────────────────────── Tax preview & credit ─────────────────────────
@@ -557,6 +559,7 @@ export class SellingController {
       const inv = await this.lockInvoice(tx, entityId, id);
       if (inv.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
       await assertFactoryOsBook(tx, entityId, inv.invoiceDate, 'sales invoice');
+      await this.gst.assertDocumentFiled(tx, ctx, entityId, 'sales_invoice', id, body);
       const customer = await this.customer(ctx, inv.customerId);
       if (!customer.isActive) throw new BadRequestException(`${customer.name} is inactive`);
       const [reg] = await tx.select().from(gstRegistration).where(eq(gstRegistration.id, inv.gstRegistrationId!));
@@ -645,6 +648,7 @@ export class SellingController {
       if (inv.status !== 'submitted') throw new ConflictException('Only submitted invoices can be cancelled');
       assertNotFromTally(inv, 'invoice');
       await guardSandboxSourceIn(tx,ctx,entityId,'sales_invoice',id);
+      await this.gst.assertDocumentFiled(tx, ctx, entityId, 'sales_invoice', id, body);
       const liveNotes=await tx.select({number:salesNote.number}).from(salesNote).where(and(eq(salesNote.tenantId,ctx.tenant.tenantId),eq(salesNote.entityId,entityId),eq(salesNote.originalInvoiceId,id),eq(salesNote.status,'submitted')));
       if(liveNotes.length)throw new ConflictException(`Cancel notes ${liveNotes.map(n=>n.number).join(', ')} first`);
       await this.gl.reverseIn(tx, ctx, entityId, { type: 'sales_invoice', id, purpose: 'main' }, why);

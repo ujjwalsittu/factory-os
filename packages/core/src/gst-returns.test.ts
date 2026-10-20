@@ -178,3 +178,15 @@ describe('GSTR-3B', () => {
     expect(checkGstr1Against3b(g1, g3, outward).ok).toBe(true);
   });
 });
+
+describe('sheets', () => {
+  it('writes one CSV per GSTR-1 section and a 3B sheet', async () => {
+    const { gstr1Sheets, gstr3bSheet } = await import('./gst-returns.js');
+    const docs = [doc({ counterpartyGstin: '27AAAAA0000A1Z5', treatment: 'registered', lines: [line('1000', '18', 'local')] })];
+    const g1 = buildGstr1(docs, OUR, { turnoverAboveFiveCrore: false });
+    const sheets = gstr1Sheets(g1);
+    expect(sheets.map((s) => s.name)).toEqual(['b2b.csv', 'b2cl.csv', 'b2cs.csv', 'exp.csv', 'cdnr.csv', 'cdnur.csv', 'nil.csv', 'hsn.csv', 'docs.csv']);
+    expect(sheets[0]!.csv.split('\n')[1]).toBe(`27AAAAA0000A1Z5,${docs[0]!.number},2026-11-10,1180.00,27,N,R,18.00,1000.00,0.00,90.00,90.00,0.00`);
+    expect(gstr3bSheet(buildGstr3b(g1, docs, [], OUR))).toMatch(/^Table,Description/);
+  });
+});
