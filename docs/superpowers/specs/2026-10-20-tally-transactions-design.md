@@ -1,9 +1,9 @@
-# Tally transactions as FactoryOS documents — design (decision 075, proposed)
+# Tally transactions as FactoryOS documents — design (decision 075)
 
 The user asked (2026-10-20) that transactions imported from Tally feed FactoryOS as real documents, mapped properly,
 with Tally or FactoryOS chosen as the book for each month. This changes decision 072, where Day Book vouchers are
-read-only history that never reach the general ledger or GST. Under L7 that is recorded as decision 075 (proposed)
-until the user approves this design.
+read-only history that never reach the general ledger or GST. It is recorded as decision 075, accepted with the
+choices below.
 
 ## Why
 
@@ -102,11 +102,10 @@ This builds on the history import of PR 3:
 - **The user's real Day Book,** checked in a throwaway workspace the same careful way as before, with aggregates only.
 - **A browser walkthrough, regression and UI audit.**
 
-## Choices to confirm before building
+## Choices made (decision 075, 2026-10-20)
 
-1. **Voucher types in scope first:** sales, purchases and notes, the ones the GST returns need (recommended). Or all
-   types at once.
-2. **Stock:** Tally invoices with items move stock in FactoryOS (recommended, so stock stays true in Tally months), or
-   accounts only.
-3. **Tax differences:** keep Tally's amounts and flag them (recommended), or refuse the voucher until it is fixed in
-   Tally.
+- **As real documents, chosen per month:** chosen by the user in place of GST-only or compare-only.
+- **Voucher types first:** sales and purchase invoices and credit/debit notes. Receipts, payments, journals and stock
+  journals follow in PR 2.
+- **Stock:** Tally invoices with items move stock in the warehouse linked to the Tally godown.
+- **Tax differences:** the document keeps Tally's amounts and is flagged with both figures.
