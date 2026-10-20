@@ -116,7 +116,7 @@ export const gstAmendment = pgTable(
     index('gst_amendment_document_idx').on(t.documentId),
     check('gst_amendment_table_ck', sql`${t.amendTable} in ('b2ba','b2cla','expa','cdnra','cdnura','b2csa')`),
     check('gst_amendment_status_ck', sql`${t.status} in ('proposed','included','dropped')`),
-    check('gst_amendment_dropped_reason_ck', sql`${t.status} <> 'dropped' or length(trim(${t.reason})) >= 5`),
+    check('gst_amendment_dropped_reason_ck', sql`${t.status} <> 'dropped' or length(trim(coalesce(${t.reason}, ''))) >= 5`),
     check('gst_amendment_decided_ck', sql`(${t.status} = 'proposed') = (${t.decidedBy} is null)`),
   ],
 );

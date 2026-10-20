@@ -99,7 +99,7 @@ export interface Gstr1Entry {
   date: string;
   counterpartyGstin: string | null;
   placeOfSupply: string | null;
-  /** b2b: R (regular), SEWP/SEWOP (SEZ), DE (deemed export); exp: WPAY/WOPAY; cdnur: B2CL/EXPWP/EXPWOP. */
+  /** b2b: R (regular), SEWP/SEWOP (SEZ), DE (deemed export); cdnr: SEWP/SEWOP for SEZ notes; exp: WPAY/WOPAY; cdnur: B2CL/EXPWP/EXPWOP. */
   subtype: string | null;
   reverseCharge: boolean;
   value: string;
@@ -212,6 +212,10 @@ export function buildGstr1(docs: OutwardDoc[], ourState: string, opts: { turnove
             : doc.treatment === 'deemed_export'
               ? 'DE'
               : 'R'
+        : section === 'cdnr' && isSez(doc.supplyType)
+          ? doc.supplyType === 'sez_with_payment'
+            ? 'SEWP'
+            : 'SEWOP'
         : section === 'exp'
           ? doc.supplyType === 'export_with_payment'
             ? 'WPAY'

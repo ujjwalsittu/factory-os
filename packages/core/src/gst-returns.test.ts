@@ -230,6 +230,10 @@ describe('amendments (PR 3)', () => {
     const exp = buildGstr1([doc({ supplyType: 'export_under_lut', treatment: 'overseas', placeOfSupply: '96', portCode: 'INNSA1', shippingBillNo: '1', shippingBillDate: '2026-11-12', lines: [line('5000', '0', 'igst')] })], OUR, { turnoverAboveFiveCrore: false }).entries[0]!;
     const e = entryAmendment('2026-10', exp, { ...exp, shippingBillNo: '2' })!;
     expect([e.table, e.zeroRated]).toEqual(['expa', true]);
+    // A note on an SEZ supply is zero rated in 3B, so its amendment goes to 3.1(b) too.
+    const sezNote = buildGstr1([doc({ type: 'credit_note', counterpartyGstin: '27AAAAA0000A1Z5', treatment: 'sez', supplyType: 'sez_without_payment', lines: [line('300', '0', 'igst')] })], OUR, { turnoverAboveFiveCrore: false }).entries[0]!;
+    expect([sezNote.section, sezNote.subtype]).toEqual(['cdnr', 'SEWOP']);
+    expect(entryAmendment('2026-10', sezNote, null)!.zeroRated).toBe(true);
   });
 
   it('revises B2CS for a filed month by place of supply and rate, a rate gone to zero', async () => {

@@ -65,10 +65,16 @@ PR (074b: no credentials yet).
 - **A cancelled invoice already amended to zero was proposed again** in the following month. That is now settled
   (core test and smoke).
 - **The "needs a decision" refusal stayed on screen after every amendment was decided.** A decision now clears it.
+- **Review findings (CodeRabbit, on the PR):**
+  - Deciding now takes the month's advisory lock before the return row, the same order as preparing, so the two
+    cannot deadlock.
+  - `amendedIn` names only a filed GSTR-1.
+  - A credit or debit note on an SEZ supply carries SEWP/SEWOP, so its CDNRA goes to 3B 3.1(b) (core test).
+  - The drop-reason check in the database also refuses a NULL reason (smoke).
 
 ## Verification
 
-- Core: 14 GST tests pass. They cover:
+- Core: 14 GST tests pass (203 in the core suite). They cover:
   - B2BA to zero, with the 3B difference and the check;
   - a dropped amendment, which changes nothing;
   - unchanged after a storage round-trip;
@@ -77,7 +83,7 @@ PR (074b: no credentials yet).
   - EXPA going to 3.1(b);
   - B2CSA with a rate gone to zero;
   - the B2BA sheet row.
-- `smoke-gst-amendments`: 63 checks. It covers:
+- `smoke-gst-amendments`: 64 checks. It covers:
   - nothing proposed before any change;
   - "Changed since filing" listing exactly the changed documents;
   - B2BA, CDNRA and B2CSA proposed with exact differences;

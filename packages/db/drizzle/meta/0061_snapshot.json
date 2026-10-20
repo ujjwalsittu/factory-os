@@ -41790,7 +41790,7 @@
         },
         "gst_amendment_dropped_reason_ck": {
           "name": "gst_amendment_dropped_reason_ck",
-          "value": "\"gst_amendment\".\"status\" <> 'dropped' or length(trim(\"gst_amendment\".\"reason\")) >= 5"
+          "value": "\"gst_amendment\".\"status\" <> 'dropped' or length(trim(coalesce(\"gst_amendment\".\"reason\", ''))) >= 5"
         },
         "gst_amendment_decided_ck": {
           "name": "gst_amendment_decided_ck",

@@ -102,6 +102,11 @@ try {
   assert.match(b2ba, /,18\.00,0\.00,0\.00,0\.00,0\.00,0\.00$/);
   assert.ok(files['b2csa.csv'] && !files['cdnra.csv'], Object.keys(files).join(','));
 
+  // The database itself refuses a dropped amendment without a reason.
+  await assert.rejects(db.$client.query("update gst_amendment set reason = null where return_id = $1 and status = 'dropped'", [novG1.id]), /dropped_reason/);
+  // Before November is filed, the October return does not yet name it as having reported anything.
+  assert.equal((await c.req('GET', `/gst-returns/${octG1.id}`)).changedSinceFiling.find((x) => x.documentId === first.id).amendedIn, undefined);
+
   // File November; the October return names the amendment that reported each change.
   await c.req('POST', `/gst-returns/${novG1.id}/review`, {}, 200);
   await fc.req('POST', `/gst-returns/${novG1.id}/approve`, {}, 200);

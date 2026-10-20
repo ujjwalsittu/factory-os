@@ -542,6 +542,10 @@ export class GstReturnsService {
   /** Includes an amendment, or drops it with a reason, then prepares the month's returns again on that decision. */
   async decideAmendment(ctx: TenantRequestContext, entityId: string, returnId: string, amendmentId: string, decision: 'include' | 'drop', reason: string | null) {
     return this.db.transaction(async (tx) => {
+      // The same lock order as prepare (advisory lock, then the return row), so the two cannot deadlock.
+      const [head] = await tx.select({ regId: gstReturn.gstRegistrationId, period: gstReturn.period }).from(gstReturn).where(and(eq(gstReturn.id, returnId), eq(gstReturn.entityId, entityId)));
+      if (!head) throw new NotFoundException('GST return not found');
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`gst-return:${head.regId}:${head.period}`}))`);
       const r = await this.lockReturn(tx, entityId, returnId);
       if (r.kind !== 'gstr1') throw new BadRequestException('Amendments belong to a GSTR-1');
       if (r.status === 'approved' || r.status === 'filed') throw new ConflictException(`The GSTR-1 for ${r.period} is ${r.status}; its amendments are settled.`);
@@ -605,7 +609,7 @@ export class GstReturnsService {
           .select({ key: gstAmendment.key, period: gstReturn.period })
           .from(gstAmendment)
           .innerJoin(gstReturn, eq(gstReturn.id, gstAmendment.returnId))
-          .where(and(eq(gstReturn.gstRegistrationId, r.gstRegistrationId), eq(gstAmendment.originalPeriod, r.period), eq(gstAmendment.status, 'included')))
+          .where(and(eq(gstReturn.gstRegistrationId, r.gstRegistrationId), eq(gstReturn.status, 'filed'), eq(gstAmendment.originalPeriod, r.period), eq(gstAmendment.status, 'included')))
           .orderBy(gstReturn.period)
       ).map((x) => [x.key, x.period]),
     );

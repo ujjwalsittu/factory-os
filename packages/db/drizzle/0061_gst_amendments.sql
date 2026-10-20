@@ -17,7 +17,7 @@ CREATE TABLE "gst_amendment" (
 	"decided_at" timestamp with time zone,
 	CONSTRAINT "gst_amendment_table_ck" CHECK ("gst_amendment"."amend_table" in ('b2ba','b2cla','expa','cdnra','cdnura','b2csa')),
 	CONSTRAINT "gst_amendment_status_ck" CHECK ("gst_amendment"."status" in ('proposed','included','dropped')),
-	CONSTRAINT "gst_amendment_dropped_reason_ck" CHECK ("gst_amendment"."status" <> 'dropped' or length(trim("gst_amendment"."reason")) >= 5),
+	CONSTRAINT "gst_amendment_dropped_reason_ck" CHECK ("gst_amendment"."status" <> 'dropped' or length(trim(coalesce("gst_amendment"."reason", ''))) >= 5),
 	CONSTRAINT "gst_amendment_decided_ck" CHECK (("gst_amendment"."status" = 'proposed') = ("gst_amendment"."decided_by" is null))
 );
 --> statement-breakpoint
