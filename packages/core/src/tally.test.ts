@@ -11,6 +11,8 @@ import {
   tallyQuantity,
   tallyRoot,
   toTallyMaster,
+  toTallyVoucher,
+  tallyVoucherImbalance,
   TallyArchiveTooLarge,
   unpackTallyFiles,
   type TallyGroup,
@@ -229,3 +231,33 @@ describe('classification', () => {
     expect(tallyRoot('Loop', (n) => parents[n])).toBeNull();
   });
 });
+
+describe('vouchers', () => {
+  const daybook = readFileSync(new URL('../fixtures/tally/daybook.xml', import.meta.url), 'utf8');
+  const vouchers = readTallyXml(daybook).objects.map(toTallyVoucher).filter((v) => v !== null);
+
+  it('reads an invoice with its party, bills, stock and the ledger amounts held inside stock lines', () => {
+    const sale = vouchers[0]!;
+    expect(sale).toMatchObject({ type: 'Sales', number: 'FE/26-27/0001', date: '2026-04-15', party: 'Acme Castings Pvt Ltd', cancelled: false, alterId: 1001 });
+    expect(sale.lines.map((l) => `${l.ledger}:${l.side}:${l.amount}`)).toEqual([
+      'Acme Castings Pvt Ltd:debit:9440',
+      'CGST:credit:720',
+      'Output SGST:credit:720',
+      'Sales - Local:credit:8000',
+    ]);
+    expect(sale.lines[0]!.bills).toEqual([{ name: 'FE/26-27/0001', type: 'New Ref', side: 'debit', amount: '9440' }]);
+    expect(sale.items).toEqual([
+      { item: 'MS Round Bar 25mm', qty: '100', unit: 'Kgs', rate: '80', amount: '8000', direction: 'out', batches: [{ godown: 'Main Location', batch: 'HEAT-2231', qty: '100' }] },
+    ]);
+    expect(tallyVoucherImbalance(sale)).toBe('0');
+  });
+
+  it('reads receipts, payments and cancelled vouchers, and measures an imbalance', () => {
+    expect(vouchers.map((v) => `${v.type} ${v.number}`)).toEqual(['Sales FE/26-27/0001', 'Receipt 12', 'Payment 7', 'Journal 3']);
+    expect(vouchers[2]!.lines.map((l) => `${l.side}:${l.amount}`)).toEqual(['debit:4500', 'credit:4500']);
+    expect(vouchers[3]).toMatchObject({ cancelled: true, lines: [] });
+    expect(tallyVoucherImbalance({ lines: [{ ledger: 'a', side: 'debit', amount: '10.5', bills: [], party: false }] })).toBe('10.5');
+    expect(toTallyVoucher(readTallyXml(daybook).objects.find((o) => o.tag !== 'VOUCHER') ?? { tag: 'LEDGER', node: { tag: 'LEDGER', attrs: {}, text: '', children: [] } })).toBeNull();
+  });
+});
+

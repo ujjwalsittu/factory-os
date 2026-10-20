@@ -1,12 +1,15 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post, Put, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import type { Database } from '@factoryos/db';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../../common/access.js';
 import { parse } from '../../common/validation.js';
 import { entityOf } from '../accounting/accounting-lock.js';
+import { DB } from '../../common/tokens.js';
 import { TallyService } from './tally.service.js';
+import { getVoucher, listVouchers } from './tally-vouchers.js';
 
-const KINDS = ['group', 'ledger', 'party', 'stockgroup', 'unit', 'godown', 'stockitem', 'opening', 'stock'] as const;
+const KINDS = ['group', 'ledger', 'party', 'stockgroup', 'unit', 'godown', 'stockitem', 'opening', 'stock', 'voucher'] as const;
 const ACTIONS = ['new', 'link', 'update', 'unchanged', 'conflict', 'skip'] as const;
 const rowsQuery = z.object({
   kind: z.enum(KINDS).optional(),
@@ -73,5 +76,35 @@ export class TallyController {
   @RequirePermission('accounts.tally.import')
   discard(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
     return this.tally.discard(ctx, entityOf(ctx), id);
+  }
+}
+
+const date = z.iso.date();
+const historyQuery = z.object({
+  from: date.optional(),
+  to: date.optional(),
+  type: z.string().trim().max(120).optional(),
+  q: z.string().trim().max(100).optional(),
+  accountId: z.uuid().optional(),
+  partyId: z.uuid().optional(),
+  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+
+/** Decision 072: Tally history, read-only. These vouchers never reach the general ledger or GST. */
+@Controller('tally/vouchers')
+export class TallyHistoryController {
+  constructor(@Inject(DB) private readonly db: Database) {}
+
+  @Get()
+  @RequirePermission('accounts.tally.read')
+  list(@Ctx() ctx: TenantRequestContext, @Query() query: unknown) {
+    return listVouchers(this.db, entityOf(ctx), parse(historyQuery, query));
+  }
+
+  @Get(':id')
+  @RequirePermission('accounts.tally.read')
+  get(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
+    return getVoucher(this.db, entityOf(ctx), id);
   }
 }

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, foreignKey, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, date, foreignKey, index, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { user } from './auth.js';
 import { legalEntity, tenant } from './platform.js';
 
@@ -57,7 +57,7 @@ export const tallyStaged = pgTable(
     uniqueIndex('tally_staged_ordinal_uq').on(t.importId, t.ordinal),
     index('tally_staged_import_kind_idx').on(t.importId, t.kind),
     foreignKey({ name: 'tally_staged_import_fk', columns: [t.importId, t.tenantId, t.entityId], foreignColumns: [tallyImport.id, tallyImport.tenantId, tallyImport.entityId] }).onDelete('cascade'),
-    check('tally_staged_kind_ck', sql`${t.kind} in ('group','ledger','party','stockgroup','unit','godown','stockitem','opening','stock')`),
+    check('tally_staged_kind_ck', sql`${t.kind} in ('group','ledger','party','stockgroup','unit','godown','stockitem','opening','stock','voucher')`),
     check('tally_staged_action_ck', sql`${t.proposed} in ('new','link','update','unchanged','conflict','skip') and ${t.action} in ('new','link','update','unchanged','conflict','skip')`),
   ],
 );
@@ -84,3 +84,73 @@ export const tallyLink = pgTable(
     foreignKey({ name: 'tally_link_import_fk', columns: [t.importId, t.tenantId, t.entityId], foreignColumns: [tallyImport.id, tallyImport.tenantId, tallyImport.entityId] }),
   ],
 );
+
+export type TallyVoucherBillRow = { name: string; type: string | null; side: 'debit' | 'credit'; amount: string };
+export type TallyVoucherItemRow = {
+  item: string;
+  qty: string | null;
+  unit: string | null;
+  rate: string | null;
+  amount: string | null;
+  direction: 'in' | 'out' | null;
+  batches: { godown: string | null; batch: string | null; qty: string | null }[];
+};
+
+/**
+ * Tally history (decision 072): vouchers from Day Book exports, kept apart from the general ledger. They are never
+ * posted, never sent to GST or e-invoicing, and a newer ALTERID replaces a voucher's lines.
+ */
+export const tallyVoucher = pgTable(
+  'tally_voucher',
+  {
+    ...identity(),
+    guid: text('guid').notNull(),
+    alterId: integer('alter_id'),
+    voucherType: text('voucher_type').notNull(),
+    number: text('number'),
+    date: date('date').notNull(),
+    narration: text('narration'),
+    partyName: text('party_name'),
+    partyId: uuid('party_id'),
+    cancelled: boolean('cancelled').notNull().default(false),
+    optional: boolean('optional').notNull().default(false),
+    /** Total of the debit side, for lists. */
+    amount: numeric('amount', { precision: 24, scale: 6 }).notNull(),
+    items: jsonb('items').$type<TallyVoucherItemRow[]>().notNull().default([]),
+    importId: uuid('import_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('tally_voucher_guid_uq').on(t.entityId, t.guid),
+    uniqueIndex('tally_voucher_scope_uq').on(t.id, t.tenantId, t.entityId),
+    index('tally_voucher_entity_date_idx').on(t.entityId, t.date),
+    index('tally_voucher_party_idx').on(t.entityId, t.partyId),
+    foreignKey({ name: 'tally_voucher_import_fk', columns: [t.importId, t.tenantId, t.entityId], foreignColumns: [tallyImport.id, tallyImport.tenantId, tallyImport.entityId] }),
+  ],
+);
+
+/** One ledger amount of a Tally voucher, with the FactoryOS ledger or party it is linked to when known. */
+export const tallyVoucherLine = pgTable(
+  'tally_voucher_line',
+  {
+    ...identity(),
+    voucherId: uuid('voucher_id').notNull(),
+    lineNo: integer('line_no').notNull(),
+    ledgerName: text('ledger_name').notNull(),
+    accountId: uuid('account_id'),
+    partyId: uuid('party_id'),
+    side: text('side').notNull(),
+    amount: numeric('amount', { precision: 24, scale: 6 }).notNull(),
+    bills: jsonb('bills').$type<TallyVoucherBillRow[]>().notNull().default([]),
+  },
+  (t) => [
+    uniqueIndex('tally_voucher_line_no_uq').on(t.voucherId, t.lineNo),
+    index('tally_voucher_line_account_idx').on(t.entityId, t.accountId),
+    index('tally_voucher_line_party_idx').on(t.entityId, t.partyId),
+    check('tally_voucher_line_side_ck', sql`${t.side} in ('debit','credit')`),
+    check('tally_voucher_line_amount_ck', sql`${t.amount} > 0`),
+    foreignKey({ name: 'tally_voucher_line_voucher_fk', columns: [t.voucherId, t.tenantId, t.entityId], foreignColumns: [tallyVoucher.id, tallyVoucher.tenantId, tallyVoucher.entityId] }).onDelete('cascade'),
+  ],
+);
+

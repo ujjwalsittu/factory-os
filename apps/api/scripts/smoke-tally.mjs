@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import { Client, gstin } from './accounting-test-helpers.mjs';
 
 const fixture = fs.readFileSync(new URL('../../../packages/core/fixtures/tally/masters.xml', import.meta.url), 'utf8');
+const daybook = fs.readFileSync(new URL('../../../packages/core/fixtures/tally/daybook.xml', import.meta.url), 'utf8');
 const utf16 = (s) => Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(s, 'utf16le')]);
 let checks = 0;
 const ok = (label) => (checks++, console.log(`✓ ${label}`));
@@ -179,6 +180,75 @@ assert.equal((await c.raw('POST', `/tally/imports/${closed.id}/commit`, {})).sta
 await c.req('POST', `/tally/imports/${closed.id}/discard`, {}, 201);
 ok('the imported openings reconcile and activate; afterwards opening balances and stock are refused');
 
+// ── Voucher history (decision 072, part 3): read-only, never in the general ledger ──
+const tbBefore = await c.req('GET', '/accounts/reports/trial-balance');
+const hist = await upload(c, [['DayBook.xml', utf16(daybook)]]);
+list = await rows(c, hist.id, '&kind=voucher');
+assert.deepEqual(list.map((r) => `${r.name}:${r.proposed}`), ['Sales FE/26-27/0001:new', 'Receipt 12:new', 'Payment 7:new', 'Journal 3:new']);
+assert.match(row(list, 'Journal 3').notes.join(' '), /Cancelled in Tally/);
+await c.req('POST', `/tally/imports/${hist.id}/commit`, {}, 201);
+assert.deepEqual(await c.req('GET', '/accounts/reports/trial-balance'), tbBefore, 'history never reaches the general ledger');
+const day = await c.req('GET', '/tally/vouchers');
+assert.equal(day.total, 4);
+assert.deepEqual(day.types, ['Journal', 'Payment', 'Receipt', 'Sales']);
+const saleRow = day.data.find((v) => v.voucherType === 'Sales');
+assert.equal(saleRow.partyId, acme.id);
+assert.equal(Number(saleRow.amount), 9440);
+const sale = await c.req('GET', `/tally/vouchers/${saleRow.id}`);
+assert.deepEqual(sale.lines.map((l) => `${l.ledgerName}:${l.side}:${Number(l.amount)}`), ['Acme Castings Pvt Ltd:debit:9440', 'CGST:credit:720', 'Output SGST:credit:720', 'Sales - Local:credit:8000']);
+assert.equal(sale.lines[0].partyId, acme.id, 'the party line links to the party');
+assert.equal(sale.lines.find((l) => l.ledgerName === 'Sales - Local').accountId, null, 'a ledger not in FactoryOS keeps its Tally name');
+assert.equal(sale.items[0].item, 'MS Round Bar 25mm');
+assert.equal((await c.req('GET', `/tally/vouchers?partyId=${acme.id}`)).total, 2);
+assert.equal((await c.req('GET', `/tally/vouchers?accountId=${hdfc.id}`)).total, 2);
+assert.equal((await c.req('GET', '/tally/vouchers?type=Payment')).total, 1);
+assert.equal((await c.req('GET', '/tally/vouchers?q=round%20bar')).total, 1, 'narration search');
+// Same export again: nothing changes. A newer ALTERID replaces a voucher's lines.
+const histAgain = await upload(c, [['DayBook.xml', utf16(daybook)]]);
+assert.deepEqual([...new Set((await rows(c, histAgain.id, '&kind=voucher')).map((r) => r.proposed))], ['unchanged']);
+await c.req('POST', `/tally/imports/${histAgain.id}/commit`, {}, 201);
+assert.equal((await c.req('GET', '/tally/vouchers')).total, 4);
+const edited = daybook.replace('<AMOUNT>-4,500.00</AMOUNT>', '<AMOUNT>-5,000.00</AMOUNT>').replace('<AMOUNT>4,500.00</AMOUNT>', '<AMOUNT>5,000.00</AMOUNT>').replace('<ALTERID> 1003</ALTERID>', '<ALTERID> 1010</ALTERID>');
+const histEdit = await upload(c, [['DayBook.xml', utf16(edited)]]);
+const payRow = (await rows(c, histEdit.id, '&kind=voucher')).find((r) => r.name === 'Payment 7');
+assert.equal(payRow.proposed, 'update');
+// Skip and back again works; a voucher only updates its own history row.
+await c.req('PUT', `/tally/imports/${histEdit.id}/rows`, { decisions: [{ id: payRow.id, action: 'skip' }] });
+await c.req('PUT', `/tally/imports/${histEdit.id}/rows`, { decisions: [{ id: payRow.id, action: 'update' }] });
+assert.equal((await c.raw('PUT', `/tally/imports/${histEdit.id}/rows`, { decisions: [{ id: payRow.id, action: 'update', targetId: acme.id }] })).status, 400);
+await c.req('POST', `/tally/imports/${histEdit.id}/commit`, {}, 201);
+const payId = (await c.req('GET', '/tally/vouchers?type=Payment')).data[0].id;
+let pay = await c.req('GET', `/tally/vouchers/${payId}`);
+assert.deepEqual(pay.lines.map((l) => Number(l.amount)), [5000, 5000]);
+// Two exports read before either is committed: the older one, committed last, does not overwrite the newer.
+const version = (alter, amount) => edited.replaceAll('5,000.00', amount).replace('<ALTERID> 1010</ALTERID>', `<ALTERID> ${alter}</ALTERID>`);
+const newerRead = await upload(c, [['DayBook.xml', utf16(version(1020, '6,000.00'))]]);
+const olderRead = await upload(c, [['DayBook.xml', utf16(version(1015, '5,500.00'))]]);
+await c.req('POST', `/tally/imports/${newerRead.id}/commit`, {}, 201);
+await c.req('POST', `/tally/imports/${olderRead.id}/commit`, {}, 201);
+pay = await c.req('GET', `/tally/vouchers/${payId}`);
+assert.deepEqual(pay.lines.map((l) => Number(l.amount)), [6000, 6000], 'an older ALTERID never overwrites newer history');
+// An edited voucher that no longer balances is a choice too.
+const offBalance = version(1030, '7,000.00').replace('<AMOUNT>-7,000.00</AMOUNT>', '<AMOUNT>-7,100.00</AMOUNT>');
+const unbalancedRead = await upload(c, [['DayBook.xml', utf16(offBalance)]]);
+const unbalancedRow = (await rows(c, unbalancedRead.id, '&kind=voucher')).find((r) => r.name === 'Payment 7');
+assert.equal(unbalancedRow.proposed, 'conflict');
+await c.req('POST', `/tally/imports/${unbalancedRead.id}/discard`, {}, 201);
+assert.equal((await c.raw('GET', '/tally/vouchers?from=2026-13-45')).status, 400, 'impossible dates are refused');
+// What a later export lacks is listed, never deleted.
+const withoutReceipt = daybook.replace(/<TALLYMESSAGE xmlns:UDF="TallyUDF">\s*<VOUCHER REMOTEID="v-2"[\s\S]*?<\/TALLYMESSAGE>/, '');
+const partial = await upload(c, [['DayBook.xml', utf16(withoutReceipt)]]);
+const partialRead = await c.req('GET', `/tally/imports/${partial.id}`);
+assert.deepEqual(partialRead.missing.vouchers.sample.map((v) => `${v.type} ${v.number}`), ['Receipt 12']);
+await c.req('POST', `/tally/imports/${partial.id}/discard`, {}, 201);
+const withoutLedger = fixture.replace(/<TALLYMESSAGE xmlns:UDF="TallyUDF">\s*<LEDGER NAME="Power and Fuel"[\s\S]*?<\/TALLYMESSAGE>/, '');
+const partialMasters = await upload(c, [['Master.xml', utf16(withoutLedger)]]);
+const pm = await c.req('GET', `/tally/imports/${partialMasters.id}`);
+assert.ok(pm.missing.masters.sample.some((m) => m.kind === 'ledger' && m.name === 'Power and Fuel'));
+await c.req('POST', `/tally/imports/${partialMasters.id}/discard`, {}, 201);
+assert.equal((await c.req('GET', '/tally/vouchers')).total, 4, 'nothing is deleted');
+ok('Day Book vouchers become read-only history linked to ledgers and parties; re-imports update by ALTERID; missing records are listed, never deleted');
+
 // ── Matching an existing workspace: link by GSTIN, conflicts block commit ──
 await pause();
 const b = await new Client().init('Tally Matching');
@@ -330,11 +400,13 @@ await pause();
 const other = await new Client().init('Tally Other');
 assert.equal((await other.raw('GET', `/tally/imports/${imp.id}`)).status, 404);
 assert.equal((await other.req('GET', '/tally/imports')).length, 0);
+assert.equal((await other.req('GET', '/tally/vouchers')).total, 0);
+assert.equal((await other.raw('GET', `/tally/vouchers/${saleRow.id}`)).status, 404, "another workspace cannot read this workspace's history");
 await b.req('POST', `/tally/imports/${failing.id}/discard`, {}, 201);
 assert.equal((await b.raw('POST', `/tally/imports/${failing.id}/commit`, {})).status, 409);
 assert.equal((await b.raw('POST', `/tally/imports/${imp.id}/commit`, {})).status, 404);
 assert.equal((await c.raw('POST', `/tally/imports/${imp.id}/commit`, {})).status, 409);
-assert.equal((await upload(c, [['empty.xml', Buffer.from('<ENVELOPE/>')]], 400)).message, 'No Tally masters were found in the upload');
+assert.equal((await upload(c, [['empty.xml', Buffer.from('<ENVELOPE/>')]], 400)).message, 'No Tally masters or vouchers were found in the upload');
 ok('another workspace sees nothing; committed and discarded imports stay closed; an empty export is refused');
 
 console.log(`\ntally smoke: ${checks} checks passed (${c.checks + b.checks + d.checks + other.checks} requests)`);

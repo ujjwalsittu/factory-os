@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
-import { formatDateTime, formatMoney, formatQty } from '@/lib/format';
+import { formatDate, formatDateTime, formatMoney, formatQty } from '@/lib/format';
 import {
   ACTION_LABEL,
   actionLabel,
@@ -72,6 +72,10 @@ function ImportsContent() {
           <li>
             In TallyPrime, open the company and choose <strong>Export → Masters</strong> (All Masters). Opening balances and
             opening stock come with the masters.
+          </li>
+          <li>
+            For past vouchers, also choose <strong>Export → Transactions → Day Book</strong> for the period you want. They are
+            kept as read-only Tally history, apart from your FactoryOS books.
           </li>
           <li>
             Set the format to <strong>XML (Data Interchange)</strong> and export.
@@ -291,6 +295,13 @@ function DetailContent({ id }: { id: string }) {
       </div>
 
       {openings && <OpeningsCard openings={openings} status={i.status} />}
+      {i.missing && (i.missing.masters.total > 0 || i.missing.vouchers.total > 0) && <MissingCard missing={i.missing} />}
+      {i.status === 'committed' && total(current, (k, a) => k === 'voucher' && a !== 'skip') > 0 && (
+        <p className="text-sm">
+          The vouchers are in <Link href="/app/accounts/tally/history" className="text-accent hover:underline">Tally history</Link>, apart from your
+          FactoryOS books.
+        </p>
+      )}
 
       <Card>
         <div className="flex flex-wrap items-end gap-3 p-5">
@@ -359,6 +370,12 @@ function DetailContent({ id }: { id: string }) {
             {total(current, (k, a) => (a === 'link' || a === 'update') && !OPENING_KINDS.has(k))} linked or updated, and{' '}
             {total(current, (k, a) => a === 'skip' && !OPENING_KINDS.has(k))} skipped. Everything is saved together, or nothing is.
           </p>
+          {total(current, (k, a) => k === 'voucher' && (a === 'new' || a === 'update')) > 0 && (
+            <p className="text-sm">
+              {total(current, (k, a) => k === 'voucher' && (a === 'new' || a === 'update'))} vouchers are saved as Tally history, apart from your
+              FactoryOS books.
+            </p>
+          )}
           {openings && openings.included > 0 && (
             <p className="text-sm">
               Opening balances replace the opening worksheet&apos;s lines and bills, and opening stock is saved as draft receipts to
@@ -380,7 +397,51 @@ function DetailContent({ id }: { id: string }) {
   );
 }
 
-const OPENING_KINDS = new Set(['opening', 'stock']);
+const OPENING_KINDS = new Set(['opening', 'stock', 'voucher']);
+
+/** Records earlier imports linked that this upload lacks (decision 072). Listed for review; nothing is deleted. */
+function MissingCard({ missing: m }: { missing: NonNullable<TallyImport['missing']> }) {
+  return (
+    <Card>
+      <CardHeader
+        title="Not in this export"
+        description="Linked by an earlier import but missing from this upload. Nothing is deleted; check whether they were deleted or renamed in Tally."
+      />
+      <div className="space-y-3 px-5 pb-5 text-sm">
+        {m.masters.total > 0 && (
+          <div>
+            <p className="font-medium">
+              {m.masters.total} master{m.masters.total === 1 ? '' : 's'}
+            </p>
+            <ul className="mt-1 list-disc pl-5 text-muted">
+              {m.masters.sample.map((x, n) => (
+                <li key={n}>
+                  {x.name} <span className="text-xs">({KIND_LABEL[x.kind] ?? x.kind})</span>
+                </li>
+              ))}
+              {m.masters.total > m.masters.sample.length && <li>and {m.masters.total - m.masters.sample.length} more</li>}
+            </ul>
+          </div>
+        )}
+        {m.vouchers.total > 0 && (
+          <div>
+            <p className="font-medium">
+              {m.vouchers.total} voucher{m.vouchers.total === 1 ? '' : 's'} in this period
+            </p>
+            <ul className="mt-1 list-disc pl-5 text-muted">
+              {m.vouchers.sample.map((v, n) => (
+                <li key={n}>
+                  {v.type} {v.number ?? ''} · {formatDate(v.date)}
+                </li>
+              ))}
+              {m.vouchers.total > m.vouchers.sample.length && <li>and {m.vouchers.total - m.vouchers.sample.length} more</li>}
+            </ul>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
 
 /** Ledger balances, stock value and the difference, with what the import replaces (decision 073). */
 function OpeningsCard({ openings: o, status }: { openings: NonNullable<TallyImport['openings']>; status: TallyImport['status'] }) {
@@ -435,6 +496,14 @@ function details(r: TallyRow) {
     const bills = (p.bills as unknown[] | undefined)?.length ?? 0;
     return [`${formatMoney(p.amount as string)} ${p.side === 'debit' ? 'Dr' : 'Cr'}`, bills ? `${bills} bill${bills === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ');
   }
+  if (r.kind === 'voucher')
+    return [
+      p.date ? formatDate(p.date as string) : null,
+      (p.party as string | null) ?? null,
+      p.total ? formatMoney(p.total as string) : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
   if (r.kind === 'stock')
     return ((p.allocations ?? []) as { godown: string | null; batch: string | null; qty: string; value: string | null }[])
       .map((a) => `${formatQty(a.qty)} at ${a.godown ?? 'Main Location'}${a.batch && !/^primary batch$/i.test(a.batch) ? ` (${a.batch})` : ''}${a.value ? `, ${formatMoney(a.value)}` : ''}`)

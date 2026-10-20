@@ -451,3 +451,143 @@ export function tallyRoot(
   }
   return null;
 }
+
+// ── Vouchers (decision 072, history) ──
+
+export interface TallyVoucherBill {
+  name: string;
+  /** Tally's bill type: New Ref, Agst Ref, Advance, On Account. */
+  type: string | null;
+  side: 'debit' | 'credit';
+  amount: string;
+}
+
+export interface TallyVoucherLine {
+  ledger: string;
+  side: 'debit' | 'credit';
+  amount: string;
+  bills: TallyVoucherBill[];
+  /** True for the party's line (Tally's ISPARTYLEDGER). */
+  party: boolean;
+}
+
+export interface TallyVoucherItem {
+  item: string;
+  qty: string | null;
+  unit: string | null;
+  rate: string | null;
+  amount: string | null;
+  /** In for a receipt of stock, out for an issue; null when Tally does not say. */
+  direction: 'in' | 'out' | null;
+  batches: { godown: string | null; batch: string | null; qty: string | null }[];
+}
+
+export interface TallyVoucher {
+  kind: 'voucher';
+  guid: string | null;
+  alterId: number | null;
+  type: string;
+  number: string | null;
+  date: string | null;
+  narration: string | null;
+  /** The party ledger: Tally's PARTYLEDGERNAME, else the line marked as the party's. */
+  party: string | null;
+  cancelled: boolean;
+  optional: boolean;
+  deleted: boolean;
+  invoice: boolean;
+  /** Every ledger amount, including those held inside inventory lines (ACCOUNTINGALLOCATIONS). */
+  lines: TallyVoucherLine[];
+  items: TallyVoucherItem[];
+}
+
+function voucherLine(n: TallyNode): TallyVoucherLine | null {
+  const ledger = field(n, 'LEDGERNAME');
+  const amt = tallyAmount(field(n, 'AMOUNT'));
+  if (!ledger || !amt) return null;
+  const bills: TallyVoucherBill[] = [];
+  for (const b of kids(n, 'BILLALLOCATIONS.LIST')) {
+    const a = tallyAmount(field(b, 'AMOUNT'));
+    if (a) bills.push({ name: field(b, 'NAME') ?? '', type: field(b, 'BILLTYPE'), ...a });
+  }
+  return { ledger, ...amt, bills, party: yes(n, 'ISPARTYLEDGER') };
+}
+
+/** Turns an exported VOUCHER into a typed voucher, or null for anything else. */
+export function toTallyVoucher(o: TallyObject): TallyVoucher | null {
+  if (o.tag !== 'VOUCHER') return null;
+  const n = o.node;
+  const lines: TallyVoucherLine[] = [];
+  const items: TallyVoucherItem[] = [];
+  for (const le of [...kids(n, 'ALLLEDGERENTRIES.LIST'), ...kids(n, 'LEDGERENTRIES.LIST')]) {
+    const l = voucherLine(le);
+    if (l) lines.push(l);
+  }
+  const inventory: [string, 'in' | 'out' | null][] = [
+    ['ALLINVENTORYENTRIES.LIST', null],
+    ['INVENTORYENTRIES.LIST', null],
+    ['INVENTORYENTRIESIN.LIST', 'in'],
+    ['INVENTORYENTRIESOUT.LIST', 'out'],
+  ];
+  for (const [tag, direction] of inventory)
+    for (const ie of kids(n, tag)) {
+      // Tally writes empty inventory lists on vouchers without stock; only their accounting allocations count.
+      if (!field(ie, 'STOCKITEMNAME')) {
+        for (const aa of kids(ie, 'ACCOUNTINGALLOCATIONS.LIST')) {
+          const l = voucherLine(aa);
+          if (l) lines.push(l);
+        }
+        continue;
+      }
+      const q = tallyQuantity(field(ie, 'ACTUALQTY') ?? field(ie, 'BILLEDQTY'));
+      const rate = field(ie, 'RATE');
+      items.push({
+        item: field(ie, 'STOCKITEMNAME') ?? '',
+        qty: q ? q.qty.replace('-', '') : null,
+        unit: q?.unit ?? null,
+        rate: rate ? tallyNumber(rate.split('/')[0] ?? null)?.replace('-', '') ?? null : null,
+        amount: tallyNumber(field(ie, 'AMOUNT'))?.replace('-', '') ?? null,
+        // Tally's own flag says whether stock comes in (deemed positive) where the list name does not.
+        direction: direction ?? (field(ie, 'ISDEEMEDPOSITIVE') ? (yes(ie, 'ISDEEMEDPOSITIVE') ? 'in' : 'out') : null),
+        batches: kids(ie, 'BATCHALLOCATIONS.LIST').map((b) => ({
+          godown: field(b, 'GODOWNNAME'),
+          batch: field(b, 'BATCHNAME'),
+          qty: tallyQuantity(field(b, 'ACTUALQTY'))?.qty.replace('-', '') ?? null,
+        })),
+      });
+      for (const aa of kids(ie, 'ACCOUNTINGALLOCATIONS.LIST')) {
+        const l = voucherLine(aa);
+        if (l) lines.push(l);
+      }
+    }
+  const alter = field(n, 'ALTERID');
+  return {
+    kind: 'voucher',
+    guid: field(n, 'GUID'),
+    alterId: alter ? Number(alter.trim()) : null,
+    type: field(n, 'VOUCHERTYPENAME') ?? n.attrs.VCHTYPE ?? 'Voucher',
+    number: field(n, 'VOUCHERNUMBER'),
+    date: tallyDate(field(n, 'DATE')),
+    narration: field(n, 'NARRATION'),
+    party: field(n, 'PARTYLEDGERNAME') ?? lines.find((l) => l.party)?.ledger ?? null,
+    cancelled: yes(n, 'ISCANCELLED'),
+    optional: yes(n, 'ISOPTIONAL'),
+    deleted: yes(n, 'ISDELETED') || (n.attrs.ACTION ?? '').toLowerCase() === 'delete',
+    invoice: yes(n, 'ISINVOICE'),
+    lines,
+    items,
+  };
+}
+
+/** Debits minus credits of a voucher's lines; zero for a balanced voucher. */
+export function tallyVoucherImbalance(v: Pick<TallyVoucher, 'lines'>): string {
+  let paise = 0n;
+  for (const l of v.lines) {
+    const [i, f = ''] = l.amount.split('.');
+    const value = BigInt(i!) * 1_000_000n + BigInt((f + '000000').slice(0, 6));
+    paise += l.side === 'debit' ? value : -value;
+  }
+  const neg = paise < 0n;
+  const abs = neg ? -paise : paise;
+  return normalizeDecimal(`${neg ? '-' : ''}${abs / 1_000_000n}.${(abs % 1_000_000n).toString().padStart(6, '0')}`);
+}

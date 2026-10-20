@@ -3,6 +3,7 @@ import {
   readTallyXml,
   tallyRoot,
   toTallyMaster,
+  toTallyVoucher,
   unpackTallyFiles,
   TallyArchiveTooLarge,
   type TallyGroup,
@@ -11,6 +12,7 @@ import {
   type TallyMaster,
   type TallyStockItem,
   type TallyUnit,
+  type TallyVoucher,
 } from '@factoryos/core/tally';
 import {
   accountGroup,
@@ -22,6 +24,7 @@ import {
   tallyImport,
   tallyLink,
   tallyStaged,
+  tallyVoucher,
   uom,
   warehouse,
   type Database,
@@ -38,6 +41,7 @@ import { seedChart, STANDARD_GROUPS } from '../accounting/chart.js';
 import { GlPostingService } from '../accounting/gl-posting.service.js';
 import { itemInput, normaliseParty, partyInput } from '../masters.controller.js';
 import { OpeningWriter, openingActions, openingSummary, stageOpenings } from './tally-openings.js';
+import { notInExport, stageVouchers, writeVouchers } from './tally-vouchers.js';
 
 /**
  * Decision 072: Tally XML imports. An import reads the files into staged rows, proposes an action for each
@@ -45,7 +49,7 @@ import { OpeningWriter, openingActions, openingSummary, stageOpenings } from './
  * transaction. Tally GUIDs linked here make every later import of the same company duplicate-free.
  */
 
-export type Kind = 'group' | 'ledger' | 'party' | 'stockgroup' | 'unit' | 'godown' | 'stockitem' | 'opening' | 'stock';
+export type Kind = 'group' | 'ledger' | 'party' | 'stockgroup' | 'unit' | 'godown' | 'stockitem' | 'opening' | 'stock' | 'voucher';
 export type Action = 'new' | 'link' | 'update' | 'unchanged' | 'conflict' | 'skip';
 type Candidate = { id: string; label: string; reason: string };
 type Root = 'asset' | 'liability' | 'equity' | 'income' | 'expense';
@@ -125,6 +129,7 @@ export class TallyService {
     if (!unpacked.length) throw new BadRequestException('The upload holds no .xml files');
     const warnings: string[] = [];
     const masters: TallyMaster[] = [];
+    const vouchers: TallyVoucher[] = [];
     const skippedTags = new Map<string, number>();
     let company: string | null = null;
     for (const f of unpacked) {
@@ -133,24 +138,24 @@ export class TallyService {
       warnings.push(...r.warnings.map((w) => `${f.name}: ${w}`));
       for (const o of r.objects) {
         const m = toTallyMaster(o);
+        const v = m ? null : toTallyVoucher(o);
         if (m && m.name) masters.push(m);
+        else if (v) vouchers.push(v);
         else skippedTags.set(o.tag, (skippedTags.get(o.tag) ?? 0) + 1);
       }
     }
     for (const [tag, n] of skippedTags)
-      warnings.push(
-        tag === 'VOUCHER'
-          ? `${n} vouchers were found; voucher history is imported by a later version of Tally import.`
-          : `${n} ${(TAG_NAMES[tag] ?? tag.toLowerCase()) + (n === 1 ? '' : 's')} not imported (not used by FactoryOS yet).`,
-      );
-    if (!masters.length) throw new BadRequestException({ message: 'No Tally masters were found in the upload', issues: warnings.map((w) => ({ path: 'files', message: w })) });
+      warnings.push(`${n} ${(TAG_NAMES[tag] ?? tag.toLowerCase()) + (n === 1 ? '' : 's')} not imported (not used by FactoryOS yet).`);
+    if (!masters.length && !vouchers.length)
+      throw new BadRequestException({ message: 'No Tally masters or vouchers were found in the upload', issues: warnings.map((w) => ({ path: 'files', message: w })) });
     const deduped = this.lastOfEachGuid(masters, warnings);
+    const dedupedVouchers = this.lastOfEachGuid(vouchers, warnings);
 
     return this.db.transaction(async (tx) => {
       // The standard chart may not exist yet in a new workspace; Tally's groups are matched against it.
       await lockAccounting(tx, entityId);
       await seedChart(tx, ctx, entityId);
-      const staged = await this.match(tx, ctx, entityId, deduped);
+      const staged = [...(await this.match(tx, ctx, entityId, deduped)), ...(await stageVouchers(tx, entityId, dedupedVouchers))];
       const counts = this.countActions(staged);
       const [imp] = await tx
         .insert(tallyImport)
@@ -174,9 +179,9 @@ export class TallyService {
   }
 
   /** The same GUID twice (two files from overlapping exports): keep the highest ALTERID. */
-  private lastOfEachGuid(masters: TallyMaster[], warnings: string[]) {
-    const byGuid = new Map<string, TallyMaster>();
-    const out: TallyMaster[] = [];
+  private lastOfEachGuid<T extends { guid: string | null; alterId: number | null }>(masters: T[], warnings: string[]) {
+    const byGuid = new Map<string, T>();
+    const out: T[] = [];
     let dupes = 0;
     for (const m of masters) {
       if (!m.guid) {
@@ -438,7 +443,7 @@ export class TallyService {
       .groupBy(tallyStaged.kind, tallyStaged.action);
     const current: Record<string, number> = {};
     for (const r of rows) current[`${r.kind}.${r.action}`] = r.n;
-    return { ...imp, current, openings: await this.openings(db, entityId, id) };
+    return { ...imp, current, openings: await this.openings(db, entityId, id), missing: await notInExport(db, entityId, id) };
   }
 
   /** Opening balances and stock as currently decided, with what the commit would replace; null when there are none. */
@@ -484,6 +489,16 @@ export class TallyService {
           throw new BadRequestException(`"${row.name}" has no unit in Tally, so it cannot be created. Link it to an existing item, or skip it.`);
         let targetId: string | null = null;
         if (d.action === 'link' || d.action === 'update' || d.action === 'unchanged') {
+          if (row.kind === 'voucher') {
+            // A voucher only re-syncs onto the history row with its own GUID; the choice of target is not the client's.
+            const [own] = await tx
+              .select({ id: tallyVoucher.id })
+              .from(tallyVoucher)
+              .where(and(eq(tallyVoucher.entityId, entityId), eq(tallyVoucher.guid, row.guid ?? '')));
+            if (!own || (d.targetId && d.targetId !== own.id)) throw new BadRequestException(`"${row.name}" can only update its own Tally history`);
+            await tx.update(tallyStaged).set({ action: d.action, targetId: own.id }).where(eq(tallyStaged.id, row.id));
+            continue;
+          }
           targetId = d.targetId ?? row.targetId;
           if (!targetId) throw new BadRequestException(`Choose the FactoryOS record to link "${row.name}" to`);
           const taken = await this.assertTarget(tx, ctx, entityId, row.kind as Kind, targetId);
@@ -499,6 +514,7 @@ export class TallyService {
   allowedActions(row: { proposed: string; kind: string; payload?: unknown }): Action[] {
     if (row.kind === 'stockgroup') return ['skip'];
     if (row.kind === 'opening' || row.kind === 'stock') return openingActions({ ...row, payload: row.payload });
+    if (row.kind === 'voucher') return row.proposed === 'update' || row.proposed === 'unchanged' ? ['update', 'unchanged', 'skip'] : ['new', 'skip'];
     if (row.proposed === 'update' || row.proposed === 'unchanged') return ['update', 'unchanged', 'skip'];
     return ['new', 'link', 'skip'];
   }
@@ -600,6 +616,18 @@ export class TallyService {
         if (resultId !== r.resultId) await tx.update(tallyStaged).set({ resultId }).where(eq(tallyStaged.id, r.id));
         results[`${r.kind}.${r.action}`] = (results[`${r.kind}.${r.action}`] ?? 0) + 1;
       }
+      // History last: its lines link to the ledgers and parties written above (decision 072, part 3).
+      const voucherRows = rows.filter((x) => x.kind === 'voucher');
+      const voucherResults = await writeVouchers(tx, ctx, entityId, imp.id, this.audit, voucherRows);
+      const pairs = [...voucherResults];
+      for (let i = 0; i < pairs.length; i += 1000) {
+        const chunk = pairs.slice(i, i + 1000);
+        // Both arrays travel as bound parameters in Postgres array syntax.
+        const ids = `{${chunk.map(([k]) => k).join(',')}}`;
+        const targets = `{${chunk.map(([, v]) => v).join(',')}}`;
+        await tx.execute(sql`update ${tallyStaged} set result_id = v.result_id from unnest(${ids}::uuid[], ${targets}::uuid[]) as v(id, result_id) where ${tallyStaged.id} = v.id`);
+      }
+      for (const r of voucherRows) results[`${r.kind}.${r.action}`] = (results[`${r.kind}.${r.action}`] ?? 0) + 1;
       const [done] = await tx.update(tallyImport).set({ status: 'committed', committedBy: ctx.user.id, committedAt: new Date() }).where(eq(tallyImport.id, imp.id)).returning();
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'accounts.tally.import', targetType: 'tally_import', targetId: imp.id, after: { results } }, tx);
       return { ...done!, results };
