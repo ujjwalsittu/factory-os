@@ -4,12 +4,16 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../../common/access.js';
 import { parse } from '../../common/validation.js';
-import { entityOf } from '../accounting/accounting-lock.js';
+import { businessDate, entityOf } from '../accounting/accounting-lock.js';
+import { AuditService } from '../../common/audit.service.js';
+import { listBooks, setBook } from './tally-books.js';
 import { DB } from '../../common/tokens.js';
 import { TallyService } from './tally.service.js';
 import { getVoucher, listVouchers } from './tally-vouchers.js';
+import { listMappings, setLedgerItem, setVoucherType } from './tally-documents.js';
+import { TALLY_DOCUMENT_KINDS } from '@factoryos/core/tally-documents';
 
-const KINDS = ['group', 'ledger', 'party', 'stockgroup', 'unit', 'godown', 'stockitem', 'opening', 'stock', 'voucher'] as const;
+const KINDS = ['group', 'ledger', 'party', 'stockgroup', 'unit', 'godown', 'stockitem', 'opening', 'stock', 'voucher', 'document'] as const;
 const ACTIONS = ['new', 'link', 'update', 'unchanged', 'conflict', 'skip'] as const;
 const rowsQuery = z.object({
   kind: z.enum(KINDS).optional(),
@@ -72,6 +76,12 @@ export class TallyController {
     return this.tally.commit(ctx, entityOf(ctx), id, acceptDifference);
   }
 
+  @Post(':id/recheck')
+  @RequirePermission('accounts.tally.import')
+  recheck(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
+    return this.tally.recheck(ctx, entityOf(ctx), id);
+  }
+
   @Post(':id/discard')
   @RequirePermission('accounts.tally.import')
   discard(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
@@ -106,5 +116,63 @@ export class TallyHistoryController {
   @RequirePermission('accounts.tally.read')
   get(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
     return getVoucher(this.db, entityOf(ctx), id);
+  }
+}
+
+const bookInput = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), book: z.enum(['tally', 'factoryos']) });
+
+/** Decision 075: which book each month is kept in, from the cut-over on. */
+@Controller('tally/books')
+export class TallyBooksController {
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly audit: AuditService,
+  ) {}
+
+  @Get()
+  @RequirePermission('accounts.tally.read')
+  list(@Ctx() ctx: TenantRequestContext) {
+    return listBooks(this.db, entityOf(ctx), businessDate());
+  }
+
+  @Put()
+  @RequirePermission('accounts.tally.import')
+  set(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
+    const { month, book } = parse(bookInput, body);
+    return setBook(this.db, ctx, entityOf(ctx), this.audit, month, book);
+  }
+}
+
+const voucherTypeInput = z.object({ voucherType: z.string().trim().min(1).max(120), documentKind: z.enum([...TALLY_DOCUMENT_KINDS, 'none']).nullable() });
+const ledgerItemInput = z.object({ ledger: z.string().trim().min(1).max(200), itemId: z.uuid().nullable() });
+
+/** Decision 075: what each Tally voucher type becomes, and which service item a ledger is booked as. */
+@Controller('tally/mappings')
+export class TallyMappingsController {
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly audit: AuditService,
+  ) {}
+
+  @Get()
+  @RequirePermission('accounts.tally.read')
+  list(@Ctx() ctx: TenantRequestContext) {
+    return listMappings(this.db, ctx.tenant.tenantId, entityOf(ctx));
+  }
+
+  @Put('voucher-types')
+  @RequirePermission('accounts.tally.import')
+  async voucherType(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
+    const { voucherType, documentKind } = parse(voucherTypeInput, body);
+    await this.db.transaction((tx) => setVoucherType(tx, ctx, entityOf(ctx), this.audit, voucherType, documentKind));
+    return listMappings(this.db, ctx.tenant.tenantId, entityOf(ctx));
+  }
+
+  @Put('ledgers')
+  @RequirePermission('accounts.tally.import')
+  async ledger(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
+    const { ledger, itemId } = parse(ledgerItemInput, body);
+    await this.db.transaction((tx) => setLedgerItem(tx, ctx, entityOf(ctx), this.audit, ledger, itemId));
+    return listMappings(this.db, ctx.tenant.tenantId, entityOf(ctx));
   }
 }

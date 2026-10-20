@@ -42,6 +42,9 @@ import { GlPostingService } from '../accounting/gl-posting.service.js';
 import { itemInput, normaliseParty, partyInput } from '../masters.controller.js';
 import { OpeningWriter, openingActions, openingSummary, stageOpenings } from './tally-openings.js';
 import { notInExport, stageVouchers, writeVouchers } from './tally-vouchers.js';
+import { refreshDocuments, stageDocuments, writeDocuments } from './tally-documents.js';
+import { OperationalPostings } from '../accounting/operational-postings.js';
+import { StockPostingService } from '../stock-posting.service.js';
 
 /**
  * Decision 072: Tally XML imports. An import reads the files into staged rows, proposes an action for each
@@ -49,7 +52,7 @@ import { notInExport, stageVouchers, writeVouchers } from './tally-vouchers.js';
  * transaction. Tally GUIDs linked here make every later import of the same company duplicate-free.
  */
 
-export type Kind = 'group' | 'ledger' | 'party' | 'stockgroup' | 'unit' | 'godown' | 'stockitem' | 'opening' | 'stock' | 'voucher';
+export type Kind = 'group' | 'ledger' | 'party' | 'stockgroup' | 'unit' | 'godown' | 'stockitem' | 'opening' | 'stock' | 'voucher' | 'document';
 export type Action = 'new' | 'link' | 'update' | 'unchanged' | 'conflict' | 'skip';
 type Candidate = { id: string; label: string; reason: string };
 type Root = 'asset' | 'liability' | 'equity' | 'income' | 'expense';
@@ -113,6 +116,8 @@ export class TallyService {
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly gl: GlPostingService,
+    private readonly stock: StockPostingService,
+    private readonly accounting: OperationalPostings,
   ) {}
 
   // ── Read and stage ──
@@ -155,7 +160,7 @@ export class TallyService {
       // The standard chart may not exist yet in a new workspace; Tally's groups are matched against it.
       await lockAccounting(tx, entityId);
       await seedChart(tx, ctx, entityId);
-      const staged = [...(await this.match(tx, ctx, entityId, deduped)), ...(await stageVouchers(tx, entityId, dedupedVouchers))];
+      const staged = [...(await this.match(tx, ctx, entityId, deduped)), ...(await stageVouchers(tx, entityId, dedupedVouchers)), ...(await stageDocuments(tx, ctx.tenant.tenantId, entityId, dedupedVouchers, deduped.length > 0))];
       const counts = this.countActions(staged);
       const [imp] = await tx
         .insert(tallyImport)
@@ -489,6 +494,11 @@ export class TallyService {
           throw new BadRequestException(`"${row.name}" has no unit in Tally, so it cannot be created. Link it to an existing item, or skip it.`);
         let targetId: string | null = null;
         if (d.action === 'link' || d.action === 'update' || d.action === 'unchanged') {
+          if (row.kind === 'document') {
+            // Decision 075: a document row only keeps the document its own voucher already became.
+            await tx.update(tallyStaged).set({ action: d.action, targetId: row.targetId }).where(eq(tallyStaged.id, row.id));
+            continue;
+          }
           if (row.kind === 'voucher') {
             // A voucher only re-syncs onto the history row with its own GUID; the choice of target is not the client's.
             const [own] = await tx
@@ -515,6 +525,8 @@ export class TallyService {
     if (row.kind === 'stockgroup') return ['skip'];
     if (row.kind === 'opening' || row.kind === 'stock') return openingActions({ ...row, payload: row.payload });
     if (row.kind === 'voucher') return row.proposed === 'update' || row.proposed === 'unchanged' ? ['update', 'unchanged', 'skip'] : ['new', 'skip'];
+    // Decision 075: a voucher in a Tally month becomes a document, or stays history (skip); a conflict can only be skipped.
+    if (row.kind === 'document') return row.proposed === 'new' ? ['new', 'skip'] : row.proposed === 'unchanged' ? ['unchanged', 'skip'] : ['skip'];
     if (row.proposed === 'update' || row.proposed === 'unchanged') return ['update', 'unchanged', 'skip'];
     return ['new', 'link', 'skip'];
   }
@@ -546,6 +558,15 @@ export class TallyService {
     if (!imp) throw new NotFoundException('Import not found');
     if (imp.status !== 'read') throw new ConflictException(`This import is already ${imp.status}`);
     return imp;
+  }
+
+  /** Checks the vouchers of months kept in Tally again, after masters were linked or mappings changed elsewhere. */
+  async recheck(ctx: TenantRequestContext, entityId: string, id: string) {
+    return this.db.transaction(async (tx) => {
+      const imp = await this.openImport(tx, entityId, id);
+      await refreshDocuments(tx, ctx.tenant.tenantId, entityId, imp.id);
+      return this.get(entityId, id, tx);
+    });
   }
 
   async discard(ctx: TenantRequestContext, entityId: string, id: string) {
@@ -628,6 +649,13 @@ export class TallyService {
         await tx.execute(sql`update ${tallyStaged} set result_id = v.result_id from unnest(${ids}::uuid[], ${targets}::uuid[]) as v(id, result_id) where ${tallyStaged.id} = v.id`);
       }
       for (const r of voucherRows) results[`${r.kind}.${r.action}`] = (results[`${r.kind}.${r.action}`] ?? 0) + 1;
+      // Decision 075: documents last, after the masters they link to and the history rows that point at them.
+      const documentResults = await writeDocuments(tx, ctx, entityId, imp.id, rows, { stock: this.stock, accounting: this.accounting, audit: this.audit });
+      for (const r of rows.filter((x) => x.kind === 'document')) {
+        const resultId = documentResults.get(r.id) ?? r.targetId ?? null;
+        if (resultId !== r.resultId) await tx.update(tallyStaged).set({ resultId }).where(eq(tallyStaged.id, r.id));
+        results[`${r.kind}.${r.action}`] = (results[`${r.kind}.${r.action}`] ?? 0) + 1;
+      }
       const [done] = await tx.update(tallyImport).set({ status: 'committed', committedBy: ctx.user.id, committedAt: new Date() }).where(eq(tallyImport.id, imp.id)).returning();
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'accounts.tally.import', targetType: 'tally_import', targetId: imp.id, after: { results } }, tx);
       return { ...done!, results };

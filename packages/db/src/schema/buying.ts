@@ -1,6 +1,8 @@
 // Buying: purchase orders, incoming inspection, purchase invoices (slice 1b).
 // Goods receipts are stock entries (purpose 'receipt') linked to a PO, so they post through the one stock engine.
 import { bigint, boolean, date, index, integer, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { tallySource } from './tally-source.js';
+import { sql } from 'drizzle-orm';
 import { user } from './auth.js';
 import { batch, docStatus, stockEntry, stockEntryLine, warehouse } from './inventory.js';
 import { item, party, qty } from './masters.js';
@@ -166,11 +168,13 @@ export const purchaseInvoice = pgTable(
     totalTax: money('total_tax'),
     grandTotal: money('grand_total'),
     remarks: text('remarks'),
+    ...tallySource(),
     ...audit,
   },
   (t) => [uniqueIndex('purchase_invoice_scope_uq').on(t.id,t.tenantId,t.entityId),
     uniqueIndex('purchase_invoice_entity_number_uq').on(t.entityId, t.number),
     index('purchase_invoice_supplier_idx').on(t.entityId, t.supplierId, t.supplierInvoiceNo),
+    uniqueIndex('purchase_invoice_tally_guid_uq').on(t.entityId, t.tallyGuid).where(sql`${t.tallyGuid} is not null and ${t.status} <> 'cancelled'`),
   ],
 );
 

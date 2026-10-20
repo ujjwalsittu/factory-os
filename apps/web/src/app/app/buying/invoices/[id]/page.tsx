@@ -1,4 +1,5 @@
 'use client';
+import { TallyBanner, type TallySourced } from '@/components/tally-documents';
 import { Alert } from '@factoryos/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
@@ -14,7 +15,12 @@ function Invoice() {
   const q = useQuery({ queryKey: ['purchase-invoice', id, ws.entityId], queryFn: () => api<PurchaseInvoiceDetail>(`/purchase-invoices/${id}`, { scope: ws.scope }), retry: false });
   if (q.error) return <Alert tone="danger" title="Can't open this invoice">{q.error.message}. It may belong to another legal entity.</Alert>;
   if (!q.data) return <p className="text-muted">Loading…</p>;
-  return <PurchaseInvoiceForm key={`${q.data.id}:${q.data.status}`} invoice={q.data} />;
+  return (
+    <div className="space-y-4">
+      <TallyBanner doc={q.data as TallySourced} />
+      <PurchaseInvoiceForm key={`${q.data.id}:${q.data.status}`} invoice={q.data} />
+    </div>
+  );
 }
 
 export default function Page() {

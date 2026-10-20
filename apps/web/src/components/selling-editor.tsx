@@ -1,4 +1,5 @@
 'use client';
+import { TallyBanner, type TallySourced } from './tally-documents';
 import { Alert } from '@factoryos/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -54,11 +55,14 @@ function Editor({ kind, fresh }: { kind: SellingKind; fresh: boolean }) {
   if ((!fresh && !q.data) || (so && !order.data))
     return <p className="text-muted">Loading…</p>;
   return (
-    <SellingForm
-      key={`${ws.entityId}:${id ?? 'new'}:${q.data?.status ?? 'draft'}`}
-      kind={kind}
-      doc={q.data}
-      sourceOrder={order.data}
-    />
+    <div className="space-y-4">
+      <TallyBanner doc={q.data as TallySourced | undefined} />
+      <SellingForm
+        key={`${ws.entityId}:${id ?? 'new'}:${q.data?.status ?? 'draft'}`}
+        kind={kind}
+        doc={q.data}
+        sourceOrder={order.data}
+      />
+    </div>
   );
 }

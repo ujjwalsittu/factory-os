@@ -469,6 +469,8 @@ export interface TallyVoucherLine {
   bills: TallyVoucherBill[];
   /** True for the party's line (Tally's ISPARTYLEDGER). */
   party: boolean;
+  /** True when Tally held this amount inside an inventory line (its ACCOUNTINGALLOCATIONS), not as a voucher line. */
+  allocation?: boolean;
 }
 
 export interface TallyVoucherItem {
@@ -480,6 +482,8 @@ export interface TallyVoucherItem {
   /** In for a receipt of stock, out for an issue; null when Tally does not say. */
   direction: 'in' | 'out' | null;
   batches: { godown: string | null; batch: string | null; qty: string | null }[];
+  /** The sales or purchase ledger the item's amount was booked to (its first accounting allocation). */
+  ledger?: string | null;
 }
 
 export interface TallyVoucher {
@@ -496,6 +500,9 @@ export interface TallyVoucher {
   optional: boolean;
   deleted: boolean;
   invoice: boolean;
+  /** The supplier's invoice number and date on a purchase (Tally's REFERENCE and REFERENCEDATE). */
+  reference?: string | null;
+  referenceDate?: string | null;
   /** Every ledger amount, including those held inside inventory lines (ACCOUNTINGALLOCATIONS). */
   lines: TallyVoucherLine[];
   items: TallyVoucherItem[];
@@ -532,11 +539,12 @@ export function toTallyVoucher(o: TallyObject): TallyVoucher | null {
   for (const [tag, direction] of inventory)
     for (const ie of kids(n, tag)) {
       // Tally writes empty inventory lists on vouchers without stock; only their accounting allocations count.
+      const allocations = kids(ie, 'ACCOUNTINGALLOCATIONS.LIST')
+        .map(voucherLine)
+        .filter((l): l is TallyVoucherLine => !!l)
+        .map((l) => ({ ...l, allocation: true }));
       if (!field(ie, 'STOCKITEMNAME')) {
-        for (const aa of kids(ie, 'ACCOUNTINGALLOCATIONS.LIST')) {
-          const l = voucherLine(aa);
-          if (l) lines.push(l);
-        }
+        lines.push(...allocations);
         continue;
       }
       const q = tallyQuantity(field(ie, 'ACTUALQTY') ?? field(ie, 'BILLEDQTY'));
@@ -554,11 +562,9 @@ export function toTallyVoucher(o: TallyObject): TallyVoucher | null {
           batch: field(b, 'BATCHNAME'),
           qty: tallyQuantity(field(b, 'ACTUALQTY'))?.qty.replace('-', '') ?? null,
         })),
+        ledger: allocations[0]?.ledger ?? null,
       });
-      for (const aa of kids(ie, 'ACCOUNTINGALLOCATIONS.LIST')) {
-        const l = voucherLine(aa);
-        if (l) lines.push(l);
-      }
+      lines.push(...allocations);
     }
   const alter = field(n, 'ALTERID');
   return {
@@ -574,6 +580,8 @@ export function toTallyVoucher(o: TallyObject): TallyVoucher | null {
     optional: yes(n, 'ISOPTIONAL'),
     deleted: yes(n, 'ISDELETED') || (n.attrs.ACTION ?? '').toLowerCase() === 'delete',
     invoice: yes(n, 'ISINVOICE'),
+    reference: field(n, 'REFERENCE'),
+    referenceDate: tallyDate(field(n, 'REFERENCEDATE')),
     lines,
     items,
   };

@@ -11,7 +11,11 @@ import {
   salesInvoice,
   stockEntry,
   stockEntryLine,
+  tradeBill,
+  tradeBillEffect,
   type purchaseInvoice,
+  type salesNote,
+  type supplierNote,
   type landedCostVoucher,
 } from '@factoryos/db';
 import { BadRequestException, Injectable } from '@nestjs/common';
@@ -100,7 +104,8 @@ export class OperationalPostings {
           (entry.purpose === 'adjustment' && row.toWarehouseId)
         ) {
           lines.add('inventory', value);
-          lines.add(entry.purchaseOrderId ? 'grni' : 'adjustment', value.neg());
+          // A Tally purchase (decision 075) receives without a PO; its invoice clears GRNI like one with a PO.
+          lines.add(entry.purchaseOrderId || entry.source === 'tally' ? 'grni' : 'adjustment', value.neg());
         } else {
           lines.add(
             entry.purpose === 'delivery'
@@ -300,6 +305,79 @@ export class OperationalPostings {
       invoice.postingDate,
       lines.plan(),
     );
+  }
+  /**
+   * Decision 075: a purchase brought in from Tally. Its stock came in on a Tally receipt that credited GRNI at the
+   * invoice's own value, so the stock lines clear GRNI; there is no purchase order to allocate against.
+   */
+  async tallyPurchaseIn(tx: Tx, ctx: TenantRequestContext, entityId: string, invoice: typeof purchaseInvoice.$inferSelect, receiptValue: Dec) {
+    const settings = await this.gl.active(tx, entityId);
+    if (!settings) return;
+    const lines = new Lines(settings.mappings);
+    const rows = await tx
+      .select({ line: purchaseInvoiceLine, item })
+      .from(purchaseInvoiceLine)
+      .innerJoin(item, eq(item.id, purchaseInvoiceLine.itemId))
+      .where(eq(purchaseInvoiceLine.invoiceId, invoice.id));
+    lines.add('grni', receiptValue);
+    for (const { line, item: it } of rows) if (!it.isStockItem) lines.add('purchases', Dec.of(line.taxableValue ?? '0'));
+    for (const tax of ['cgst', 'sgst', 'igst', 'cess'] as const)
+      lines.add(invoice.itcEligible ? `input_${tax}` : 'noncreditable_tax', Dec.of(invoice[tax] ?? '0'), { gstRegistrationId: invoice.gstRegistrationId ?? undefined });
+    lines.add('creditors', Dec.of(invoice.grandTotal ?? '0').neg(), { partyId: invoice.supplierId, billReference: invoice.supplierInvoiceNo });
+    await this.gl.postIn(
+      tx,
+      ctx,
+      entityId,
+      { type: 'purchase_invoice', id: invoice.id, purpose: 'main', number: invoice.number, currency: invoice.currency, exchangeRate: invoice.exchangeRate },
+      invoice.postingDate,
+      lines.plan(),
+    );
+  }
+  /**
+   * Decision 075a: a customer credit note from Tally reverses revenue and output tax at Tally's amounts. Goods it brings
+   * back were received on a Tally receipt (inventory against GRNI); that GRNI is cleared to cost of sales here.
+   */
+  async tallySalesNoteIn(tx: Tx, ctx: TenantRequestContext, entityId: string, note: typeof salesNote.$inferSelect, stockValue: Dec) {
+    const settings = await this.gl.active(tx, entityId);
+    if (!settings) return { voucherId: null, billId: null };
+    const lines = new Lines(settings.mappings);
+    lines.add('debtors', Dec.of(note.grandTotal).neg(), { partyId: note.customerId, billReference: note.number! });
+    lines.add('sales', Dec.of(note.taxableValue));
+    for (const tax of ['cgst', 'sgst', 'igst', 'cess'] as const) lines.add(`output_${tax}`, Dec.of(note[tax]), { gstRegistrationId: note.gstRegistrationId });
+    lines.add('grni', stockValue);
+    lines.add('cogs', stockValue.neg());
+    const { voucherId } = await this.gl.postIn(tx, ctx, entityId, { type: 'sales_note', id: note.id, purpose: 'main', number: note.number }, note.postingDate, lines.plan());
+    const billId = await this.noteBill(tx, ctx, entityId, 'receivable', settings.mappings.debtors!, note.customerId, note.number!, 'sales_note', note.id, note.grandTotal, note.postingDate);
+    return { voucherId: voucherId ?? null, billId };
+  }
+
+  /**
+   * Decision 075a: a debit note raised in Tally on a supplier lowers what is owed. Goods sent back left on a Tally
+   * adjustment (adjustment against inventory), cleared here; any gap to Tally's value goes to purchases.
+   */
+  async tallySupplierNoteIn(tx: Tx, ctx: TenantRequestContext, entityId: string, note: typeof supplierNote.$inferSelect, stockValue: Dec) {
+    const settings = await this.gl.active(tx, entityId);
+    if (!settings) return { voucherId: null, billId: null };
+    const lines = new Lines(settings.mappings);
+    lines.add('creditors', Dec.of(note.grandTotal), { partyId: note.supplierId, billReference: note.supplierNoteNo });
+    lines.add('adjustment', stockValue.neg());
+    lines.add('purchases', Dec.of(note.taxableValue).sub(stockValue).neg());
+    for (const tax of ['cgst', 'sgst', 'igst', 'cess'] as const) lines.add(`input_${tax}`, Dec.of(note[tax]).neg());
+    const { voucherId } = await this.gl.postIn(tx, ctx, entityId, { type: 'supplier_note', id: note.id, purpose: 'main', number: note.number }, note.postingDate, lines.plan());
+    const billId = await this.noteBill(tx, ctx, entityId, 'payable', settings.mappings.creditors!, note.supplierId, note.supplierNoteNo, 'supplier_note', note.id, note.grandTotal, note.postingDate);
+    return { voucherId: voucherId ?? null, billId };
+  }
+
+  /** Notes record their own open item, as the note services do: a credit against the party, open for allocation. */
+  private async noteBill(tx: Tx, ctx: TenantRequestContext, entityId: string, side: 'receivable' | 'payable', accountId: string, partyId: string, reference: string, sourceType: string, sourceId: string, total: string, date: string) {
+    const tenantId = ctx.tenant.tenantId;
+    const [bill] = await tx
+      .insert(tradeBill)
+      .values({ tenantId, entityId, side, kind: 'journal_credit', partyId, accountId, reference, sourceType, sourceId, originKey: `${sourceType}:${sourceId}`, currency: 'INR', originalAmount: total, recognitionDate: date })
+      .returning();
+    const amount = Dec.of(total).neg().toString();
+    await tx.insert(tradeBillEffect).values({ tenantId, entityId, billId: bill!.id, sourceType, sourceId, originKey: `${sourceType}:${sourceId}:recognition`, postingDate: date, amount, carryingInr: amount });
+    return bill!.id;
   }
   async salesIn(
     tx: Tx,

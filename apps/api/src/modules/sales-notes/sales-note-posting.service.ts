@@ -5,6 +5,7 @@ import { and,eq,sql } from 'drizzle-orm';
 import type {TenantRequestContext} from '../../common/access.js';
 import type {Tx} from '../accounting/accounting-lock.js';
 import { GlPostingService } from '../accounting/gl-posting.service.js';
+import { originalInvoiceOf } from '../tally/tally-books.js';
 export type SalesNote=typeof salesNote.$inferSelect;
 @Injectable()
 export class SalesNotePostingService {
@@ -40,7 +41,7 @@ export class SalesNotePostingService {
  }
  async recognizeIn(tx:Tx,ctx:TenantRequestContext,entityId:string,note:SalesNote){
   const totals={taxableValue:note.taxableValue,cgst:note.cgst,sgst:note.sgst,igst:note.igst,cess:note.cess};
-  const plan=await this.planIn(tx,ctx,entityId,note.originalInvoiceId,note.customerId,note.kind as 'credit'|'debit',note.exchangeRate,totals,note.number!);
+  const plan=await this.planIn(tx,ctx,entityId,originalInvoiceOf(note),note.customerId,note.kind as 'credit'|'debit',note.exchangeRate,totals,note.number!);
   const {voucherId}=await this.gl.postIn(tx,ctx,entityId,{type:'sales_note',id:note.id,purpose:'main',number:note.number,currency:note.currency,exchangeRate:note.exchangeRate,evidenceVoucherIds:[plan.evidenceVoucherId]},note.postingDate,{lines:plan.lines,disposition:'posted'});
   const [bill]=await tx.insert(tradeBill).values({tenantId:ctx.tenant.tenantId,entityId,side:'receivable',kind:note.kind==='credit'?'journal_credit':'bill',partyId:note.customerId,accountId:plan.accountId,reference:note.number!,sourceType:'sales_note',sourceId:note.id,originKey:`sales_note:${note.id}`,currency:note.currency,originalAmount:note.grandTotal,recognitionDate:note.postingDate,dueDate:note.kind==='debit'?note.dueDate:null}).returning();
   const sign=note.kind==='credit'?Dec.of('-1'):Dec.of('1');

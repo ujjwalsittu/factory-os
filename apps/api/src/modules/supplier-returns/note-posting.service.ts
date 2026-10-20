@@ -6,13 +6,14 @@ import {and,eq,sql} from 'drizzle-orm';
 import type {TenantRequestContext} from '../../common/access.js';
 import type {Tx} from '../accounting/accounting-lock.js';
 import {GlPostingService} from '../accounting/gl-posting.service.js';
+import {originalInvoiceOf} from '../tally/tally-books.js';
 import {SupplierReturnClaimService} from './claim.service.js';
 import type {SupplierNotePreview} from './contracts.js';
 @Injectable()
 export class SupplierNotePostingService {
  constructor(private readonly claims:SupplierReturnClaimService,private readonly gl:GlPostingService){}
  async recognizeIn(tx:Tx,ctx:TenantRequestContext,e:string,note:typeof supplierNote.$inferSelect,p:SupplierNotePreview){
- const source=await this.claims.sourceIn(tx,ctx,e,note.originalInvoiceId);
+ const originalId=originalInvoiceOf(note);const source=await this.claims.sourceIn(tx,ctx,e,originalId);
  const originals=await tx.select({l:glEntry,a:glAccount}).from(glEntry).innerJoin(glAccount,eq(glAccount.id,glEntry.accountId)).where(and(eq(glEntry.voucherId,source.voucher.id),eq(glEntry.entityId,e),eq(glEntry.tenantId,ctx.tenant.tenantId)));
  const creditor=originals.find(x=>x.l.partyId===note.supplierId&&Dec.of(x.l.credit).gt('0'));if(!creditor)throw new ConflictException('Original supplier payable evidence missing');
  const [settings]=await tx.select().from(accountingSettings).where(eq(accountingSettings.entityId,e));
@@ -21,7 +22,7 @@ export class SupplierNotePostingService {
  const evidenceVoucherIds=[source.voucher.id];const plan:AccountingLine[]=[];const sign=note.kind==='credit'?Dec.of('1'):Dec.of('-1');const add=(accountId:string|undefined,debit:Dec,extra:Partial<AccountingLine>={})=>{if(debit.isZero())return;if(!accountId)throw new ConflictException('Supplier adjustment account mapping missing');plan.push({accountId,debit:debit.gt('0')?debit.toFixed(6):'0',credit:debit.lt('0')?debit.neg().toFixed(6):'0',...extra});};
  add(creditor.l.accountId,Dec.of(p.grandTotal).mul(note.exchangeRate).mul(sign),{partyId:note.supplierId,billReference:note.number!});
  for(const l of p.lines){
- const [row]=await tx.select({l:purchaseInvoiceLine,i:item}).from(purchaseInvoiceLine).innerJoin(item,eq(item.id,purchaseInvoiceLine.itemId)).where(and(eq(purchaseInvoiceLine.id,l.invoiceLineId),eq(purchaseInvoiceLine.invoiceId,note.originalInvoiceId)));
+ const [row]=await tx.select({l:purchaseInvoiceLine,i:item}).from(purchaseInvoiceLine).innerJoin(item,eq(item.id,purchaseInvoiceLine.itemId)).where(and(eq(purchaseInvoiceLine.id,l.invoiceLineId),eq(purchaseInvoiceLine.invoiceId,originalId)));
  if(!row)throw new ConflictException('Original purchase line missing');
  const taxable=Dec.of(l.taxableAmount).mul(note.exchangeRate),pending=Dec.of(l.pendingValueInr);
  let adjustment=role('return_variance');

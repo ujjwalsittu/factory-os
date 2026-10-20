@@ -10,11 +10,13 @@ import {
   ACTION_LABEL,
   actionLabel,
   allowedActions,
+  DOCUMENT_PATH,
   KIND_LABEL,
   KINDS,
   TARGET_SOURCE,
   uploadTally,
   type TallyAction,
+  type TallyDocumentKind,
   type TallyImport,
   type TallyKind,
   type TallyRow,
@@ -82,6 +84,13 @@ function ImportsContent() {
           </li>
           <li>Upload the file here. Several files, or a .zip of them, are fine.</li>
         </ol>
+        <p className="px-5 pb-3 text-sm">
+          Still invoicing in Tally for some months? Set those months under{' '}
+          <Link href="/app/accounts/tally/books" className="text-accent hover:underline">
+            Books by month
+          </Link>
+          : their sales, purchases and notes then come in as FactoryOS documents.
+        </p>
         <p className="px-5 pb-5 text-sm text-muted">
           Nothing is saved when you upload. You see what will be created, linked to existing records, or skipped, and you
           confirm before anything is written. Importing a newer export later updates what changed and never duplicates.
@@ -201,8 +210,13 @@ function DetailContent({ id }: { id: string }) {
     onSuccess: () => {
       setConfirm(false);
       refresh();
-      for (const k of ['accounts', 'account-groups', 'parties', 'items', 'warehouses', 'uoms', 'opening', 'stock-entries']) void qc.invalidateQueries({ queryKey: [k] });
+      for (const k of ['accounts', 'account-groups', 'parties', 'items', 'warehouses', 'uoms', 'opening', 'stock-entries', 'sales-invoices', 'purchase-invoices', 'sales-notes', 'supplier-notes'])
+        void qc.invalidateQueries({ queryKey: [k] });
     },
+  });
+  const recheck = useMutation({
+    mutationFn: () => api(`/tally/imports/${id}/recheck`, { method: 'POST', body: {}, scope: ws.scope }),
+    onSuccess: refresh,
   });
   const discard = useMutation({
     mutationFn: () => api(`/tally/imports/${id}/discard`, { method: 'POST', body: {}, scope: ws.scope }),
@@ -236,7 +250,10 @@ function DetailContent({ id }: { id: string }) {
           <Badge tone={STATUS[i.status].tone}>{STATUS[i.status].label}</Badge>
           {editable && (
             <>
-              <Button className="ml-auto" variant="secondary" loading={discard.isPending} onClick={() => discard.mutate()}>
+              <Button className="ml-auto" variant="ghost" loading={recheck.isPending} onClick={() => recheck.mutate()}>
+                Check again
+              </Button>
+              <Button variant="secondary" loading={discard.isPending} onClick={() => discard.mutate()}>
                 Discard
               </Button>
               <Button
@@ -263,9 +280,18 @@ function DetailContent({ id }: { id: string }) {
             </Alert>
           </div>
         )}
-        {(discard.error || commit.error) && (
+        {(discard.error || commit.error || recheck.error) && (
           <div className="px-5 pb-5">
-            <Alert tone="danger">{(discard.error ?? commit.error)!.message}</Alert>
+            <Alert tone="danger">
+              {(discard.error ?? commit.error ?? recheck.error)!.message}
+              {commit.error instanceof ApiError && commit.error.issues.length > 0 && (
+                <ul className="mt-1 list-disc pl-5">
+                  {commit.error.issues.map((x, n) => (
+                    <li key={n}>{x.message}</li>
+                  ))}
+                </ul>
+              )}
+            </Alert>
           </div>
         )}
       </Card>
@@ -302,6 +328,8 @@ function DetailContent({ id }: { id: string }) {
           FactoryOS books.
         </p>
       )}
+
+      {total(current, (k) => k === 'document') > 0 && <DocumentsNote counts={current} status={i.status} />}
 
       <Card>
         <div className="flex flex-wrap items-end gap-3 p-5">
@@ -376,6 +404,12 @@ function DetailContent({ id }: { id: string }) {
               FactoryOS books.
             </p>
           )}
+          {total(current, (k, a) => k === 'document' && a === 'new') > 0 && (
+            <p className="text-sm">
+              {total(current, (k, a) => k === 'document' && a === 'new')} vouchers in months kept in Tally become submitted FactoryOS documents, with
+              stock and books, at Tally&apos;s numbers and amounts.
+            </p>
+          )}
           {openings && openings.included > 0 && (
             <p className="text-sm">
               Opening balances replace the opening worksheet&apos;s lines and bills, and opening stock is saved as draft receipts to
@@ -397,7 +431,26 @@ function DetailContent({ id }: { id: string }) {
   );
 }
 
-const OPENING_KINDS = new Set(['opening', 'stock', 'voucher']);
+const OPENING_KINDS = new Set(['opening', 'stock', 'voucher', 'document']);
+
+/** Decision 075: vouchers in months kept in Tally, and how to clear the ones that cannot come in yet. */
+function DocumentsNote({ counts, status }: { counts: Record<string, number>; status: TallyImport['status'] }) {
+  const n = (a: string) => counts[`document.${a}`] ?? 0;
+  return (
+    <Alert tone={n('conflict') ? 'warning' : 'info'}>
+      {status === 'committed'
+        ? `${n('new')} vouchers in months kept in Tally became FactoryOS documents.`
+        : `${n('new')} vouchers in months kept in Tally will become FactoryOS documents; ${n('unchanged')} already are.`}{' '}
+      {n('conflict') > 0 && `${n('conflict')} need a link or mapping first: fix the masters or `}
+      {n('conflict') > 0 && (
+        <Link href="/app/accounts/tally/books" className="text-accent hover:underline">
+          map voucher types and ledgers
+        </Link>
+      )}
+      {n('conflict') > 0 && ', then choose Check again, or skip them to keep them as history.'}
+    </Alert>
+  );
+}
 
 /** Records earlier imports linked that this upload lacks (decision 072). Listed for review; nothing is deleted. */
 function MissingCard({ missing: m }: { missing: NonNullable<TallyImport['missing']> }) {
@@ -496,6 +549,7 @@ function details(r: TallyRow) {
     const bills = (p.bills as unknown[] | undefined)?.length ?? 0;
     return [`${formatMoney(p.amount as string)} ${p.side === 'debit' ? 'Dr' : 'Cr'}`, bills ? `${bills} bill${bills === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ');
   }
+  if (r.kind === 'document') return [p.date ? formatDate(p.date as string) : null, (p.party as string | null) ?? null, p.voucherType ? `Tally ${p.voucherType as string}` : null].filter(Boolean).join(' · ');
   if (r.kind === 'voucher')
     return [
       p.date ? formatDate(p.date as string) : null,
@@ -551,6 +605,13 @@ function RowView({
         {r.action !== r.proposed && <span className="text-xs text-muted">(proposed: {actionLabel(r.kind, r.proposed).toLowerCase()})</span>}
       </div>
       {details(r) && <p className="text-sm text-muted">{details(r)}</p>}
+      {r.kind === 'document' && (r.resultId ?? r.targetId) && typeof r.payload.documentKind === 'string' && (
+        <p className="text-sm">
+          <Link href={`${DOCUMENT_PATH[r.payload.documentKind as TallyDocumentKind]}/${r.resultId ?? r.targetId}`} className="text-accent hover:underline">
+            Open the document
+          </Link>
+        </p>
+      )}
       {(r.action === 'link' || r.action === 'update' || r.action === 'unchanged') && (target || r.targetId) && (
         <p className="text-sm">
           → {target ? `${target.label} (${target.reason})` : 'Chosen record'}

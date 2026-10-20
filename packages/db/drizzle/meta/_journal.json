@@ -407,6 +407,13 @@
       "when": 1792486312469,
       "tag": "0057_tally_vouchers",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1792499631330,
+      "tag": "0058_tally_documents",
+      "breakpoints": true
     }
   ]
 }

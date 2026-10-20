@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { api } from '@/lib/api';
 import { formatDate, formatMoney, formatQty } from '@/lib/format';
-import type { TallyVoucherDetail, TallyVoucherSummary } from '@/lib/tally';
+import { DOCUMENT_KIND_LABEL, DOCUMENT_PATH, type TallyVoucherDetail, type TallyVoucherSummary } from '@/lib/tally';
 import { AccountingPage } from './accounting-shared';
 import { useWorkspace } from './workspace';
 
@@ -193,7 +193,17 @@ function VoucherContent({ id }: { id: string }) {
             <Flags v={d} />
           </div>
           {d.narration && <p>{d.narration}</p>}
-          <p className="text-muted">{NOTE}</p>
+          {d.documentKind && d.documentId ? (
+            <p>
+              This voucher is in a month kept in Tally and became a{' '}
+              <Link href={`${DOCUMENT_PATH[d.documentKind]}/${d.documentId}`} className="text-accent hover:underline">
+                {DOCUMENT_KIND_LABEL[d.documentKind].toLowerCase()}
+              </Link>{' '}
+              in your FactoryOS books.
+            </p>
+          ) : (
+            <p className="text-muted">{NOTE}</p>
+          )}
         </div>
       </Card>
       <Card>

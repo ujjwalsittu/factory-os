@@ -1,5 +1,7 @@
 // Selling: quotations, sales orders, sales invoices (slice 1c). The invoice ships the goods (decision 030).
 import { boolean, date, index, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { tallySource } from './tally-source.js';
+import { sql } from 'drizzle-orm';
 import { user } from './auth.js';
 import { batch, docStatus, stockEntry, warehouse } from './inventory.js';
 import { item, party, qty } from './masters.js';
@@ -142,6 +144,7 @@ export const salesInvoice = pgTable(
     /** The delivery entry that shipped the goods (decision 030). */
     stockEntryId: uuid('stock_entry_id').references(() => stockEntry.id),
     creditOverride: boolean('credit_override').notNull().default(false),
+    ...tallySource(),
     ...audit,
   },
   (t) => [
@@ -149,6 +152,7 @@ export const salesInvoice = pgTable(
     uniqueIndex('sales_invoice_identity_scope_uq').on(t.id,t.tenantId,t.entityId),
     uniqueIndex('sales_invoice_gstin_number_uq').on(t.gstRegistrationId, t.number),
     index('sales_invoice_customer_idx').on(t.entityId, t.customerId),
+    uniqueIndex('sales_invoice_tally_guid_uq').on(t.entityId, t.tallyGuid).where(sql`${t.tallyGuid} is not null and ${t.status} <> 'cancelled'`),
   ],
 );
 
