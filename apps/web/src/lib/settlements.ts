@@ -69,6 +69,8 @@ export interface Settlement extends Omit<SettlementInput, 'allocations'> {
   componentSnapshot?: {charge?: BankChargeInput} | null;
   number: string | null;
   status: DocStatus;
+  /** Decision 075b: tally for a receipt or payment created from a Tally voucher. */
+  source?: 'factoryos' | 'tally';
   partyName: string;
   accountName: string;
   voucherId: string | null;

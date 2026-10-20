@@ -85,7 +85,7 @@ export function allowedActions(row: Pick<TallyRow, 'kind' | 'proposed' | 'payloa
     return allocations.some((a) => a.qty.startsWith('-')) ? ['skip'] : ['new', 'skip'];
   }
   // Decision 075: a voucher in a month kept in Tally becomes a document, or stays history (skip).
-  if (row.kind === 'document') return row.proposed === 'new' ? ['new', 'skip'] : row.proposed === 'unchanged' ? ['unchanged', 'skip'] : ['skip'];
+  if (row.kind === 'document') return row.proposed === 'new' ? ['new', 'skip'] : row.proposed === 'update' ? ['update', 'skip'] : row.proposed === 'unchanged' ? ['unchanged', 'skip'] : ['skip'];
   if (row.kind === 'voucher') return row.proposed === 'update' || row.proposed === 'unchanged' ? ['update', 'unchanged', 'skip'] : ['new', 'skip'];
   if (row.kind === 'opening') return row.payload.mode === 'party' ? ['new', 'skip'] : row.proposed === 'conflict' ? ['link', 'skip'] : ['new', 'link', 'skip'];
   if (row.proposed === 'update' || row.proposed === 'unchanged') return ['update', 'unchanged', 'skip'];
@@ -114,21 +114,47 @@ export interface TallyBooks {
   months: { month: string; book: TallyBook }[];
 }
 
-export type TallyDocumentKind = 'sales_invoice' | 'purchase_invoice' | 'sales_credit_note' | 'supplier_debit_note';
+/** What a voucher type is mapped to (decisions 075 and 075b). */
+export type TallyDocumentKind = 'sales_invoice' | 'purchase_invoice' | 'sales_credit_note' | 'supplier_debit_note' | 'receipt' | 'payment' | 'journal' | 'stock_journal';
 export const DOCUMENT_KIND_LABEL: Record<TallyDocumentKind | 'none', string> = {
   sales_invoice: 'Sales invoice',
   purchase_invoice: 'Purchase invoice',
   sales_credit_note: 'Customer credit note',
   supplier_debit_note: 'Supplier debit note',
+  receipt: 'Receipt',
+  payment: 'Payment',
+  journal: 'Journal',
+  stock_journal: 'Stock journal',
   none: 'Stays history',
 };
+/** What a voucher became: the mapped kind, or the record it was made as (a journal's GL voucher, a stock entry). */
+export type TallyCreatedKind = TallyDocumentKind | 'tally_journal' | 'stock_entry';
+export const CREATED_KIND_LABEL: Record<TallyCreatedKind, string> = { ...DOCUMENT_KIND_LABEL, tally_journal: 'Journal', stock_entry: 'Stock journal' };
 /** Where a document created from Tally opens. */
-export const DOCUMENT_PATH: Record<TallyDocumentKind, string> = {
+export const DOCUMENT_PATH: Record<TallyCreatedKind, string> = {
   sales_invoice: '/app/selling/invoices',
   purchase_invoice: '/app/buying/invoices',
   sales_credit_note: '/app/selling/notes',
   supplier_debit_note: '/app/buying/supplier-notes',
+  receipt: '/app/accounts/settlements',
+  payment: '/app/accounts/settlements',
+  journal: '/app/accounts/journals',
+  tally_journal: '/app/accounts/journals',
+  stock_journal: '/app/inventory/entries',
+  stock_entry: '/app/inventory/entries',
 };
+
+/** Decision 075b: what switching a month back to FactoryOS reverses, and what outside the month stops it. */
+export interface TallySwitchBack {
+  month: string;
+  documents: { kind: TallyCreatedKind; documentId: string; date: string; label: string }[];
+  dependents: string[];
+}
+
+/** Decision 075a: every document a Tally voucher became, oldest first. */
+export interface TallyDocumentVersions {
+  versions: { documentKind: TallyCreatedKind; documentId: string; alterId: number | null; reversedAt: string | null; reversedReason: string | null; replacedBy: string | null; createdAt: string }[];
+}
 
 export interface TallyMappings {
   voucherTypes: { voucherType: string; vouchers: number; documentKind: TallyDocumentKind | 'none' | null; preset: boolean }[];
@@ -148,7 +174,7 @@ export interface TallyVoucherSummary {
   cancelled: boolean;
   optional: boolean;
   /** Decision 075: the FactoryOS document a voucher in a Tally month became. */
-  documentKind?: TallyDocumentKind | null;
+  documentKind?: TallyCreatedKind | null;
   documentId?: string | null;
 }
 

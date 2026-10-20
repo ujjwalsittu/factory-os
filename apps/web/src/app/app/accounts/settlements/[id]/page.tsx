@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { AccountingPage } from '@/components/accounting-shared';
 import { SettlementForm } from '@/components/settlement-form';
+import { TallyBanner } from '@/components/tally-documents';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import type { Settlement } from '@/lib/settlements';
@@ -14,7 +15,12 @@ function Doc() {
   const q = useQuery({ queryKey: ['settlement', id, ws.entityId], queryFn: () => api<Settlement>(`/accounts/settlements/${id}`, { scope: ws.scope }), retry: false });
   if (q.error) return <Alert tone="danger" title="Can't open this document">{q.error.message}</Alert>;
   if (!q.data) return <p className="text-muted">Loading…</p>;
-  return <SettlementForm key={`${q.data.id}:${q.data.status}:${q.data.advance?.openAmount ?? ''}`} settlement={q.data} />;
+  return (
+    <div className="space-y-4">
+      <TallyBanner doc={q.data} />
+      <SettlementForm key={`${q.data.id}:${q.data.status}:${q.data.advance?.openAmount ?? ''}`} settlement={q.data} />
+    </div>
+  );
 }
 
 export default function Page() {

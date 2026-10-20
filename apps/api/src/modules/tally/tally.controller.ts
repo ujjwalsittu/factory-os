@@ -13,7 +13,7 @@ import { getVoucher, listVouchers } from './tally-vouchers.js';
 import { listMappings, setLedgerItem, setVoucherType } from './tally-documents.js';
 import { TALLY_DOCUMENT_KINDS } from '@factoryos/core/tally-documents';
 import { ENTRY_KINDS } from './tally-entries.js';
-import { switchBackPreview } from './tally-reversal.js';
+import { documentVersions, switchBackPreview } from './tally-reversal.js';
 
 const KINDS = ['group', 'ledger', 'party', 'stockgroup', 'unit', 'godown', 'stockitem', 'opening', 'stock', 'voucher', 'document'] as const;
 const ACTIONS = ['new', 'link', 'update', 'unchanged', 'conflict', 'skip'] as const;
@@ -186,5 +186,17 @@ export class TallyMappingsController {
     const { ledger, itemId } = parse(ledgerItemInput, body);
     await this.db.transaction((tx) => setLedgerItem(tx, ctx, entityOf(ctx), this.audit, ledger, itemId));
     return listMappings(this.db, ctx.tenant.tenantId, entityOf(ctx));
+  }
+}
+
+/** Decision 075a: the versions of a document created from a Tally voucher. */
+@Controller('tally/documents')
+export class TallyDocumentsController {
+  constructor(@Inject(DB) private readonly db: Database) {}
+
+  @Get(':id/versions')
+  @RequirePermission('accounts.tally.read')
+  versions(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
+    return documentVersions(this.db, entityOf(ctx), id);
   }
 }

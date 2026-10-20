@@ -1,6 +1,6 @@
 import { purchaseInvoice, salesInvoice, salesNote, settlementAllocationDocument, stockEntry, supplierNote, tallyDocumentVersion, tallyVoucher } from '@factoryos/db';
 import { ConflictException } from '@nestjs/common';
-import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import type { AuditService } from '../../common/audit.service.js';
 import { businessDate, type Db, type Tx } from '../accounting/accounting-lock.js';
@@ -249,4 +249,24 @@ export async function reverseMonth(tx: Tx, ctx: TenantRequestContext, entityId: 
     await tx.update(tallyVoucher).set({ documentKind: null, documentId: null }).where(and(eq(tallyVoucher.entityId, entityId), eq(tallyVoucher.guid, v.guid), eq(tallyVoucher.documentId, v.documentId)));
   }
   return versions.length;
+}
+
+/** Every document the voucher behind a document became, oldest first (decision 075a: re-syncs keep both). */
+export async function documentVersions(db: Db, entityId: string, documentId: string) {
+  const [own] = await db.select({ guid: tallyDocumentVersion.guid }).from(tallyDocumentVersion).where(and(eq(tallyDocumentVersion.entityId, entityId), eq(tallyDocumentVersion.documentId, documentId)));
+  if (!own) return { versions: [] };
+  const versions = await db
+    .select({
+      documentKind: tallyDocumentVersion.documentKind,
+      documentId: tallyDocumentVersion.documentId,
+      alterId: tallyDocumentVersion.alterId,
+      reversedAt: tallyDocumentVersion.reversedAt,
+      reversedReason: tallyDocumentVersion.reversedReason,
+      replacedBy: tallyDocumentVersion.replacedBy,
+      createdAt: tallyDocumentVersion.createdAt,
+    })
+    .from(tallyDocumentVersion)
+    .where(and(eq(tallyDocumentVersion.entityId, entityId), eq(tallyDocumentVersion.guid, own.guid)))
+    .orderBy(asc(tallyDocumentVersion.createdAt));
+  return { versions };
 }

@@ -124,6 +124,8 @@ export async function stageDocuments(tx: Db, tenantId: string, entityId: string,
   const edited = editedIds.length
     ? await tx.select().from(tallyDocumentVersion).where(and(eq(tallyDocumentVersion.entityId, entityId), inArray(tallyDocumentVersion.documentId, editedIds), isNull(tallyDocumentVersion.reversedAt)))
     : [];
+  // A receipt or payment that is not one party against one cash or bank ledger is booked as a journal (075b).
+  const becomesJournal = (v: TallyVoucher, kind: DocKind | null) => (kind === 'receipt' || kind === 'payment') && !!planEntry(v, kind, er!).journal;
   const out: StagedDocument[] = [];
   for (const v of inMonth) {
     const kind = kindOf(v.type);
@@ -132,7 +134,7 @@ export async function stageDocuments(tx: Db, tenantId: string, entityId: string,
       guid: v.guid,
       alterId: v.alterId,
       name: `${kind ? KIND_LABEL[kind] : v.type} ${v.number ?? ''}`.trim(),
-      payload: { documentKind: kind, voucherType: v.type, number: v.number, date: v.date, party: v.party },
+      payload: { documentKind: kind, voucherType: v.type, number: v.number, date: v.date, party: v.party, ...(becomesJournal(v, kind) && { becomes: 'journal' }) },
       proposed: 'new',
       targetId: null,
       candidates: [],
@@ -166,7 +168,9 @@ export async function stageDocuments(tx: Db, tenantId: string, entityId: string,
       );
       continue;
     }
-    const becomes = `Becomes a submitted ${KIND_LABEL[kind].toLowerCase()} with Tally's number and amounts.`;
+    const becomes = becomesJournal(v, kind)
+      ? `Becomes a journal with Tally's number and amounts: it is not one party against one cash or bank ledger.`
+      : `Becomes a submitted ${KIND_LABEL[kind].toLowerCase()} with Tally's number and amounts.`;
     const problems = check(v, kind);
     // Only a missing link can be cured by masters in the same upload (an unlinked item also leaves its ledger unbooked,
     // so all of that voucher waits for commit); otherwise it needs a decision now.

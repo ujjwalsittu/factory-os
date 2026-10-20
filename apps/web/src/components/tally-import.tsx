@@ -16,7 +16,7 @@ import {
   TARGET_SOURCE,
   uploadTally,
   type TallyAction,
-  type TallyDocumentKind,
+  type TallyCreatedKind,
   type TallyImport,
   type TallyKind,
   type TallyRow,
@@ -607,7 +607,7 @@ function RowView({
       {details(r) && <p className="text-sm text-muted">{details(r)}</p>}
       {r.kind === 'document' && (r.resultId ?? r.targetId) && typeof r.payload.documentKind === 'string' && (
         <p className="text-sm">
-          <Link href={`${DOCUMENT_PATH[r.payload.documentKind as TallyDocumentKind]}/${r.resultId ?? r.targetId}`} className="text-accent hover:underline">
+          <Link href={`${DOCUMENT_PATH[(r.payload.becomes ?? r.payload.documentKind) as TallyCreatedKind]}/${r.resultId ?? r.targetId}`} className="text-accent hover:underline">
             Open the document
           </Link>
         </p>

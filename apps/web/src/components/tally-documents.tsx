@@ -6,11 +6,13 @@ import { useParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { formatDate, formatMoney, formatQty } from '@/lib/format';
+import { CREATED_KIND_LABEL, DOCUMENT_PATH, type TallyDocumentVersions } from '@/lib/tally';
 import { EntityGate } from './entity-gate';
 import { useWorkspace } from './workspace';
 
 /** Decision 075: what a document created from a Tally voucher carries. */
 export interface TallySourced {
+  id?: string;
   source?: string;
   taxDifference?: { expected: Record<string, string>; tally: Record<string, string> } | null;
 }
@@ -25,6 +27,7 @@ export function TallyBanner({ doc }: { doc: TallySourced | undefined }) {
         <Badge tone="info">From Tally</Badge>
       </span>
       Created from a Tally voucher in a month kept in Tally, with Tally&apos;s number and amounts. It changes only through Tally.
+      {doc.id && <TallyVersions id={doc.id} />}
       {d && (
         <span className="mt-1 block">
           Tax differs from FactoryOS&apos;s calculation. Tally: {(['cgst', 'sgst', 'igst'] as const).map((h) => `${h.toUpperCase()} ${formatMoney(d.tally[h])}`).join(', ')}. FactoryOS
@@ -32,6 +35,37 @@ export function TallyBanner({ doc }: { doc: TallySourced | undefined }) {
         </span>
       )}
     </Alert>
+  );
+}
+
+/** Decision 075a: an edited voucher replaces its document; each version links the other. */
+function TallyVersions({ id }: { id: string }) {
+  const ws = useWorkspace();
+  const q = useQuery({
+    queryKey: ['tally-versions', ws.tenantId, ws.entityId, id],
+    queryFn: () => api<TallyDocumentVersions>(`/tally/documents/${id}/versions`, { scope: ws.scope }),
+    enabled: !!ws.entityId && ws.can('accounts.tally.read'),
+  });
+  const list = q.data?.versions ?? [];
+  const at = list.findIndex((v) => v.documentId === id);
+  if (at < 0) return null;
+  const self = list[at]!,
+    before = at > 0 ? list[at - 1] : null;
+  const link = (v: (typeof list)[number], text: string) => (
+    <Link href={`${DOCUMENT_PATH[v.documentKind]}/${v.documentId}`} className="text-accent hover:underline">
+      {text}
+    </Link>
+  );
+  const next = self.replacedBy ? list.find((v) => v.documentId === self.replacedBy) : null;
+  return (
+    <>
+      {before && <span className="mt-1 block">Updated from Tally: the voucher was edited there, so this replaces {link(before, `the earlier ${CREATED_KIND_LABEL[before.documentKind].toLowerCase()}`)}.</span>}
+      {self.reversedAt && (
+        <span className="mt-1 block">
+          Reversed: {self.reversedReason}.{next && <> Replaced by {link(next, `the edited ${CREATED_KIND_LABEL[next.documentKind].toLowerCase()}`)}.</>}
+        </span>
+      )}
+    </>
   );
 }
 
