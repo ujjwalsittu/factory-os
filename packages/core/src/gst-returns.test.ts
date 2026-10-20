@@ -196,10 +196,15 @@ describe('amendments (PR 3)', () => {
     const { entryAmendment, applyAmendments, gstr1Sheets } = await import('./gst-returns.js');
     const filed = buildGstr1([doc({ counterpartyGstin: '27AAAAA0000A1Z5', treatment: 'registered', lines: [line('1000', '18', 'local')] })], OUR, { turnoverAboveFiveCrore: false }).entries[0]!;
     expect(entryAmendment('2026-10', filed, filed)).toBeNull();
+    // Read back from storage with its keys in another order, it is still unchanged.
+    const stored = JSON.parse(JSON.stringify({ ...filed, byRate: filed.byRate.map(({ cess, sgst, cgst, igst, taxable, rate }) => ({ cess, sgst, cgst, igst, taxable, rate })) }));
+    expect(entryAmendment('2026-10', stored, filed)).toBeNull();
     const a = entryAmendment('2026-10', filed, null)!;
     expect(a.table).toBe('b2ba');
     expect((a.revised as typeof filed).byRate).toEqual([{ rate: '18.00', taxable: '0.00', igst: '0.00', cgst: '0.00', sgst: '0.00', cess: '0.00' }]);
     expect(a.difference).toEqual({ taxable: '-1000.00', igst: '0.00', cgst: '-90.00', sgst: '-90.00', cess: '0.00' });
+    // Once an amendment has reported it as zero, the cancellation is settled.
+    expect(entryAmendment('2026-10', a.revised as typeof filed, null)).toBeNull();
     // The amending month: one new sale of 500, and the cancellation included.
     const month = [doc({ counterpartyGstin: '27AAAAA0000A1Z5', treatment: 'registered', lines: [line('500', '18', 'local')] })];
     const g1 = { ...buildGstr1(month, OUR, { turnoverAboveFiveCrore: false }), amendments: [{ ...a, status: 'included' as const, reason: null }] };

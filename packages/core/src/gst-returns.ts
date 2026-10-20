@@ -437,8 +437,18 @@ export interface Amendment {
   reason: string | null;
 }
 
+/** Independent of key order and number form, so an entry read back from storage compares equal to a fresh one. */
 const comparable = (e: Gstr1Entry) =>
-  JSON.stringify([e.counterpartyGstin, e.placeOfSupply, Dec.of(e.value).toFixed(2), e.byRate, e.reverseCharge, e.portCode, e.shippingBillNo, e.shippingBillDate]);
+  JSON.stringify([
+    e.counterpartyGstin,
+    e.placeOfSupply,
+    Dec.of(e.value).toFixed(2),
+    [...e.byRate].sort((a, b) => Dec.of(a.rate).cmp(b.rate)).map((r) => [Dec.of(r.rate).toFixed(2), Dec.of(r.taxable).toFixed(2), ...HEADS.map((h) => Dec.of(r[h]).toFixed(2))]),
+    !!e.reverseCharge,
+    e.portCode ?? null,
+    e.shippingBillNo ?? null,
+    e.shippingBillDate ?? null,
+  ]);
 
 /**
  * The amendment for an invoice or note reported in a filed month, or null when it has not changed. A document no
@@ -446,8 +456,9 @@ const comparable = (e: Gstr1Entry) =>
  * (docs/compliance/gst-returns-evidence.md), so a person can drop it when a note corrects it instead.
  */
 export function entryAmendment(originalPeriod: string, reported: Gstr1Entry, current: Gstr1Entry | null): Omit<Amendment, 'status' | 'reason'> | null {
-  if (current && comparable(current) === comparable(reported)) return null;
   const revised: Gstr1Entry = current ?? { ...reported, value: '0.00', amounts: zero(), byRate: reported.byRate.map((r) => ({ ...zero(), rate: r.rate })) };
+  // Unchanged, or a cancellation an earlier amendment already reported as zero.
+  if (comparable(revised) === comparable(reported)) return null;
   const table = AMEND_TABLE[reported.section as keyof typeof AMEND_TABLE];
   if (!table) return null;
   return {

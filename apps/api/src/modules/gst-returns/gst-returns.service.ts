@@ -1,8 +1,16 @@
 import { createHash } from 'node:crypto';
 import { Dec } from '@factoryos/core';
 import {
+  applyAmendments,
+  b2csAmendment,
   buildGstr1,
   buildGstr3b,
+  entryAmendment,
+  includedAmendments,
+  outputDifference,
+  type Amendment,
+  type B2csFigures,
+  type Gstr1Entry,
   checkAgainstLedger,
   checkDocumentSeries,
   checkGstr1Against3b,
@@ -23,6 +31,7 @@ import {
   bankChargeDocument,
   glAccount,
   glEntry,
+  gstAmendment,
   gstRegistration,
   gstReturn,
   gstReturnLine,
@@ -54,6 +63,14 @@ const monthEnd = (period: string) => {
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
 };
 const inr = (v: string | null | undefined, rate: string | null | undefined) => Dec.of(v ?? '0').mul(rate ?? '1').toFixed(2);
+/** JSON with sorted keys: jsonb does not keep key order, so stored figures are compared this way. */
+const canon = (v: unknown): string =>
+  Array.isArray(v) ? `[${v.map(canon).join(',')}]` : v && typeof v === 'object' ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canon((v as Record<string, unknown>)[k])}`).join(',')}}` : JSON.stringify(v ?? null);
+/** Amendments look back to the start of the previous financial year (the time limit for them is not pinned). */
+const amendFrom = (period: string) => {
+  const [y, m] = period.split('-').map(Number) as [number, number];
+  return `${(m >= 4 ? y : y - 1) - 1}-04`;
+};
 
 /** One document a return was prepared from, with where it landed. */
 interface Placed {
@@ -371,23 +388,83 @@ export class GstReturnsService {
     const o = await this.outward(db, entityId, regId, period);
     const i = await this.inward(db, entityId, regId, regCount, period);
     // Aggregate turnover above ₹5 crore needs 6-digit HSN; FactoryOS does not hold the turnover yet, so 4 is asked.
-    const g1 = buildGstr1(o.docs, reg.stateCode, { turnoverAboveFiveCrore: false });
-    const g3 = buildGstr3b(g1, o.docs, i.docs, reg.stateCode);
+    const g1: Gstr1 = { ...buildGstr1(o.docs, reg.stateCode, { turnoverAboveFiveCrore: false }), amendments: await this.amendments(db, entityId, regId, reg.stateCode, period) };
+    const g3 = applyAmendments(buildGstr3b(g1, o.docs, i.docs, reg.stateCode), g1);
     const documents = documentSummary(o.issued);
     const checks: Check[] = [checkGstr1Against3b(g1, g3, o.docs), checkDocumentSeries(documents)];
     const sources = new Set([...o.placed, ...i.placed].map((p) => p.documentId));
+    // An included amendment explains its document's later postings (a cancellation's reversal, for one).
+    for (const a of includedAmendments(g1)) if (a.documentId) sources.add(a.documentId);
     const ledger = await this.ledger(db, entityId, regId, regCount, period, sources);
     if (ledger) {
       const rc = new Set(o.docs.filter((d) => d.reverseCharge).map((d) => d.id));
       const outTax: Taxes = { igst: '0', cgst: '0', sgst: '0', cess: '0' };
       for (const e of g1.entries) if (!rc.has(e.documentId)) for (const h of HEADS) outTax[h] = Dec.of(outTax[h]).add(e.amounts[h]).toFixed(2);
       for (const r of g1.b2cs) for (const h of HEADS) outTax[h] = Dec.of(outTax[h]).add(r[h]).toFixed(2);
+      for (const a of includedAmendments(g1)) for (const h of HEADS) outTax[h] = Dec.of(outTax[h]).add(outputDifference(a)[h]).toFixed(2);
       checks.push(checkAgainstLedger('Output tax equals the output GST ledgers', outTax, ledger.out, ledger.unexplained.out));
       const t4 = g3['4'];
       const inTax = [t4.a1, t4.a2, t4.a3, t4.a5].reduce((s, t) => Object.fromEntries(HEADS.map((h) => [h, Dec.of(s[h]).add(t[h]).toFixed(2)])) as Taxes, { igst: '0', cgst: '0', sgst: '0', cess: '0' } as Taxes);
       checks.push(checkAgainstLedger('Eligible input tax equals the input GST ledgers', inTax, ledger.inp, ledger.unexplained.inp));
     } else checks.push({ name: 'General ledger', ok: true, detail: 'Accounting is not active for this entity; no ledger check.' });
     return { gstr1: { ...g1, documents }, gstr3b: g3, checks, attention: g1.attention, sources: [...o.placed, ...i.placed] };
+  }
+
+  /**
+   * Decision 074b: corrections to filed months this GSTR-1 proposes. Each filed GSTR-1 since the start of the previous
+   * financial year is recomputed from the documents it reported, and compared with what it (or a later included
+   * amendment) reported. A stored decision stays while the figures it was made on are unchanged.
+   */
+  private async amendments(db: Db, entityId: string, regId: string, ourState: string, period: string): Promise<Amendment[]> {
+    const filed = await db
+      .select()
+      .from(gstReturn)
+      .where(and(eq(gstReturn.gstRegistrationId, regId), eq(gstReturn.kind, 'gstr1'), eq(gstReturn.status, 'filed'), sql`${gstReturn.period} < ${period}`, sql`${gstReturn.period} >= ${amendFrom(period)}`))
+      .orderBy(gstReturn.period);
+    if (!filed.length) return [];
+    const others = await db
+      .select({ a: gstAmendment, period: gstReturn.period, status: gstReturn.status })
+      .from(gstAmendment)
+      .innerJoin(gstReturn, eq(gstReturn.id, gstAmendment.returnId))
+      .where(and(eq(gstReturn.gstRegistrationId, regId), eq(gstReturn.kind, 'gstr1')))
+      .orderBy(gstReturn.period);
+    // What a later filed return reported for a key; a key another open return already carries is left to it.
+    const reportedLast = new Map<string, Record<string, unknown>>();
+    const elsewhere = new Set<string>();
+    // Dropped in a filed return: not proposed again unless the document changes once more.
+    const settled = new Map<string, string>();
+    const stored = new Map<string, typeof gstAmendment.$inferSelect>();
+    for (const o of others) {
+      if (o.period === period) stored.set(o.a.key, o.a);
+      else if (o.status === 'filed' && o.period < period && o.a.status === 'included') reportedLast.set(o.a.key, o.a.revised);
+      else if (o.status === 'filed' && o.period < period && o.a.status === 'dropped') settled.set(o.a.key, canon(o.a.revised));
+      else if (o.status !== 'filed' && o.a.status !== 'dropped') elsewhere.add(o.a.key);
+    }
+    const out: Omit<Amendment, 'status' | 'reason'>[] = [];
+    for (const r of filed) {
+      const snap = (r.snapshot as { gstr1: Gstr1 }).gstr1;
+      const ids = new Set(
+        (await db.select({ id: gstReturnLine.documentId, type: gstReturnLine.documentType }).from(gstReturnLine).where(eq(gstReturnLine.returnId, r.id)))
+          .filter((l) => l.type === 'sales_invoice' || l.type === 'sales_note')
+          .map((l) => l.id),
+      );
+      const o = await this.outward(db, entityId, regId, r.period);
+      const now = buildGstr1(o.docs.filter((d) => ids.has(d.id)), ourState, { turnoverAboveFiveCrore: false });
+      const nowById = new Map(now.entries.map((e) => [e.documentId, e]));
+      for (const e of snap.entries) {
+        const p = entryAmendment(r.period, (reportedLast.get(e.documentId) as Gstr1Entry | undefined) ?? e, nowById.get(e.documentId) ?? null);
+        if (p) out.push(p);
+      }
+      const b = b2csAmendment(r.period, (reportedLast.get(`b2cs:${r.period}`) as B2csFigures | undefined)?.rows ?? snap.b2cs, now.b2cs);
+      if (b) out.push(b);
+    }
+    return out
+      .filter((p) => !elsewhere.has(p.key) && settled.get(p.key) !== canon(p.revised))
+      .map((p) => {
+        const s = stored.get(p.key);
+        const same = s && canon(s.reported) === canon(p.reported) && canon(s.revised) === canon(p.revised);
+        return { ...p, status: same ? (s.status as Amendment['status']) : 'proposed', reason: same ? s.reason : null };
+      });
   }
 
   computeNow(entityId: string, regId: string, period: string) {
@@ -417,7 +494,11 @@ export class GstReturnsService {
 
   /** Prepares (or re-prepares) both returns of a GSTIN and month as drafts. A reviewed one goes back to draft. */
   async prepare(ctx: TenantRequestContext, entityId: string, regId: string, period: string) {
-    return this.db.transaction(async (tx) => {
+    return this.db.transaction(async (tx) => this.prepareIn(tx, ctx, entityId, regId, period));
+  }
+
+  private async prepareIn(tx: Tx, ctx: TenantRequestContext, entityId: string, regId: string, period: string) {
+    {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`gst-return:${regId}:${period}`}))`);
       const p = await this.compute(tx, entityId, regId, period);
       const out = [];
@@ -434,10 +515,44 @@ export class GstReturnsService {
         await tx.delete(gstReturnLine).where(eq(gstReturnLine.returnId, row!.id));
         const lines = this.linesFor(kind, p).map((l) => ({ ...l, returnId: row!.id }));
         for (let i = 0; i < lines.length; i += 500) await tx.insert(gstReturnLine).values(lines.slice(i, i + 500));
+        if (kind === 'gstr1') await this.storeAmendments(tx, ctx, entityId, row!.id, p.gstr1.amendments ?? []);
         await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'gst_return.prepare', targetType: 'gst_return', targetId: row!.id, after: { period, kind, hash, documents: lines.length } }, tx);
         out.push(row!);
       }
       return out;
+    }
+  }
+
+  /** Keeps the return's amendment rows in step with the proposals: decided ones stay while their figures do. */
+  private async storeAmendments(tx: Tx, ctx: TenantRequestContext, entityId: string, returnId: string, proposals: Amendment[]) {
+    const rows = await tx.select().from(gstAmendment).where(eq(gstAmendment.returnId, returnId));
+    const byKey = new Map(rows.map((r) => [r.key, r]));
+    const keys = new Set(proposals.map((p) => p.key));
+    const gone = rows.filter((r) => !keys.has(r.key)).map((r) => r.id);
+    if (gone.length) await tx.delete(gstAmendment).where(inArray(gstAmendment.id, gone));
+    for (const p of proposals) {
+      const prior = byKey.get(p.key);
+      if (prior && p.status !== 'proposed') continue;
+      const figures = { amendTable: p.table, documentType: p.documentType ? (p.documentType === 'invoice' ? 'sales_invoice' : 'sales_note') : null, documentId: p.documentId, originalPeriod: p.originalPeriod, reported: p.reported as unknown as Record<string, unknown>, revised: p.revised as unknown as Record<string, unknown>, difference: p.difference };
+      if (prior) await tx.update(gstAmendment).set({ ...figures, status: 'proposed', reason: null, decidedBy: null, decidedAt: null }).where(eq(gstAmendment.id, prior.id));
+      else await tx.insert(gstAmendment).values({ ...figures, tenantId: ctx.tenant.tenantId, entityId, returnId, key: p.key });
+    }
+  }
+
+  /** Includes an amendment, or drops it with a reason, then prepares the month's returns again on that decision. */
+  async decideAmendment(ctx: TenantRequestContext, entityId: string, returnId: string, amendmentId: string, decision: 'include' | 'drop', reason: string | null) {
+    return this.db.transaction(async (tx) => {
+      const r = await this.lockReturn(tx, entityId, returnId);
+      if (r.kind !== 'gstr1') throw new BadRequestException('Amendments belong to a GSTR-1');
+      if (r.status === 'approved' || r.status === 'filed') throw new ConflictException(`The GSTR-1 for ${r.period} is ${r.status}; its amendments are settled.`);
+      const [a] = await tx.select().from(gstAmendment).where(and(eq(gstAmendment.id, amendmentId), eq(gstAmendment.returnId, returnId))).for('update');
+      if (!a) throw new NotFoundException('Amendment not found');
+      if (decision === 'drop' && (!reason || reason.trim().length < 5)) throw new BadRequestException({ message: 'Say why the amendment is dropped', issues: [{ path: 'reason', message: 'At least 5 characters' }] });
+      const status = decision === 'include' ? 'included' : 'dropped';
+      await tx.update(gstAmendment).set({ status, reason: decision === 'drop' ? reason!.trim() : null, decidedBy: ctx.user.id, decidedAt: new Date() }).where(eq(gstAmendment.id, a.id));
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: `gst_amendment.${decision}`, targetType: 'gst_amendment', targetId: a.id, reason: reason ?? undefined, after: { key: a.key, table: a.amendTable, originalPeriod: a.originalPeriod, difference: a.difference } }, tx);
+      await this.prepareIn(tx, ctx, entityId, r.gstRegistrationId, r.period);
+      return { ok: true };
     });
   }
 
@@ -461,7 +576,11 @@ export class GstReturnsService {
     if (!r) throw new NotFoundException('GST return not found');
     const [reg] = await this.db.select().from(gstRegistration).where(eq(gstRegistration.id, r.gstRegistrationId));
     const lines = await this.db.select().from(gstReturnLine).where(eq(gstReturnLine.returnId, id)).orderBy(gstReturnLine.section, gstReturnLine.documentDate, gstReturnLine.documentNumber);
-    return { ...r, gstin: reg!.gstin, lines, changedSinceFiling: r.status === 'filed' ? await this.changes(r, lines) : [] };
+    const amendments = await this.db
+      .select({ id: gstAmendment.id, key: gstAmendment.key, status: gstAmendment.status, reason: gstAmendment.reason, decidedAt: gstAmendment.decidedAt })
+      .from(gstAmendment)
+      .where(eq(gstAmendment.returnId, id));
+    return { ...r, gstin: reg!.gstin, lines, amendments, changedSinceFiling: r.status === 'filed' ? await this.changes(r, lines) : [] };
   }
 
   /** For a filed return: each document whose current figures differ from what was filed, or that is now cancelled. */
@@ -473,12 +592,24 @@ export class GstReturnsService {
     const out: { documentId: string; documentType: string; number: string; what: string }[] = [];
     for (const l of lines) {
       if (!present.has(l.documentId)) out.push({ documentId: l.documentId, documentType: l.documentType, number: l.documentNumber, what: 'Cancelled or no longer in this month since filing' });
-      else if (r.kind === 'gstr1' && l.section !== 'summary' && JSON.stringify(current.get(l.documentId)) !== JSON.stringify(l.figures))
+      else if (r.kind === 'gstr1' && l.section !== 'summary' && canon(current.get(l.documentId)) !== canon(l.figures))
         out.push({ documentId: l.documentId, documentType: l.documentType, number: l.documentNumber, what: 'Its figures changed since filing' });
     }
     const filedIds = new Set(lines.map((l) => l.documentId));
     for (const s of now.sources) if (!filedIds.has(s.documentId) && !s.late) out.push({ documentId: s.documentId, documentType: s.documentType, number: s.number, what: 'Added to this month after filing' });
-    return out;
+    if (r.kind !== 'gstr1') return out;
+    // Decision 074b: name the later GSTR-1 whose included amendment reported the change.
+    const amended = new Map(
+      (
+        await this.db
+          .select({ key: gstAmendment.key, period: gstReturn.period })
+          .from(gstAmendment)
+          .innerJoin(gstReturn, eq(gstReturn.id, gstAmendment.returnId))
+          .where(and(eq(gstReturn.gstRegistrationId, r.gstRegistrationId), eq(gstAmendment.originalPeriod, r.period), eq(gstAmendment.status, 'included')))
+          .orderBy(gstReturn.period)
+      ).map((x) => [x.key, x.period]),
+    );
+    return out.map((c) => (amended.has(c.documentId) ? { ...c, what: `${c.what} · amended in the GSTR-1 for ${amended.get(c.documentId)}`, amendedIn: amended.get(c.documentId) } : c));
   }
 
   async review(ctx: TenantRequestContext, entityId: string, id: string) {
@@ -511,6 +642,8 @@ export class GstReturnsService {
         throw new ConflictException('The books changed since this return was prepared. Prepare it again, then review.');
       if (r.kind === 'gstr1' && (r.snapshot as { attention?: { blocking: boolean }[] }).attention?.some((a) => a.blocking))
         throw new ConflictException('Documents need attention before the return can move on.');
+      if (r.kind === 'gstr1' && (r.snapshot as { gstr1?: Gstr1 }).gstr1?.amendments?.some((a) => a.status === 'proposed'))
+        throw new ConflictException('Each amendment to a filed month needs a decision first: include it, or drop it with a reason.');
     }
     const [after] = await tx.update(gstReturn).set({ ...set, status: to }).where(eq(gstReturn.id, r.id)).returning();
     await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: `gst_return.${to === 'reviewed' ? 'review' : to === 'approved' ? 'approve' : 'file'}`, targetType: 'gst_return', targetId: r.id, after: { status: to, arn: after!.arn } }, tx);
