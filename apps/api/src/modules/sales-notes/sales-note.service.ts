@@ -6,6 +6,7 @@ import {and,asc,desc,eq} from 'drizzle-orm';
 import type {TenantRequestContext} from '../../common/access.js';
 import {AuditService} from '../../common/audit.service.js';
 import {businessDate,lockAccounting,type Tx} from '../accounting/accounting-lock.js';
+import {assertFactoryOsBook} from '../tally/tally-books.js';
 import {BillService} from '../accounting/bill.service.js';
 import {GlPostingService} from '../accounting/gl-posting.service.js';
 import {SalesNotePreviewService} from './sales-note-preview.service.js';
@@ -54,6 +55,7 @@ export class SalesNoteService {
  async submitIn(tx:Tx,ctx:TenantRequestContext,entityId:string,id:string){
   await lockAccounting(tx,entityId);const prior=await this.noteIn(tx,ctx,entityId,id,true);
   if(prior.status!=='draft')throw new ConflictException('Only drafts can be submitted');
+  await assertFactoryOsBook(tx,entityId,prior.postingDate,'customer note');
   const input=await this.inputIn(tx,prior);
   // Recalculate and replace only draft lines; submitted evidence is never edited.
   const refreshed=await this.saveIn(tx,ctx,entityId,input,id),p=await this.preview.previewIn(tx,ctx,entityId,input);

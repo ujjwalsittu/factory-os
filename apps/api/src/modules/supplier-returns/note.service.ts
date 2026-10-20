@@ -7,6 +7,7 @@ import {and,eq,desc,asc,sql} from 'drizzle-orm';
 import type {TenantRequestContext} from '../../common/access.js';
 import {AuditService} from '../../common/audit.service.js';
 import {businessDate,lockAccounting,type Tx} from '../accounting/accounting-lock.js';
+import {assertFactoryOsBook} from '../tally/tally-books.js';
 import {BillService} from '../accounting/bill.service.js';
 import {StockPostingService} from '../stock-posting.service.js';
 import {SupplierNotePreviewService} from './preview.service.js';
@@ -30,7 +31,7 @@ export class SupplierNoteService {
  if(prior)await tx.delete(supplierNoteLine).where(eq(supplierNoteLine.noteId,id!));await tx.insert(supplierNoteLine).values(p.lines.map((l,i)=>({tenantId:ctx.tenant.tenantId,entityId:e,noteId:note!.id,originalInvoiceId:invoice.id,invoiceLineId:l.invoiceLineId,claimLineId:l.claimLineId,lineNo:i+1,mode:input.lines[i]!.mode,qty:l.qty,taxableAmount:l.taxableAmount,cgst:l.cgst,sgst:l.sgst,igst:l.igst,cess:l.cess})));
  await this.audit.record(ctx,{tenantId:ctx.tenant.tenantId,entityId:e,action:prior?'supplier_note.update':'supplier_note.create',targetType:'supplier_note',targetId:note!.id,after:{kind:input.kind,grandTotal:p.grandTotal}},tx);return this.getIn(tx,ctx,e,note!.id);
  }
- async submitIn(tx:Tx,ctx:TenantRequestContext,e:string,id:string){await lockAccounting(tx,e);const prior=await this.noteIn(tx,ctx,e,id,true);if(prior.status!=='draft')throw new ConflictException('Only draft supplier notes can submit');
+ async submitIn(tx:Tx,ctx:TenantRequestContext,e:string,id:string){await lockAccounting(tx,e);const prior=await this.noteIn(tx,ctx,e,id,true);if(prior.status!=='draft')throw new ConflictException('Only draft supplier notes can submit');await assertFactoryOsBook(tx,e,prior.postingDate,'supplier note');
  const [duplicate]=await tx.select().from(supplierNote).where(and(eq(supplierNote.entityId,e),eq(supplierNote.supplierId,prior.supplierId),eq(supplierNote.kind,prior.kind),eq(supplierNote.supplierFy,prior.supplierFy),eq(supplierNote.status,'submitted'),sql`upper(${supplierNote.supplierNoteNo})=upper(${prior.supplierNoteNo})`));if(duplicate)throw new ConflictException('Supplier note reference is already booked');
  const input=await this.inputIn(tx,prior);await this.saveIn(tx,ctx,e,input,id);const p=await this.preview.calculateIn(tx,ctx,e,input,id),policy=await this.policy.getIn(tx,ctx,e);
  await this.bills.assertReconciledIn(tx,e);const number=await this.stock.allocateNumber(tx,ctx.tenant.tenantId,e,'supplier_note',prior.postingDate);

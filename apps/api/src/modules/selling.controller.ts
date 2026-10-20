@@ -4,6 +4,7 @@ import { OperationalPostings } from './accounting/operational-postings.js';
 import { BillService } from './accounting/bill.service.js';
 import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
+import { assertFactoryOsBook } from './tally/tally-books.js';
 import { computeGst, GST_RATES, type SupplyType, type TaxResult } from '@factoryos/compliance-in';
 import { Dec } from '@factoryos/core';
 import {
@@ -555,6 +556,7 @@ export class SellingController {
       await lockAccounting(tx, entityId);
       const inv = await this.lockInvoice(tx, entityId, id);
       if (inv.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
+      await assertFactoryOsBook(tx, entityId, inv.invoiceDate, 'sales invoice');
       const customer = await this.customer(ctx, inv.customerId);
       if (!customer.isActive) throw new BadRequestException(`${customer.name} is inactive`);
       const [reg] = await tx.select().from(gstRegistration).where(eq(gstRegistration.id, inv.gstRegistrationId!));

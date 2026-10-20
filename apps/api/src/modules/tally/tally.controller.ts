@@ -4,7 +4,9 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
 import { Ctx, RequirePermission, type TenantRequestContext } from '../../common/access.js';
 import { parse } from '../../common/validation.js';
-import { entityOf } from '../accounting/accounting-lock.js';
+import { businessDate, entityOf } from '../accounting/accounting-lock.js';
+import { AuditService } from '../../common/audit.service.js';
+import { listBooks, setBook } from './tally-books.js';
 import { DB } from '../../common/tokens.js';
 import { TallyService } from './tally.service.js';
 import { getVoucher, listVouchers } from './tally-vouchers.js';
@@ -106,5 +108,29 @@ export class TallyHistoryController {
   @RequirePermission('accounts.tally.read')
   get(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
     return getVoucher(this.db, entityOf(ctx), id);
+  }
+}
+
+const bookInput = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), book: z.enum(['tally', 'factoryos']) });
+
+/** Decision 075: which book each month is kept in, from the cut-over on. */
+@Controller('tally/books')
+export class TallyBooksController {
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly audit: AuditService,
+  ) {}
+
+  @Get()
+  @RequirePermission('accounts.tally.read')
+  list(@Ctx() ctx: TenantRequestContext) {
+    return listBooks(this.db, entityOf(ctx), businessDate());
+  }
+
+  @Put()
+  @RequirePermission('accounts.tally.import')
+  set(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
+    const { month, book } = parse(bookInput, body);
+    return setBook(this.db, ctx, entityOf(ctx), this.audit, month, book);
   }
 }

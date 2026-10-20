@@ -2,6 +2,7 @@ import {supplierReturnClaim,supplierNote} from '@factoryos/db';
 import { OperationalPostings } from './accounting/operational-postings.js';
 import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
+import { assertFactoryOsBook } from './tally/tally-books.js';
 import { computeGst, GST_RATES, inwardSupplyType, type TaxResult } from '@factoryos/compliance-in';
 import { Dec, fyCode } from '@factoryos/core';
 import {
@@ -611,6 +612,7 @@ export class BuyingController {
       const [inv] = await tx.select().from(purchaseInvoice).where(and(eq(purchaseInvoice.id, id), eq(purchaseInvoice.entityId, entityId))).for('update');
       if (!inv) throw new NotFoundException('Purchase invoice not found');
       if (inv.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
+      await assertFactoryOsBook(tx, entityId, inv.postingDate, 'purchase invoice');
 
       // The same supplier invoice can't be booked twice in a financial year.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`pinv:${entityId}:${inv.supplierId}`}))`);
