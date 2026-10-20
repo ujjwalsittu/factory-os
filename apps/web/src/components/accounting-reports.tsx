@@ -24,6 +24,7 @@ import type {
   TrialBalance,
 } from '@/lib/accounting';
 import { AccountingPage } from './accounting-shared';
+import { TallyHistoryPanel } from './tally-history';
 import { useWorkspace } from './workspace';
 const titles = {
   'trial-balance': 'Trial balance',
@@ -323,6 +324,7 @@ function Content({ kind }: { kind: keyof typeof titles }) {
           )}
         </Card>
       )}
+      {kind === 'ledger' && accountId && <TallyHistoryPanel accountId={accountId} />}
     </div>
   );
 }

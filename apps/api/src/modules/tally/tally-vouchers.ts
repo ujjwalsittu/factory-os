@@ -44,7 +44,8 @@ export async function stageVouchers(tx: Db, entityId: string, vouchers: TallyVou
       guid: v.guid,
       alterId: v.alterId,
       name: voucherLabel(v),
-      payload: v as unknown as Record<string, unknown>,
+      // The debit total travels with the row so the preview shows it without adding money in the browser.
+      payload: { ...v, total: v.lines.filter((l) => l.side === 'debit').reduce((sum, l) => sum.add(l.amount), Dec.ZERO).toString() } as unknown as Record<string, unknown>,
       proposed: 'new',
       targetId: null,
       candidates: [],

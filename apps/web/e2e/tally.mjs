@@ -8,6 +8,7 @@ import { chromium } from 'playwright';
 const B = process.env.WEB_URL ?? 'http://localhost:3000';
 const SHOTS = process.env.SHOTS;
 const fixture = fs.readFileSync(new URL('../../../packages/core/fixtures/tally/masters.xml', import.meta.url), 'utf8');
+const daybook = fs.readFileSync(new URL('../../../packages/core/fixtures/tally/daybook.xml', import.meta.url), 'utf8');
 // One party with a GSTIN that fails its checksum, to make a conflict.
 const withConflict = fixture.replace(
   '</REQUESTDATA>',
@@ -103,11 +104,37 @@ try {
   await dialog.getByRole('checkbox').check();
   await importButton.click();
   await main.getByText('Imported', { exact: true }).waitFor();
+  const openingsUrl = page.url();
   console.log('  ✓ the difference and the worksheet warning show; Import waits for acceptance');
+
+  console.log('→ Day Book vouchers become Tally history');
+  await page.goto(`${B}/app/accounts/tally`);
+  await L('Tally XML or zip files').setInputFiles({ name: 'DayBook.xml', mimeType: 'text/xml', buffer: utf16(daybook) });
+  await main.getByRole('button', { name: 'Read files', exact: true }).click();
+  await page.waitForURL(/\/app\/accounts\/tally\/[0-9a-f-]{36}$/);
+  await main.getByRole('button', { name: /^Vouchers/ }).waitFor();
+  await main.getByRole('button', { name: 'Import', exact: true }).click();
+  await page.getByRole('dialog').getByText(/4 vouchers are saved as Tally history/).waitFor();
+  await page.getByRole('dialog').getByRole('button', { name: 'Import', exact: true }).click();
+  await main.getByText('Imported', { exact: true }).waitFor();
+  await main.getByRole('link', { name: 'Tally history', exact: true }).click();
+  await page.waitForURL('**/app/accounts/tally/history');
+  await main.getByText(/not in your FactoryOS books/).first().waitFor();
+  await main.getByRole('link', { name: 'Sales FE/26-27/0001' }).click();
+  await page.waitForURL(/\/app\/accounts\/tally\/history\/[0-9a-f-]{36}$/);
+  await main.getByText('Sales - Local', { exact: true }).waitFor();
+  await main.getByText('Not linked', { exact: true }).first().waitFor();
+  await main.getByText('MS Round Bar 25mm', { exact: true }).waitFor();
+  await shot('tally-voucher');
+  await main.getByRole('link', { name: 'Acme Castings Pvt Ltd' }).first().click();
+  await page.waitForURL(/\/app\/masters\/parties\/[0-9a-f-]{36}$/);
+  await main.getByText('History from Tally', { exact: true }).waitFor();
+  await main.getByRole('link', { name: 'Receipt 12' }).waitFor();
+  console.log('  ✓ vouchers imported as history; the voucher links its party; the party page shows its Tally history');
 
   console.log('→ phone width');
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.reload();
+  await page.goto(openingsUrl);
   await main.getByText('Opening balances and stock', { exact: true }).waitFor();
   await shot('tally-phone');
   const w = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -115,6 +142,9 @@ try {
   await page.goto(`${B}/app/accounts/tally`);
   await main.getByText('Export from TallyPrime', { exact: true }).waitFor();
   assert.ok((await page.evaluate(() => document.documentElement.scrollWidth)) <= 390);
+  await page.goto(`${B}/app/accounts/tally/history`);
+  await main.getByRole('link', { name: 'Payment 7' }).waitFor();
+  assert.ok((await page.evaluate(() => document.documentElement.scrollWidth)) <= 390, 'the history fits a phone');
   console.log('  ✓ no sideways scroll at 390 px');
   assert.deepEqual(errors, []);
   console.log('tally walkthrough passed');

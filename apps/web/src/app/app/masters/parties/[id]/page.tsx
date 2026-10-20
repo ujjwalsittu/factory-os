@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
 import { PartyDialog } from '@/components/master-dialogs';
 import { type Overview, RecordSections } from '@/components/record-sections';
+import { TallyHistoryPanel } from '@/components/tally-history';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import type { Party } from '@/lib/types';
@@ -86,6 +87,7 @@ export default function PartyPage() {
           </Card>
         )}
         {overview.data && overview.data.sections.length > 0 && <RecordSections sections={overview.data.sections} />}
+        <TallyHistoryPanel partyId={id} />
       </EntityGate>
       {editing && p && <PartyDialog party={p} onClose={() => (setEditing(false), void party.refetch())} />}
     </>
