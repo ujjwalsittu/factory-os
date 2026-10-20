@@ -14,7 +14,9 @@ import {
 } from '@factoryos/core/tally';
 import {
   accountGroup,
+  accountingSettings,
   glAccount,
+  openingWorksheet,
   item,
   party,
   tallyImport,
@@ -33,7 +35,9 @@ import { AuditService } from '../../common/audit.service.js';
 import { DB } from '../../common/tokens.js';
 import { lockAccounting, type Db, type Tx } from '../accounting/accounting-lock.js';
 import { seedChart, STANDARD_GROUPS } from '../accounting/chart.js';
+import { GlPostingService } from '../accounting/gl-posting.service.js';
 import { itemInput, normaliseParty, partyInput } from '../masters.controller.js';
+import { OpeningWriter, openingActions, openingSummary, stageOpenings } from './tally-openings.js';
 
 /**
  * Decision 072: Tally XML imports. An import reads the files into staged rows, proposes an action for each
@@ -41,12 +45,12 @@ import { itemInput, normaliseParty, partyInput } from '../masters.controller.js'
  * transaction. Tally GUIDs linked here make every later import of the same company duplicate-free.
  */
 
-export type Kind = 'group' | 'ledger' | 'party' | 'stockgroup' | 'unit' | 'godown' | 'stockitem';
+export type Kind = 'group' | 'ledger' | 'party' | 'stockgroup' | 'unit' | 'godown' | 'stockitem' | 'opening' | 'stock';
 export type Action = 'new' | 'link' | 'update' | 'unchanged' | 'conflict' | 'skip';
 type Candidate = { id: string; label: string; reason: string };
 type Root = 'asset' | 'liability' | 'equity' | 'income' | 'expense';
 
-/** Order of commit: parents and units before what refers to them. */
+/** Order of commit: parents and units before what refers to them. Opening balances and stock are written after all of these. */
 const KIND_ORDER: Kind[] = ['group', 'ledger', 'party', 'unit', 'godown', 'stockgroup', 'stockitem'];
 /** Readable names for Tally objects this import does not read. */
 const TAG_NAMES: Record<string, string> = { VOUCHERTYPE: 'voucher type', COSTCENTRE: 'cost centre', COSTCATEGORY: 'cost category', CURRENCY: 'currency', BUDGET: 'budget', EMPLOYEE: 'employee', ATTENDANCETYPE: 'attendance type' };
@@ -104,6 +108,7 @@ export class TallyService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly gl: GlPostingService,
   ) {}
 
   // ── Read and stage ──
@@ -374,7 +379,10 @@ export class TallyService {
       for (let c = groupParent.get(name) ?? null; c && !seen.has(c); c = groupParent.get(c) ?? null) seen.add(c), d++;
       return d;
     };
-    return out.sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || (a.kind === 'group' ? depth(a.name) - depth(b.name) : 0) || a.name.localeCompare(b.name));
+    out.sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || (a.kind === 'group' ? depth(a.name) - depth(b.name) : 0) || a.name.localeCompare(b.name));
+    // Opening balances and stock follow the masters' proposals (decisions 072 and 073).
+    const openings = await stageOpenings(tx, entityId, masters, out, under);
+    return [...out, ...openings.sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'opening' ? -1 : 1))];
   }
 
   private matchParty(
@@ -430,7 +438,19 @@ export class TallyService {
       .groupBy(tallyStaged.kind, tallyStaged.action);
     const current: Record<string, number> = {};
     for (const r of rows) current[`${r.kind}.${r.action}`] = r.n;
-    return { ...imp, current };
+    return { ...imp, current, openings: await this.openings(db, entityId, id) };
+  }
+
+  /** Opening balances and stock as currently decided, with what the commit would replace; null when there are none. */
+  private async openings(db: Db, entityId: string, id: string) {
+    const rows = await db
+      .select({ kind: tallyStaged.kind, action: tallyStaged.action, payload: tallyStaged.payload })
+      .from(tallyStaged)
+      .where(and(eq(tallyStaged.importId, id), inArray(tallyStaged.kind, ['opening', 'stock'])));
+    if (!rows.length) return null;
+    const [w] = await db.select().from(openingWorksheet).where(eq(openingWorksheet.entityId, entityId));
+    const [settings] = await db.select({ active: accountingSettings.active }).from(accountingSettings).where(eq(accountingSettings.entityId, entityId));
+    return { ...openingSummary(rows), active: !!settings?.active, worksheet: { lines: w?.lines.length ?? 0, bills: w?.bills.length ?? 0 } };
   }
 
   async rows(entityId: string, id: string, f: { kind?: Kind; action?: Action; q?: string; offset: number; limit: number }) {
@@ -457,6 +477,8 @@ export class TallyService {
       for (const d of decisions) {
         const row = rows.find((r) => r.id === d.id)!;
         const allowed = this.allowedActions(row);
+        if (row.kind === 'opening' && d.action === 'new' && row.proposed === 'conflict')
+          throw new BadRequestException(`"${row.name}" is not imported as a ledger; choose the ledger that takes its balance, or skip it`);
         if (!allowed.includes(d.action)) throw new BadRequestException(`"${row.name}" cannot be set to ${d.action}`);
         if (d.action === 'new' && row.kind === 'stockitem' && !(row.payload as unknown as TallyStockItem).unit)
           throw new BadRequestException(`"${row.name}" has no unit in Tally, so it cannot be created. Link it to an existing item, or skip it.`);
@@ -474,8 +496,9 @@ export class TallyService {
   }
 
   /** What a row may be set to: never back to conflict; update/unchanged only for rows linked by GUID before. */
-  allowedActions(row: { proposed: string; kind: string }): Action[] {
+  allowedActions(row: { proposed: string; kind: string; payload?: unknown }): Action[] {
     if (row.kind === 'stockgroup') return ['skip'];
+    if (row.kind === 'opening' || row.kind === 'stock') return openingActions({ ...row, payload: row.payload });
     if (row.proposed === 'update' || row.proposed === 'unchanged') return ['update', 'unchanged', 'skip'];
     return ['new', 'link', 'skip'];
   }
@@ -485,7 +508,7 @@ export class TallyService {
     const found =
       kind === 'group'
         ? await tx.select({ id: accountGroup.id }).from(accountGroup).where(and(eq(accountGroup.id, id), eq(accountGroup.entityId, entityId)))
-        : kind === 'ledger'
+        : kind === 'ledger' || kind === 'opening'
           ? await tx.select({ id: glAccount.id }).from(glAccount).where(and(eq(glAccount.id, id), eq(glAccount.entityId, entityId)))
           : kind === 'party'
             ? await tx.select({ id: party.id }).from(party).where(and(eq(party.id, id), eq(party.tenantId, tenantId)))
@@ -495,6 +518,8 @@ export class TallyService {
                 ? await tx.select({ id: warehouse.id }).from(warehouse).where(and(eq(warehouse.id, id), eq(warehouse.entityId, entityId)))
                 : await tx.select({ id: item.id }).from(item).where(and(eq(item.id, id), eq(item.tenantId, tenantId)));
     if (!found.length) throw new BadRequestException('The chosen record is not available in this workspace and entity');
+    // An opening balance only points at a ledger; it is not a Tally link.
+    if (kind === 'opening') return null;
     // One FactoryOS record links to one Tally object per entity.
     const [taken] = await tx.select().from(tallyLink).where(and(eq(tallyLink.entityId, entityId), eq(tallyLink.kind, kind), eq(tallyLink.targetId, id)));
     return taken ?? null;
@@ -518,7 +543,7 @@ export class TallyService {
 
   // ── Commit ──
 
-  async commit(ctx: TenantRequestContext, entityId: string, id: string) {
+  async commit(ctx: TenantRequestContext, entityId: string, id: string, acceptDifference?: string) {
     return this.db.transaction(async (tx) => {
       await lockAccounting(tx, entityId);
       await seedChart(tx, ctx, entityId);
@@ -530,6 +555,7 @@ export class TallyService {
       const w = new CommitWriter(tx, ctx, entityId, imp.id);
       await w.prepare(rows);
       const results: Record<string, number> = {};
+      const resultOf = new Map<string, string | null>();
       for (const kind of KIND_ORDER)
         for (const r of rows.filter((x) => x.kind === kind)) {
           const resultId = await w.apply(r).catch((e: unknown) => {
@@ -544,8 +570,36 @@ export class TallyService {
             throw new BadRequestException(`"${r.name}" (${r.kind}) could not be saved: ${reason}`);
           });
           if (resultId !== r.resultId) await tx.update(tallyStaged).set({ resultId }).where(eq(tallyStaged.id, r.id));
+          resultOf.set(`${r.kind}:${r.guid ?? r.name}`, resultId);
           results[`${r.kind}.${r.action}`] = (results[`${r.kind}.${r.action}`] ?? 0) + 1;
         }
+      // Openings refer to masters by GUID (godowns by name): this commit's result first, then an earlier import's link.
+      const linked = async (kind: Kind, guid: string | null, name?: string) => {
+        const key = `${kind}:${guid ?? name}`;
+        if (resultOf.has(key)) return resultOf.get(key) ?? null;
+        const [l] = await tx
+          .select()
+          .from(tallyLink)
+          .where(and(eq(tallyLink.entityId, entityId), eq(tallyLink.kind, kind), guid ? eq(tallyLink.guid, guid) : eq(tallyLink.name, name ?? '')));
+        return l?.targetId ?? null;
+      };
+      const godownGuid = new Map(rows.filter((r) => r.kind === 'godown').map((r) => [r.name, r.guid]));
+      const openingResults = await new OpeningWriter(tx, ctx, entityId, imp.id, this.gl, this.audit).write(
+        rows,
+        (kind, guid) => linked(kind, guid),
+        async (name) => {
+          const viaTally = await linked('godown', godownGuid.get(name) ?? null, name);
+          if (viaTally) return viaTally;
+          const [w] = await tx.select({ id: warehouse.id }).from(warehouse).where(and(eq(warehouse.entityId, entityId), eq(warehouse.name, name)));
+          return w?.id ?? null;
+        },
+        acceptDifference,
+      );
+      for (const r of rows.filter((x) => x.kind === 'opening' || x.kind === 'stock')) {
+        const resultId = openingResults.get(r.id) ?? null;
+        if (resultId !== r.resultId) await tx.update(tallyStaged).set({ resultId }).where(eq(tallyStaged.id, r.id));
+        results[`${r.kind}.${r.action}`] = (results[`${r.kind}.${r.action}`] ?? 0) + 1;
+      }
       const [done] = await tx.update(tallyImport).set({ status: 'committed', committedBy: ctx.user.id, committedAt: new Date() }).where(eq(tallyImport.id, imp.id)).returning();
       await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'accounts.tally.import', targetType: 'tally_import', targetId: imp.id, after: { results } }, tx);
       return { ...done!, results };

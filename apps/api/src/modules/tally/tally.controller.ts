@@ -6,7 +6,7 @@ import { parse } from '../../common/validation.js';
 import { entityOf } from '../accounting/accounting-lock.js';
 import { TallyService } from './tally.service.js';
 
-const KINDS = ['group', 'ledger', 'party', 'stockgroup', 'unit', 'godown', 'stockitem'] as const;
+const KINDS = ['group', 'ledger', 'party', 'stockgroup', 'unit', 'godown', 'stockitem', 'opening', 'stock'] as const;
 const ACTIONS = ['new', 'link', 'update', 'unchanged', 'conflict', 'skip'] as const;
 const rowsQuery = z.object({
   kind: z.enum(KINDS).optional(),
@@ -21,6 +21,9 @@ const decisionsInput = z.object({
     .min(1)
     .max(2000),
 });
+
+/** Accepting Tally's opening difference names the amount, so a changed difference is never accepted blindly (decision 073). */
+const commitInput = z.object({ acceptDifference: z.string().regex(/^-?\d+(\.\d{1,6})?$/).optional() });
 
 /** Decision 072: Tally XML import for the active legal entity. */
 @Controller('tally/imports')
@@ -61,8 +64,9 @@ export class TallyController {
 
   @Post(':id/commit')
   @RequirePermission('accounts.tally.import')
-  commit(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
-    return this.tally.commit(ctx, entityOf(ctx), id);
+  commit(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const { acceptDifference } = parse(commitInput, body ?? {});
+    return this.tally.commit(ctx, entityOf(ctx), id, acceptDifference);
   }
 
   @Post(':id/discard')

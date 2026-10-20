@@ -49,14 +49,14 @@ describe('reading Tally XML exports', () => {
     expect(r.company).toBe('Fixture Engineering Private Limited');
     expect(r.objects.map((o) => o.tag)).toEqual([
       'GROUP', 'GROUP', 'GROUP', 'GROUP', 'GROUP', 'GROUP', 'LEDGER',
-      'LEDGER', 'LEDGER', 'LEDGER', 'LEDGER', 'LEDGER',
+      'LEDGER', 'LEDGER', 'LEDGER', 'LEDGER', 'LEDGER', 'LEDGER',
       'UNIT', 'UNIT', 'GODOWN', 'GODOWN', 'STOCKGROUP', 'STOCKITEM', 'STOCKITEM', 'VOUCHERTYPE',
     ]);
   });
 
   it('reads the same file exported as UTF-16, the way Tally usually writes it', () => {
     const [file] = unpackTallyFiles([{ name: 'Master.xml', bytes: utf16(xml) }]);
-    expect(readTallyXml(file!.xml).objects).toHaveLength(20);
+    expect(readTallyXml(file!.xml).objects).toHaveLength(21);
   });
 
   it('expands a zip of exports and ignores other files', () => {

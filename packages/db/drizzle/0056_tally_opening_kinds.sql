@@ -1,0 +1,2 @@
+ALTER TABLE "tally_staged" DROP CONSTRAINT "tally_staged_kind_ck";--> statement-breakpoint
+ALTER TABLE "tally_staged" ADD CONSTRAINT "tally_staged_kind_ck" CHECK ("tally_staged"."kind" in ('group','ledger','party','stockgroup','unit','godown','stockitem','opening','stock'));

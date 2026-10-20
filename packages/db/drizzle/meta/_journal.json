@@ -393,6 +393,13 @@
       "when": 1792477662183,
       "tag": "0055_tally_link_party_targets",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1792479213956,
+      "tag": "0056_tally_opening_kinds",
+      "breakpoints": true
     }
   ]
 }
