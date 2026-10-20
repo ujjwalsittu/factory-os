@@ -17,9 +17,17 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./tally": {
+      "types": "./dist/tally.d.ts",
+      "default": "./dist/tally.js"
     }
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "saxes": "^6.0.0"
+  }
 }

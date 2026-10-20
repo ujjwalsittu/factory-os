@@ -291,3 +291,6 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 - 2026-10-20 · agent · Chart clean-up merged (PR 61) and deployed. User asked to import Tally data without duplicates; agreed XML export input, full scope (masters, openings, history, re-sync) and match-then-review. Wrote the design and proposed decision 072; claimed.
 
   Next: user approves the design and merges the claim; then build PR 1 (masters).
+- 2026-10-20 · agent · Tally import PR 1 (decision 072, migration 0054): streaming XML reader in core (UTF-16/8, zip, Tally control characters), staged import with GUID/GSTIN/PAN/name matching and conflicts, preview and decisions, one-transaction commit with GUID links, Accounts → Tally import screens; parser unit tests, smoke-tally (8 checks), tally walkthrough (desktop and 390 px).
+
+  Next: PR 2 (opening balances and opening stock), then PR 3 (voucher history and re-sync); a real Tally export from the user to check the parser.
