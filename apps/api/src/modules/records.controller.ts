@@ -112,8 +112,16 @@ export class RecordsController {
     if (!it) throw new NotFoundException('Item not found');
     const sections: Section[] = [];
     const add = (s: Section) => s.rows.length && sections.push(s);
+    /** Own stock below the reorder level: what to order up to it (decision 068 hand-off "Create purchase order"). */
+    let belowReorder: { onHand: string; shortfall: string } | null = null;
     if (entityId) {
       if (can('inventory.report.read')) {
+        const [level] = await this.q(sql`
+          select coalesce(sum(b.qty), 0)::numeric::text as number, (i.reorder_level - coalesce(sum(b.qty), 0))::numeric::text as detail
+          from item i left join stock_bin b on b.item_id = i.id and b.entity_id = ${entityId} and b.owner_party_id is null
+          where i.id = ${id} and i.is_stock_item and i.reorder_level is not null
+          group by i.id having coalesce(sum(b.qty), 0) < i.reorder_level`);
+        if (level) belowReorder = { onHand: level.number ?? '0', shortfall: level.detail ?? '0' };
         const stock = await this.q(sql`
           select b.id::text as id, w.code || ' · ' || w.name as number,
                  coalesce(bt.batch_no || ' · ', '') || b.qty::numeric::text || case when b.owner_party_id is not null then ' (customer-owned)' else '' end as detail
@@ -161,7 +169,7 @@ export class RecordsController {
       const inv = await this.q(sql`select i.id::text as id, i.number, s.name || ' · ' || l.qty::numeric::text || ' × ' || l.rate::numeric::text as detail from purchase_invoice_line l join purchase_invoice i on i.id = l.invoice_id join party s on s.id = i.supplier_id where l.item_id = ${id} and i.entity_id = ${entityId} order by i.created_at desc limit ${LIMIT}`);
       add({ id: 'asset-invoices', title: 'Purchase invoices', href: PAGE.purchase_invoice, rows: rows('purchase_invoice', inv) });
     }
-    return { needsEntity: !entityId, sections };
+    return { needsEntity: !entityId, sections, belowReorder };
   }
 
   // ───────────────────────── party page ─────────────────────────

@@ -42,7 +42,13 @@ export function useOurGstins() {
   return q.data?.find((e) => e.id === ws.entityId)?.gstRegistrations ?? [];
 }
 
-export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
+/** A hand-off (decision 068) opens a new order with this item already on it, e.g. from "below reorder level". */
+export interface InitialPoItem {
+  item: Pick<Item, 'id' | 'code' | 'name'> & { uomCode?: string };
+  qty: string;
+}
+
+export function PurchaseOrderForm({ po, initialItem }: { po?: PurchaseOrderDetail; initialItem?: InitialPoItem }) {
   const ws = useWorkspace();
   const router = useRouter();
   const qc = useQueryClient();
@@ -76,7 +82,9 @@ export function PurchaseOrderForm({ po }: { po?: PurchaseOrderDetail }) {
           rate: String(Number(l.rate)),
           gstRate: String(Number(l.gstRate)),
         }))
-      : [blank()],
+      : initialItem
+        ? [{ ...blank(), item: initialItem.item, qty: initialItem.qty }]
+        : [blank()],
   );
   const [draftId, setDraftId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

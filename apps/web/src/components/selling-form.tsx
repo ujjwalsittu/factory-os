@@ -403,7 +403,7 @@ export function SellingForm({
   return (
     <div className="space-y-5">
       {kind === 'invoices' && doc && doc.status !== 'draft' && <AccountingSourceLinks type="sales_invoice" id={doc.id} />}
-      {kind === 'invoices' && doc && doc.status !== 'draft' && <InvoiceBalance type="sales" id={doc.id} />}
+      {kind === 'invoices' && doc && doc.status !== 'draft' && <InvoiceBalance type="sales" id={doc.id} partyId={doc.customerId} />}
       {doc && doc.status !== 'draft' && <RelatedPanel type={kind === 'quotations' ? 'quotation' : kind === 'orders' ? 'sales_order' : 'sales_invoice'} id={doc.id} />}
       {kind === 'invoices' && doc?.stockEntryId && <AccountingSourceLinks type="stock_entry" id={doc.stockEntryId} />}
       <div className="flex flex-wrap items-start justify-between gap-3">

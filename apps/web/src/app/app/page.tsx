@@ -13,6 +13,8 @@ interface TileRow {
   label: string;
   detail: string;
   href: string;
+  /** The next step for this row (decision 068 hand-offs); the API returns it only with the permission. */
+  action?: { label: string; href: string };
 }
 interface Tile {
   id: string;
@@ -63,11 +65,17 @@ function TileCard({ tile, onRetry }: { tile: Tile; onRetry: () => void }) {
         <>
           <ul className="divide-y divide-line">
             {tile.rows.map((r, i) => (
-              <li key={`${r.href}-${i}`}>
-                <Link href={r.href} className="block px-5 py-2.5 hover:bg-surface-2">
+              <li key={`${r.href}-${i}`} className="flex items-center gap-2 hover:bg-surface-2">
+                <Link href={r.href} className="block min-w-0 flex-1 py-2.5 pl-5">
                   <span className="block truncate text-[13px] font-medium text-fg">{r.label}</span>
                   <span className="block truncate text-[12px] text-muted">{r.detail}</span>
                 </Link>
+                {r.action && (
+                  <Link href={r.action.href} className={`${buttonClass('secondary', 'sm')} mr-5 shrink-0`}>
+                    {r.action.label}
+                  </Link>
+                )}
+                {!r.action && <span className="pr-5" />}
               </li>
             ))}
           </ul>

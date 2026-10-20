@@ -1,5 +1,5 @@
 'use client';
-import { Badge, Button, Card, CardHeader, PageHeader } from '@factoryos/ui';
+import { Badge, Button, buttonClass, Card, CardHeader, PageHeader } from '@factoryos/ui';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Pencil } from 'lucide-react';
 import Link from 'next/link';
@@ -55,6 +55,11 @@ export default function ItemPage() {
             <Link href="/app/masters/items" className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-fg">
               <ArrowLeft className="size-4" /> Items
             </Link>
+            {it && overview.data?.belowReorder && ws.can('buying.purchase_order.create') && (
+              <Link href={`/app/buying/orders/new?item=${it.id}&qty=${overview.data.belowReorder.shortfall.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}`} className={buttonClass('primary', 'md')}>
+                Create purchase order
+              </Link>
+            )}
             {it && ws.can('masters.item.update') && (
               <Button variant="secondary" onClick={() => setEditing(true)}>
                 <Pencil className="size-4" /> Edit

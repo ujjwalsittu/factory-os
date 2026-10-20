@@ -3,7 +3,7 @@ import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Selec
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { AttachmentsPanel } from '@/components/attachments-panel';
 import { EntityGate } from '@/components/entity-gate';
@@ -131,7 +131,9 @@ function View() {
 /** The CAPAs this NCR feeds (decision 061); raising one is optional. */
 function CapaCard({ n }: { n: NcrDetail }) {
   const ws = useWorkspace();
-  const [raising, setRaising] = useState(false);
+  const search = useSearchParams();
+  // "Raise CAPA" on Home (decision 068) opens the dialog straight away.
+  const [raising, setRaising] = useState(() => search.get('capa') === '1' && ws.can('quality.capa.create'));
   const q = useQuery({ queryKey: ['capas', ws.entityId, 'ncr', n.id], queryFn: () => api<CapaRow[]>(`/quality/capas?ncrId=${n.id}`, { scope: ws.scope }) });
   return (
     <Card className="mb-4">
