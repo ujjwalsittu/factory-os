@@ -100,7 +100,8 @@ PR (074b: no credentials yet).
     button stays off without one), the refusal clearing, review, export and 390 px with no sideways scroll.
   - `e2e/gst-returns.mjs` passes.
 - Regression: sales-note lifecycle, supplier notes, accounting baseline, and the selling walkthrough.
-- The UI audit and typecheck and build for core, API and web are in the PR description.
+- UI audit: 204 page views, with no sideways scroll, console errors or failed calls.
+- Typecheck and build for core, API and web.
 
 ## Limits
 
