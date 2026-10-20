@@ -14,6 +14,7 @@ export function FormDialog({
   submitLabel = 'Save',
   wide,
   duplicate,
+  submitDisabled,
   children,
 }: {
   title: string;
@@ -26,6 +27,8 @@ export function FormDialog({
   wide?: boolean;
   /** Offered when the save fails because the code is already used: selects the record that has it. */
   duplicate?: { label: string; onUse: () => void | Promise<void> };
+  /** Keeps the submit button off until something in the form is confirmed. */
+  submitDisabled?: boolean;
   children: ReactNode;
 }) {
   const id = useId();
@@ -33,7 +36,7 @@ export function FormDialog({
     e.preventDefault();
     // A form opened from a field inside another form must not submit that outer form.
     e.stopPropagation();
-    onSubmit();
+    if (!submitDisabled) onSubmit();
   };
   return (
     <Dialog
@@ -47,7 +50,7 @@ export function FormDialog({
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" form={id} loading={pending}>
+          <Button type="submit" form={id} loading={pending} disabled={submitDisabled}>
             {submitLabel}
           </Button>
         </>

@@ -2,7 +2,7 @@
 import { ApiError, type Scope } from './api';
 
 /** Decision 072: Tally XML import. */
-export type TallyKind = 'group' | 'ledger' | 'party' | 'stockgroup' | 'unit' | 'godown' | 'stockitem';
+export type TallyKind = 'group' | 'ledger' | 'party' | 'stockgroup' | 'unit' | 'godown' | 'stockitem' | 'opening' | 'stock';
 export type TallyAction = 'new' | 'link' | 'update' | 'unchanged' | 'conflict' | 'skip';
 
 export interface TallyImport {
@@ -14,6 +14,16 @@ export interface TallyImport {
   /** Counts by kind.action with the current choices; only on the single-import read. */
   current?: Record<string, number>;
   warnings: string[];
+  /** Opening balances and stock as currently decided (decision 073); only on the single-import read. */
+  openings?: {
+    included: number;
+    ledgers: string;
+    stock: string;
+    /** Debits minus credits; not zero means it must be accepted to commit. */
+    difference: string;
+    active: boolean;
+    worksheet: { lines: number; bills: number };
+  } | null;
   createdAt: string;
   committedAt: string | null;
 }
@@ -40,6 +50,8 @@ export const KIND_LABEL: Record<TallyKind, string> = {
   godown: 'Godowns',
   stockgroup: 'Stock groups',
   stockitem: 'Stock items',
+  opening: 'Opening balances',
+  stock: 'Opening stock',
 };
 export const KINDS = Object.keys(KIND_LABEL) as TallyKind[];
 
@@ -52,9 +64,20 @@ export const ACTION_LABEL: Record<TallyAction, string> = {
   skip: 'Skip',
 };
 
+/** Openings are included or left out, not created: their buttons say so. */
+export function actionLabel(kind: TallyKind, action: TallyAction) {
+  if (kind === 'opening' || kind === 'stock') return action === 'new' ? 'Include' : action === 'link' ? 'To ledger' : ACTION_LABEL[action];
+  return ACTION_LABEL[action];
+}
+
 /** Mirrors the API: never back to conflict; update and no change only for records linked by an earlier import. */
-export function allowedActions(row: Pick<TallyRow, 'kind' | 'proposed'>): TallyAction[] {
+export function allowedActions(row: Pick<TallyRow, 'kind' | 'proposed' | 'payload'>): TallyAction[] {
   if (row.kind === 'stockgroup') return ['skip'];
+  if (row.kind === 'stock') {
+    const allocations = (row.payload.allocations ?? []) as { qty: string }[];
+    return allocations.some((a) => a.qty.startsWith('-')) ? ['skip'] : ['new', 'skip'];
+  }
+  if (row.kind === 'opening') return row.payload.mode === 'party' ? ['new', 'skip'] : row.proposed === 'conflict' ? ['link', 'skip'] : ['new', 'link', 'skip'];
   if (row.proposed === 'update' || row.proposed === 'unchanged') return ['update', 'unchanged', 'skip'];
   return ['new', 'link', 'skip'];
 }
@@ -68,6 +91,8 @@ export const TARGET_SOURCE: Record<TallyKind, { path: string; label: (r: Record<
   godown: { path: '/warehouses', label: (r) => `${r.code} · ${r.name}` },
   stockitem: { path: '/items?limit=500', label: (r) => `${r.code} · ${r.name}` },
   stockgroup: null,
+  opening: { path: '/accounts/accounts', label: (r) => `${r.name} · ${r.code}` },
+  stock: null,
 };
 
 export async function uploadTally(files: File[], scope: Scope): Promise<TallyImport> {

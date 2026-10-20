@@ -83,7 +83,7 @@ const hdfc = accounts.find((a) => a.name === 'HDFC Bank CA 0042');
 assert.equal(hdfc.groupId, g('Bank Accounts').id);
 assert.equal(accounts.find((a) => a.name === 'Power and Fuel').groupId, g('Factory Overheads').id);
 assert.ok(!accounts.some((a) => a.name === 'CGST'), 'the skipped tax ledger was not created');
-assert.equal(accounts.length, accountsBefore + 2);
+assert.equal(accounts.length, accountsBefore + 3);
 const parties = (await c.req('GET', '/parties?limit=500'));
 const plist = parties.data ?? parties;
 const acme = plist.find((p) => p.gstin === '27AAACA1234B1ZI');
@@ -102,15 +102,46 @@ const whs = await c.req('GET', '/warehouses');
 assert.ok(whs.some((w) => w.name === 'Main Location') && whs.some((w) => w.name === 'Bhosari Stores'));
 ok('commit creates groups under their parents, ledgers in the right groups, customers and suppliers, warehouses and items');
 
+// ── Opening balances and stock (decisions 072 and 073) ──
+const committed = await c.req('GET', `/tally/imports/${imp.id}`);
+assert.equal(committed.openings.difference, '0.000000', "the fixture's openings balance");
+assert.equal(committed.openings.stock, '87535.000000');
+const ws = await c.req('GET', '/accounts/opening');
+const settings = await c.req('GET', '/accounts/settings');
+const roleId = (r) => settings.mappings?.[r] ?? accounts.find((a) => a.role === r)?.id;
+const lineFor = (accountId, extra = {}) => ws.lines.filter((l) => l.accountId === accountId && Object.entries(extra).every(([k, v]) => l[k] === v));
+const amount = (l) => (l.debit !== '0' ? `D${Number(l.debit)}` : `C${Number(l.credit)}`);
+assert.deepEqual(lineFor(hdfc.id).map(amount), ['D310500'], 'a bank balance goes to the created ledger');
+assert.deepEqual(lineFor(accounts.find((a) => a.name === "Proprietor's Capital").id).map(amount), ['C479535.5']);
+assert.deepEqual(lineFor(roleId('input_cgst')).map(amount), ['D4500'], 'a skipped CGST ledger with a debit balance goes to Input CGST');
+assert.deepEqual(lineFor(roleId('inventory')).map(amount), ['D87535'], 'the Inventory line is the value of the opening stock');
+assert.deepEqual(
+  ws.bills.map((b) => `${b.reference}:${b.side}:${Number(b.amount)}`).sort(),
+  ['AC/25-26/0451:debit:100000.5', 'AC/25-26/0480:debit:25000', 'On account:credit:48000'],
+  'bill-wise openings become bills; a party without them gets one On account bill',
+);
+assert.deepEqual(lineFor(roleId('debtors'), { partyId: acme.id }).map(amount).sort(), ['D100000.5', 'D25000']);
+assert.deepEqual(lineFor(roleId('creditors'), { partyId: bharat.id }).map(amount), ['C48000']);
+const drafts = (await c.req('GET', '/stock-entries?status=draft')).filter((e) => e.reference === 'Tally opening stock');
+assert.equal(drafts.length, 2, 'one draft receipt per godown');
+const draftLines = (await Promise.all(drafts.map((d) => c.req('GET', `/stock-entries/${d.id}`)))).flatMap((d) => d.lines);
+assert.deepEqual(draftLines.map((l) => `${l.newBatchNo}:${Number(l.qty)}@${Number(l.rate)}`).sort(), ['HEAT-2231:1000.5@70', 'HEAT-2240:250@70']);
+ok('opening balances fill the worksheet (ledgers, tax by duty head, bills per party, inventory) and stock lands as draft receipts per godown');
+
 // ── Same export again: nothing new ──
 const again = await upload(c, [['Master.xml', utf16(fixture)]]);
 list = await rows(c, again.id);
-assert.deepEqual([...new Set(list.filter((r) => !['skip'].includes(r.proposed)).map((r) => r.proposed))], ['unchanged']);
+const masterRows = list.filter((r) => r.kind !== 'opening' && r.kind !== 'stock');
+assert.deepEqual([...new Set(masterRows.filter((r) => !['skip'].includes(r.proposed)).map((r) => r.proposed))], ['unchanged']);
 await c.req('POST', `/tally/imports/${again.id}/commit`, {}, 201);
-assert.equal((await c.req('GET', '/accounts/accounts')).length, accountsBefore + 2);
+assert.equal((await c.req('GET', '/accounts/accounts')).length, accountsBefore + 3);
+const ws2 = await c.req('GET', '/accounts/opening');
+assert.deepEqual([ws2.lines, ws2.bills], [ws.lines, ws.bills], 'the worksheet is rewritten to the same balances');
+const drafts2 = (await c.req('GET', '/stock-entries?status=draft')).filter((e) => e.reference === 'Tally opening stock');
+assert.deepEqual(drafts2.map((d) => d.id).sort(), drafts.map((d) => d.id).sort(), 'the same drafts are rewritten, not duplicated');
 const plist2 = (await c.req('GET', '/parties?limit=500'));
 assert.equal((plist2.data ?? plist2).length, plist.length);
-ok('importing the same export again finds every record unchanged and creates nothing');
+ok('importing the same export again finds every record unchanged, creates nothing and rewrites the same openings');
 
 // ── Newer export: an edited party updates, a new ledger is added ──
 const newer = fixture
@@ -129,8 +160,24 @@ await c.req('POST', `/tally/imports/${third.id}/commit`, {}, 201);
 const updated = await c.req('GET', `/parties/${acme.id}`);
 assert.equal(updated.name, 'Acme Castings Private Limited');
 assert.equal(updated.gstin, '27AAACA1234B1ZI');
-assert.equal((await c.req('GET', '/accounts/accounts')).length, accountsBefore + 3);
+assert.equal((await c.req('GET', '/accounts/accounts')).length, accountsBefore + 4);
 ok('a newer ALTERID updates the linked party by GUID, and a new ledger is added');
+
+// ── The imported openings reconcile and activate; afterwards they are closed ──
+for (const d of drafts) await c.req('POST', `/stock-entries/${d.id}/submit`, {}, 201);
+const rec = await c.req('GET', '/accounts/opening/reconciliation');
+assert.deepEqual(rec.differences, [], 'inventory, debtors and creditors reconcile with the imported openings');
+const wsNow = await c.req('GET', '/accounts/opening');
+await c.req('POST', '/accounts/opening/activate', { worksheetId: wsNow.id, reviewedToken: rec.snapshotToken }, 200);
+const closed = await upload(c, [['Master.xml', utf16(fixture)]]);
+list = await rows(c, closed.id);
+const openingRows = list.filter((r) => r.kind === 'opening' || r.kind === 'stock');
+assert.ok(openingRows.length && openingRows.every((r) => r.proposed === 'skip' && /Accounting is active/.test(r.notes.join(' '))));
+const forced = await c.raw('PUT', `/tally/imports/${closed.id}/rows`, { decisions: [{ id: openingRows.find((r) => r.kind === 'stock').id, action: 'new' }] });
+assert.equal(forced.status, 200);
+assert.equal((await c.raw('POST', `/tally/imports/${closed.id}/commit`, {})).status, 409, 'openings cannot be forced in after activation');
+await c.req('POST', `/tally/imports/${closed.id}/discard`, {}, 201);
+ok('the imported openings reconcile and activate; afterwards opening balances and stock are refused');
 
 // ── Matching an existing workspace: link by GSTIN, conflicts block commit ──
 await pause();
@@ -219,6 +266,65 @@ assert.deepEqual(Object.keys(shapesAgain.counts).sort(), ['group.unchanged', 'le
 await b.req('POST', `/tally/imports/${shapesAgain.id}/discard`, {}, 201);
 ok('two Tally ledgers with one GSTIN are saved as one party; an input-tax ledger under Duties & Taxes links by name');
 
+// ── An unbalanced export and negative stock (decision 073) ──
+await pause();
+const d = await new Client().init('Tally Difference');
+const unbalanced = fixture
+  .replace('<OPENINGBALANCE>4,79,535.50</OPENINGBALANCE>', '<OPENINGBALANCE>4,79,000.00</OPENINGBALANCE>')
+  .replace('<OPENINGBALANCE> 250 Kgs</OPENINGBALANCE>', '<OPENINGBALANCE> -250 Kgs</OPENINGBALANCE>')
+  .replace(
+    '</REQUESTDATA>',
+    '<TALLYMESSAGE><LEDGER NAME="Profit &amp; Loss A/c" RESERVEDNAME="Profit &amp; Loss A/c"><GUID>pl-1</GUID><PARENT>Primary</PARENT><OPENINGBALANCE>12,000.00</OPENINGBALANCE><ALTERID>1</ALTERID></LEDGER></TALLYMESSAGE></REQUESTDATA>',
+  );
+const ub = await upload(d, [['Master.xml', utf16(unbalanced)]]);
+list = await rows(d, ub.id);
+const barStock = list.find((r) => r.kind === 'stock' && r.name === 'MS Round Bar 25mm');
+assert.equal(barStock.proposed, 'conflict');
+assert.match(barStock.notes.join(' '), /negative opening stock/);
+assert.equal((await d.raw('PUT', `/tally/imports/${ub.id}/rows`, { decisions: [{ id: barStock.id, action: 'new' }] })).status, 400, 'negative stock can only be skipped');
+await d.req('PUT', `/tally/imports/${ub.id}/rows`, { decisions: [{ id: barStock.id, action: 'skip' }] });
+// Skipping the bar's stock and the short capital leave the openings unbalanced; the summary names the amount.
+const summary = (await d.req('GET', `/tally/imports/${ub.id}`)).openings;
+assert.equal(summary.stock, '0.000000');
+const refused = await d.raw('POST', `/tally/imports/${ub.id}/commit`, {});
+assert.equal(refused.status, 400);
+assert.equal(refused.data.difference, summary.difference);
+assert.equal((await d.raw('POST', `/tally/imports/${ub.id}/commit`, { acceptDifference: '1' })).status, 400, 'a different amount is not accepted');
+await d.req('POST', `/tally/imports/${ub.id}/commit`, { acceptDifference: summary.difference }, 201);
+const dws = await d.req('GET', '/accounts/opening');
+const dAccounts = await d.req('GET', '/accounts/accounts');
+const diffLedger = dAccounts.find((a) => a.name === 'Opening difference (Tally)');
+const diffLine = dws.lines.find((l) => l.accountId === diffLedger.id);
+assert.equal(Number(diffLine.debit) - Number(diffLine.credit), -Number(summary.difference), 'the difference ledger balances the worksheet');
+assert.equal((await d.req('GET', '/stock-entries?status=draft')).filter((e) => e.reference === 'Tally opening stock').length, 0);
+const pl = dAccounts.find((a) => a.name === 'Profit & Loss A/c');
+const dGroups = await d.req('GET', '/accounts/groups');
+assert.equal(pl.groupId, dGroups.find((g) => g.name === 'Reserves & Surplus').id);
+assert.deepEqual(dws.lines.filter((l) => l.accountId === pl.id).map((l) => Number(l.credit)), [12000], "Tally's accumulated profit goes to Profit & Loss A/c under Reserves & Surplus");
+ok('negative stock can only be skipped; Profit & Loss A/c goes to Reserves; an unbalanced opening needs the exact difference accepted');
+
+// Re-imports keep drafts in step with the worksheet: a godown left out loses its draft; a cancelled receipt is replaced.
+const tallyDrafts = async () => (await d.req('GET', '/stock-entries')).filter((e) => e.reference === 'Tally opening stock');
+const full = await upload(d, [['Master.xml', utf16(fixture)]]);
+await d.req('POST', `/tally/imports/${full.id}/commit`, {}, 201);
+assert.equal((await tallyDrafts()).filter((e) => e.status === 'draft').length, 2);
+const mainOnly = fixture
+  .replace('<OPENINGBALANCE> 250 Kgs</OPENINGBALANCE>', '<OPENINGBALANCE> 0 Kgs</OPENINGBALANCE>')
+  .replace('<OPENINGVALUE>-17,500.00</OPENINGVALUE>', '<OPENINGVALUE>0</OPENINGVALUE>')
+  .replace('<OPENINGBALANCE>4,79,535.50</OPENINGBALANCE>', '<OPENINGBALANCE>4,62,035.50</OPENINGBALANCE>');
+const fewer = await upload(d, [['Master.xml', utf16(mainOnly)]]);
+await d.req('POST', `/tally/imports/${fewer.id}/commit`, {}, 201);
+const left = await tallyDrafts();
+assert.equal(left.length, 1, "the godown without stock loses its stale draft");
+await d.req('POST', `/stock-entries/${left[0].id}/submit`, {}, 201);
+await d.req('POST', `/stock-entries/${left[0].id}/cancel`, { reason: 'Counted again before cut-over' }, 201);
+const afterCancel = await upload(d, [['Master.xml', utf16(mainOnly)]]);
+list = await rows(d, afterCancel.id);
+assert.equal(list.find((r) => r.kind === 'stock').proposed, 'new', 'a cancelled receipt does not block a re-import');
+await d.req('POST', `/tally/imports/${afterCancel.id}/commit`, {}, 201);
+assert.equal((await tallyDrafts()).filter((e) => e.status === 'draft').length, 1);
+ok('re-imports drop drafts for godowns without stock, and replace a cancelled opening receipt');
+
 // ── Isolation and closing ──
 await pause();
 const other = await new Client().init('Tally Other');
@@ -231,6 +337,6 @@ assert.equal((await c.raw('POST', `/tally/imports/${imp.id}/commit`, {})).status
 assert.equal((await upload(c, [['empty.xml', Buffer.from('<ENVELOPE/>')]], 400)).message, 'No Tally masters were found in the upload');
 ok('another workspace sees nothing; committed and discarded imports stay closed; an empty export is refused');
 
-console.log(`\ntally smoke: ${checks} checks passed (${c.checks + b.checks + other.checks} requests)`);
+console.log(`\ntally smoke: ${checks} checks passed (${c.checks + b.checks + d.checks + other.checks} requests)`);
 void gstin;
 void partiesBefore;
