@@ -135,6 +135,8 @@ export interface Gstr1 {
   hsn: HsnRow[];
   attention: Attention[];
   totals: Record<Exclude<Gstr1Section, 'nil'>, Amounts>;
+  /** PR 3: amendments to earlier filed months proposed in this return, each with its decision. */
+  amendments?: Amendment[];
 }
 
 const byRate = (lines: GstLine[], sign: number) => {
@@ -402,6 +404,122 @@ export function buildGstr3b(g1: Gstr1, docs: OutwardDoc[], inward: InwardDoc[], 
   };
 }
 
+// ───────────────────────── amendments (PR 3, decision 074b) ─────────────────────────
+
+/** Form GSTR-1 table 9A amends B2B, B2CL and exports; 9C amends notes; 10 amends B2CS for an earlier month. */
+export type AmendTable = 'b2ba' | 'b2cla' | 'expa' | 'cdnra' | 'cdnura' | 'b2csa';
+export const AMEND_TABLE: Record<Exclude<Gstr1Section, 'nil' | 'b2cs'>, AmendTable> = { b2b: 'b2ba', b2cl: 'b2cla', exp: 'expa', cdnr: 'cdnra', cdnur: 'cdnura' };
+export type AmendStatus = 'proposed' | 'included' | 'dropped';
+
+export interface B2csFigures {
+  rows: B2csRow[];
+}
+/**
+ * One correction to a filed month: what was last reported (the filed return, or a later included amendment) and the
+ * document's figures now. A person includes it or drops it with a reason before the return is reviewed.
+ */
+export interface Amendment {
+  /** The document id, or `b2cs:<original month>` for a B2CS revision. */
+  key: string;
+  table: AmendTable;
+  originalPeriod: string;
+  documentId: string | null;
+  documentType: OutwardDoc['type'] | null;
+  number: string | null;
+  date: string | null;
+  reported: Gstr1Entry | B2csFigures;
+  revised: Gstr1Entry | B2csFigures;
+  /** Revised minus reported. */
+  difference: Amounts;
+  /** Exports and SEZ supplies: the difference goes to 3B 3.1(b). */
+  zeroRated: boolean;
+  status: AmendStatus;
+  reason: string | null;
+}
+
+const comparable = (e: Gstr1Entry) =>
+  JSON.stringify([e.counterpartyGstin, e.placeOfSupply, Dec.of(e.value).toFixed(2), e.byRate, e.reverseCharge, e.portCode, e.shippingBillNo, e.shippingBillDate]);
+
+/**
+ * The amendment for an invoice or note reported in a filed month, or null when it has not changed. A document no
+ * longer in that month (cancelled) is revised to zero values: common practice, NOT VERIFIED against the pinned rules
+ * (docs/compliance/gst-returns-evidence.md), so a person can drop it when a note corrects it instead.
+ */
+export function entryAmendment(originalPeriod: string, reported: Gstr1Entry, current: Gstr1Entry | null): Omit<Amendment, 'status' | 'reason'> | null {
+  if (current && comparable(current) === comparable(reported)) return null;
+  const revised: Gstr1Entry = current ?? { ...reported, value: '0.00', amounts: zero(), byRate: reported.byRate.map((r) => ({ ...zero(), rate: r.rate })) };
+  const table = AMEND_TABLE[reported.section as keyof typeof AMEND_TABLE];
+  if (!table) return null;
+  return {
+    key: reported.documentId,
+    table,
+    originalPeriod,
+    documentId: reported.documentId,
+    documentType: reported.documentType,
+    number: reported.number,
+    date: reported.date,
+    reported,
+    revised,
+    difference: plus(revised.amounts, reported.amounts, -1),
+    zeroRated: table === 'expa' || reported.subtype === 'SEWP' || reported.subtype === 'SEWOP' || reported.subtype === 'EXPWP' || reported.subtype === 'EXPWOP',
+  };
+}
+
+/**
+ * Table 10: a filed month's B2CS revised by place of supply and rate, from the documents that return reported as they
+ * stand now. A rate no longer present is revised to zero. Null when nothing changed.
+ */
+export function b2csAmendment(originalPeriod: string, reported: B2csRow[], current: B2csRow[]): Omit<Amendment, 'status' | 'reason'> | null {
+  const key = (r: B2csRow) => `${r.placeOfSupply}|${Dec.of(r.rate).toFixed(2)}`;
+  const now = new Map(current.map((r) => [key(r), r]));
+  const was = new Map(reported.map((r) => [key(r), r]));
+  const rows = [...current, ...reported.filter((r) => !now.has(key(r))).map((r) => ({ ...zero(), placeOfSupply: r.placeOfSupply, rate: r.rate }))].sort(
+    (a, b) => a.placeOfSupply.localeCompare(b.placeOfSupply) || Dec.of(a.rate).cmp(b.rate),
+  );
+  const same = (a?: B2csRow, b?: B2csRow) => !!a && !!b && [...HEADS, 'taxable' as const].every((h) => Dec.of(a[h]).eq(b[h]));
+  if (rows.every((r) => same(r, was.get(key(r))) || (!was.has(key(r)) && [...HEADS, 'taxable' as const].every((h) => Dec.of(r[h]).isZero())))) return null;
+  return {
+    key: `b2cs:${originalPeriod}`,
+    table: 'b2csa',
+    originalPeriod,
+    documentId: null,
+    documentType: null,
+    number: null,
+    date: null,
+    reported: { rows: reported },
+    revised: { rows },
+    difference: plus(sum(current), sum(reported), -1),
+    zeroRated: false,
+  };
+}
+
+export const includedAmendments = (g1: Gstr1) => (g1.amendments ?? []).filter((a) => a.status === 'included');
+
+/** The output tax an amendment changes: none for an outward supply under reverse charge. */
+export function outputDifference(a: Amendment): Amounts {
+  const rc = 'counterpartyGstin' in a.revised && (a.revised.reverseCharge || (a.reported as Gstr1Entry).reverseCharge);
+  return rc ? { ...a.difference, igst: '0.00', cgst: '0.00', sgst: '0.00', cess: '0.00' } : a.difference;
+}
+
+/**
+ * Form GSTR-3B instruction 3: "Amendment in any details to be adjusted and not shown separately". The included
+ * amendments' differences adjust 3.1(a) or (b) and the tax payable of the amending month.
+ */
+export function applyAmendments(g3: Gstr3b, g1: Gstr1): Gstr3b {
+  const included = includedAmendments(g1);
+  if (!included.length) return g3;
+  let a = g3['3.1'].a,
+    b = g3['3.1'].b,
+    pay = g3['6.1'];
+  for (const x of included) {
+    const d = outputDifference(x);
+    if (x.zeroRated) b = plus(b, d);
+    else a = plus(a, d);
+    pay = addT(pay, taxes(d));
+  }
+  return { ...g3, '3.1': { ...g3['3.1'], a, b }, '6.1': pay };
+}
+
 // ───────────────────────── checks ─────────────────────────
 
 export interface Check {
@@ -415,6 +533,7 @@ export function checkGstr1Against3b(g1: Gstr1, g3: Gstr3b, docs: OutwardDoc[]): 
   const rc = new Set(docs.filter((d) => d.reverseCharge).map((d) => d.id));
   let tax = g1.b2cs.reduce((s, r) => s.add(taxOf(r)), Dec.ZERO);
   for (const e of g1.entries) if (!rc.has(e.documentId)) tax = tax.add(taxOf(e.amounts));
+  for (const a of includedAmendments(g1)) tax = tax.add(taxOf(outputDifference(a)));
   const b3 = taxOf(g3['3.1'].a).add(taxOf(g3['3.1'].b));
   return { name: 'GSTR-1 tax equals 3B 3.1 output tax', ok: tax.eq(b3), detail: `GSTR-1 ${tax.toFixed(2)}, 3B ${b3.toFixed(2)}` };
 }
@@ -466,7 +585,34 @@ export function gstr1Sheets(g: Gstr1 & { documents?: DocSummaryRow[] }): { name:
     { name: 'nil.csv', csv: csv(['Table', 'Nil rated'], g.nil.map((n) => [n.table, n.nil])) },
     { name: 'hsn.csv', csv: csv(['Part', 'HSN', 'UQC', 'Rate', 'Quantity', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess'], g.hsn.map((h) => [h.part.toUpperCase(), h.hsn, h.uqc, h.rate, h.qty, h.taxable, h.igst, h.cgst, h.sgst, h.cess])) },
     { name: 'docs.csv', csv: csv(['Nature', 'Series', 'From', 'To', 'Total', 'Cancelled'], (g.documents ?? []).map((d) => [d.nature, d.series, d.from, d.to, d.total, d.cancelled])) },
+    ...amendmentSheets(g),
   ];
+}
+
+/** Included amendments, one sheet per table that has any: the original reference, then the revised figures. */
+function amendmentSheets(g: Gstr1): { name: string; csv: string }[] {
+  const included = includedAmendments(g);
+  const out: { name: string; csv: string }[] = [];
+  const docHead = ['Original number', 'Original date', 'Original month', 'GSTIN', 'Number', 'Date', 'Value', 'Place of supply', 'Reverse charge', 'Type', 'Rate', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess'];
+  for (const table of ['b2ba', 'b2cla', 'cdnra', 'cdnura'] as const) {
+    const rows = included
+      .filter((a) => a.table === table)
+      .flatMap((a) => {
+        const e = a.revised as Gstr1Entry;
+        return e.byRate.map((r) => [a.number, a.date, a.originalPeriod, e.counterpartyGstin, e.number, e.date, e.value, e.placeOfSupply, e.reverseCharge ? 'Y' : 'N', e.subtype, r.rate, r.taxable, r.igst, r.cgst, r.sgst, r.cess]);
+      });
+    if (rows.length) out.push({ name: `${table}.csv`, csv: csv(docHead, rows) });
+  }
+  const expa = included
+    .filter((a) => a.table === 'expa')
+    .flatMap((a) => {
+      const e = a.revised as Gstr1Entry;
+      return e.byRate.map((r) => [a.number, a.date, a.originalPeriod, e.subtype, e.number, e.date, e.value, e.portCode, e.shippingBillNo, e.shippingBillDate, r.rate, r.taxable, r.igst, r.cess]);
+    });
+  if (expa.length) out.push({ name: 'expa.csv', csv: csv(['Original number', 'Original date', 'Original month', 'Type', 'Number', 'Date', 'Value', 'Port code', 'Shipping bill', 'Shipping bill date', 'Rate', 'Taxable value', 'IGST', 'Cess'], expa) });
+  const b2csa = included.filter((a) => a.table === 'b2csa').flatMap((a) => (a.revised as B2csFigures).rows.map((r) => [a.originalPeriod, r.placeOfSupply, r.rate, r.taxable, r.igst, r.cgst, r.sgst, r.cess]));
+  if (b2csa.length) out.push({ name: 'b2csa.csv', csv: csv(['Original month', 'Place of supply', 'Rate', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess'], b2csa) });
+  return out;
 }
 
 /** GSTR-3B as one sheet; rows of table 4 are named by what they hold (the current portal labels are not pinned). */
