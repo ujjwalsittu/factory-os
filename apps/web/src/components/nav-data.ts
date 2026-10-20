@@ -1,5 +1,6 @@
 import {
   FileUp,
+  Cable,
   History,
   ArrowLeftRight,
   BadgePercent,
@@ -201,6 +202,7 @@ export const AREAS: NavArea[] = [
       { href: '/app/settings/users', label: 'Users', icon: Users, permission: 'settings.user.read' },
       { href: '/app/settings/roles', label: 'Roles', icon: KeyRound, permission: 'settings.role.read' },
       { href: '/app/settings/number-series', label: 'Number series', icon: FileSpreadsheet, permission: 'settings.entity.read', entityScoped: true },
+      { href: '/app/settings/connections', label: 'Connections', icon: Cable, permission: 'settings.integration.read', entityScoped: true },
       { href: '/app/settings/gst-integrations', label: 'GST sandbox connections', icon: ReceiptText, permission: 'compliance.sandbox_connection.read', entityScoped: true },
       { href: '/app/settings/supplier-returns', label: 'Supplier return policies', icon: ReceiptText, permission: 'buying.return_policy.read', entityScoped: true },
       { href: '/app/settings/support-access', label: 'Support access', icon: LifeBuoy, permission: 'settings.support_access.read' },
