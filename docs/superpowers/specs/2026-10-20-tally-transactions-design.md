@@ -109,3 +109,7 @@ This builds on the history import of PR 3:
   journals follow in PR 2.
 - **Stock:** Tally invoices with items move stock in the warehouse linked to the Tally godown.
 - **Tax differences:** the document keeps Tally's amounts and is flagged with both figures.
+- **Notes (075a):** value notes with Tally's amounts, linked to the FactoryOS invoice when there is one, else carrying
+  Tally's bill reference as text. Goods on a note still move stock.
+- **Re-sync (075a):** reversing and recreating an edited document moves to PR 2 with switching a month back. In PR 1
+  an edited voucher is a conflict.

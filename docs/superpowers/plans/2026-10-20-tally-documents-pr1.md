@@ -57,7 +57,10 @@ clash with a FactoryOS document means a real duplicate, and it is shown as a con
   unmapped voucher type, a missing link or an unbalanced voucher is a decision. Vouchers in other months stay history.
 - **Commit:** creates and submits the documents in the import's transaction, with stock and books, and links the
   history row to the document.
-- **Update:** the old document is cancelled (reversal) and a new one created.
+- **Update (moved to PR 2 by 075a):** an edited voucher is a conflict; reversal and recreation come with switching a
+  month back.
+- **Notes (075a):** value notes with Tally's amounts; the original invoice is linked when it is a FactoryOS document,
+  else Tally's bill reference is kept as text. Goods on a note move stock.
 - **Voucher-type mapping:** asked once per import for types not yet mapped, then saved.
 
 **T5 · Web.**
