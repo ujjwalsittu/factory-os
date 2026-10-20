@@ -122,7 +122,8 @@ export class TallyHistoryController {
 }
 
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
-const bookInput = z.object({ month: z.string().regex(monthPattern), book: z.enum(['tally', 'factoryos']), confirm: z.boolean().optional() });
+/** `documents`: what the switch-back preview listed; switching back reverses exactly those (decision 075b). */
+const bookInput = z.object({ month: z.string().regex(monthPattern), book: z.enum(['tally', 'factoryos']), confirm: z.object({ documents: z.array(z.uuid()).max(20000) }).optional() });
 
 /** Decision 075: which book each month is kept in, from the cut-over on. */
 @Controller('tally/books')
@@ -143,7 +144,7 @@ export class TallyBooksController {
   @RequirePermission('accounts.tally.import')
   set(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
     const { month, book, confirm } = parse(bookInput, body);
-    return setBook(this.db, ctx, entityOf(ctx), this.audit, month, book, this.tally.reversal, confirm);
+    return setBook(this.db, ctx, entityOf(ctx), this.audit, month, book, this.tally.reversal, confirm ?? null);
   }
 
   /** Decision 075b: the documents from Tally that switching the month back would reverse, and any that block it. */

@@ -159,6 +159,17 @@ export function planEntry(v: TallyVoucher, kind: EntryKind, r: EntryResolver): E
   return { journal: res.draft, sides };
 }
 
+/**
+ * The batch goods come in on. A tracked item without a Tally batch gets `TALLY-<number>`; that batch is looked up
+ * first, since a re-synced voucher made it the first time (the reversal keeps the batch row).
+ */
+export async function inboundBatch(tx: Tx, tenantId: string, itemId: string, batchNo: string | null, tracked: boolean, number: string) {
+  const name = batchNo ?? (tracked ? `TALLY-${number}`.slice(0, 40) : null);
+  if (!name) return { batchId: null, newBatchNo: null };
+  const [b] = await tx.select({ id: batch.id }).from(batch).where(and(eq(batch.itemId, itemId), eq(batch.batchNo, name), eq(batch.tenantId, tenantId)));
+  return { batchId: b?.id ?? null, newBatchNo: b || !tracked ? null : name };
+}
+
 export interface EntryServices {
   tracked: (itemId: string) => boolean;
   settlements: SettlementService;
@@ -313,8 +324,7 @@ async function stockJournalFrom(tx: Tx, ctx: TenantRequestContext, entityId: str
     // What was consumed leaves first at FIFO cost; what was produced comes in at Tally's value.
     for (const l of d.out) rows.push({ itemId: l.itemId, qty: l.qty, fromWarehouseId: l.warehouseId, batchId: await batchOf(l.itemId, l.batch) });
     for (const l of d.in) {
-      const known = await batchOf(l.itemId, l.batch);
-      rows.push({ itemId: l.itemId, qty: l.qty, toWarehouseId: l.warehouseId, rate: Dec.of(l.value).div(l.qty).toString(), batchId: known, newBatchNo: !known && s.tracked(l.itemId) ? (l.batch ?? `TALLY-${d.number}`.slice(0, 40)) : null });
+      rows.push({ itemId: l.itemId, qty: l.qty, toWarehouseId: l.warehouseId, rate: Dec.of(l.value).div(l.qty).toString(), ...(await inboundBatch(tx, tenantId, l.itemId, l.batch, s.tracked(l.itemId), d.number)) });
     }
   }
   await tx.insert(stockEntryLine).values(rows.map((r, i) => ({ ...r, entryId: entry!.id, lineNo: i + 1 })));

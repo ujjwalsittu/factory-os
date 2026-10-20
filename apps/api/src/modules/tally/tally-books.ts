@@ -69,7 +69,7 @@ async function documentsIn(db: Db, entityId: string, month: string, source: Book
  * Sets the book of a month. Back to FactoryOS reverses the month's documents from Tally (decision 075b), so it needs
  * `confirm` once the preview has listed them, and is refused while anything outside the month depends on them.
  */
-export async function setBook(db: Database, ctx: TenantRequestContext, entityId: string, audit: AuditService, month: string, book: Book, s: ReversalServices, confirm = false) {
+export async function setBook(db: Database, ctx: TenantRequestContext, entityId: string, audit: AuditService, month: string, book: Book, s: ReversalServices, confirm: { documents: string[] } | null = null) {
   return db.transaction(async (tx) => {
     // The accounting lock serialises this with invoice and note submits, which check the book under the same lock.
     await lockAccounting(tx, entityId);
@@ -86,6 +86,10 @@ export async function setBook(db: Database, ctx: TenantRequestContext, entityId:
       const fromTally = await versionsInMonth(tx, entityId, month);
       if (fromTally.length && !confirm)
         throw new ConflictException(`${month} has ${fromTally.length} document${fromTally.length === 1 ? '' : 's'} created from Tally. Check what switching back reverses, then confirm.`);
+      // The confirmation names the documents the person saw; anything imported or reversed since means a new preview.
+      const now = fromTally.map((v) => v.documentId).sort().join(',');
+      if (confirm && [...new Set(confirm.documents)].sort().join(',') !== now)
+        throw new ConflictException(`${month}'s documents from Tally changed since the preview. Check again before switching back.`);
       reversed = await reverseMonth(tx, ctx, entityId, month, s);
     }
     await tx

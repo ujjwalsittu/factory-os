@@ -39,7 +39,7 @@ import type { SettlementService } from '../accounting/settlement.service.js';
 import type { StockPostingService } from '../stock-posting.service.js';
 import { bookOf } from './tally-books.js';
 import { dependentsOf, reverseVersion, versionsOf, type Version } from './tally-reversal.js';
-import { createEntry, ENTRY_BASE_TYPES, ENTRY_LABEL, entryResolver, isEntryKind, planEntry, type EntryKind } from './tally-entries.js';
+import { createEntry, inboundBatch, ENTRY_BASE_TYPES, ENTRY_LABEL, entryResolver, isEntryKind, planEntry, type EntryKind } from './tally-entries.js';
 import { voucherLabel } from './tally-vouchers.js';
 
 /**
@@ -556,8 +556,8 @@ async function purchaseInvoiceFrom(tx: Tx, ctx: TenantRequestContext, entityId: 
     await tx.insert(stockEntryLine).values(
       await Promise.all(
         stockLines.map(async (l, i) => {
-          const known = await batchId(tx, tenantId, l.itemId, l.batch);
           const tracked = r.items.get(l.itemId)?.tracking !== 'none';
+          const { batchId: known, newBatchNo } = await inboundBatch(tx, tenantId, l.itemId, l.batch, tracked, d.number);
           return {
             entryId: entry!.id,
             lineNo: i + 1,
@@ -566,7 +566,7 @@ async function purchaseInvoiceFrom(tx: Tx, ctx: TenantRequestContext, entityId: 
             toWarehouseId: l.warehouseId,
             rate: Dec.of(l.taxableValue).div(l.qty).toString(),
             batchId: known,
-            newBatchNo: !known && tracked ? (l.batch ?? `TALLY-${d.number}`.slice(0, 40)) : null,
+            newBatchNo,
           };
         }),
       ),
@@ -740,9 +740,8 @@ async function salesNoteFrom(tx: Tx, ctx: TenantRequestContext, entityId: string
     for (const [i, l] of stockLines.entries()) {
       const cost = await averageCost(tx, entityId, l.itemId, d.date);
       if (!cost) throw new BadRequestException(`${voucherLabel(v)}: line ${i + 1} returns an item FactoryOS has no cost for yet.`);
-      const known = await batchId(tx, tenantId, l.itemId, l.batch);
       const tracked = r.items.get(l.itemId)?.tracking !== 'none';
-      rows.push({ lineNo: i + 1, itemId: l.itemId, qty: l.qty, toWarehouseId: l.warehouseId, rate: cost.toString(), batchId: known, newBatchNo: !known && tracked ? (l.batch ?? `TALLY-${d.number}`.slice(0, 40)) : null });
+      rows.push({ lineNo: i + 1, itemId: l.itemId, qty: l.qty, toWarehouseId: l.warehouseId, rate: cost.toString(), ...(await inboundBatch(tx, tenantId, l.itemId, l.batch, tracked, d.number)) });
     }
     const [entry] = await tx
       .insert(stockEntry)

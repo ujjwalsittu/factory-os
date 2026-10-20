@@ -31,7 +31,7 @@ function BooksContent() {
     for (const k of ['tally-books', 'tally-mappings', 'tally-import', 'tally-rows', 'tally-imports']) void qc.invalidateQueries({ queryKey: [k] });
   };
   const setBook = useMutation({
-    mutationFn: (b: { month: string; book: TallyBook; confirm?: boolean }) => api('/tally/books', { method: 'PUT', body: b, scope: ws.scope }),
+    mutationFn: (b: { month: string; book: TallyBook; confirm?: { documents: string[] } }) => api('/tally/books', { method: 'PUT', body: b, scope: ws.scope }),
     onSuccess: () => {
       setSwitching(null);
       refresh();
@@ -47,7 +47,8 @@ function BooksContent() {
     mutationFn: (b: { ledger: string; itemId: string | null }) => api('/tally/mappings/ledgers', { method: 'PUT', body: b, scope: ws.scope }),
     onSuccess: refresh,
   });
-  const error = setBook.error ?? setType.error ?? setLedger.error;
+  // While the switch-back dialog is open its error shows inside it; the modal hides the page.
+  const error = (switching ? null : setBook.error) ?? setType.error ?? setLedger.error;
   return (
     <div className="space-y-5">
       <p className="text-sm">
@@ -94,7 +95,18 @@ function BooksContent() {
         </ul>
       </Card>
 
-      {switching && <SwitchBack month={switching} pending={setBook.isPending} onClose={() => setSwitching(null)} onConfirm={() => setBook.mutate({ month: switching, book: 'factoryos', confirm: true })} />}
+      {switching && (
+        <SwitchBack
+          month={switching}
+          pending={setBook.isPending}
+          error={setBook.error}
+          onClose={() => {
+            setBook.reset();
+            setSwitching(null);
+          }}
+          onConfirm={(documents) => setBook.mutate({ month: switching, book: 'factoryos', confirm: { documents } })}
+        />
+      )}
 
       <Card>
         <CardHeader
@@ -219,14 +231,15 @@ function LedgerItems({
 }
 
 /** Lists what switching a month back reverses; refused while a later document depends on it. */
-function SwitchBack({ month, pending, onClose, onConfirm }: { month: string; pending: boolean; onClose: () => void; onConfirm: () => void }) {
+function SwitchBack({ month, pending, error, onClose, onConfirm }: { month: string; pending: boolean; error: Error | null; onClose: () => void; onConfirm: (documents: string[]) => void }) {
   const ws = useWorkspace();
   const preview = useQuery({
     queryKey: ['tally-switch-back', ws.tenantId, ws.entityId, month],
     queryFn: () => api<TallySwitchBack>(`/tally/books/${month}/switch-back`, { scope: ws.scope }),
   });
   const p = preview.data;
-  const blocked = !p || p.dependents.length > 0;
+  // A cached preview may be refetching; confirm only what is on screen and current.
+  const blocked = !p || preview.isFetching || p.dependents.length > 0;
   return (
     <Dialog
       open
@@ -238,12 +251,13 @@ function SwitchBack({ month, pending, onClose, onConfirm }: { month: string; pen
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="danger" disabled={blocked || pending} onClick={onConfirm}>
+          <Button variant="danger" disabled={blocked || pending} onClick={() => p && onConfirm(p.documents.map((d) => d.documentId))}>
             {p?.documents.length ? `Reverse ${p.documents.length} document${p.documents.length === 1 ? '' : 's'}` : 'Switch to FactoryOS'}
           </Button>
         </>
       }
     >
+      {error && <Alert tone="danger">{error.message}</Alert>}
       {preview.error && <Alert tone="danger">{preview.error.message}</Alert>}
       {preview.isLoading && <p className="text-sm text-muted">Checking the month…</p>}
       {p && p.dependents.length > 0 && (
