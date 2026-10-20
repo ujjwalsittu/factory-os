@@ -134,11 +134,11 @@ export async function dependentsOf(tx: Db, entityId: string, versions: Version[]
       if (!excluded.has(n.id)) out.add(`Supplier note ${n.number ?? ''}`.trim());
   // Stock issued from layers these documents received.
   const entries = (await Promise.all(versions.map((v) => stockEntriesOf(tx, v)))).flat();
-  const own = [...entries, ...(await Promise.all(exclude.map((v) => stockEntriesOf(tx, v)))).flat()];
+  const own = [...new Set([...entries, ...(await Promise.all(exclude.map((v) => stockEntriesOf(tx, v)))).flat()])];
   if (entries.length) {
     const rows = await tx.execute<{ label: string }>(sql`
       select distinct coalesce(
-        (select 'Stock entry ' || coalesce(e.number, e.reference, e.purpose) from stock_entry e where e.id = sle.voucher_id),
+        (select 'Stock entry ' || coalesce(e.number, e.reference, e.purpose::text) from stock_entry e where e.id = sle.voucher_id),
         sle.voucher_type) as label
       from fifo_consumption c
       join fifo_layer l on l.id = c.layer_id
