@@ -71,8 +71,8 @@ export async function voucherTypeKinds(db: Db, entityId: string) {
 
 /**
  * One document row per voucher of a mapped type dated in a month kept in Tally. Each new one is checked against the
- * links and mappings as they stand: a voucher that cannot be made a document is a conflict naming why, unless the same
- * upload carries masters (their links only exist after commit, so commit checks again).
+ * links and mappings as they stand: a voucher that cannot be made a document is a conflict naming why. A missing link is
+ * only noted when the same upload carries masters (their links exist after commit, which checks again).
  */
 export async function stageDocuments(tx: Db, tenantId: string, entityId: string, vouchers: TallyVoucher[], withMasters = false): Promise<StagedDocument[]> {
   const tallyMonths = new Set(
@@ -124,9 +124,12 @@ export async function stageDocuments(tx: Db, tenantId: string, entityId: string,
     }
     const becomes = `Becomes a submitted ${KIND_LABEL[kind].toLowerCase()} with Tally's number and amounts.`;
     const problems = check ? check(v, kind) : [];
-    if (!problems.length) out.push(row({ notes: [becomes] }));
-    else if (withMasters) out.push(row({ notes: [becomes, ...problems.map((p) => `Checked again at commit, after the masters: ${p}`)] }));
-    else out.push(row({ proposed: 'conflict', notes: problems }));
+    // Only a missing link can be cured by masters in the same upload (an unlinked item also leaves its ledger unbooked,
+    // so all of that voucher waits for commit); otherwise it needs a decision now.
+    const later = withMasters && problems.some((p) => / is not linked to /.test(p)) ? problems : [];
+    const now = later.length ? [] : problems;
+    if (now.length) out.push(row({ proposed: 'conflict', notes: now }));
+    else out.push(row({ notes: [becomes, ...later.map((p) => `Checked again at commit, after the masters: ${p}`)] }));
   }
   return out;
 }
