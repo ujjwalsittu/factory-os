@@ -500,6 +500,9 @@ export interface TallyVoucher {
   optional: boolean;
   deleted: boolean;
   invoice: boolean;
+  /** The supplier's invoice number and date on a purchase (Tally's REFERENCE and REFERENCEDATE). */
+  reference?: string | null;
+  referenceDate?: string | null;
   /** Every ledger amount, including those held inside inventory lines (ACCOUNTINGALLOCATIONS). */
   lines: TallyVoucherLine[];
   items: TallyVoucherItem[];
@@ -577,6 +580,8 @@ export function toTallyVoucher(o: TallyObject): TallyVoucher | null {
     optional: yes(n, 'ISOPTIONAL'),
     deleted: yes(n, 'ISDELETED') || (n.attrs.ACTION ?? '').toLowerCase() === 'delete',
     invoice: yes(n, 'ISINVOICE'),
+    reference: field(n, 'REFERENCE'),
+    referenceDate: tallyDate(field(n, 'REFERENCEDATE')),
     lines,
     items,
   };

@@ -57,7 +57,7 @@ export const tallyStaged = pgTable(
     uniqueIndex('tally_staged_ordinal_uq').on(t.importId, t.ordinal),
     index('tally_staged_import_kind_idx').on(t.importId, t.kind),
     foreignKey({ name: 'tally_staged_import_fk', columns: [t.importId, t.tenantId, t.entityId], foreignColumns: [tallyImport.id, tallyImport.tenantId, tallyImport.entityId] }).onDelete('cascade'),
-    check('tally_staged_kind_ck', sql`${t.kind} in ('group','ledger','party','stockgroup','unit','godown','stockitem','opening','stock','voucher')`),
+    check('tally_staged_kind_ck', sql`${t.kind} in ('group','ledger','party','stockgroup','unit','godown','stockitem','opening','stock','voucher','document')`),
     check('tally_staged_action_ck', sql`${t.proposed} in ('new','link','update','unchanged','conflict','skip') and ${t.action} in ('new','link','update','unchanged','conflict','skip')`),
   ],
 );

@@ -1,5 +1,5 @@
 {
-  "id": "f6167339-c599-469e-af4c-7b804b739560",
+  "id": "d9cc311a-6d0d-41ce-a237-9d4726677996",
   "prevId": "2e3639fe-cd96-4d6a-b426-e6bddb14e9d3",
   "version": "7",
   "dialect": "postgresql",
@@ -40741,7 +40741,7 @@
       "checkConstraints": {
         "tally_staged_kind_ck": {
           "name": "tally_staged_kind_ck",
-          "value": "\"tally_staged\".\"kind\" in ('group','ledger','party','stockgroup','unit','godown','stockitem','opening','stock','voucher')"
+          "value": "\"tally_staged\".\"kind\" in ('group','ledger','party','stockgroup','unit','godown','stockitem','opening','stock','voucher','document')"
         },
         "tally_staged_action_ck": {
           "name": "tally_staged_action_ck",

@@ -302,6 +302,33 @@ export class OperationalPostings {
       lines.plan(),
     );
   }
+  /**
+   * Decision 075: a purchase brought in from Tally. Its stock came in on a Tally receipt that credited GRNI at the
+   * invoice's own value, so the stock lines clear GRNI; there is no purchase order to allocate against.
+   */
+  async tallyPurchaseIn(tx: Tx, ctx: TenantRequestContext, entityId: string, invoice: typeof purchaseInvoice.$inferSelect, receiptValue: Dec) {
+    const settings = await this.gl.active(tx, entityId);
+    if (!settings) return;
+    const lines = new Lines(settings.mappings);
+    const rows = await tx
+      .select({ line: purchaseInvoiceLine, item })
+      .from(purchaseInvoiceLine)
+      .innerJoin(item, eq(item.id, purchaseInvoiceLine.itemId))
+      .where(eq(purchaseInvoiceLine.invoiceId, invoice.id));
+    lines.add('grni', receiptValue);
+    for (const { line, item: it } of rows) if (!it.isStockItem) lines.add('purchases', Dec.of(line.taxableValue ?? '0'));
+    for (const tax of ['cgst', 'sgst', 'igst', 'cess'] as const)
+      lines.add(invoice.itcEligible ? `input_${tax}` : 'noncreditable_tax', Dec.of(invoice[tax] ?? '0'), { gstRegistrationId: invoice.gstRegistrationId ?? undefined });
+    lines.add('creditors', Dec.of(invoice.grandTotal ?? '0').neg(), { partyId: invoice.supplierId, billReference: invoice.supplierInvoiceNo });
+    await this.gl.postIn(
+      tx,
+      ctx,
+      entityId,
+      { type: 'purchase_invoice', id: invoice.id, purpose: 'main', number: invoice.number, currency: invoice.currency, exchangeRate: invoice.exchangeRate },
+      invoice.postingDate,
+      lines.plan(),
+    );
+  }
   async salesIn(
     tx: Tx,
     ctx: TenantRequestContext,

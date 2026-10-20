@@ -249,6 +249,65 @@ await c.req('POST', `/tally/imports/${partialMasters.id}/discard`, {}, 201);
 assert.equal((await c.req('GET', '/tally/vouchers')).total, 4, 'nothing is deleted');
 ok('Day Book vouchers become read-only history linked to ledgers and parties; re-imports update by ALTERID; missing records are listed, never deleted');
 
+// ── Decision 075: a month kept in Tally turns its vouchers into FactoryOS documents ──
+await c.req('POST', `/entities/${c.entityId}/gst-registrations`, { gstin: gstin('27AAACA1234B2Z') }, 201);
+const cut = (await c.req('GET', '/accounts/settings')).cutoverDate;
+const month = cut.slice(0, 7);
+const docDay = cut.replace(/-/g, '');
+assert.equal((await c.raw('PUT', '/tally/books', { month: '2026-04', book: 'tally' })).status, 400, 'months before the cut-over stay history');
+await c.req('PUT', '/tally/books', { month, book: 'tally' });
+assert.equal((await c.req('GET', '/tally/books')).months.find((m) => m.month === month).book, 'tally');
+const docVoucher = (guid, type, number, body) => `
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <VOUCHER VCHTYPE="${type}" ACTION="Create">
+      <DATE>${docDay}</DATE><GUID>${guid}</GUID><VOUCHERTYPENAME>${type}</VOUCHERTYPENAME><VOUCHERNUMBER>${number}</VOUCHERNUMBER><ALTERID> 9001</ALTERID>${body}
+     </VOUCHER>
+    </TALLYMESSAGE>`;
+const ledger = (name, amount, party = false) => `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${name}</LEDGERNAME><ISPARTYLEDGER>${party ? 'Yes' : 'No'}</ISPARTYLEDGER><AMOUNT>${amount}</AMOUNT></ALLLEDGERENTRIES.LIST>`;
+const stock = (qty, rate, amount, batchName, allocLedger) =>
+  `<ALLINVENTORYENTRIES.LIST><STOCKITEMNAME>MS Round Bar 25mm</STOCKITEMNAME><RATE>${rate}/Kgs</RATE><AMOUNT>${amount}</AMOUNT><ACTUALQTY> ${qty} Kgs</ACTUALQTY><BATCHALLOCATIONS.LIST><GODOWNNAME>Main Location</GODOWNNAME><BATCHNAME>${batchName}</BATCHNAME><ACTUALQTY> ${qty} Kgs</ACTUALQTY></BATCHALLOCATIONS.LIST><ACCOUNTINGALLOCATIONS.LIST><LEDGERNAME>${allocLedger}</LEDGERNAME><AMOUNT>${amount}</AMOUNT></ACCOUNTINGALLOCATIONS.LIST></ALLINVENTORYENTRIES.LIST>`;
+const docs = `<ENVELOPE><HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER><BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>Vouchers</REPORTNAME></REQUESTDESC><REQUESTDATA>
+${docVoucher('doc-purchase-1', 'Purchase', 'TP/0001', `<REFERENCE>BST/771</REFERENCE>${ledger('Bharat Steel Traders', '5900.00', true)}${ledger('Input CGST', '-450.00')}${ledger('Input SGST', '-450.00')}${stock(50, '100.00', '-5000.00', 'HEAT-9001', 'Purchase - Local')}`)}
+${docVoucher('doc-sale-1', 'Sales', 'TS/0001', `${ledger('Acme Castings Private Limited', '-9440.00', true)}${ledger('CGST', '720.00')}${ledger('Output SGST', '720.00')}${stock(100, '80.00', '8000.00', 'HEAT-2231', 'Sales - Local')}`)}
+</REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>`;
+const tbBeforeDocs = await c.req('GET', '/accounts/reports/trial-balance');
+const docImport = await upload(c, [['DayBook.xml', utf16(docs)]]);
+const docRows = await rows(c, docImport.id, '&kind=document');
+assert.deepEqual(docRows.map((r) => `${r.name}:${r.proposed}`).sort(), ['Purchase invoice TP/0001:new', 'Sales invoice TS/0001:new']);
+await c.req('POST', `/tally/imports/${docImport.id}/commit`, {}, 201);
+const sales = await c.req('GET', '/sales-invoices');
+const tallySale = (sales.data ?? sales).find((i) => i.number === 'TS/0001');
+assert.ok(tallySale, 'the Tally sale is a sales invoice');
+const saleDoc = await c.req('GET', `/sales-invoices/${tallySale.id}`);
+assert.equal(saleDoc.status, 'submitted');
+assert.equal(saleDoc.source, 'tally');
+assert.equal(Number(saleDoc.grandTotal), 9440);
+assert.ok(saleDoc.stockEntryId, 'goods left stock');
+const tbAfterDocs = await c.req('GET', '/accounts/reports/trial-balance');
+assert.notDeepEqual(tbAfterDocs, tbBeforeDocs, 'the documents reach the books');
+const purchases = await c.req('GET', '/purchase-invoices');
+const tallyPurchase = (purchases.data ?? purchases).find((i) => i.number === 'TP/0001');
+assert.ok(tallyPurchase, 'the Tally purchase is a purchase invoice');
+assert.equal((await c.req('GET', `/purchase-invoices/${tallyPurchase.id}`)).supplierInvoiceNo, 'BST/771');
+// The same export again changes nothing.
+const docAgain = await upload(c, [['DayBook.xml', utf16(docs)]]);
+assert.deepEqual([...new Set((await rows(c, docAgain.id, '&kind=document')).map((r) => r.proposed))], ['unchanged']);
+await c.req('POST', `/tally/imports/${docAgain.id}/discard`, {}, 201);
+// An edited voucher (newer ALTERID) is not applied over a submitted document; it waits for the document to be cancelled.
+const docEdited = await upload(c, [['DayBook.xml', utf16(docs.replaceAll('<ALTERID> 9001</ALTERID>', '<ALTERID> 9002</ALTERID>'))]]);
+const editedRows = await rows(c, docEdited.id, '&kind=document');
+assert.deepEqual([...new Set(editedRows.map((r) => r.proposed))], ['conflict']);
+assert.match(editedRows[0].notes.join(' '), /cancel/i);
+await c.req('POST', `/tally/imports/${docEdited.id}/discard`, {}, 201);
+// FactoryOS entry in the Tally month is refused.
+const draftInTally = await c.req('POST', '/sales-invoices', { customerId: acme.id, invoiceDate: cut, lines: [{ itemId: saleDoc.lines[0].itemId, qty: '1', rate: '80', gstRate: '18' }] }, 201);
+const inTallyMonth = await c.raw('POST', `/sales-invoices/${draftInTally.id}/submit`, {});
+assert.equal(inTallyMonth.status, 400);
+assert.match(inTallyMonth.data.message, /kept in Tally/);
+// A month with Tally documents cannot go back to FactoryOS yet.
+assert.equal((await c.raw('PUT', '/tally/books', { month, book: 'factoryos' })).status, 409);
+ok('a month kept in Tally turns its sales and purchases into submitted documents with stock and books; FactoryOS entry there is refused');
+
 // ── Matching an existing workspace: link by GSTIN, conflicts block commit ──
 await pause();
 const b = await new Client().init('Tally Matching');
