@@ -3,17 +3,6 @@ import { SYSTEM_ROLES } from './roles.js';
 import { isPermission } from './permissions.js';
 const actions = ['read','create','submit','cancel','export','configure','approve'];
 const role = (key: string) => SYSTEM_ROLES.find(r => r.key === key)!.permissions as readonly string[];
-describe('Tally import permissions (decision 072)', () => {
-  it('lets Finance import and read, and the accountant and auditor only read', () => {
-    expect(isPermission('accounts.tally.import')).toBe(true);
-    expect(role('finance_controller')).toEqual(expect.arrayContaining(['accounts.tally.read', 'accounts.tally.import']));
-    for (const r of ['accountant', 'auditor']) {
-      expect(role(r)).toContain('accounts.tally.read');
-      expect(role(r)).not.toContain('accounts.tally.import');
-    }
-    expect(role('stores').filter((p) => p.startsWith('accounts.tally.'))).toEqual([]);
-  });
-});
 // Removing explicit reconciliation catalog entries or broadening protected actions breaks these tests.
 describe('bank reconciliation permissions', () => {
   it('registers every scoped action and grants Finance all of them', () => {

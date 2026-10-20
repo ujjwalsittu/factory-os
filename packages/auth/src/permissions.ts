@@ -18,7 +18,6 @@ export const ACTIONS = [
   'configure',
   'correct',
   'retry',
-  'import',
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -35,8 +34,6 @@ export const RESOURCES = [
   { module:'accounts', resource:'withholding', label:'Withholding and TCS accounting', actions:['read','create','submit','cancel','export','configure','approve','correct'] },
   { module:'accounts', resource:'bank_reconciliation', label:'Bank reconciliation', actions:['read','create','submit','cancel','export','configure','approve'] },
   { module:'accounts', resource:'bank_charge', label:'Bank charges', actions:['read','create','submit','cancel','export'] },
-  /** Decision 072: Tally XML imports (preview and commit) and the imported Tally history. */
-  { module:'accounts', resource:'tally', label:'Tally import', actions:['read','import'] },
   {module:'compliance',resource:'sandbox_operation',label:'Sandbox operations',actions:['read','export']},
   {module:'compliance',resource:'sandbox_connection',label:'Sandbox connections',actions:['read','manage']},
   {module:'compliance',resource:'sandbox_irn',label:'Sandbox IRN',actions:['create','submit','update','cancel']},
