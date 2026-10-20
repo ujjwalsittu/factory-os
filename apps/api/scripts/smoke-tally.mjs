@@ -1,5 +1,6 @@
 // Tally import of masters (decision 072), end to end through the API:
 //   - read and stage a TallyPrime XML export (UTF-16, as Tally writes it): nothing is written to masters;
+//   - a primary group the company created is classified from Tally's flags, and the ledgers in it follow;
 //   - proposed actions: standard groups and units link, tax ledgers wait for opening balances, new records are new;
 //   - commit creates groups under their parents, ledgers, customers and suppliers with GSTIN, warehouses and items;
 //   - importing the same export again changes nothing; a newer ALTERID updates; a new object is added;
@@ -50,6 +51,9 @@ assert.equal(action('Sundry Debtors'), 'link');
 assert.equal(action('Current Assets'), 'link');
 assert.equal(action('Domestic Debtors'), 'new');
 assert.equal(action('Factory Overheads'), 'new');
+assert.equal(action('Statutory Receivables'), 'new', "the company's own primary group is classified from its flags");
+assert.equal(action('GST Receivables'), 'new');
+assert.equal(action('Input CGST'), 'link', 'a tax ledger in an own group links to the standard posting ledger');
 assert.equal(row(list, 'Acme Castings Pvt Ltd').kind, 'party');
 assert.equal(action('Acme Castings Pvt Ltd'), 'new');
 assert.equal(action('Bharat Steel Traders'), 'new');
@@ -71,6 +75,9 @@ const g = (n) => groups.find((x) => x.name === n);
 assert.equal(g('Domestic Debtors').parentId, g('Sundry Debtors').id);
 assert.equal(g('Factory Overheads').parentId, g('Indirect Expenses').id);
 assert.equal(g('Factory Overheads').root, 'expense');
+assert.equal(g('Statutory Receivables').root, 'asset');
+assert.equal(g('Statutory Receivables').parentId, null);
+assert.equal(g('GST Receivables').parentId, g('Statutory Receivables').id);
 const accounts = await c.req('GET', '/accounts/accounts');
 const hdfc = accounts.find((a) => a.name === 'HDFC Bank CA 0042');
 assert.equal(hdfc.groupId, g('Bank Accounts').id);
@@ -183,6 +190,34 @@ assert.match(failed.data.message, /unit "Drums".*Cutting Oil/);
 assert.equal((await b.req('GET', '/accounts/accounts')).length, before, 'the ledger before the failure was rolled back');
 assert.equal((await b.req('GET', `/tally/imports/${failing.id}`)).status, 'read');
 ok('a commit that cannot finish writes nothing and leaves the import open');
+
+// ── Shapes seen in a real export ──
+// Two Tally ledgers with one GSTIN are one FactoryOS party; an input-tax ledger in an own group under Duties & Taxes
+// links to FactoryOS's input tax ledger instead of asking.
+const shared = gstin('27ABCDS1234F1Z');
+const shapesXml = `<ENVELOPE><BODY><IMPORTDATA><REQUESTDATA>
+<TALLYMESSAGE><GROUP NAME="GST Input Credits"><GUID>shape-g</GUID><PARENT>Duties &amp; Taxes</PARENT><ALTERID>1</ALTERID></GROUP></TALLYMESSAGE>
+<TALLYMESSAGE><LEDGER NAME="Input SGST"><GUID>shape-tax</GUID><PARENT>GST Input Credits</PARENT><TAXTYPE>GST</TAXTYPE><GSTDUTYHEAD>SGST/UTGST</GSTDUTYHEAD><ALTERID>2</ALTERID></LEDGER></TALLYMESSAGE>
+<TALLYMESSAGE><LEDGER NAME="Steel Mart"><GUID>shape-p1</GUID><PARENT>Sundry Creditors</PARENT><PARTYGSTIN>${shared}</PARTYGSTIN><ALTERID>3</ALTERID></LEDGER></TALLYMESSAGE>
+<TALLYMESSAGE><LEDGER NAME="Steel Mart (Job Work)"><GUID>shape-p2</GUID><PARENT>Sundry Creditors</PARENT><PARTYGSTIN>${shared}</PARTYGSTIN><ALTERID>4</ALTERID></LEDGER></TALLYMESSAGE>
+</REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>`;
+const shapes = await upload(b, [['shapes.xml', utf16(shapesXml)]]);
+list = await rows(b, shapes.id);
+assert.equal(row(list, 'Input SGST').action, 'link');
+assert.equal(row(list, 'Steel Mart').action, 'new');
+assert.equal(row(list, 'Steel Mart (Job Work)').action, 'new');
+assert.match(row(list, 'Steel Mart (Job Work)').notes.join(' '), /Same GSTIN as "Steel Mart" in this export/);
+assert.equal(list.filter((r) => r.action === 'conflict').length, 0);
+await b.req('POST', `/tally/imports/${shapes.id}/commit`, {}, 201);
+const steel = (await b.req('GET', '/parties?limit=500')).filter((p) => p.gstin === shared);
+assert.equal(steel.length, 1, 'one party for one GSTIN');
+list = await rows(b, shapes.id);
+assert.equal(row(list, 'Steel Mart').resultId, steel[0].id);
+assert.equal(row(list, 'Steel Mart (Job Work)').resultId, steel[0].id);
+const shapesAgain = await upload(b, [['shapes.xml', utf16(shapesXml)]]);
+assert.deepEqual(Object.keys(shapesAgain.counts).sort(), ['group.unchanged', 'ledger.unchanged', 'party.unchanged'], JSON.stringify(shapesAgain.counts));
+await b.req('POST', `/tally/imports/${shapesAgain.id}/discard`, {}, 201);
+ok('two Tally ledgers with one GSTIN are saved as one party; an input-tax ledger under Duties & Taxes links by name');
 
 // ── Isolation and closing ──
 await pause();

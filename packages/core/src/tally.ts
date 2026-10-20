@@ -213,6 +213,11 @@ export interface TallyGroup extends Common {
   /** Null for a primary group. */
   parent: string | null;
   reservedName: string | null;
+  /**
+   * A primary group the company created itself carries its classification in Tally's flags: a revenue group is income
+   * or expense, any other is asset or liability, and "deemed positive" (debit) picks expense or asset.
+   */
+  nature: 'asset' | 'liability' | 'income' | 'expense';
 }
 
 export interface TallyBill {
@@ -327,7 +332,13 @@ export function toTallyMaster(o: TallyObject): TallyMaster | null {
   const c = common(n);
   switch (o.tag) {
     case 'GROUP':
-      return { ...c, kind: 'group', parent: parentOf(n), reservedName: n.attrs.RESERVEDNAME || null };
+      return {
+        ...c,
+        kind: 'group',
+        parent: parentOf(n),
+        reservedName: n.attrs.RESERVEDNAME || null,
+        nature: yes(n, 'ISREVENUE') ? (yes(n, 'ISDEEMEDPOSITIVE') ? 'expense' : 'income') : yes(n, 'ISDEEMEDPOSITIVE') ? 'asset' : 'liability',
+      };
     case 'LEDGER': {
       const gstin =
         field(n, 'PARTYGSTIN') ??
@@ -386,7 +397,8 @@ export function toTallyMaster(o: TallyObject): TallyMaster | null {
         ...c,
         kind: 'stockitem',
         parent: parentOf(n),
-        unit: field(n, 'BASEUNITS'),
+        // Tally's reserved "Not Applicable" means the item has no unit.
+        unit: /^\s*not applicable\s*$/i.test(field(n, 'BASEUNITS') ?? '') ? null : field(n, 'BASEUNITS'),
         hsn: latestDetail(n, 'GSTDETAILS.LIST', 'HSNCODE') ?? latestDetail(n, 'HSNDETAILS.LIST', 'HSNCODE'),
         gstRate: gstRate(n),
         batchwise: yes(n, 'ISBATCHWISEON'),
@@ -419,16 +431,23 @@ export const TALLY_PRIMARY_ROOTS: Record<string, 'asset' | 'liability' | 'equity
 };
 
 /**
- * The classification of a group or ledger, found by walking parents up to a reserved primary group.
- * Returns null when the chain does not reach one (an unknown parent or a loop).
+ * The classification of a group or ledger, found by walking parents up to a reserved primary group, or to a primary
+ * group the company created, whose classification `primaryNature` gives. Returns null when the chain does not reach
+ * either (an unknown parent or a loop).
  */
-export function tallyRoot(name: string, parentOf: (name: string) => string | null | undefined) {
+export function tallyRoot(
+  name: string,
+  parentOf: (name: string) => string | null | undefined,
+  primaryNature?: (name: string) => string | undefined,
+) {
   const seen = new Set<string>();
   let cursor: string | null | undefined = name;
   while (cursor && !seen.has(cursor)) {
     if (TALLY_PRIMARY_ROOTS[cursor]) return TALLY_PRIMARY_ROOTS[cursor]!;
     seen.add(cursor);
-    cursor = parentOf(cursor);
+    const parent = parentOf(cursor);
+    if (parent === null) return primaryNature?.(cursor) ?? null;
+    cursor = parent;
   }
   return null;
 }

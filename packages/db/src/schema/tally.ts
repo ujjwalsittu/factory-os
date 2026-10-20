@@ -77,7 +77,10 @@ export const tallyLink = pgTable(
   },
   (t) => [
     uniqueIndex('tally_link_guid_uq').on(t.entityId, t.kind, t.guid),
-    uniqueIndex('tally_link_target_uq').on(t.entityId, t.kind, t.targetId),
+    // One Tally object per FactoryOS record, except parties: Tally often keeps two ledgers for one GSTIN (a customer and
+    // a supplier ledger, or a duplicate), and FactoryOS keeps one party per GSTIN.
+    uniqueIndex('tally_link_target_uq').on(t.entityId, t.kind, t.targetId).where(sql`${t.kind} <> 'party'`),
+    index('tally_link_target_idx').on(t.entityId, t.kind, t.targetId),
     foreignKey({ name: 'tally_link_import_fk', columns: [t.importId, t.tenantId, t.entityId], foreignColumns: [tallyImport.id, tallyImport.tenantId, tallyImport.entityId] }),
   ],
 );
