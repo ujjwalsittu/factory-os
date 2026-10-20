@@ -48,8 +48,8 @@ Home rows get an optional action, shown only with the permission for it:
 On record pages:
 
 - Item page below its reorder level → "Create purchase order".
-- Sales invoice with an amount outstanding past its due date → "Record receipt".
-- Purchase invoice with an amount outstanding → "Record payment".
+- Sales invoice with an open balance (books active) → "Record receipt".
+- Purchase invoice with an open balance (books active) → "Record payment".
 - Stock receipt with lines in quarantine waiting for inspection → "Inspect" (the inspections page).
 
 The settlement form takes `party` (and preselects it); the PO form takes `item`.
