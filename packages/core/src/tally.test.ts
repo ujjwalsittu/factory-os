@@ -247,7 +247,7 @@ describe('vouchers', () => {
     ]);
     expect(sale.lines[0]!.bills).toEqual([{ name: 'FE/26-27/0001', type: 'New Ref', side: 'debit', amount: '9440' }]);
     expect(sale.items).toEqual([
-      { item: 'MS Round Bar 25mm', qty: '100', unit: 'Kgs', rate: '80', amount: '8000', direction: 'out', batches: [{ godown: 'Main Location', batch: 'HEAT-2231', qty: '100' }] },
+      { item: 'MS Round Bar 25mm', qty: '100', unit: 'Kgs', rate: '80', amount: '8000', direction: 'out', ledger: 'Sales - Local', batches: [{ godown: 'Main Location', batch: 'HEAT-2231', qty: '100' }] },
     ]);
     expect(tallyVoucherImbalance(sale)).toBe('0');
   });

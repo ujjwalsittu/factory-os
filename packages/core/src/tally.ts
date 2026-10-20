@@ -469,6 +469,8 @@ export interface TallyVoucherLine {
   bills: TallyVoucherBill[];
   /** True for the party's line (Tally's ISPARTYLEDGER). */
   party: boolean;
+  /** True when Tally held this amount inside an inventory line (its ACCOUNTINGALLOCATIONS), not as a voucher line. */
+  allocation?: boolean;
 }
 
 export interface TallyVoucherItem {
@@ -480,6 +482,8 @@ export interface TallyVoucherItem {
   /** In for a receipt of stock, out for an issue; null when Tally does not say. */
   direction: 'in' | 'out' | null;
   batches: { godown: string | null; batch: string | null; qty: string | null }[];
+  /** The sales or purchase ledger the item's amount was booked to (its first accounting allocation). */
+  ledger?: string | null;
 }
 
 export interface TallyVoucher {
@@ -532,11 +536,12 @@ export function toTallyVoucher(o: TallyObject): TallyVoucher | null {
   for (const [tag, direction] of inventory)
     for (const ie of kids(n, tag)) {
       // Tally writes empty inventory lists on vouchers without stock; only their accounting allocations count.
+      const allocations = kids(ie, 'ACCOUNTINGALLOCATIONS.LIST')
+        .map(voucherLine)
+        .filter((l): l is TallyVoucherLine => !!l)
+        .map((l) => ({ ...l, allocation: true }));
       if (!field(ie, 'STOCKITEMNAME')) {
-        for (const aa of kids(ie, 'ACCOUNTINGALLOCATIONS.LIST')) {
-          const l = voucherLine(aa);
-          if (l) lines.push(l);
-        }
+        lines.push(...allocations);
         continue;
       }
       const q = tallyQuantity(field(ie, 'ACTUALQTY') ?? field(ie, 'BILLEDQTY'));
@@ -554,11 +559,9 @@ export function toTallyVoucher(o: TallyObject): TallyVoucher | null {
           batch: field(b, 'BATCHNAME'),
           qty: tallyQuantity(field(b, 'ACTUALQTY'))?.qty.replace('-', '') ?? null,
         })),
+        ledger: allocations[0]?.ledger ?? null,
       });
-      for (const aa of kids(ie, 'ACCOUNTINGALLOCATIONS.LIST')) {
-        const l = voucherLine(aa);
-        if (l) lines.push(l);
-      }
+      lines.push(...allocations);
     }
   const alter = field(n, 'ALTERID');
   return {
