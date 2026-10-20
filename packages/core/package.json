@@ -25,6 +25,10 @@
     "./tally-documents": {
       "types": "./dist/tally-documents.d.ts",
       "default": "./dist/tally-documents.js"
+    },
+    "./tally-entries": {
+      "types": "./dist/tally-entries.d.ts",
+      "default": "./dist/tally-entries.js"
     }
   },
   "files": [
