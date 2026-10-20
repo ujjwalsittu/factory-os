@@ -98,6 +98,14 @@ try {
   const novG1 = await c.req('GET', `/gst-returns/${nov.find((r) => r.kind === 'gstr1').id}`);
   assert.equal(novG1.lines.find((l) => l.documentId === late.id)?.late, period, 'The late invoice is in the next GSTR-1, marked late');
 
+  // A manual journal on an output tax ledger is a difference the ledger check names.
+  const j = await c.req('POST', '/accounts/journals', { postingDate: c.settings.cutoverDate, narration: 'Stray tax entry', lines: [c.line('output_cgst', '5'), c.line('equity', '0', '5')] }, 201);
+  await c.req('POST', `/accounts/journals/${j.id}/submit`);
+  const glCheck = (await c.req('GET', `/gst-returns/preview?${q}`)).checks.find((x) => x.name === 'Output tax equals the output GST ledgers');
+  assert.equal(glCheck.ok, false, JSON.stringify(glCheck));
+  const jRead = await c.req('GET', `/accounts/journals/${j.id}`);
+  assert.ok(glCheck.detail.includes(jRead.number), `The check names the journal: ${glCheck.detail}`);
+
   // Exports: a zip of section sheets.
   const res = await fetch(`${c.base}/gst-returns/${g1.id}/export`, { headers: { Origin: c.origin, Cookie: c.cookie, 'x-tenant-id': c.tenantId, 'x-entity-id': c.entityId } });
   assert.equal(res.status, 200);
