@@ -28,7 +28,7 @@ import {
 } from '@factoryos/db';
 import { BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import type { AuditService } from '../../common/audit.service.js';
 import type { Db, Tx } from '../accounting/accounting-lock.js';
@@ -38,6 +38,7 @@ import type { OperationalPostings } from '../accounting/operational-postings.js'
 import type { SettlementService } from '../accounting/settlement.service.js';
 import type { StockPostingService } from '../stock-posting.service.js';
 import { bookOf } from './tally-books.js';
+import { dependentsOf, reverseVersion, versionsOf, type Version } from './tally-reversal.js';
 import { createEntry, ENTRY_BASE_TYPES, ENTRY_LABEL, entryResolver, isEntryKind, planEntry, type EntryKind } from './tally-entries.js';
 import { voucherLabel } from './tally-vouchers.js';
 
@@ -115,6 +116,14 @@ export async function stageDocuments(tx: Db, tenantId: string, entityId: string,
       : !links
         ? [r?.regs.length ? 'This entity has several GSTINs; documents from Tally need one GSTIN for the entity for now.' : 'Add the GST registration of this entity first.']
         : (tallyDocument(v, kind, links).problems ?? []);
+  // Edited vouchers (newer ALTERID) are reversed together at commit, so they do not count as each other's dependents.
+  const editedIds = inMonth.flatMap((v) => {
+    const prior = history.get(v.guid!);
+    return prior?.documentId && (v.alterId ?? 0) > (prior.alterId ?? 0) ? [prior.documentId] : [];
+  });
+  const edited = editedIds.length
+    ? await tx.select().from(tallyDocumentVersion).where(and(eq(tallyDocumentVersion.entityId, entityId), inArray(tallyDocumentVersion.documentId, editedIds), isNull(tallyDocumentVersion.reversedAt)))
+    : [];
   const out: StagedDocument[] = [];
   for (const v of inMonth) {
     const kind = kindOf(v.type);
@@ -137,10 +146,23 @@ export async function stageDocuments(tx: Db, tenantId: string, entityId: string,
     const prior = history.get(v.guid!);
     if (prior?.documentId) {
       const newer = (v.alterId ?? 0) > (prior.alterId ?? 0);
+      if (!newer) {
+        out.push(row({ proposed: 'unchanged', targetId: prior.documentId }));
+        continue;
+      }
+      // Decision 075a: an edited voucher replaces its document; the old one is reversed, not changed.
+      const version = edited.find((e) => e.documentId === prior.documentId);
+      const problems = check(v, kind);
+      const dependents = version ? await dependentsOf(tx, entityId, [version], edited) : [];
+      const why = !version
+        ? ['Edited in Tally, but FactoryOS has no record of the document it became. Check the document, then import again.']
+        : dependents.length
+          ? [`Edited in Tally after it was brought in, and ${dependents.join(', ')} depend on it. Cancel those first, then choose Check again.`]
+          : problems.filter((p) => !(withMasters && / is not linked to /.test(p)));
       out.push(
-        newer
-          ? row({ proposed: 'conflict', targetId: prior.documentId, notes: ['Edited in Tally after it was brought in. Cancel the FactoryOS document, then import again to bring the edited version.'] })
-          : row({ proposed: 'unchanged', targetId: prior.documentId }),
+        why.length
+          ? row({ proposed: 'conflict', targetId: prior.documentId, notes: why })
+          : row({ proposed: 'update', targetId: prior.documentId, notes: ['Edited in Tally after it was brought in: the current document is reversed and created again from the edited voucher.'] }),
       );
       continue;
     }
@@ -265,7 +287,7 @@ export interface DocumentServices {
  */
 export async function writeDocuments(tx: Tx, ctx: TenantRequestContext, entityId: string, importId: string, rows: (typeof tallyStaged.$inferSelect)[], s: DocumentServices) {
   const results = new Map<string, string>();
-  const todo = rows.filter((r) => r.kind === 'document' && r.action === 'new');
+  const todo = rows.filter((r) => r.kind === 'document' && (r.action === 'new' || r.action === 'update'));
   if (!todo.length) return results;
   const vouchers = new Map(rows.filter((r) => r.kind === 'voucher' && r.guid).map((r) => [r.guid!, r.payload as unknown as TallyVoucher]));
   const r = await resolver(tx, ctx.tenant.tenantId, entityId);
@@ -312,6 +334,18 @@ export async function writeDocuments(tx: Tx, ctx: TenantRequestContext, entityId
       issues: problems.slice(0, 50).map((m) => ({ path: 'documents', message: m })),
     });
 
+  // Edited vouchers: their current documents are reversed first, newest-dependent first, then created again below.
+  const replacing = new Map<string, Version>();
+  const updates = todo.filter((row) => row.action === 'update' && row.targetId);
+  if (updates.length) {
+    const versions = await versionsOf(tx, entityId, updates.map((row) => row.targetId!));
+    for (const row of updates) {
+      const version = versions.find((x) => x.documentId === row.targetId);
+      if (!version) throw new BadRequestException(`${row.name}: the document it became was changed meanwhile. Choose Check again.`);
+      replacing.set(row.id, version);
+    }
+    for (const version of versions) await reverseVersion(tx, ctx, entityId, version, `Edited in Tally (import ${importId.slice(0, 8)})`, s);
+  }
   let created = 0;
   const tracked = (itemId: string) => (r.items.get(itemId)?.tracking ?? 'none') !== 'none';
   for (const { row, v, draft, kind } of drafts) {
@@ -335,6 +369,8 @@ export async function writeDocuments(tx: Tx, ctx: TenantRequestContext, entityId
     }
     results.set(row.id, id);
     await tx.insert(tallyDocumentVersion).values({ id: versionId, tenantId: ctx.tenant.tenantId, entityId, guid: v.guid!, alterId: v.alterId, documentKind, documentId: id, importId, parts });
+    const old = replacing.get(row.id);
+    if (old) await tx.update(tallyDocumentVersion).set({ replacedBy: id }).where(eq(tallyDocumentVersion.id, old.id));
     // Re-sync finds the document through its history row, so a document needs its voucher kept as history.
     const linked = await tx
       .update(tallyVoucher)
@@ -349,6 +385,8 @@ export async function writeDocuments(tx: Tx, ctx: TenantRequestContext, entityId
 }
 
 type Resolver = Awaited<ReturnType<typeof resolver>>;
+/** A number stays taken by any FactoryOS document (the series is gapless) and by a live one from Tally. */
+const live = (t: typeof salesInvoice | typeof purchaseInvoice | typeof salesNote) => sql`not (${t.source} = 'tally' and ${t.status} = 'cancelled')`;
 type Part = { kind: string; id: string };
 type Registration = typeof gstRegistration.$inferSelect;
 
@@ -369,7 +407,7 @@ function supplyTypeOf(treatment: string | undefined, igst: string, sales: boolea
 async function salesInvoiceFrom(tx: Tx, ctx: TenantRequestContext, entityId: string, reg: Registration, v: TallyVoucher, d: TallyDocumentDraft, r: Resolver, s: DocumentServices) {
   const tenantId = ctx.tenant.tenantId;
   const p = r.parties.get(d.partyId);
-  const [dup] = await tx.select({ id: salesInvoice.id }).from(salesInvoice).where(and(eq(salesInvoice.gstRegistrationId, reg.id), eq(salesInvoice.number, d.number)));
+  const [dup] = await tx.select({ id: salesInvoice.id }).from(salesInvoice).where(and(eq(salesInvoice.gstRegistrationId, reg.id), eq(salesInvoice.number, d.number), live(salesInvoice)));
   if (dup) throw new BadRequestException(`${voucherLabel(v)}: invoice number ${d.number} already exists for this GSTIN in FactoryOS.`);
   const totalTax = Dec.of(d.tax.cgst).add(d.tax.sgst).add(d.tax.igst).add(d.tax.cess).toFixed(2);
   const [inv] = await tx
@@ -452,7 +490,7 @@ async function salesInvoiceFrom(tx: Tx, ctx: TenantRequestContext, entityId: str
 async function purchaseInvoiceFrom(tx: Tx, ctx: TenantRequestContext, entityId: string, reg: Registration, v: TallyVoucher, d: TallyDocumentDraft, r: Resolver, s: DocumentServices, parts: Part[]) {
   const tenantId = ctx.tenant.tenantId;
   const p = r.parties.get(d.partyId);
-  const [dup] = await tx.select({ id: purchaseInvoice.id }).from(purchaseInvoice).where(and(eq(purchaseInvoice.entityId, entityId), eq(purchaseInvoice.number, d.number), ne(purchaseInvoice.status, 'cancelled')));
+  const [dup] = await tx.select({ id: purchaseInvoice.id }).from(purchaseInvoice).where(and(eq(purchaseInvoice.entityId, entityId), eq(purchaseInvoice.number, d.number), live(purchaseInvoice)));
   if (dup) throw new BadRequestException(`${voucherLabel(v)}: purchase invoice number ${d.number} already exists in FactoryOS.`);
   const totalTax = Dec.of(d.tax.cgst).add(d.tax.sgst).add(d.tax.igst).add(d.tax.cess).toFixed(2);
   const [inv] = await tx
@@ -681,7 +719,7 @@ const noteTotals = (d: TallyDocumentDraft) => ({
 async function salesNoteFrom(tx: Tx, ctx: TenantRequestContext, entityId: string, reg: Registration, v: TallyVoucher, d: TallyDocumentDraft, r: Resolver, s: DocumentServices) {
   const tenantId = ctx.tenant.tenantId;
   const p = r.parties.get(d.partyId);
-  const [dup] = await tx.select({ id: salesNote.id }).from(salesNote).where(and(eq(salesNote.gstRegistrationId, reg.id), eq(salesNote.number, d.number)));
+  const [dup] = await tx.select({ id: salesNote.id }).from(salesNote).where(and(eq(salesNote.gstRegistrationId, reg.id), eq(salesNote.number, d.number), live(salesNote)));
   if (dup) throw new BadRequestException(`${voucherLabel(v)}: note number ${d.number} already exists for this GSTIN in FactoryOS.`);
   const [original] = d.billReference
     ? await tx

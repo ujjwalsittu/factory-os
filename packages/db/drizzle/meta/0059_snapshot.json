@@ -1,5 +1,5 @@
 {
-  "id": "2f8b5d05-0fa9-4294-bfed-15cd47587305",
+  "id": "4783fa2f-317b-4236-91ba-24a91099b2d6",
   "prevId": "528ee4a0-c1a9-40b2-b5d2-a46955cd45e8",
   "version": "7",
   "dialect": "postgresql",
@@ -5479,6 +5479,7 @@
             }
           ],
           "isUnique": true,
+          "where": "\"purchase_invoice\".\"source\" <> 'tally' or \"purchase_invoice\".\"status\" <> 'cancelled'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -7484,6 +7485,7 @@
             }
           ],
           "isUnique": true,
+          "where": "\"sales_invoice\".\"source\" <> 'tally' or \"sales_invoice\".\"status\" <> 'cancelled'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -11357,6 +11359,7 @@
             }
           ],
           "isUnique": true,
+          "where": "\"sales_note\".\"source\" <> 'tally' or \"sales_note\".\"status\" <> 'cancelled'",
           "concurrently": false,
           "method": "btree",
           "with": {}

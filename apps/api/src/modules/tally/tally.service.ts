@@ -536,7 +536,7 @@ export class TallyService {
     if (row.kind === 'opening' || row.kind === 'stock') return openingActions({ ...row, payload: row.payload });
     if (row.kind === 'voucher') return row.proposed === 'update' || row.proposed === 'unchanged' ? ['update', 'unchanged', 'skip'] : ['new', 'skip'];
     // Decision 075: a voucher in a Tally month becomes a document, or stays history (skip); a conflict can only be skipped.
-    if (row.kind === 'document') return row.proposed === 'new' ? ['new', 'skip'] : row.proposed === 'unchanged' ? ['unchanged', 'skip'] : ['skip'];
+    if (row.kind === 'document') return row.proposed === 'new' ? ['new', 'skip'] : row.proposed === 'update' ? ['update', 'skip'] : row.proposed === 'unchanged' ? ['unchanged', 'skip'] : ['skip'];
     if (row.proposed === 'update' || row.proposed === 'unchanged') return ['update', 'unchanged', 'skip'];
     return ['new', 'link', 'skip'];
   }

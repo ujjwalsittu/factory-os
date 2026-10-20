@@ -206,6 +206,17 @@ export async function reverseVersion(tx: Tx, ctx: TenantRequestContext, entityId
   await s.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'accounts.tally.reverse', targetType: v.documentKind, targetId: id, reason }, tx);
 }
 
+/** The current versions of documents, newest-dependent first (the order they are reversed in). */
+export async function versionsOf(tx: Db, entityId: string, documentIds: string[]) {
+  const rows = await tx
+    .select({ v: tallyDocumentVersion, date: tallyVoucher.date })
+    .from(tallyDocumentVersion)
+    .innerJoin(tallyVoucher, and(eq(tallyVoucher.entityId, tallyDocumentVersion.entityId), eq(tallyVoucher.guid, tallyDocumentVersion.guid)))
+    .where(and(eq(tallyDocumentVersion.entityId, entityId), inArray(tallyDocumentVersion.documentId, documentIds), isNull(tallyDocumentVersion.reversedAt)))
+    .orderBy(desc(tallyVoucher.date), desc(tallyDocumentVersion.createdAt));
+  return rows.sort((a, b) => (RANK[a.v.documentKind] ?? 9) - (RANK[b.v.documentKind] ?? 9)).map((r) => r.v);
+}
+
 /** Current documents from Tally dated in a month, newest-dependent first, so nothing is reversed before what needs it. */
 export async function versionsInMonth(tx: Db, entityId: string, month: string) {
   const rows = await tx

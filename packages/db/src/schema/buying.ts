@@ -172,7 +172,7 @@ export const purchaseInvoice = pgTable(
     ...audit,
   },
   (t) => [uniqueIndex('purchase_invoice_scope_uq').on(t.id,t.tenantId,t.entityId),
-    uniqueIndex('purchase_invoice_entity_number_uq').on(t.entityId, t.number),
+    uniqueIndex('purchase_invoice_entity_number_uq').on(t.entityId, t.number).where(sql`${t.source} <> 'tally' or ${t.status} <> 'cancelled'`),
     index('purchase_invoice_supplier_idx').on(t.entityId, t.supplierId, t.supplierInvoiceNo),
     uniqueIndex('purchase_invoice_tally_guid_uq').on(t.entityId, t.tallyGuid).where(sql`${t.tallyGuid} is not null and ${t.status} <> 'cancelled'`),
   ],

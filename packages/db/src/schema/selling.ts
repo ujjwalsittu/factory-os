@@ -150,7 +150,7 @@ export const salesInvoice = pgTable(
   (t) => [
     // GST: unique per GSTIN per FY; the FY is part of the number.
     uniqueIndex('sales_invoice_identity_scope_uq').on(t.id,t.tenantId,t.entityId),
-    uniqueIndex('sales_invoice_gstin_number_uq').on(t.gstRegistrationId, t.number),
+    uniqueIndex('sales_invoice_gstin_number_uq').on(t.gstRegistrationId, t.number).where(sql`${t.source} <> 'tally' or ${t.status} <> 'cancelled'`),
     index('sales_invoice_customer_idx').on(t.entityId, t.customerId),
     uniqueIndex('sales_invoice_tally_guid_uq').on(t.entityId, t.tallyGuid).where(sql`${t.tallyGuid} is not null and ${t.status} <> 'cancelled'`),
   ],
