@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-16 (Asia/Kolkata) · UI slice 3 (add new from any list, asset purchases) claimed_
+_Last updated: 2026-10-20 (Asia/Kolkata) · Tally documents PR 1 (decision 075) built, waiting for review_
 
 ## Done
 - [x] **UI, menu, Home and connections (decision 068)**. [Audit](../superpowers/reviews/2026-10-13-ui-audit.md), [design](../superpowers/specs/2026-10-13-ui-menu-connections-design.md); five slices, each its own PR. Slices 1 (PR 53), 2 (PR 55), 3 (PR 57) and 4 (PR 59) merged. **Slice 5 (Connections page and hand-offs) merged as PR 69** ([review](../superpowers/reviews/2026-10-20-ui-slice-5-review.md)): Settings → Connections with a status card per outside connection and a storage test; hand-offs from Home rows, item pages, invoices and receipts. No migration.
@@ -213,7 +213,7 @@ _Last updated: 2026-10-16 (Asia/Kolkata) · UI slice 3 (add new from any list, a
 
 
 ## Next (user-authorized sequence; review each written design/plan)
-0. **Tally transactions as FactoryOS documents (decision 075, accepted 2026-10-20):** [design](../superpowers/specs/2026-10-20-tally-transactions-design.md). Books by month (Tally or FactoryOS, only after the cut-over); PR 1 sales and purchase invoices and notes with stock, PR 2 receipts, payments, journals. **PR 1 claimed** · owner: agent, cloud session on `claude/zealous-allen-35g1vm` · started: 2026-10-20. Feeds the GST returns below.
+0. **Tally transactions as FactoryOS documents (decision 075, accepted 2026-10-20):** [design](../superpowers/specs/2026-10-20-tally-transactions-design.md). **PR 1 built, waiting for review and merge** (migration 0058, decision 075a, [review](../superpowers/reviews/2026-10-20-tally-documents-pr1-review.md)): Books by month, voucher-type and ledger mappings, sales and purchase invoices and value notes from Tally with stock and books. **PR 2 next:** receipts, payments, journals, stock journals, the reversal of Tally documents (re-sync of edited vouchers and switching a month back). Feeds the GST returns below, which must read notes from Tally from `tally_lines`.
 0. **GST returns from the books (decision 074, accepted 2026-10-20):** [design](../superpowers/specs/2026-10-20-gst-returns-design.md). PR 1 (GSTR-1 and 3B prepared, reviewed, exported for portal upload) needs the GSTR-1 offline-tool JSON schema pinned in `docs/compliance/` first. Not yet claimed.
 1. Support access live enablement (needs the user): set `SUPPORT_ACCESS_ENABLED=true` on the API app in Coolify only when wanted, then a tenant administrator turns the policy on and a real operator acceptance over HTTPS is done. PostgreSQL RLS is a separate design.
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
@@ -232,6 +232,7 @@ _Last updated: 2026-10-16 (Asia/Kolkata) · UI slice 3 (add new from any list, a
 - NIC provider protocol verification: after user added NIC allowed domains and the cloud environment restarted on 2026-10-06, public `einvoice6.gst.gov.in/content/kb/` returns200, but NIC `einv-apisandbox.nic.in` (home/API help/schema pages), `einvoice1.gst.gov.in` and `ewaybillgst.gov.in` return503 with upstream connection timeout. `docs.ewaybillgst.gov.in` returns403 with CDN Access Denied, rather than the earlier tunnel denial. Domain allowlist access improved, but current NIC contracts remain unavailable. Need reachable official documentation or authorized exported copies before wire/auth implementation; do not substitute another IRP's protocol. User subsequently confirmed all five exact domains allowed; fresh recheck still shows the same503/CDN403 results with public KB200. Further allowlist additions are not justified by these responses. Offline work is authorized, implemented and verified; provider work remains separately blocked. Real acceptance additionally needs NIC access/IP whitelist/secure credentials.
 
 ## Noticed (out of scope, for later)
+- Invoices from Tally still show "Prepare sandbox registration" (e-invoice sandbox); decision 075 says FactoryOS does not generate e-invoices for them. Hide it for `source = 'tally'`.
 - Menu preferences: a change made and followed by a reload within the 1.5 s debounce can show the older server copy on the new page, because the `keepalive` save at pagehide can be overtaken by the next page's read. An `updatedAt` on the stored copy would settle which is newer.
 - `smoke-support-access-schema.mjs` asserts migration 0035 is the last in the journal: stale since 0036, fails on main. Change it to assert one `_support_access` migration exists, unedited.
 - `smoke-support-access-lifecycle.mjs` "consent not started within 600 seconds" sets `approved_at` and `start_by` from two `clock_timestamp()` calls, so `support_access_grant_window_ck` is always exceeded by microseconds: fails on main. Use one timestamp for both.
