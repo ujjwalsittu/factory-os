@@ -1,10 +1,11 @@
-import { accountingSettings, purchaseInvoice, salesInvoice, salesNote, supplierNote, tallyBookMonth, type Database } from '@factoryos/db';
+import { accountingSettings, partySettlement, purchaseInvoice, salesInvoice, salesNote, supplierNote, tallyBookMonth, type Database } from '@factoryos/db';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import type { AuditService } from '../../common/audit.service.js';
 import { lockAccounting, type Db } from '../accounting/accounting-lock.js';
 import { refreshOpenImports } from './tally-documents.js';
+import { reverseMonth, versionsInMonth, type ReversalServices } from './tally-reversal.js';
 
 /**
  * Decision 075: each month of an entity is kept in one book, FactoryOS (the default) or Tally. A Tally month's
@@ -47,6 +48,7 @@ const DOCUMENTS = [
   { table: purchaseInvoice, date: purchaseInvoice.postingDate, label: 'purchase invoices' },
   { table: salesNote, date: salesNote.postingDate, label: 'customer notes' },
   { table: supplierNote, date: supplierNote.postingDate, label: 'supplier notes' },
+  { table: partySettlement, date: partySettlement.postingDate, label: 'receipts and payments' },
 ] as const;
 
 /** Counts live documents of one source in a month, by kind. */
@@ -63,12 +65,17 @@ async function documentsIn(db: Db, entityId: string, month: string, source: Book
   return out;
 }
 
-export async function setBook(db: Database, ctx: TenantRequestContext, entityId: string, audit: AuditService, month: string, book: Book) {
+/**
+ * Sets the book of a month. Back to FactoryOS reverses the month's documents from Tally (decision 075b), so it needs
+ * `confirm` once the preview has listed them, and is refused while anything outside the month depends on them.
+ */
+export async function setBook(db: Database, ctx: TenantRequestContext, entityId: string, audit: AuditService, month: string, book: Book, s: ReversalServices, confirm: { documents: string[] } | null = null) {
   return db.transaction(async (tx) => {
     // The accounting lock serialises this with invoice and note submits, which check the book under the same lock.
     await lockAccounting(tx, entityId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`tally-books:${entityId}`}))`);
     const [settings] = await tx.select({ cutoverDate: accountingSettings.cutoverDate }).from(accountingSettings).where(eq(accountingSettings.entityId, entityId));
+    let reversed = 0;
     if (book === 'tally') {
       if (!settings?.cutoverDate) throw new BadRequestException('Set the cut-over date in Accounting setup first: only months from the cut-over on can be kept in Tally.');
       if (month < monthOf(settings.cutoverDate))
@@ -76,17 +83,23 @@ export async function setBook(db: Database, ctx: TenantRequestContext, entityId:
       const own = await documentsIn(tx, entityId, month, 'factoryos');
       if (own.length) throw new ConflictException(`${month} already has ${own.join(', ')} entered in FactoryOS; cancel them before keeping the month in Tally.`);
     } else {
-      const fromTally = await documentsIn(tx, entityId, month, 'tally');
-      if (fromTally.length) throw new ConflictException(`${month} has ${fromTally.join(', ')} created from Tally. Moving a month back to FactoryOS comes in the next release.`);
+      const fromTally = await versionsInMonth(tx, entityId, month);
+      if (fromTally.length && !confirm)
+        throw new ConflictException(`${month} has ${fromTally.length} document${fromTally.length === 1 ? '' : 's'} created from Tally. Check what switching back reverses, then confirm.`);
+      // The confirmation names the documents the person saw; anything imported or reversed since means a new preview.
+      const now = fromTally.map((v) => v.documentId).sort().join(',');
+      if (confirm && [...new Set(confirm.documents)].sort().join(',') !== now)
+        throw new ConflictException(`${month}'s documents from Tally changed since the preview. Check again before switching back.`);
+      reversed = await reverseMonth(tx, ctx, entityId, month, s);
     }
     await tx
       .insert(tallyBookMonth)
       .values({ tenantId: ctx.tenant.tenantId, entityId, month, source: book, setBy: ctx.user.id })
       .onConflictDoUpdate({ target: [tallyBookMonth.entityId, tallyBookMonth.month], set: { source: book, setBy: ctx.user.id, setAt: new Date() } });
-    await audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'accounts.tally.book', targetType: 'tally_book_month', targetId: null, after: { month, book } }, tx);
+    await audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'accounts.tally.book', targetType: 'tally_book_month', targetId: null, after: { month, book, reversed } }, tx);
     // Open imports were staged against the old book.
     await refreshOpenImports(tx, ctx.tenant.tenantId, entityId);
-    return { month, book };
+    return { month, book, reversed };
   });
 }
 

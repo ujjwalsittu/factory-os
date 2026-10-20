@@ -43,6 +43,9 @@ import { itemInput, normaliseParty, partyInput } from '../masters.controller.js'
 import { OpeningWriter, openingActions, openingSummary, stageOpenings } from './tally-openings.js';
 import { notInExport, stageVouchers, writeVouchers } from './tally-vouchers.js';
 import { refreshDocuments, stageDocuments, writeDocuments } from './tally-documents.js';
+import { BillService } from '../accounting/bill.service.js';
+import type { ReversalServices } from './tally-reversal.js';
+import { SettlementService } from '../accounting/settlement.service.js';
 import { OperationalPostings } from '../accounting/operational-postings.js';
 import { StockPostingService } from '../stock-posting.service.js';
 
@@ -118,7 +121,14 @@ export class TallyService {
     private readonly gl: GlPostingService,
     private readonly stock: StockPostingService,
     private readonly accounting: OperationalPostings,
+    private readonly settlements: SettlementService,
+    private readonly bills: BillService,
   ) {}
+
+  /** The services the reversal of Tally documents runs through (re-sync and switching a month back). */
+  get reversal(): ReversalServices {
+    return { stock: this.stock, gl: this.gl, bills: this.bills, settlements: this.settlements, audit: this.audit };
+  }
 
   // ── Read and stage ──
 
@@ -526,7 +536,7 @@ export class TallyService {
     if (row.kind === 'opening' || row.kind === 'stock') return openingActions({ ...row, payload: row.payload });
     if (row.kind === 'voucher') return row.proposed === 'update' || row.proposed === 'unchanged' ? ['update', 'unchanged', 'skip'] : ['new', 'skip'];
     // Decision 075: a voucher in a Tally month becomes a document, or stays history (skip); a conflict can only be skipped.
-    if (row.kind === 'document') return row.proposed === 'new' ? ['new', 'skip'] : row.proposed === 'unchanged' ? ['unchanged', 'skip'] : ['skip'];
+    if (row.kind === 'document') return row.proposed === 'new' ? ['new', 'skip'] : row.proposed === 'update' ? ['update', 'skip'] : row.proposed === 'unchanged' ? ['unchanged', 'skip'] : ['skip'];
     if (row.proposed === 'update' || row.proposed === 'unchanged') return ['update', 'unchanged', 'skip'];
     return ['new', 'link', 'skip'];
   }
@@ -650,7 +660,7 @@ export class TallyService {
       }
       for (const r of voucherRows) results[`${r.kind}.${r.action}`] = (results[`${r.kind}.${r.action}`] ?? 0) + 1;
       // Decision 075: documents last, after the masters they link to and the history rows that point at them.
-      const documentResults = await writeDocuments(tx, ctx, entityId, imp.id, rows, { stock: this.stock, accounting: this.accounting, audit: this.audit });
+      const documentResults = await writeDocuments(tx, ctx, entityId, imp.id, rows, { stock: this.stock, accounting: this.accounting, audit: this.audit, settlements: this.settlements, bills: this.bills, gl: this.gl });
       for (const r of rows.filter((x) => x.kind === 'document')) {
         const resultId = documentResults.get(r.id) ?? r.targetId ?? null;
         if (resultId !== r.resultId) await tx.update(tallyStaged).set({ resultId }).where(eq(tallyStaged.id, r.id));

@@ -1,11 +1,11 @@
 'use client';
-import { Alert, Badge, Button, Card, CardHeader, Field, Input, Select } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, Dialog, Field, Input, Select } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/format';
-import { DOCUMENT_KIND_LABEL, type TallyBook, type TallyBooks, type TallyDocumentKind, type TallyMappings } from '@/lib/tally';
+import { DOCUMENT_KIND_LABEL, DOCUMENT_PATH, type TallyBook, type TallyBooks, type TallyDocumentKind, type TallyMappings, type TallySwitchBack } from '@/lib/tally';
 import { AccountingPage } from './accounting-shared';
 import { LookupSelect } from './lookup-select';
 import { useWorkspace } from './workspace';
@@ -31,9 +31,14 @@ function BooksContent() {
     for (const k of ['tally-books', 'tally-mappings', 'tally-import', 'tally-rows', 'tally-imports']) void qc.invalidateQueries({ queryKey: [k] });
   };
   const setBook = useMutation({
-    mutationFn: (b: { month: string; book: TallyBook }) => api('/tally/books', { method: 'PUT', body: b, scope: ws.scope }),
-    onSuccess: refresh,
+    mutationFn: (b: { month: string; book: TallyBook; confirm?: { documents: string[] } }) => api('/tally/books', { method: 'PUT', body: b, scope: ws.scope }),
+    onSuccess: () => {
+      setSwitching(null);
+      refresh();
+    },
   });
+  // Decision 075b: going back to FactoryOS reverses the month's documents from Tally, so it is previewed first.
+  const [switching, setSwitching] = useState<string | null>(null);
   const setType = useMutation({
     mutationFn: (b: { voucherType: string; documentKind: TallyDocumentKind | 'none' | null }) => api('/tally/mappings/voucher-types', { method: 'PUT', body: b, scope: ws.scope }),
     onSuccess: refresh,
@@ -42,7 +47,8 @@ function BooksContent() {
     mutationFn: (b: { ledger: string; itemId: string | null }) => api('/tally/mappings/ledgers', { method: 'PUT', body: b, scope: ws.scope }),
     onSuccess: refresh,
   });
-  const error = setBook.error ?? setType.error ?? setLedger.error;
+  // While the switch-back dialog is open its error shows inside it; the modal hides the page.
+  const error = (switching ? null : setBook.error) ?? setType.error ?? setLedger.error;
   return (
     <div className="space-y-5">
       <p className="text-sm">
@@ -54,7 +60,7 @@ function BooksContent() {
       <Card>
         <CardHeader
           title="Books by month"
-          description="A month kept in Tally turns its imported sales, purchases and notes into FactoryOS documents with Tally's numbers and amounts, and entry here is refused for it. Other months keep Tally vouchers as history."
+          description="A month kept in Tally turns its imported vouchers (sales, purchases, notes, receipts, payments, journals and stock journals) into FactoryOS documents with Tally's numbers and amounts, and entry here is refused for it. Other months keep Tally vouchers as history."
         />
         {books.error && <Alert tone="danger">{books.error.message}</Alert>}
         {books.data && !books.data.cutoverDate && (
@@ -77,7 +83,7 @@ function BooksContent() {
                       variant={m.book === b ? 'secondary' : 'ghost'}
                       aria-pressed={m.book === b}
                       disabled={setBook.isPending}
-                      onClick={() => m.book !== b && setBook.mutate({ month: m.month, book: b })}
+                      onClick={() => m.book !== b && (b === 'factoryos' ? setSwitching(m.month) : setBook.mutate({ month: m.month, book: b }))}
                     >
                       {b === 'tally' ? 'Tally' : 'FactoryOS'}
                     </Button>
@@ -88,6 +94,19 @@ function BooksContent() {
           ))}
         </ul>
       </Card>
+
+      {switching && (
+        <SwitchBack
+          month={switching}
+          pending={setBook.isPending}
+          error={setBook.error}
+          onClose={() => {
+            setBook.reset();
+            setSwitching(null);
+          }}
+          onConfirm={(documents) => setBook.mutate({ month: switching, book: 'factoryos', confirm: { documents } })}
+        />
+      )}
 
       <Card>
         <CardHeader
@@ -208,5 +227,57 @@ function LedgerItems({
         </form>
       )}
     </Card>
+  );
+}
+
+/** Lists what switching a month back reverses; refused while a later document depends on it. */
+function SwitchBack({ month, pending, error, onClose, onConfirm }: { month: string; pending: boolean; error: Error | null; onClose: () => void; onConfirm: (documents: string[]) => void }) {
+  const ws = useWorkspace();
+  const preview = useQuery({
+    queryKey: ['tally-switch-back', ws.tenantId, ws.entityId, month],
+    queryFn: () => api<TallySwitchBack>(`/tally/books/${month}/switch-back`, { scope: ws.scope }),
+  });
+  const p = preview.data;
+  // A cached preview may be refetching; confirm only what is on screen and current.
+  const blocked = !p || preview.isFetching || p.dependents.length > 0;
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Keep ${monthLabel(month)} in FactoryOS`}
+      description="Its documents from Tally are reversed: their entries in the books, bills and stock are undone and they show as cancelled. The vouchers stay in Tally history."
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="danger" disabled={blocked || pending} onClick={() => p && onConfirm(p.documents.map((d) => d.documentId))}>
+            {p?.documents.length ? `Reverse ${p.documents.length} document${p.documents.length === 1 ? '' : 's'}` : 'Switch to FactoryOS'}
+          </Button>
+        </>
+      }
+    >
+      {error && <Alert tone="danger">{error.message}</Alert>}
+      {preview.error && <Alert tone="danger">{preview.error.message}</Alert>}
+      {preview.isLoading && <p className="text-sm text-muted">Checking the month…</p>}
+      {p && p.dependents.length > 0 && (
+        <Alert tone="danger">
+          Later documents depend on this month&apos;s Tally documents. Cancel them first: {p.dependents.join(', ')}.
+        </Alert>
+      )}
+      {p && p.documents.length === 0 && <p className="text-sm text-muted">No documents from Tally in this month.</p>}
+      {p && p.documents.length > 0 && (
+        <ul className="mt-3 max-h-72 divide-y divide-line overflow-y-auto rounded-xl border border-line text-sm">
+          {p.documents.map((d) => (
+            <li key={d.documentId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+              <Link href={`${DOCUMENT_PATH[d.kind]}/${d.documentId}`} className="text-accent hover:underline">
+                {d.label}
+              </Link>
+              <span className="text-xs text-muted">{formatDate(d.date)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Dialog>
   );
 }

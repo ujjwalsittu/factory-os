@@ -181,14 +181,15 @@ export const tallyVoucherTypeMap = pgTable(
   {
     ...identity(),
     voucherType: text('voucher_type').notNull(),
-    /** sales_invoice | purchase_invoice | sales_credit_note | supplier_debit_note | none (stays history) */
+    /** A document kind (sales_invoice, purchase_invoice, sales_credit_note, supplier_debit_note, receipt, payment,
+     * journal, stock_journal) or none (stays history). */
     documentKind: text('document_kind').notNull(),
     setBy: text('set_by').notNull().references(() => user.id),
     setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('tally_voucher_type_map_uq').on(t.entityId, t.voucherType),
-    check('tally_voucher_type_map_ck', sql`${t.documentKind} in ('sales_invoice','purchase_invoice','sales_credit_note','supplier_debit_note','none')`),
+    check('tally_voucher_type_map_ck', sql`${t.documentKind} in ('sales_invoice','purchase_invoice','sales_credit_note','supplier_debit_note','receipt','payment','journal','stock_journal','none')`),
   ],
 );
 
@@ -203,4 +204,30 @@ export const tallyLedgerItem = pgTable(
     setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('tally_ledger_item_uq').on(t.entityId, t.ledger)],
+);
+
+/**
+ * Decision 075 PR 2: every document a Tally voucher became, oldest first. An edited voucher (newer ALTERID) is
+ * reversed and created again; the old version names the document that replaced it, so both stay visible and linked.
+ * `tally_voucher.document_id` always points at the current one.
+ */
+export const tallyDocumentVersion = pgTable(
+  'tally_document_version',
+  {
+    ...identity(),
+    guid: text('guid').notNull(),
+    alterId: integer('alter_id'),
+    documentKind: text('document_kind').notNull(),
+    documentId: uuid('document_id').notNull(),
+    importId: uuid('import_id').notNull(),
+    /** Further records the document made (the second stock entry of a stock journal), reversed with it. */
+    parts: jsonb('parts').$type<{ kind: string; id: string }[]>().notNull().default([]),
+    /** The document that replaced this one after an edit in Tally, or null while it is current or reversed. */
+    replacedBy: uuid('replaced_by'),
+    /** Set when the document was reversed: an edit in Tally, or the month switched back to FactoryOS. */
+    reversedAt: timestamp('reversed_at', { withTimezone: true }),
+    reversedReason: text('reversed_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('tally_document_version_guid_idx').on(t.entityId, t.guid), uniqueIndex('tally_document_version_document_uq').on(t.documentId)],
 );

@@ -105,7 +105,7 @@ export class OperationalPostings {
         ) {
           lines.add('inventory', value);
           // A Tally purchase (decision 075) receives without a PO; its invoice clears GRNI like one with a PO.
-          lines.add(entry.purchaseOrderId || entry.source === 'tally' ? 'grni' : 'adjustment', value.neg());
+          lines.add(entry.purchaseOrderId || (entry.source === 'tally' && entry.purpose === 'receipt') ? 'grni' : 'adjustment', value.neg());
         } else {
           lines.add(
             entry.purpose === 'delivery'

@@ -12,6 +12,8 @@ import { TallyService } from './tally.service.js';
 import { getVoucher, listVouchers } from './tally-vouchers.js';
 import { listMappings, setLedgerItem, setVoucherType } from './tally-documents.js';
 import { TALLY_DOCUMENT_KINDS } from '@factoryos/core/tally-documents';
+import { ENTRY_KINDS } from './tally-entries.js';
+import { documentVersions, switchBackPreview } from './tally-reversal.js';
 
 const KINDS = ['group', 'ledger', 'party', 'stockgroup', 'unit', 'godown', 'stockitem', 'opening', 'stock', 'voucher', 'document'] as const;
 const ACTIONS = ['new', 'link', 'update', 'unchanged', 'conflict', 'skip'] as const;
@@ -119,7 +121,9 @@ export class TallyHistoryController {
   }
 }
 
-const bookInput = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), book: z.enum(['tally', 'factoryos']) });
+const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
+/** `documents`: what the switch-back preview listed; switching back reverses exactly those (decision 075b). */
+const bookInput = z.object({ month: z.string().regex(monthPattern), book: z.enum(['tally', 'factoryos']), confirm: z.object({ documents: z.array(z.uuid()).max(20000) }).optional() });
 
 /** Decision 075: which book each month is kept in, from the cut-over on. */
 @Controller('tally/books')
@@ -127,6 +131,7 @@ export class TallyBooksController {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly tally: TallyService,
   ) {}
 
   @Get()
@@ -138,12 +143,20 @@ export class TallyBooksController {
   @Put()
   @RequirePermission('accounts.tally.import')
   set(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
-    const { month, book } = parse(bookInput, body);
-    return setBook(this.db, ctx, entityOf(ctx), this.audit, month, book);
+    const { month, book, confirm } = parse(bookInput, body);
+    return setBook(this.db, ctx, entityOf(ctx), this.audit, month, book, this.tally.reversal, confirm ?? null);
+  }
+
+  /** Decision 075b: the documents from Tally that switching the month back would reverse, and any that block it. */
+  @Get(':month/switch-back')
+  @RequirePermission('accounts.tally.read')
+  switchBack(@Ctx() ctx: TenantRequestContext, @Param('month') month: string) {
+    const m = parse(z.string().regex(monthPattern), month);
+    return switchBackPreview(this.db, entityOf(ctx), m);
   }
 }
 
-const voucherTypeInput = z.object({ voucherType: z.string().trim().min(1).max(120), documentKind: z.enum([...TALLY_DOCUMENT_KINDS, 'none']).nullable() });
+const voucherTypeInput = z.object({ voucherType: z.string().trim().min(1).max(120), documentKind: z.enum([...TALLY_DOCUMENT_KINDS, ...ENTRY_KINDS, 'none']).nullable() });
 const ledgerItemInput = z.object({ ledger: z.string().trim().min(1).max(200), itemId: z.uuid().nullable() });
 
 /** Decision 075: what each Tally voucher type becomes, and which service item a ledger is booked as. */
@@ -174,5 +187,17 @@ export class TallyMappingsController {
     const { ledger, itemId } = parse(ledgerItemInput, body);
     await this.db.transaction((tx) => setLedgerItem(tx, ctx, entityOf(ctx), this.audit, ledger, itemId));
     return listMappings(this.db, ctx.tenant.tenantId, entityOf(ctx));
+  }
+}
+
+/** Decision 075a: the versions of a document created from a Tally voucher. */
+@Controller('tally/documents')
+export class TallyDocumentsController {
+  constructor(@Inject(DB) private readonly db: Database) {}
+
+  @Get(':id/versions')
+  @RequirePermission('accounts.tally.read')
+  versions(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
+    return documentVersions(this.db, entityOf(ctx), id);
   }
 }

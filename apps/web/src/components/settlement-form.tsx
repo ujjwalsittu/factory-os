@@ -216,7 +216,7 @@ export function SettlementForm({ settlement, initialDirection = 'receipt', initi
               <Send className="size-4" /> Submit
             </Button>
           )}
-          {settlement?.status === 'submitted' && ws.can('accounts.settlement.cancel') && (!hasPostedCharge||ws.can('accounts.bank_charge.cancel')) && (
+          {settlement?.status === 'submitted' && settlement.source !== 'tally' && ws.can('accounts.settlement.cancel') && (!hasPostedCharge||ws.can('accounts.bank_charge.cancel')) && (
             <Button variant="secondary" onClick={() => setCancelling(true)}>
               <Ban className="size-4" /> Cancel
             </Button>

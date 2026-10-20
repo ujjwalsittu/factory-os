@@ -16,7 +16,7 @@ import {
   TARGET_SOURCE,
   uploadTally,
   type TallyAction,
-  type TallyDocumentKind,
+  type TallyCreatedKind,
   type TallyImport,
   type TallyKind,
   type TallyRow,
@@ -410,6 +410,12 @@ function DetailContent({ id }: { id: string }) {
               stock and books, at Tally&apos;s numbers and amounts.
             </p>
           )}
+          {total(current, (k, a) => k === 'document' && a === 'update') > 0 && (
+            <p className="text-sm">
+              {total(current, (k, a) => k === 'document' && a === 'update')} documents were edited in Tally: each is reversed and created again from the
+              edited voucher. The reversed one stays, marked as replaced.
+            </p>
+          )}
           {openings && openings.included > 0 && (
             <p className="text-sm">
               Opening balances replace the opening worksheet&apos;s lines and bills, and opening stock is saved as draft receipts to
@@ -441,6 +447,7 @@ function DocumentsNote({ counts, status }: { counts: Record<string, number>; sta
       {status === 'committed'
         ? `${n('new')} vouchers in months kept in Tally became FactoryOS documents.`
         : `${n('new')} vouchers in months kept in Tally will become FactoryOS documents; ${n('unchanged')} already are.`}{' '}
+      {status !== 'committed' && n('update') > 0 && `${n('update')} were edited in Tally and will replace their documents. `}
       {n('conflict') > 0 && `${n('conflict')} need a link or mapping first: fix the masters or `}
       {n('conflict') > 0 && (
         <Link href="/app/accounts/tally/books" className="text-accent hover:underline">
@@ -607,7 +614,7 @@ function RowView({
       {details(r) && <p className="text-sm text-muted">{details(r)}</p>}
       {r.kind === 'document' && (r.resultId ?? r.targetId) && typeof r.payload.documentKind === 'string' && (
         <p className="text-sm">
-          <Link href={`${DOCUMENT_PATH[r.payload.documentKind as TallyDocumentKind]}/${r.resultId ?? r.targetId}`} className="text-accent hover:underline">
+          <Link href={`${DOCUMENT_PATH[(r.payload.becomes ?? r.payload.documentKind) as TallyCreatedKind]}/${r.resultId ?? r.targetId}`} className="text-accent hover:underline">
             Open the document
           </Link>
         </p>

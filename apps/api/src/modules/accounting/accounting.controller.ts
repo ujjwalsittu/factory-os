@@ -773,6 +773,7 @@ export class AccountingController {
             'sales_note',
             'supplier_note',
             'settlement',
+            'tally_journal',
           ])
           .optional(),
         sourceId: z.uuid().optional(),

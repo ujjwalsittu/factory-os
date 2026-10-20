@@ -21,7 +21,7 @@ export const salesNote = pgTable('sales_note', {
  taxableValue:amount('taxable_value').notNull().default('0'), cgst:amount('cgst').notNull().default('0'), sgst:amount('sgst').notNull().default('0'), igst:amount('igst').notNull().default('0'), cess:amount('cess').notNull().default('0'), grandTotal:amount('grand_total').notNull().default('0'),
  billId:uuid('bill_id'), voucherId:uuid('voucher_id'), stockEntryId:uuid('stock_entry_id').references(()=>stockEntry.id), ...tallyNoteSource(), ...lifecycle,
 }, t=>[
- uniqueIndex('sales_note_gstin_number_uq').on(t.gstRegistrationId,t.number), uniqueIndex('sales_note_identity_scope_uq').on(t.id,t.tenantId,t.entityId,t.originalInvoiceId), index('sales_note_invoice_idx').on(t.entityId,t.originalInvoiceId),
+ uniqueIndex('sales_note_gstin_number_uq').on(t.gstRegistrationId,t.number).where(sql`${t.source} <> 'tally' or ${t.status} <> 'cancelled'`), uniqueIndex('sales_note_identity_scope_uq').on(t.id,t.tenantId,t.entityId,t.originalInvoiceId), index('sales_note_invoice_idx').on(t.entityId,t.originalInvoiceId),
  foreignKey({columns:[t.originalInvoiceId,t.tenantId,t.entityId],foreignColumns:[salesInvoice.id,salesInvoice.tenantId,salesInvoice.entityId]}),
  check('sales_note_kind',sql`${t.kind} in ('credit','debit')`), check('sales_note_tax_treatment',sql`${t.taxTreatment} in ('gst','commercial')`), check('sales_note_rate',sql`${t.exchangeRate}>0`),
  check('sales_note_original_ck',sql`${t.source}='tally' or ${t.originalInvoiceId} is not null`)]);

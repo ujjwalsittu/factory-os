@@ -344,20 +344,127 @@ assert.equal((await c.raw('POST', `/purchase-invoices/${tallyPurchase.id}/cancel
 const docAgain = await upload(c, [['DayBook.xml', utf16(docs)]]);
 assert.deepEqual([...new Set((await rows(c, docAgain.id, '&kind=document')).map((r) => r.proposed))], ['unchanged']);
 await c.req('POST', `/tally/imports/${docAgain.id}/discard`, {}, 201);
-// An edited voucher (newer ALTERID) is not applied over a submitted document; it waits for the document to be cancelled.
-const docEdited = await upload(c, [['DayBook.xml', utf16(docs.replaceAll('<ALTERID> 9001</ALTERID>', '<ALTERID> 9002</ALTERID>'))]]);
-const editedRows = await rows(c, docEdited.id, '&kind=document');
-assert.deepEqual([...new Set(editedRows.map((r) => r.proposed))], ['conflict']);
-assert.match(editedRows[0].notes.join(' '), /cancel/i);
-await c.req('POST', `/tally/imports/${docEdited.id}/discard`, {}, 201);
 // FactoryOS entry in the Tally month is refused.
 const draftInTally = await c.req('POST', '/sales-invoices', { customerId: acme.id, invoiceDate: cut, lines: [{ itemId: saleDoc.lines[0].itemId, qty: '1', rate: '80', gstRate: '18' }] }, 201);
 const inTallyMonth = await c.raw('POST', `/sales-invoices/${draftInTally.id}/submit`, {});
 assert.equal(inTallyMonth.status, 400);
 assert.match(inTallyMonth.data.message, /kept in Tally/);
-// A month with Tally documents cannot go back to FactoryOS yet.
-assert.equal((await c.raw('PUT', '/tally/books', { month, book: 'factoryos' })).status, 409);
 ok('a month kept in Tally turns its sales and purchases into submitted documents with stock and books; FactoryOS entry there is refused');
+
+// ── Decision 075a: an edited voucher is reversed and created again ──
+const envelope = (body) =>
+  `<ENVELOPE><HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER><BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>Vouchers</REPORTNAME></REQUESTDESC><REQUESTDATA>${body}</REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>`;
+const serviceVoucher = (alter, net, tax) =>
+  docVoucher('doc-service-1', 'Sales GST', 'TS/0002', `${ledger('Acme Castings Private Limited', `-${(net + 2 * tax).toFixed(2)}`, true)}${ledger('Machining Charges', net.toFixed(2))}${ledger('CGST', tax.toFixed(2))}${ledger('Output SGST', tax.toFixed(2))}`).replace(
+    '<ALTERID> 9001</ALTERID>',
+    `<ALTERID> ${alter}</ALTERID>`,
+  );
+const listOf = (r) => r.data ?? r;
+const editImport = await upload(c, [['DayBook.xml', utf16(envelope(serviceVoucher(9002, 1100, 99)))]]);
+const editRow = (await rows(c, editImport.id, '&kind=document'))[0];
+assert.equal(editRow.proposed, 'update', JSON.stringify(editRow.notes));
+assert.equal(editRow.targetId, serviceSale.id);
+await c.req('POST', `/tally/imports/${editImport.id}/commit`, {}, 201);
+assert.equal((await c.req('GET', `/sales-invoices/${serviceSale.id}`)).status, 'cancelled', 'the old version is reversed');
+const resynced = listOf(await c.req('GET', '/sales-invoices')).filter((i) => i.number === 'TS/0002');
+assert.equal(resynced.length, 2, 'both versions stay visible');
+const liveService = resynced.find((i) => i.status === 'submitted');
+assert.equal(Number((await c.req('GET', `/sales-invoices/${liveService.id}`)).grandTotal), 1298, 'the edited amounts');
+for (const r of await c.req('GET', '/accounts/trade-reconciliation')) assert.equal(Number(r.glInr), Number(r.subledgerInr), `bills match the books for ${r.partyName}`);
+ok('an edited voucher replaces its document: the old one is reversed and kept, the new one carries the edit');
+
+// ── Decision 075b: receipts, payments, journals and stock journals ──
+const partyLine = (name, amount, bills) =>
+  `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${name}</LEDGERNAME><ISPARTYLEDGER>Yes</ISPARTYLEDGER><AMOUNT>${amount}</AMOUNT>${bills.map(([n, t, a]) => `<BILLALLOCATIONS.LIST><NAME>${n}</NAME><BILLTYPE>${t}</BILLTYPE><AMOUNT>${a}</AMOUNT></BILLALLOCATIONS.LIST>`).join('')}</ALLLEDGERENTRIES.LIST>`;
+const move = (tag, godown, qty) =>
+  `<${tag}><STOCKITEMNAME>MS Round Bar 25mm</STOCKITEMNAME><RATE>100.00/Kgs</RATE><AMOUNT>${qty * 100}.00</AMOUNT><ACTUALQTY> ${qty} Kgs</ACTUALQTY><BATCHALLOCATIONS.LIST><GODOWNNAME>${godown}</GODOWNNAME><BATCHNAME>HEAT-9001</BATCHNAME><ACTUALQTY> ${qty} Kgs</ACTUALQTY></BATCHALLOCATIONS.LIST></${tag}>`;
+const entries = envelope(`
+${docVoucher('rcpt-1', 'Receipt', 'R/1', `${partyLine('Acme Castings Private Limited', '5000.00', [['TS/0001', 'Agst Ref', '5000.00']])}${ledger('HDFC Bank CA 0042', '-5000.00')}`)}
+${docVoucher('rcpt-2', 'Receipt', 'R/2', `${partyLine('Acme Castings Private Limited', '1500.00', [['TS/0001', 'Agst Ref', '1000.00'], ['TS/0002', 'Agst Ref', '500.00']])}${ledger('HDFC Bank CA 0042', '-1500.00')}`)}
+${docVoucher('rcpt-3', 'Receipt', 'R/3', `${partyLine('Acme Castings Private Limited', '700.00', [['NOT/THERE', 'Agst Ref', '700.00']])}${ledger('HDFC Bank CA 0042', '-700.00')}`)}
+${docVoucher('pay-1', 'Payment', 'P/1', `${partyLine('Bharat Steel Traders', '-2000.00', [['BST/771', 'Agst Ref', '2000.00']])}${ledger('HDFC Bank CA 0042', '2000.00')}`)}
+${docVoucher('jv-1', 'Journal', 'J/1', `${ledger('Power and Fuel', '-300.00')}${partyLine('Bharat Steel Traders', '300.00', [['BST/PF/1', 'New Ref', '300.00']])}`)}
+${docVoucher('jv-2', 'Journal', 'J/2', `${ledger('Input CGST', '-18.00')}${ledger('Power and Fuel', '18.00')}`)}
+${docVoucher('contra-1', 'Contra', 'C/1', `${ledger('HDFC Bank CA 0042', '-1000.00')}${ledger("Proprietor's Capital", '1000.00')}`)}
+${docVoucher('sj-1', 'Stock Journal', 'SJ/1', `${move('INVENTORYENTRIESOUT.LIST', 'Main Location', 5)}${move('INVENTORYENTRIESIN.LIST', 'Bhosari Stores', 5)}`)}
+`);
+const entryImport = await upload(c, [['DayBook.xml', utf16(entries)]]);
+const entryRows = await rows(c, entryImport.id, '&kind=document');
+assert.deepEqual(
+  entryRows.map((r) => `${r.name}:${r.proposed}`).sort(),
+  ['Journal C/1:new', 'Journal J/1:new', 'Journal J/2:new', 'Payment P/1:new', 'Receipt R/1:new', 'Receipt R/2:new', 'Receipt R/3:new', 'Stock journal SJ/1:new'],
+  JSON.stringify(entryRows.filter((r) => r.proposed !== 'new').map((r) => r.notes)),
+);
+await c.req('POST', `/tally/imports/${entryImport.id}/commit`, {}, 201);
+const settlementsNow = async () => (await c.req('GET', '/accounts/settlements')).filter((x) => x.source === 'tally');
+const byNumber = async (n) => (await settlementsNow()).find((x) => x.number === n);
+const r1 = await byNumber('R/1');
+assert.equal(r1.direction, 'receipt');
+assert.equal(r1.status, 'submitted');
+assert.equal(r1.allocated, '5000.00', 'a part payment settles its own amount');
+assert.equal((await byNumber('R/2')).allocated, '1500.00', 'a receipt with two references settles both');
+const r3 = await byNumber('R/3');
+assert.equal(r3.allocated, '0.00', 'an unmatched reference stays on account');
+assert.ok(r3.advanceBillId);
+assert.equal((await byNumber('P/1')).direction, 'payment');
+const acmeBills = await c.req('GET', `/accounts/bills?partyId=${acme.id}&side=receivable`);
+assert.equal(Number(acmeBills.find((b) => b.reference === 'TS/0001').openAmount), 9440 - 6000, 'the rest of the sale stays open');
+assert.equal(Number(acmeBills.find((b) => b.reference === 'TS/0002').openAmount), 798);
+const bharatBills = await c.req('GET', `/accounts/bills?partyId=${bharat.id}&side=payable`);
+assert.equal(Number(bharatBills.find((b) => b.reference === 'BST/771').openAmount), 3900);
+assert.equal(Number(bharatBills.find((b) => b.reference === 'BST/PF/1').openAmount), 300, 'a journal opens the bill it names');
+assert.equal(listOf(await c.req('GET', '/accounts/journals?sourceType=tally_journal')).length, 3, 'the journals and the contra post; a tax ledger books to its tax account');
+const transfer = (await c.req('GET', '/stock-entries?status=submitted')).find((e) => e.reference === 'SJ/1');
+assert.equal(transfer.purpose, 'transfer', 'moving between godowns is a transfer');
+for (const r of await c.req('GET', '/accounts/trade-reconciliation')) assert.equal(Number(r.glInr), Number(r.subledgerInr), `bills match the books for ${r.partyName}`);
+assert.equal((await c.raw('POST', `/accounts/settlements/${r1.id}/cancel`, { reason: 'Edited in Tally' })).status, 409, 'a receipt from Tally changes only through Tally');
+const entriesAgain = await upload(c, [['DayBook.xml', utf16(entries)]]);
+assert.deepEqual([...new Set((await rows(c, entriesAgain.id, '&kind=document')).map((r) => r.proposed))], ['unchanged']);
+await c.req('POST', `/tally/imports/${entriesAgain.id}/discard`, {}, 201);
+const own = await c.req('POST', '/accounts/settlements', { direction: 'receipt', partyId: acme.id, postingDate: cut, currency: 'INR', exchangeRate: '1', accountId: r1.accountId, amount: '10', allocations: [] }, 201);
+const ownRefused = await c.raw('POST', `/accounts/settlements/${own.id}/submit`, {});
+assert.equal(ownRefused.status, 400, 'a receipt entered here is refused in a Tally month');
+assert.match(ownRefused.data.message, /kept in Tally/);
+ok('receipts and payments settle bills by reference (part, several, unmatched on account); journals, contra and stock journals post; bills match');
+
+// ── Decision 075b: switching a month back ──
+const today = new Date().toISOString().slice(0, 10);
+const allocation = await c.req(
+  'POST',
+  '/accounts/settlement-allocations',
+  { settlementId: r3.id, postingDate: today, reason: 'Apply the advance', allocations: [{ billId: acmeBills.find((b) => b.reference === 'TS/0001').id, amount: '700' }] },
+  201,
+);
+const transferDoc = await c.req('GET', `/stock-entries/${transfer.id}`);
+const issue = await c.req(
+  'POST',
+  '/stock-entries',
+  { purpose: 'issue', postingDate: today, lines: [{ itemId: bar.id, qty: '1', fromWarehouseId: transferDoc.lines[0].fromWarehouseId, batchId: transferDoc.lines[0].batchId }] },
+  201,
+);
+await c.req('POST', `/stock-entries/${issue.id}/submit`, {}, 201);
+const preview = await c.req('GET', `/tally/books/${month}/switch-back`);
+assert.ok(preview.documents.length >= 12, `the month's documents are listed (${preview.documents.length})`);
+assert.ok(preview.dependents.some((d) => /^Allocation/.test(d)), JSON.stringify(preview.dependents));
+assert.ok(preview.dependents.some((d) => /^Stock entry/.test(d)), JSON.stringify(preview.dependents));
+const switchBlocked = await c.raw('PUT', '/tally/books', { month, book: 'factoryos', confirm: { documents: preview.documents.map((d) => d.documentId) } });
+assert.equal(switchBlocked.status, 409);
+assert.match(switchBlocked.data.message, /depend/);
+await c.req('POST', `/accounts/settlement-allocations/${allocation.id}/cancel`, { reason: 'Switching the month back' }, 200);
+await c.req('POST', `/stock-entries/${issue.id}/cancel`, { reason: 'Switching the month back' }, 201);
+assert.deepEqual((await c.req('GET', `/tally/books/${month}/switch-back`)).dependents, []);
+assert.equal((await c.raw('PUT', '/tally/books', { month, book: 'factoryos' })).status, 409, 'switching back needs confirmation');
+const stale = await c.raw('PUT', '/tally/books', { month, book: 'factoryos', confirm: { documents: preview.documents.slice(1).map((d) => d.documentId) } });
+assert.equal(stale.status, 409, 'a confirmation for other documents than the current ones is refused');
+assert.match(stale.data.message, /changed since the preview/);
+const switched = await c.req('PUT', '/tally/books', { month, book: 'factoryos', confirm: { documents: preview.documents.map((d) => d.documentId) } });
+assert.equal(switched.reversed, preview.documents.length);
+assert.equal((await c.req('GET', `/sales-invoices/${tallySale.id}`)).status, 'cancelled');
+assert.equal((await c.req('GET', `/purchase-invoices/${tallyPurchase.id}`)).status, 'cancelled');
+assert.ok((await settlementsNow()).every((x) => x.status === 'cancelled'));
+for (const r of await c.req('GET', '/accounts/trade-reconciliation')) assert.equal(Number(r.glInr), Number(r.subledgerInr), `bills match the books for ${r.partyName}`);
+assert.equal((await c.req('GET', '/tally/books')).months.find((m) => m.month === month).book, 'factoryos');
+ok('switching a month back lists its documents, is refused while a later allocation or issue depends on them, then reverses them all');
 
 // ── Matching an existing workspace: link by GSTIN, conflicts block commit ──
 await pause();

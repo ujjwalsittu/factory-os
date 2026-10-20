@@ -414,6 +414,13 @@
       "when": 1792499631330,
       "tag": "0058_tally_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1792508322404,
+      "tag": "0059_tally_entries",
+      "breakpoints": true
     }
   ]
 }
