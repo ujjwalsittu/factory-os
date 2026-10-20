@@ -400,6 +400,13 @@
       "when": 1792479213956,
       "tag": "0056_tally_opening_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1792486312469,
+      "tag": "0057_tally_vouchers",
+      "breakpoints": true
     }
   ]
 }
