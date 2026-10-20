@@ -53,8 +53,10 @@ try {
   await main.getByText('Waiting for review', { exact: true }).waitFor();
   const blocked = main.getByRole('button', { name: '1 to decide before import', exact: true });
   assert.ok(await blocked.isDisabled(), 'Import is blocked while a conflict is open');
+  await main.getByText('Opening balances and stock', { exact: true }).waitFor();
+  await main.getByText('None, the openings balance', { exact: true }).waitFor();
   await shot('tally-preview');
-  console.log('  ✓ preview with a conflict, Import blocked');
+  console.log('  ✓ preview with a conflict, Import blocked; openings balance');
 
   console.log('→ decide and import');
   await show('Needs a decision').click();
@@ -69,6 +71,7 @@ try {
   await page.getByRole('dialog').getByRole('button', { name: 'Import', exact: true }).click();
   await main.getByText('Imported', { exact: true }).waitFor();
   assert.equal(await main.getByRole('button', { name: 'Discard', exact: true }).count(), 0);
+  await main.getByRole('link', { name: 'opening stock drafts', exact: true }).waitFor();
   await page.goto(`${B}/app/masters/parties`);
   await main.getByText('Acme Castings Pvt Ltd').first().waitFor();
   console.log('  ✓ a decided conflict unblocks Import; parties exist afterwards');
@@ -79,15 +82,33 @@ try {
   await main.getByRole('button', { name: 'Read files', exact: true }).click();
   await page.waitForURL(/\/app\/accounts\/tally\/[0-9a-f-]{36}$/);
   await main.getByRole('button', { name: 'Import', exact: true }).waitFor();
+  await main.getByRole('button', { name: /^Customers & suppliers/ }).click();
   await show('Create').click();
   await main.getByText('Nothing matches these filters.', { exact: true }).waitFor();
   assert.equal(await main.getByText('Nothing matches these filters.', { exact: true }).count(), 1, 'nothing would be created');
   console.log('  ✓ re-import proposes no new records');
 
+  console.log('→ an unbalanced export needs the difference accepted');
+  await page.goto(`${B}/app/accounts/tally`);
+  const unbalanced = withConflict.replace('<OPENINGBALANCE>4,79,535.50</OPENINGBALANCE>', '<OPENINGBALANCE>4,79,000.00</OPENINGBALANCE>');
+  await L('Tally XML or zip files').setInputFiles({ name: 'Master.xml', mimeType: 'text/xml', buffer: utf16(unbalanced) });
+  await main.getByRole('button', { name: 'Read files', exact: true }).click();
+  await page.waitForURL(/\/app\/accounts\/tally\/[0-9a-f-]{36}$/);
+  await main.getByText(/do not balance/).waitFor();
+  await main.getByText(/already has \d+ lines? and \d+ bills?/).waitFor();
+  await main.getByRole('button', { name: 'Import', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  const importButton = dialog.getByRole('button', { name: 'Import', exact: true });
+  assert.ok(await importButton.isDisabled(), 'Import waits for the difference to be accepted');
+  await dialog.getByRole('checkbox').check();
+  await importButton.click();
+  await main.getByText('Imported', { exact: true }).waitFor();
+  console.log('  ✓ the difference and the worksheet warning show; Import waits for acceptance');
+
   console.log('→ phone width');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
-  await main.getByText('Waiting for review', { exact: true }).waitFor();
+  await main.getByText('Opening balances and stock', { exact: true }).waitFor();
   await shot('tally-phone');
   const w = await page.evaluate(() => document.documentElement.scrollWidth);
   assert.ok(w <= 390, `no sideways scroll (${w}px)`);

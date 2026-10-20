@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, formatMoney, formatQty } from '@/lib/format';
 import {
   ACTION_LABEL,
+  actionLabel,
   allowedActions,
   KIND_LABEL,
   KINDS,
@@ -69,7 +70,8 @@ function ImportsContent() {
         <CardHeader title="Export from TallyPrime" description="FactoryOS reads Tally's XML export. A Tally backup file cannot be read." />
         <ol className="list-decimal space-y-1 px-9 pb-5 text-sm">
           <li>
-            In TallyPrime, open the company and choose <strong>Export → Masters</strong> (All Masters).
+            In TallyPrime, open the company and choose <strong>Export → Masters</strong> (All Masters). Opening balances and
+            opening stock come with the masters.
           </li>
           <li>
             Set the format to <strong>XML (Data Interchange)</strong> and export.
@@ -158,7 +160,8 @@ function DetailContent({ id }: { id: string }) {
     [action, setAction] = useState<TallyAction | null>(null),
     [q, setQ] = useState(''),
     [offset, setOffset] = useState(0),
-    [confirm, setConfirm] = useState(false);
+    [confirm, setConfirm] = useState(false),
+    [acceptDifference, setAcceptDifference] = useState(false);
   const limit = 50;
   const imp = useQuery({
     queryKey: ['tally-import', ws.tenantId, ws.entityId, id],
@@ -185,11 +188,16 @@ function DetailContent({ id }: { id: string }) {
     onSuccess: refresh,
   });
   const commit = useMutation({
-    mutationFn: () => api<TallyImport>(`/tally/imports/${id}/commit`, { method: 'POST', body: {}, scope: ws.scope }),
+    mutationFn: () =>
+      api<TallyImport>(`/tally/imports/${id}/commit`, {
+        method: 'POST',
+        body: unbalanced && acceptDifference ? { acceptDifference: imp.data!.openings!.difference } : {},
+        scope: ws.scope,
+      }),
     onSuccess: () => {
       setConfirm(false);
       refresh();
-      for (const k of ['accounts', 'account-groups', 'parties', 'items', 'warehouses', 'uoms']) void qc.invalidateQueries({ queryKey: [k] });
+      for (const k of ['accounts', 'account-groups', 'parties', 'items', 'warehouses', 'uoms', 'opening', 'stock-entries']) void qc.invalidateQueries({ queryKey: [k] });
     },
   });
   const discard = useMutation({
@@ -200,6 +208,8 @@ function DetailContent({ id }: { id: string }) {
     },
   });
   const i = imp.data;
+  const openings = i?.openings ?? null;
+  const unbalanced = !!openings && Number(openings.difference) !== 0;
   if (imp.error) return <Alert tone="danger">{imp.error.message}</Alert>;
   if (!i) return <p>Loading import…</p>;
   const current = i.current ?? i.counts;
@@ -264,7 +274,7 @@ function DetailContent({ id }: { id: string }) {
                 const n = current[`${k}.${a}`] ?? 0;
                 return n ? (
                   <Badge key={a} tone={ACTION_TONE[a]}>
-                    {n} {ACTION_LABEL[a].toLowerCase()}
+                    {n} {actionLabel(k, a).toLowerCase()}
                   </Badge>
                 ) : null;
               })}
@@ -272,6 +282,8 @@ function DetailContent({ id }: { id: string }) {
           </button>
         ))}
       </div>
+
+      {openings && <OpeningsCard openings={openings} status={i.status} />}
 
       <Card>
         <div className="flex flex-wrap items-end gap-3 p-5">
@@ -333,20 +345,93 @@ function DetailContent({ id }: { id: string }) {
           onSubmit={() => commit.mutate()}
           pending={commit.isPending}
           error={commit.error}
+          submitDisabled={unbalanced && !acceptDifference}
         >
           <p className="text-sm">
-            {total(current, (_, a) => a === 'new')} records will be created, {total(current, (_, a) => a === 'link' || a === 'update')} linked or
-            updated, and {total(current, (_, a) => a === 'skip')} skipped. Everything is saved together, or nothing is.
+            {total(current, (k, a) => a === 'new' && !OPENING_KINDS.has(k))} records will be created,{' '}
+            {total(current, (k, a) => (a === 'link' || a === 'update') && !OPENING_KINDS.has(k))} linked or updated, and{' '}
+            {total(current, (k, a) => a === 'skip' && !OPENING_KINDS.has(k))} skipped. Everything is saved together, or nothing is.
           </p>
+          {openings && openings.included > 0 && (
+            <p className="text-sm">
+              Opening balances replace the opening worksheet&apos;s lines and bills, and opening stock is saved as draft receipts to
+              review and submit.
+            </p>
+          )}
+          {unbalanced && (
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1" checked={acceptDifference} onChange={(e) => setAcceptDifference(e.target.checked)} />
+              <span>
+                Book the difference of {formatMoney(String(Math.abs(Number(openings!.difference))))} to &ldquo;Opening difference (Tally)&rdquo; under
+                Suspense A/c. Clear it before activating accounting.
+              </span>
+            </label>
+          )}
         </FormDialog>
       )}
     </div>
   );
 }
 
+const OPENING_KINDS = new Set(['opening', 'stock']);
+
+/** Ledger balances, stock value and the difference, with what the import replaces (decision 073). */
+function OpeningsCard({ openings: o, status }: { openings: NonNullable<TallyImport['openings']>; status: TallyImport['status'] }) {
+  const difference = Number(o.difference);
+  const side = (v: string) => `${formatMoney(String(Math.abs(Number(v))))} ${Number(v) < 0 ? 'Cr' : 'Dr'}`;
+  return (
+    <Card>
+      <CardHeader title="Opening balances and stock" description="Written to the opening worksheet and draft stock receipts, before accounting is activated." />
+      <dl className="grid gap-3 px-5 pb-4 text-sm sm:grid-cols-3">
+        <div>
+          <dt className="text-muted">Ledger balances</dt>
+          <dd className="font-medium">{side(o.ledgers)}</dd>
+        </div>
+        <div>
+          <dt className="text-muted">Opening stock value</dt>
+          <dd className="font-medium">{formatMoney(o.stock)}</dd>
+        </div>
+        <div>
+          <dt className="text-muted">Difference</dt>
+          <dd className={`font-medium ${difference ? 'text-danger' : ''}`}>{difference ? side(o.difference) : 'None, the openings balance'}</dd>
+        </div>
+      </dl>
+      <div className="space-y-3 px-5 pb-5">
+        {o.active && <Alert tone="info">Accounting is active, so the cut-over is closed. Opening balances and stock from this import are left out.</Alert>}
+        {status === 'read' && !o.active && o.worksheet.lines > 0 && (
+          <Alert tone="warning">
+            The opening worksheet already has {o.worksheet.lines} line{o.worksheet.lines === 1 ? '' : 's'} and {o.worksheet.bills} bill
+            {o.worksheet.bills === 1 ? '' : 's'}. Importing replaces them with Tally&apos;s balances. Invoice settlements and receipt baselines are kept.
+          </Alert>
+        )}
+        {status === 'read' && difference !== 0 && (
+          <Alert tone="warning">
+            Tally&apos;s openings do not balance. To import, accept the difference: it is booked to &ldquo;Opening difference (Tally)&rdquo; under
+            Suspense A/c. Or correct it in Tally and export again.
+          </Alert>
+        )}
+        {status === 'committed' && o.included > 0 && (
+          <p className="text-sm">
+            Next: review and submit the <Link href="/app/inventory/entries" className="text-accent hover:underline">opening stock drafts</Link>,
+            then reconcile and activate in <Link href="/app/accounts/setup" className="text-accent hover:underline">Accounting setup</Link>.
+          </p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 /** Short Tally details shown under each name. */
 function details(r: TallyRow) {
   const p = r.payload as Record<string, unknown>;
+  if (r.kind === 'opening') {
+    const bills = (p.bills as unknown[] | undefined)?.length ?? 0;
+    return [`${formatMoney(p.amount as string)} ${p.side === 'debit' ? 'Dr' : 'Cr'}`, bills ? `${bills} bill${bills === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ');
+  }
+  if (r.kind === 'stock')
+    return ((p.allocations ?? []) as { godown: string | null; batch: string | null; qty: string; value: string | null }[])
+      .map((a) => `${formatQty(a.qty)} at ${a.godown ?? 'Main Location'}${a.batch && !/^primary batch$/i.test(a.batch) ? ` (${a.batch})` : ''}${a.value ? `, ${formatMoney(a.value)}` : ''}`)
+      .join(' · ');
   const bits = [
     p.parent ? `Under ${p.parent as string}` : null,
     p.gstin ? `GSTIN ${p.gstin as string}` : null,
@@ -386,8 +471,8 @@ function RowView({
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="min-w-0 font-medium">{r.name}</span>
         <span className="text-xs text-muted">{KIND_LABEL[r.kind]}</span>
-        <Badge tone={ACTION_TONE[r.action]}>{ACTION_LABEL[r.action]}</Badge>
-        {r.action !== r.proposed && <span className="text-xs text-muted">(proposed: {ACTION_LABEL[r.proposed].toLowerCase()})</span>}
+        <Badge tone={ACTION_TONE[r.action]}>{actionLabel(r.kind, r.action)}</Badge>
+        {r.action !== r.proposed && <span className="text-xs text-muted">(proposed: {actionLabel(r.kind, r.proposed).toLowerCase()})</span>}
       </div>
       {details(r) && <p className="text-sm text-muted">{details(r)}</p>}
       {(r.action === 'link' || r.action === 'update' || r.action === 'unchanged') && (target || r.targetId) && (
@@ -406,7 +491,7 @@ function RowView({
             .filter((a) => a !== 'link')
             .map((a) => (
               <Button key={a} size="sm" variant={r.action === a ? 'secondary' : 'ghost'} aria-pressed={r.action === a} disabled={pending} onClick={() => onDecide({ action: a })}>
-                {ACTION_LABEL[a]}
+                {actionLabel(r.kind, a)}
               </Button>
             ))}
           {allowed.includes('link') &&
@@ -419,12 +504,12 @@ function RowView({
                 disabled={pending}
                 onClick={() => onDecide({ action: 'link', targetId: c.id })}
               >
-                Link to {c.label}
+                {r.kind === 'opening' ? 'To' : 'Link to'} {c.label}
               </Button>
             ))}
           {allowed.includes('link') && source && !choosing && (
             <Button size="sm" variant="ghost" onClick={() => setChoosing(true)}>
-              Link to another…
+              {r.kind === 'opening' ? 'To another ledger…' : 'Link to another…'}
             </Button>
           )}
           {choosing && (

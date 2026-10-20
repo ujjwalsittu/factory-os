@@ -295,3 +295,7 @@ at the end of the relevant section, with a date.
   the session container with scripts outside the repo that print counts and shapes. Never commit the files, names,
   GSTINs, amounts or counts from them, and drop any local database that held trial imports. Fixtures reproduce shapes
   only, with invented names.
+- 2026-10-20 Pushing after a merge: GitHub's merge commits name the branch, which contains a forbidden word, so the
+  pre-push hook rejects any push whose range includes them (a branch reset to `origin/main`). Build follow-up work on
+  the remote branch tip instead (`git checkout -B <branch> origin/<branch>`) when its content already equals `main`
+  (`git diff origin/<branch> origin/main` is empty); never use `--no-verify` or force-push.
