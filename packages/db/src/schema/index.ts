@@ -34,3 +34,4 @@ export * from './smt.js';
 export * from './maintenance.js';
 export * from './user-preference.js';
 export * from './tally.js';
+export * from './tally-source.js';

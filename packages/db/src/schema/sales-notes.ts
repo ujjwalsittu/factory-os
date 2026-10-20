@@ -5,6 +5,7 @@ import { docStatus, fifoLayer, stockEntry, stockLedgerEntry, warehouse } from '.
 import { legalEntity, tenant, gstRegistration, type Address } from './platform.js';
 import { salesInvoice, salesInvoiceLine } from './selling.js';
 import { party } from './masters.js';
+import { tallySource } from './tally-source.js';
 const amount = (name: string) => numeric(name, { precision: 24, scale: 6 });
 const scope = { tenantId: uuid('tenant_id').notNull().references(()=>tenant.id), entityId: uuid('entity_id').notNull().references(()=>legalEntity.id) };
 const lifecycle = {
@@ -18,7 +19,7 @@ export const salesNote = pgTable('sales_note', {
  sellerName:text('seller_name'), sellerGstin:text('seller_gstin'), sellerAddress:jsonb('seller_address').$type<Address>(), supplyType:text('supply_type').notNull(), placeOfSupplyStateCode:text('place_of_supply_state_code'), customerName:text('customer_name'), customerGstin:text('customer_gstin'), billingAddress:jsonb('billing_address').$type<Address>(), shippingAddress:jsonb('shipping_address').$type<Address>(), lutArn:text('lut_arn'),
  taxEligibilityConfirmed:boolean('tax_eligibility_confirmed').notNull().default(false), taxEligibilityActor:text('tax_eligibility_actor').references(()=>user.id),
  taxableValue:amount('taxable_value').notNull().default('0'), cgst:amount('cgst').notNull().default('0'), sgst:amount('sgst').notNull().default('0'), igst:amount('igst').notNull().default('0'), cess:amount('cess').notNull().default('0'), grandTotal:amount('grand_total').notNull().default('0'),
- billId:uuid('bill_id'), voucherId:uuid('voucher_id'), stockEntryId:uuid('stock_entry_id').references(()=>stockEntry.id), ...lifecycle,
+ billId:uuid('bill_id'), voucherId:uuid('voucher_id'), stockEntryId:uuid('stock_entry_id').references(()=>stockEntry.id), ...tallySource(), ...lifecycle,
 }, t=>[
  uniqueIndex('sales_note_gstin_number_uq').on(t.gstRegistrationId,t.number), uniqueIndex('sales_note_identity_scope_uq').on(t.id,t.tenantId,t.entityId,t.originalInvoiceId), index('sales_note_invoice_idx').on(t.entityId,t.originalInvoiceId),
  foreignKey({columns:[t.originalInvoiceId,t.tenantId,t.entityId],foreignColumns:[salesInvoice.id,salesInvoice.tenantId,salesInvoice.entityId]}),

@@ -117,6 +117,9 @@ export const tallyVoucher = pgTable(
     /** Total of the debit side, for lists. */
     amount: numeric('amount', { precision: 24, scale: 6 }).notNull(),
     items: jsonb('items').$type<TallyVoucherItemRow[]>().notNull().default([]),
+    /** Decision 075: in a month kept in Tally, the document this voucher became (kind and id). */
+    documentKind: text('document_kind'),
+    documentId: uuid('document_id'),
     importId: uuid('import_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -154,3 +157,37 @@ export const tallyVoucherLine = pgTable(
   ],
 );
 
+
+/** Decision 075: which book a month of an entity is kept in. A Tally month's vouchers become documents. */
+export const tallyBookMonth = pgTable(
+  'tally_book_month',
+  {
+    ...identity(),
+    /** yyyy-mm */
+    month: text('month').notNull(),
+    source: text('source').notNull(),
+    setBy: text('set_by').notNull().references(() => user.id),
+    setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('tally_book_month_uq').on(t.entityId, t.month),
+    check('tally_book_month_ck', sql`${t.source} in ('tally','factoryos') and ${t.month} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
+  ],
+);
+
+/** Decision 075: what a Tally voucher type becomes; Tally's base types are preset, custom ones are chosen once. */
+export const tallyVoucherTypeMap = pgTable(
+  'tally_voucher_type_map',
+  {
+    ...identity(),
+    voucherType: text('voucher_type').notNull(),
+    /** sales_invoice | purchase_invoice | sales_credit_note | supplier_debit_note | none (stays history) */
+    documentKind: text('document_kind').notNull(),
+    setBy: text('set_by').notNull().references(() => user.id),
+    setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('tally_voucher_type_map_uq').on(t.entityId, t.voucherType),
+    check('tally_voucher_type_map_ck', sql`${t.documentKind} in ('sales_invoice','purchase_invoice','sales_credit_note','supplier_debit_note','none')`),
+  ],
+);
