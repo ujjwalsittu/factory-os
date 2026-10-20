@@ -142,6 +142,24 @@ accounting is not active; afterwards their rows are proposed as skip with a note
   baselines are kept. The preview warns when the worksheet already has lines.
 - **Data.** Migration 0056 adds the staged kinds `opening` and `stock`. Nothing else changes in the schema.
 
+## PR 3: voucher history and re-sync
+
+- **What is read.** Tally's Day Book export, which may also carry masters. Each voucher keeps its GUID, ALTERID,
+  type, number, date, narration, party, cancelled and optional flags, ledger lines with bill allocations, and stock
+  lines with godown and batch. Invoice-mode vouchers carry their ledger amounts inside the inventory entries; those
+  are read as ledger lines. Tally's empty inventory shells are dropped. Side comes from the amount's sign.
+- **Staging.** A voucher row is proposed as new, update (newer ALTERID), unchanged (same ALTERID) or skip (deleted, or
+  no GUID or date). An unbalanced voucher is a conflict that can only be skipped. Cancelled and optional vouchers are
+  kept and noted.
+- **Data (migration 0057).** `tally_voucher` (unique per entity and GUID) and `tally_voucher_line`, both tenant- and
+  entity-scoped. Lines link to the FactoryOS account or party that the Tally ledger was linked to, by the link table
+  and by names used in earlier imports (so a renamed party still links). An update replaces the voucher's lines.
+- **Never posted.** History never reaches the general ledger, GST, e-invoicing or stock. Nothing is deleted.
+- **Not in this export.** The preview lists linked masters of the kinds in the upload that the upload lacks, and
+  history vouchers within the upload's dates that it lacks. They are shown, never deleted.
+- **Screens.** Accounts → Tally history: the Day Book with date, type and text filters, and a voucher page with its
+  ledger lines and stock. Ledger and party pages show "History from Tally" with their latest vouchers.
+
 ## Verification
 
 - **Hand-written fixtures** following Tally's XML schema: UTF-8 and UTF-16, reserved and custom groups, parties with
