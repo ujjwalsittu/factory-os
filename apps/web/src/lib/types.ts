@@ -114,6 +114,8 @@ export interface Uom {
   code: string;
   name: string;
   decimals: number;
+  /** GST Unit Quantity Code for the HSN summary of GSTR-1. */
+  gstUqc: string | null;
 }
 
 export interface HsnCode {

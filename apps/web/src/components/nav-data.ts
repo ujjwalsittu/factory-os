@@ -190,6 +190,7 @@ export const AREAS: NavArea[] = [
       { href: '/app/accounts/day-book', label: 'Day book', icon: FileSpreadsheet, permission: 'accounts.report.read', entityScoped: true },
       { href: '/app/accounts/ledger', label: 'Account ledger', icon: ScrollText, permission: 'accounts.report.read', entityScoped: true },
       { href: '/app/accounts/trial-balance', label: 'Trial balance', icon: FileSpreadsheet, permission: 'accounts.report.read', entityScoped: true },
+      { href: '/app/compliance/gst-returns', label: 'GST returns', icon: FileSpreadsheet, permission: 'compliance.gst_return.read', entityScoped: true },
       { href: '/app/compliance/itc04', label: 'ITC-04', icon: FileSpreadsheet, permission: 'compliance.job_work_return.read', entityScoped: true },
       { href: '/app/compliance/sandbox', label: 'GST sandbox', icon: ReceiptText, permission: 'compliance.sandbox_operation.read', entityScoped: true },
     ],
