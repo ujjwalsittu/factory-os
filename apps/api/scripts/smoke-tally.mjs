@@ -268,12 +268,26 @@ const stock = (qty, rate, amount, batchName, allocLedger) =>
   `<ALLINVENTORYENTRIES.LIST><STOCKITEMNAME>MS Round Bar 25mm</STOCKITEMNAME><RATE>${rate}/Kgs</RATE><AMOUNT>${amount}</AMOUNT><ACTUALQTY> ${qty} Kgs</ACTUALQTY><BATCHALLOCATIONS.LIST><GODOWNNAME>Main Location</GODOWNNAME><BATCHNAME>${batchName}</BATCHNAME><ACTUALQTY> ${qty} Kgs</ACTUALQTY></BATCHALLOCATIONS.LIST><ACCOUNTINGALLOCATIONS.LIST><LEDGERNAME>${allocLedger}</LEDGERNAME><AMOUNT>${amount}</AMOUNT></ACCOUNTINGALLOCATIONS.LIST></ALLINVENTORYENTRIES.LIST>`;
 const docs = `<ENVELOPE><HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER><BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>Vouchers</REPORTNAME></REQUESTDESC><REQUESTDATA>
 ${docVoucher('doc-purchase-1', 'Purchase', 'TP/0001', `<REFERENCE>BST/771</REFERENCE>${ledger('Bharat Steel Traders', '5900.00', true)}${ledger('Input CGST', '-450.00')}${ledger('Input SGST', '-450.00')}${stock(50, '100.00', '-5000.00', 'HEAT-9001', 'Purchase - Local')}`)}
+${docVoucher('doc-service-1', 'Sales GST', 'TS/0002', `${ledger('Acme Castings Private Limited', '-1180.00', true)}${ledger('Machining Charges', '1000.00')}${ledger('CGST', '90.00')}${ledger('Output SGST', '90.00')}`)}
 ${docVoucher('doc-sale-1', 'Sales', 'TS/0001', `${ledger('Acme Castings Private Limited', '-9440.00', true)}${ledger('CGST', '720.00')}${ledger('Output SGST', '720.00')}${stock(100, '80.00', '8000.00', 'HEAT-2231', 'Sales - Local')}`)}
 </REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>`;
 const tbBeforeDocs = await c.req('GET', '/accounts/reports/trial-balance');
 const docImport = await upload(c, [['DayBook.xml', utf16(docs)]]);
 const docRows = await rows(c, docImport.id, '&kind=document');
-assert.deepEqual(docRows.map((r) => `${r.name}:${r.proposed}`).sort(), ['Purchase invoice TP/0001:new', 'Sales invoice TS/0001:new']);
+assert.deepEqual(docRows.map((r) => `${r.name}:${r.proposed}`).sort(), ['Purchase invoice TP/0001:new', 'Sales GST TS/0002:skip', 'Sales invoice TS/0001:new']);
+assert.match(docRows.find((r) => r.name.startsWith('Sales GST')).notes[0], /not mapped/);
+// A custom voucher type is mapped once; the open import is checked again and the income ledger needs a service item.
+const mapped = await c.req('PUT', '/tally/mappings/voucher-types', { voucherType: 'Sales GST', documentKind: 'sales_invoice' });
+assert.equal(mapped.voucherTypes.find((t) => t.voucherType === 'Sales GST').documentKind, 'sales_invoice');
+let serviceRow = (await rows(c, docImport.id, '&kind=document')).find((r) => r.name === 'Sales invoice TS/0002');
+assert.equal(serviceRow.proposed, 'conflict');
+assert.match(serviceRow.notes.join(' '), /"Machining Charges".*service item/);
+assert.equal((await c.raw('PUT', '/tally/mappings/ledgers', { ledger: 'Machining Charges', itemId: bar.id })).status, 400, 'a stock item cannot stand for a ledger');
+const machining = await c.req('POST', '/items', { code: 'SVC-MACH', name: 'Machining', type: 'service', isStockItem: false, stockUomId: bar.stockUomId, hsnCode: '998898' }, 201);
+await c.req('PUT', '/tally/mappings/ledgers', { ledger: 'Machining Charges', itemId: machining.id });
+serviceRow = (await rows(c, docImport.id, '&kind=document')).find((r) => r.name === 'Sales invoice TS/0002');
+assert.equal(serviceRow.proposed, 'new');
+assert.equal((await c.req('GET', '/tally/mappings')).ledgers[0].itemCode, 'SVC-MACH');
 await c.req('POST', `/tally/imports/${docImport.id}/commit`, {}, 201);
 const sales = await c.req('GET', '/sales-invoices');
 const tallySale = (sales.data ?? sales).find((i) => i.number === 'TS/0001');
@@ -285,6 +299,8 @@ assert.equal(Number(saleDoc.grandTotal), 9440);
 assert.ok(saleDoc.stockEntryId, 'goods left stock');
 const tbAfterDocs = await c.req('GET', '/accounts/reports/trial-balance');
 assert.notDeepEqual(tbAfterDocs, tbBeforeDocs, 'the documents reach the books');
+const serviceSale = (sales.data ?? sales).find((i) => i.number === 'TS/0002');
+assert.equal(Number((await c.req('GET', `/sales-invoices/${serviceSale.id}`)).grandTotal), 1180, 'an accounting-mode sale becomes a service invoice');
 const purchases = await c.req('GET', '/purchase-invoices');
 const tallyPurchase = (purchases.data ?? purchases).find((i) => i.number === 'TP/0001');
 assert.ok(tallyPurchase, 'the Tally purchase is a purchase invoice');

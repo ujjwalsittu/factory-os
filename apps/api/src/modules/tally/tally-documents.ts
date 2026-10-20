@@ -69,8 +69,12 @@ export async function voucherTypeKinds(db: Db, entityId: string) {
   };
 }
 
-/** One document row per voucher of a mapped type dated in a month kept in Tally. */
-export async function stageDocuments(tx: Db, entityId: string, vouchers: TallyVoucher[]): Promise<StagedDocument[]> {
+/**
+ * One document row per voucher of a mapped type dated in a month kept in Tally. Each new one is checked against the
+ * links and mappings as they stand: a voucher that cannot be made a document is a conflict naming why, unless the same
+ * upload carries masters (their links only exist after commit, so commit checks again).
+ */
+export async function stageDocuments(tx: Db, tenantId: string, entityId: string, vouchers: TallyVoucher[], withMasters = false): Promise<StagedDocument[]> {
   const tallyMonths = new Set(
     (await tx.select({ month: tallyBookMonth.month }).from(tallyBookMonth).where(and(eq(tallyBookMonth.entityId, entityId), eq(tallyBookMonth.source, 'tally')))).map((r) => r.month),
   );
@@ -85,6 +89,10 @@ export async function stageDocuments(tx: Db, entityId: string, vouchers: TallyVo
       .from(tallyVoucher)
       .where(and(eq(tallyVoucher.entityId, entityId), inArray(tallyVoucher.guid, guids.slice(i, i + 1000)))))
       history.set(r.guid, r);
+  const r = inMonth.length ? await resolver(tx, tenantId, entityId) : null;
+  const links = r?.regs.length === 1 ? r.links(r.regs[0]!.stateCode) : null;
+  const check = (v: TallyVoucher, kind: TallyDocumentKind) =>
+    !links ? [r?.regs.length ? 'This entity has several GSTINs; documents from Tally need one GSTIN for the entity for now.' : 'Add the GST registration of this entity first.'] : (tallyDocument(v, kind, links).problems ?? []);
   const out: StagedDocument[] = [];
   for (const v of inMonth) {
     const kind = kindOf(v.type);
@@ -101,7 +109,7 @@ export async function stageDocuments(tx: Db, entityId: string, vouchers: TallyVo
       ...s,
     });
     if (!kind) {
-      out.push(row({ proposed: 'skip', notes: [`Voucher type "${v.type}" is not mapped to a FactoryOS document, so it stays history. Map it under Books by month and import again.`] }));
+      out.push(row({ proposed: 'skip', notes: [`Voucher type "${v.type}" is not mapped to a FactoryOS document, so it stays history. Map it under Tally import → Mappings to bring it in.`] }));
       continue;
     }
     if (!BUILT.has(kind)) {
@@ -118,14 +126,17 @@ export async function stageDocuments(tx: Db, entityId: string, vouchers: TallyVo
       );
       continue;
     }
-    out.push(row({ notes: [`Becomes a submitted ${KIND_LABEL[kind].toLowerCase()} with Tally's number and amounts.`] }));
+    const becomes = `Becomes a submitted ${KIND_LABEL[kind].toLowerCase()} with Tally's number and amounts.`;
+    const problems = check ? check(v, kind) : [];
+    if (!problems.length) out.push(row({ notes: [becomes] }));
+    else if (withMasters) out.push(row({ notes: [becomes, ...problems.map((p) => `Checked again at commit, after the masters: ${p}`)] }));
+    else out.push(row({ proposed: 'conflict', notes: problems }));
   }
   return out;
 }
 
 /** Name → FactoryOS record links, built once per commit from the master links and earlier imports. */
-async function resolver(tx: Tx, ctx: TenantRequestContext, entityId: string) {
-  const tenantId = ctx.tenant.tenantId;
+async function resolver(tx: Db, tenantId: string, entityId: string) {
   const links = await tx.select({ kind: tallyLink.kind, name: tallyLink.name, targetId: tallyLink.targetId }).from(tallyLink).where(eq(tallyLink.entityId, entityId));
   const byKind = (k: string) => new Map(links.filter((l) => l.kind === k).map((l) => [l.name, l.targetId]));
   const partyLinks = byKind('party'),
@@ -233,7 +244,7 @@ export async function writeDocuments(tx: Tx, ctx: TenantRequestContext, entityId
   const todo = rows.filter((r) => r.kind === 'document' && r.action === 'new');
   if (!todo.length) return results;
   const vouchers = new Map(rows.filter((r) => r.kind === 'voucher' && r.guid).map((r) => [r.guid!, r.payload as unknown as TallyVoucher]));
-  const r = await resolver(tx, ctx, entityId);
+  const r = await resolver(tx, ctx.tenant.tenantId, entityId);
   if (r.regs.length !== 1)
     throw new BadRequestException(
       r.regs.length ? 'This entity has several GSTINs; documents from Tally need one GSTIN for the entity for now.' : 'Add the GST registration of this entity before bringing in Tally documents.',
@@ -467,4 +478,75 @@ async function purchaseInvoiceFrom(tx: Tx, ctx: TenantRequestContext, entityId: 
   const [after] = await tx.select().from(purchaseInvoice).where(eq(purchaseInvoice.id, inv!.id));
   await s.accounting.tallyPurchaseIn(tx, ctx, entityId, after!, receiptValue);
   return inv!.id;
+}
+
+/**
+ * Stages the document rows of an open import again from its vouchers, after a mapping changed or masters were linked.
+ * The voucher rows and the person's other decisions are kept.
+ */
+export async function refreshDocuments(tx: Db, tenantId: string, entityId: string, importId: string) {
+  const staged = await tx.select({ kind: tallyStaged.kind, payload: tallyStaged.payload, ordinal: tallyStaged.ordinal }).from(tallyStaged).where(eq(tallyStaged.importId, importId));
+  const vouchers = staged.filter((r) => r.kind === 'voucher').map((r) => r.payload as unknown as TallyVoucher);
+  const withMasters = staged.some((r) => !['voucher', 'document', 'opening', 'stock'].includes(r.kind));
+  const next = staged.reduce((m, r) => Math.max(m, r.ordinal), -1) + 1;
+  await tx.delete(tallyStaged).where(and(eq(tallyStaged.importId, importId), eq(tallyStaged.kind, 'document')));
+  const docs = await stageDocuments(tx, tenantId, entityId, vouchers, withMasters);
+  for (let i = 0; i < docs.length; i += 500)
+    await tx.insert(tallyStaged).values(docs.slice(i, i + 500).map((d, j) => ({ ...d, tenantId, entityId, importId, ordinal: next + i + j, action: d.proposed })));
+  const counts: Record<string, number> = {};
+  for (const r of await tx
+    .select({ kind: tallyStaged.kind, proposed: tallyStaged.proposed, n: sql<number>`count(*)::int` })
+    .from(tallyStaged)
+    .where(eq(tallyStaged.importId, importId))
+    .groupBy(tallyStaged.kind, tallyStaged.proposed))
+    counts[`${r.kind}.${r.proposed}`] = r.n;
+  await tx.update(tallyImport).set({ counts }).where(eq(tallyImport.id, importId));
+}
+
+/** Refreshes every open import of the entity; a mapping applies to all of them. */
+async function refreshOpenImports(tx: Db, tenantId: string, entityId: string) {
+  for (const imp of await tx.select({ id: tallyImport.id }).from(tallyImport).where(and(eq(tallyImport.entityId, entityId), eq(tallyImport.status, 'read'))))
+    await refreshDocuments(tx, tenantId, entityId, imp.id);
+}
+
+/** The voucher types seen in Tally history or mapped, what each becomes, and the ledgers booked as service items. */
+export async function listMappings(db: Db, tenantId: string, entityId: string) {
+  const seen = await db
+    .select({ type: tallyVoucher.voucherType, n: sql<number>`count(*)::int` })
+    .from(tallyVoucher)
+    .where(eq(tallyVoucher.entityId, entityId))
+    .groupBy(tallyVoucher.voucherType);
+  const mapped = await db.select().from(tallyVoucherTypeMap).where(eq(tallyVoucherTypeMap.entityId, entityId));
+  const types = new Map<string, { voucherType: string; vouchers: number; documentKind: TallyDocumentKind | 'none' | null; preset: boolean }>();
+  for (const s of seen) types.set(s.type, { voucherType: s.type, vouchers: s.n, documentKind: TALLY_BASE_TYPES[s.type] ?? null, preset: s.type in TALLY_BASE_TYPES });
+  for (const m of mapped)
+    types.set(m.voucherType, { voucherType: m.voucherType, vouchers: types.get(m.voucherType)?.vouchers ?? 0, documentKind: m.documentKind as TallyDocumentKind | 'none', preset: false });
+  const ledgers = await db
+    .select({ ledger: tallyLedgerItem.ledger, itemId: tallyLedgerItem.itemId, itemCode: item.code, itemName: item.name })
+    .from(tallyLedgerItem)
+    .innerJoin(item, and(eq(item.id, tallyLedgerItem.itemId), eq(item.tenantId, tenantId)))
+    .where(eq(tallyLedgerItem.entityId, entityId))
+    .orderBy(tallyLedgerItem.ledger);
+  return { voucherTypes: [...types.values()].sort((a, b) => a.voucherType.localeCompare(b.voucherType)), ledgers };
+}
+
+export async function setVoucherType(tx: Tx, ctx: TenantRequestContext, entityId: string, audit: AuditService, voucherType: string, documentKind: TallyDocumentKind | 'none' | null) {
+  const tenantId = ctx.tenant.tenantId;
+  await tx.delete(tallyVoucherTypeMap).where(and(eq(tallyVoucherTypeMap.entityId, entityId), eq(tallyVoucherTypeMap.voucherType, voucherType)));
+  if (documentKind) await tx.insert(tallyVoucherTypeMap).values({ tenantId, entityId, voucherType, documentKind, setBy: ctx.user.id });
+  await refreshOpenImports(tx, tenantId, entityId);
+  await audit.record(ctx, { tenantId, entityId, action: 'accounts.tally.mapping', targetType: 'tally_voucher_type', targetId: null, after: { voucherType, documentKind } }, tx);
+}
+
+export async function setLedgerItem(tx: Tx, ctx: TenantRequestContext, entityId: string, audit: AuditService, ledger: string, itemId: string | null) {
+  const tenantId = ctx.tenant.tenantId;
+  if (itemId) {
+    const [found] = await tx.select({ id: item.id, isStockItem: item.isStockItem }).from(item).where(and(eq(item.id, itemId), eq(item.tenantId, tenantId)));
+    if (!found) throw new BadRequestException('The chosen item is not available in this workspace');
+    if (found.isStockItem) throw new BadRequestException('Choose a service item: a ledger booked as a line moves no stock');
+  }
+  await tx.delete(tallyLedgerItem).where(and(eq(tallyLedgerItem.entityId, entityId), eq(tallyLedgerItem.ledger, ledger)));
+  if (itemId) await tx.insert(tallyLedgerItem).values({ tenantId, entityId, ledger, itemId, setBy: ctx.user.id });
+  await refreshOpenImports(tx, tenantId, entityId);
+  await audit.record(ctx, { tenantId, entityId, action: 'accounts.tally.mapping', targetType: 'tally_ledger', targetId: null, after: { ledger, itemId } }, tx);
 }

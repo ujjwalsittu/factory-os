@@ -93,6 +93,8 @@ describe('Tally vouchers as documents (decision 075)', () => {
     const r = tallyDocument(v, 'sales_invoice', links());
     expect(r.draft!.tax).toMatchObject({ cgst: '50.00', sgst: '50.00' });
     expect(r.draft!.taxDifference).toEqual({ expected: { cgst: '90.00', sgst: '90.00', igst: '0.00', cess: '0.00' }, tally: { cgst: '50.00', sgst: '50.00', igst: '0.00', cess: '0.00' } });
+    const unknownRate = tallyDocument(v, 'sales_invoice', links({ serviceItem: () => ({ id: 'svc', gstRate: null }) }));
+    expect(unknownRate.draft!.taxDifference).toBeNull();
   });
 
   it('turns a purchase into a purchase invoice, the party credited and input tax debited', () => {

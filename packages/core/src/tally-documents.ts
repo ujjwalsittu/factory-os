@@ -158,7 +158,8 @@ export function tallyDocument(v: TallyVoucher, kind: TallyDocumentKind, links: T
   const interState = tax.igst.isZero() ? (tax.cgst.isZero() && tax.sgst.isZero() ? party!.stateCode !== links.ourStateCode : false) : true;
   const actual: TaxSplit = { cgst: tax.cgst.toFixed(2), sgst: tax.sgst.toFixed(2), igst: tax.igst.toFixed(2), cess: tax.cess.toFixed(2) };
   const expected = expectedTax(lines, interState);
-  const differs = (['cgst', 'sgst', 'igst'] as const).some((h) => Dec.of(expected[h]).sub(actual[h]).abs().gt(TOLERANCE));
+  // Only compared when FactoryOS knows the rate of every line; otherwise Tally's tax is all there is.
+  const differs = lines.every((l) => l.gstRate) && (['cgst', 'sgst', 'igst'] as const).some((h) => Dec.of(expected[h]).sub(actual[h]).abs().gt(TOLERANCE));
   const bill = v.lines.find((l) => l.ledger === partyName)?.bills.find((b) => /agst/i.test(b.type ?? '')) ?? null;
   return {
     draft: {

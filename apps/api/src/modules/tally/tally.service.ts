@@ -42,7 +42,7 @@ import { GlPostingService } from '../accounting/gl-posting.service.js';
 import { itemInput, normaliseParty, partyInput } from '../masters.controller.js';
 import { OpeningWriter, openingActions, openingSummary, stageOpenings } from './tally-openings.js';
 import { notInExport, stageVouchers, writeVouchers } from './tally-vouchers.js';
-import { stageDocuments, writeDocuments } from './tally-documents.js';
+import { refreshDocuments, stageDocuments, writeDocuments } from './tally-documents.js';
 import { OperationalPostings } from '../accounting/operational-postings.js';
 import { StockPostingService } from '../stock-posting.service.js';
 
@@ -160,7 +160,7 @@ export class TallyService {
       // The standard chart may not exist yet in a new workspace; Tally's groups are matched against it.
       await lockAccounting(tx, entityId);
       await seedChart(tx, ctx, entityId);
-      const staged = [...(await this.match(tx, ctx, entityId, deduped)), ...(await stageVouchers(tx, entityId, dedupedVouchers)), ...(await stageDocuments(tx, entityId, dedupedVouchers))];
+      const staged = [...(await this.match(tx, ctx, entityId, deduped)), ...(await stageVouchers(tx, entityId, dedupedVouchers)), ...(await stageDocuments(tx, ctx.tenant.tenantId, entityId, dedupedVouchers, deduped.length > 0))];
       const counts = this.countActions(staged);
       const [imp] = await tx
         .insert(tallyImport)
@@ -558,6 +558,15 @@ export class TallyService {
     if (!imp) throw new NotFoundException('Import not found');
     if (imp.status !== 'read') throw new ConflictException(`This import is already ${imp.status}`);
     return imp;
+  }
+
+  /** Checks the vouchers of months kept in Tally again, after masters were linked or mappings changed elsewhere. */
+  async recheck(ctx: TenantRequestContext, entityId: string, id: string) {
+    return this.db.transaction(async (tx) => {
+      const imp = await this.openImport(tx, entityId, id);
+      await refreshDocuments(tx, ctx.tenant.tenantId, entityId, imp.id);
+      return this.get(entityId, id, tx);
+    });
   }
 
   async discard(ctx: TenantRequestContext, entityId: string, id: string) {

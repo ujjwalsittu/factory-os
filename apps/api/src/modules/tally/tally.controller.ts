@@ -10,6 +10,8 @@ import { listBooks, setBook } from './tally-books.js';
 import { DB } from '../../common/tokens.js';
 import { TallyService } from './tally.service.js';
 import { getVoucher, listVouchers } from './tally-vouchers.js';
+import { listMappings, setLedgerItem, setVoucherType } from './tally-documents.js';
+import { TALLY_DOCUMENT_KINDS } from '@factoryos/core/tally-documents';
 
 const KINDS = ['group', 'ledger', 'party', 'stockgroup', 'unit', 'godown', 'stockitem', 'opening', 'stock', 'voucher', 'document'] as const;
 const ACTIONS = ['new', 'link', 'update', 'unchanged', 'conflict', 'skip'] as const;
@@ -74,6 +76,12 @@ export class TallyController {
     return this.tally.commit(ctx, entityOf(ctx), id, acceptDifference);
   }
 
+  @Post(':id/recheck')
+  @RequirePermission('accounts.tally.import')
+  recheck(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
+    return this.tally.recheck(ctx, entityOf(ctx), id);
+  }
+
   @Post(':id/discard')
   @RequirePermission('accounts.tally.import')
   discard(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
@@ -132,5 +140,39 @@ export class TallyBooksController {
   set(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
     const { month, book } = parse(bookInput, body);
     return setBook(this.db, ctx, entityOf(ctx), this.audit, month, book);
+  }
+}
+
+const voucherTypeInput = z.object({ voucherType: z.string().trim().min(1).max(120), documentKind: z.enum([...TALLY_DOCUMENT_KINDS, 'none']).nullable() });
+const ledgerItemInput = z.object({ ledger: z.string().trim().min(1).max(200), itemId: z.uuid().nullable() });
+
+/** Decision 075: what each Tally voucher type becomes, and which service item a ledger is booked as. */
+@Controller('tally/mappings')
+export class TallyMappingsController {
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly audit: AuditService,
+  ) {}
+
+  @Get()
+  @RequirePermission('accounts.tally.read')
+  list(@Ctx() ctx: TenantRequestContext) {
+    return listMappings(this.db, ctx.tenant.tenantId, entityOf(ctx));
+  }
+
+  @Put('voucher-types')
+  @RequirePermission('accounts.tally.import')
+  async voucherType(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
+    const { voucherType, documentKind } = parse(voucherTypeInput, body);
+    await this.db.transaction((tx) => setVoucherType(tx, ctx, entityOf(ctx), this.audit, voucherType, documentKind));
+    return listMappings(this.db, ctx.tenant.tenantId, entityOf(ctx));
+  }
+
+  @Put('ledgers')
+  @RequirePermission('accounts.tally.import')
+  async ledger(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
+    const { ledger, itemId } = parse(ledgerItemInput, body);
+    await this.db.transaction((tx) => setLedgerItem(tx, ctx, entityOf(ctx), this.audit, ledger, itemId));
+    return listMappings(this.db, ctx.tenant.tenantId, entityOf(ctx));
   }
 }
