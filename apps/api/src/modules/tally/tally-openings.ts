@@ -44,7 +44,9 @@ type Staged = {
   candidates: { id: string; label: string; reason: string }[];
   notes: string[];
 };
-type MasterRow = { kind: string; guid: string | null; proposed: string; targetId: string | null };
+type MasterRow = { kind: string; guid: string | null; name: string; proposed: string; targetId: string | null };
+/** The same Tally object: by GUID, or by name for an object exported without one. */
+const sameObject = (r: MasterRow, m: TallyMaster) => (m.guid ? r.guid === m.guid : r.guid === null && r.name === m.name);
 
 const PNL_NAME = 'Profit & Loss A/c';
 const DIFFERENCE_NAME = 'Opening difference (Tally)';
@@ -103,7 +105,7 @@ export async function stageOpenings(
     if (!opening && !m.openingBills.length) continue;
     const side = opening?.side ?? 'debit';
     const amount = opening?.amount ?? '0';
-    const row = masterRows.find((r) => r.guid === m.guid && (r.kind === 'ledger' || r.kind === 'party'));
+    const row = masterRows.find((r) => sameObject(r, m) && (r.kind === 'ledger' || r.kind === 'party'));
     const mode: OpeningMode = row?.kind === 'party' ? 'party' : m.reservedName === PNL_NAME || m.name.toLowerCase() === PNL_NAME.toLowerCase() ? 'pnl' : 'account';
     const payload: OpeningPayload = { ledgerGuid: m.guid, mode, side, amount, bills: m.openingBills };
     const push = (s: Partial<Staged>) =>
@@ -142,12 +144,13 @@ export async function stageOpenings(
 
   const stockLinks = await tx.select().from(tallyLink).where(and(eq(tallyLink.entityId, entityId), eq(tallyLink.kind, 'stock')));
   const entries = stockLinks.length ? await tx.select().from(stockEntry).where(inArray(stockEntry.id, stockLinks.map((l) => l.targetId))) : [];
-  const submittedGodowns = new Set(stockLinks.filter((l) => entries.find((e) => e.id === l.targetId)?.status !== 'draft').map((l) => l.guid));
+  // Only a submitted receipt blocks a re-import; a cancelled or deleted one is replaced by a new draft.
+  const submittedGodowns = new Set(stockLinks.filter((l) => entries.find((e) => e.id === l.targetId)?.status === 'submitted').map((l) => l.guid));
   for (const { m, allocations } of stockRows) {
     const payload: StockPayload = { itemGuid: m.guid, allocations };
     const push = (s: Partial<Staged>) =>
       out.push({ kind: 'stock', guid: m.guid, alterId: m.alterId, name: m.name, payload: payload as unknown as Record<string, unknown>, proposed: 'new', targetId: null, candidates: [], notes: [], ...s });
-    const row = masterRows.find((r) => r.guid === m.guid && r.kind === 'stockitem');
+    const row = masterRows.find((r) => sameObject(r, m) && r.kind === 'stockitem');
     const negative = allocations.filter((a) => Dec.of(a.qty).isNeg());
     const submitted = allocations.map((a) => a.godown ?? MAIN_LOCATION).filter((g) => submittedGodowns.has(godownKey(g)));
     if (active) push({ proposed: 'skip', notes: [closed] });
@@ -224,7 +227,7 @@ export class OpeningWriter {
    */
   async write(
     rows: { id: string; kind: string; name: string; action: string; targetId: string | null; payload: unknown }[],
-    resolve: (kind: 'ledger' | 'party' | 'stockitem', guid: string | null) => Promise<string | null>,
+    resolve: (kind: 'ledger' | 'party' | 'stockitem', guid: string | null, name: string) => Promise<string | null>,
     godown: (name: string) => Promise<string | null>,
     acceptDifference: string | undefined,
   ): Promise<Map<string, string>> {
@@ -247,7 +250,7 @@ export class OpeningWriter {
       const p = r.payload as OpeningPayload;
       const total = signed(p.side, p.amount);
       if (p.mode === 'party') {
-        const partyId = await resolve('party', p.ledgerGuid);
+        const partyId = await resolve('party', p.ledgerGuid, r.name);
         if (!partyId) throw new BadRequestException(`The party "${r.name}" is skipped, so its opening balance cannot be saved. Include the party, or skip its balance.`);
         let covered = Dec.ZERO;
         const addBill = (reference: string, amount: Dec) => {
@@ -272,7 +275,7 @@ export class OpeningWriter {
           ? r.targetId
           : p.mode === 'pnl'
             ? await this.ensureLedger(PNL_NAME, 'PL-RESERVES', 'Reserves & Surplus')
-            : await resolve('ledger', p.ledgerGuid);
+            : await resolve('ledger', p.ledgerGuid, r.name);
       if (!accountId) throw new BadRequestException(`The ledger "${r.name}" is skipped, so its opening balance has nowhere to go. Choose a ledger for the balance, or skip it.`);
       addTo(accountId, total);
       results.set(r.id, accountId);
@@ -284,7 +287,7 @@ export class OpeningWriter {
     const stockRows = included.filter((x) => x.kind === 'stock');
     const itemIds = new Map<string, string>();
     for (const r of stockRows) {
-      const id = await resolve('stockitem', (r.payload as StockPayload).itemGuid);
+      const id = await resolve('stockitem', (r.payload as StockPayload).itemGuid, r.name);
       if (!id) throw new BadRequestException(`The item "${r.name}" is skipped, so its opening stock cannot be saved. Include the item, or skip its stock.`);
       itemIds.set(r.id, id);
     }
@@ -334,7 +337,26 @@ export class OpeningWriter {
       const entryId = await this.draftFor(name, warehouseId, list);
       for (const l of list) if (!results.has(l.rowId)) results.set(l.rowId, entryId);
     }
+    await this.dropStaleDrafts(new Set([...byGodown.keys()].map(godownKey)));
     return results;
+  }
+
+  /**
+   * Drafts an earlier import made for godowns this import writes no stock to are deleted: the worksheet's Inventory line
+   * now leaves them out, so submitting them would break the cut-over. Submitted receipts are never touched.
+   */
+  private async dropStaleDrafts(written: Set<string>) {
+    const tx = this.tx;
+    const links = await tx.select().from(tallyLink).where(and(eq(tallyLink.entityId, this.entityId), eq(tallyLink.kind, 'stock')));
+    for (const l of links.filter((x) => !written.has(x.guid))) {
+      const [gone] = await tx
+        .delete(stockEntry)
+        .where(and(eq(stockEntry.id, l.targetId), eq(stockEntry.entityId, this.entityId), eq(stockEntry.status, 'draft')))
+        .returning({ id: stockEntry.id });
+      if (!gone) continue;
+      await tx.delete(tallyLink).where(eq(tallyLink.id, l.id));
+      await this.audit.record(this.ctx, { tenantId: this.tenantId, entityId: this.entityId, action: 'stock_entry.delete_draft', targetType: 'stock_entry', targetId: gone.id, after: { source: 'tally_import', importId: this.importId } }, tx);
+    }
   }
 
   /** A ledger by name in a standard group, created when missing. */
@@ -356,8 +378,9 @@ export class OpeningWriter {
     const tx = this.tx;
     const guid = godownKey(name);
     const [link] = await tx.select().from(tallyLink).where(and(eq(tallyLink.entityId, this.entityId), eq(tallyLink.kind, 'stock'), eq(tallyLink.guid, guid)));
-    const [prior] = link ? await tx.select().from(stockEntry).where(and(eq(stockEntry.id, link.targetId), eq(stockEntry.entityId, this.entityId))) : [];
-    if (prior && prior.status !== 'draft') throw new ConflictException(`Opening stock for "${name}" was already submitted in FactoryOS; skip its stock rows`);
+    const [found] = link ? await tx.select().from(stockEntry).where(and(eq(stockEntry.id, link.targetId), eq(stockEntry.entityId, this.entityId))) : [];
+    if (found?.status === 'submitted') throw new ConflictException(`Opening stock for "${name}" was already submitted in FactoryOS; skip its stock rows`);
+    const prior = found?.status === 'draft' ? found : undefined;
     const header = { purpose: 'receipt' as const, postingDate: businessDate(), reference: 'Tally opening stock', remarks: `Opening stock for ${name} from Tally import. Review and submit before activating accounting.` };
     let entryId: string;
     if (prior) {

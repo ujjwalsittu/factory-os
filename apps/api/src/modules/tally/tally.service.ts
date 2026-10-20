@@ -586,7 +586,7 @@ export class TallyService {
       const godownGuid = new Map(rows.filter((r) => r.kind === 'godown').map((r) => [r.name, r.guid]));
       const openingResults = await new OpeningWriter(tx, ctx, entityId, imp.id, this.gl, this.audit).write(
         rows,
-        (kind, guid) => linked(kind, guid),
+        (kind, guid, name) => linked(kind, guid, name),
         async (name) => {
           const viaTally = await linked('godown', godownGuid.get(name) ?? null, name);
           if (viaTally) return viaTally;

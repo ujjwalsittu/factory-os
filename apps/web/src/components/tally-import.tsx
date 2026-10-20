@@ -235,7 +235,14 @@ function DetailContent({ id }: { id: string }) {
               <Button className="ml-auto" variant="secondary" loading={discard.isPending} onClick={() => discard.mutate()}>
                 Discard
               </Button>
-              <Button disabled={conflicts > 0} onClick={() => setConfirm(true)}>
+              <Button
+                disabled={conflicts > 0}
+                onClick={() => {
+                  // Each opening of the dialog asks again: the difference may have changed since it was last accepted.
+                  setAcceptDifference(false);
+                  setConfirm(true);
+                }}
+              >
                 {conflicts > 0 ? `${conflicts} to decide before import` : 'Import'}
               </Button>
             </>

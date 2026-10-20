@@ -303,6 +303,28 @@ assert.equal(pl.groupId, dGroups.find((g) => g.name === 'Reserves & Surplus').id
 assert.deepEqual(dws.lines.filter((l) => l.accountId === pl.id).map((l) => Number(l.credit)), [12000], "Tally's accumulated profit goes to Profit & Loss A/c under Reserves & Surplus");
 ok('negative stock can only be skipped; Profit & Loss A/c goes to Reserves; an unbalanced opening needs the exact difference accepted');
 
+// Re-imports keep drafts in step with the worksheet: a godown left out loses its draft; a cancelled receipt is replaced.
+const tallyDrafts = async () => (await d.req('GET', '/stock-entries')).filter((e) => e.reference === 'Tally opening stock');
+const full = await upload(d, [['Master.xml', utf16(fixture)]]);
+await d.req('POST', `/tally/imports/${full.id}/commit`, {}, 201);
+assert.equal((await tallyDrafts()).filter((e) => e.status === 'draft').length, 2);
+const mainOnly = fixture
+  .replace('<OPENINGBALANCE> 250 Kgs</OPENINGBALANCE>', '<OPENINGBALANCE> 0 Kgs</OPENINGBALANCE>')
+  .replace('<OPENINGVALUE>-17,500.00</OPENINGVALUE>', '<OPENINGVALUE>0</OPENINGVALUE>')
+  .replace('<OPENINGBALANCE>4,79,535.50</OPENINGBALANCE>', '<OPENINGBALANCE>4,62,035.50</OPENINGBALANCE>');
+const fewer = await upload(d, [['Master.xml', utf16(mainOnly)]]);
+await d.req('POST', `/tally/imports/${fewer.id}/commit`, {}, 201);
+const left = await tallyDrafts();
+assert.equal(left.length, 1, "the godown without stock loses its stale draft");
+await d.req('POST', `/stock-entries/${left[0].id}/submit`, {}, 201);
+await d.req('POST', `/stock-entries/${left[0].id}/cancel`, { reason: 'Counted again before cut-over' }, 201);
+const afterCancel = await upload(d, [['Master.xml', utf16(mainOnly)]]);
+list = await rows(d, afterCancel.id);
+assert.equal(list.find((r) => r.kind === 'stock').proposed, 'new', 'a cancelled receipt does not block a re-import');
+await d.req('POST', `/tally/imports/${afterCancel.id}/commit`, {}, 201);
+assert.equal((await tallyDrafts()).filter((e) => e.status === 'draft').length, 1);
+ok('re-imports drop drafts for godowns without stock, and replace a cancelled opening receipt');
+
 // ── Isolation and closing ──
 await pause();
 const other = await new Client().init('Tally Other');

@@ -46,7 +46,7 @@ The user started it on 2026-10-20 and chose the rules for the awkward cases, rec
 
 ## Verification
 
-- **`smoke-tally.mjs`**, 12 checks; these are new or extended:
+- **`smoke-tally.mjs`**, 13 checks; these are new or extended:
   - the worksheet gets the GL, tax and inventory lines, and the bills per party;
   - one draft receipt per godown, with batches and rates;
   - a re-import rewrites the same worksheet and the same drafts;
@@ -54,7 +54,8 @@ The user started it on 2026-10-20 and chose the rules for the awkward cases, rec
   - after activation, openings are refused;
   - negative stock can only be skipped;
   - the Profit & Loss A/c goes to Reserves & Surplus;
-  - the difference must be accepted at exactly its amount.
+  - the difference must be accepted at exactly its amount;
+  - a re-import drops drafts for godowns that no longer have stock, and replaces a cancelled opening receipt.
 - **`e2e/tally.mjs`**, desktop and 390 px. The openings card shows. An unbalanced export shows the difference and the
   worksheet warning, and Import waits for the checkbox.
 - **Core tests** pass (170). `pnpm typecheck` passes (20 tasks).
