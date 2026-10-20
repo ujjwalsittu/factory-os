@@ -18,7 +18,8 @@ Build of the first of three PRs in the [design](../specs/2026-10-20-tally-import
   - Finance Controller has both.
   - Accountant, auditor and the other read-only roles have `read`.
 - **API** (`/tally/imports`).
-  - Upload: up to 20 files of 100 MB each. It reads and stages only.
+  - Upload: up to 10 files of 50 MB each. A zip may expand to at most 200 MB per XML file and 400 MB in all, checked
+    before anything is decompressed. It reads and stages only.
   - Read the import, its rows (filtered and paged), and set decisions.
   - Commit and discard.
 - **Matching** proposes an action for each record, tried in this order:
@@ -54,8 +55,8 @@ Build of the first of three PRs in the [design](../specs/2026-10-20-tally-import
 
 ## Verification
 
-- **Unit tests.** 17 tests for the parser (encodings, zip, control characters, amounts, masters, classification);
-  166 tests in core in total.
+- **Unit tests.** 19 tests for the parser (encodings, zip and its size limit, control characters, amounts, masters,
+  negative stock, classification); 168 tests in core in total.
 - **Permission tests.** Updated in `packages/auth`.
 - **`smoke-tally.mjs`**, 8 checks over 45 requests:
   - staging writes nothing;

@@ -3,7 +3,7 @@ import { Alert, Badge, Button, Card, CardHeader, Field, Input, Select, type Badg
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import {
@@ -169,6 +169,11 @@ function DetailContent({ id }: { id: string }) {
     queryKey: ['tally-rows', ws.tenantId, ws.entityId, id, params.toString()],
     queryFn: () => api<{ total: number; data: TallyRow[] }>(`/tally/imports/${id}/rows?${params}`, { scope: ws.scope }),
   });
+  // A decision can move the last rows of a page out of the filter; step back to a page that still has rows.
+  const rowTotal = rows.data?.total;
+  useEffect(() => {
+    if (rowTotal !== undefined && offset > 0 && offset >= rowTotal) setOffset(Math.max(0, Math.floor((rowTotal - 1) / limit) * limit));
+  }, [rowTotal, offset]);
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['tally-import'] });
     void qc.invalidateQueries({ queryKey: ['tally-rows'] });

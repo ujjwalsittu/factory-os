@@ -30,9 +30,9 @@ export class TallyController {
   /** Up to 20 files of 100 MB each: XML exports, or zips of them. Nothing is written to masters here. */
   @Post()
   @RequirePermission('accounts.tally.import')
-  @UseInterceptors(FilesInterceptor('files', 20, { limits: { fileSize: 100 * 1024 * 1024, files: 20 } }))
+  @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 50 * 1024 * 1024, files: 10 } }))
   read(@Ctx() ctx: TenantRequestContext, @UploadedFiles() files: { originalname: string; buffer: Buffer }[] | undefined) {
-    return this.tally.read(ctx, entityOf(ctx), (files ?? []).map((f) => ({ name: f.originalname, bytes: new Uint8Array(f.buffer) })));
+    return this.tally.read(ctx, entityOf(ctx), (files ?? []).map((f) => ({ name: f.originalname, bytes: new Uint8Array(f.buffer.buffer, f.buffer.byteOffset, f.buffer.byteLength) })));
   }
 
   @Get()

@@ -52,15 +52,29 @@ export function sanitizeTallyXml(xml: string): string {
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
 }
 
+/** Limits on what a zip may expand to, so a small archive cannot exhaust memory. */
+export const TALLY_MAX_XML_BYTES = 200 * 1024 * 1024;
+export const TALLY_MAX_ZIP_TOTAL_BYTES = 400 * 1024 * 1024;
+
+export class TallyArchiveTooLarge extends Error {}
+
 /** A .zip upload is expanded into its .xml files; plain .xml files pass through. */
 export function unpackTallyFiles(files: { name: string; bytes: Uint8Array }[]): { name: string; xml: string }[] {
   const out: { name: string; xml: string }[] = [];
   for (const f of files) {
     if (f.name.toLowerCase().endsWith('.zip') || (f.bytes[0] === 0x50 && f.bytes[1] === 0x4b)) {
-      const entries = unzipSync(f.bytes);
-      for (const [name, bytes] of Object.entries(entries))
-        if (name.toLowerCase().endsWith('.xml') && !name.startsWith('__MACOSX/'))
-          out.push({ name: `${f.name}/${name}`, xml: decodeTallyBytes(bytes) });
+      let total = 0;
+      // The filter runs before anything is decompressed: only .xml entries, within the size limits.
+      const entries = unzipSync(f.bytes, {
+        filter: (e) => {
+          if (!e.name.toLowerCase().endsWith('.xml') || e.name.startsWith('__MACOSX/')) return false;
+          total += e.originalSize;
+          if (e.originalSize > TALLY_MAX_XML_BYTES || total > TALLY_MAX_ZIP_TOTAL_BYTES)
+            throw new TallyArchiveTooLarge(`${f.name} expands to more than ${TALLY_MAX_ZIP_TOTAL_BYTES / 1024 / 1024} MB of XML; export a smaller period or upload the XML files directly.`);
+          return true;
+        },
+      });
+      for (const [name, bytes] of Object.entries(entries)) out.push({ name: `${f.name}/${name}`, xml: decodeTallyBytes(bytes) });
     } else out.push({ name: f.name, xml: decodeTallyBytes(f.bytes) });
   }
   return out;
@@ -248,6 +262,7 @@ export interface TallyGodown extends Common {
 export interface TallyBatchOpening {
   godown: string | null;
   batch: string | null;
+  /** Negative when Tally carried negative stock. */
   qty: string;
   value: string | null;
 }
@@ -294,6 +309,16 @@ function gstRate(n: TallyNode): string | null {
         }
   }
   return null;
+}
+
+/**
+ * Opening stock value in FactoryOS's sign: Tally writes stock (a debit) as negative, so the value is negated. Negative
+ * stock (Tally allows it) keeps its negative quantity and comes out with a negative value, so the opening-stock import
+ * can refuse it instead of posting it the wrong way.
+ */
+function stockValue(value: string | null) {
+  if (value === null || /^-?0*\.?0*$/.test(value)) return value === null ? null : '0';
+  return value.startsWith('-') ? value.slice(1) : `-${value}`;
 }
 
 /** Turns one exported object into a typed master, or null when it is not a master this import reads. */
@@ -355,7 +380,7 @@ export function toTallyMaster(o: TallyObject): TallyMaster | null {
         const bq = tallyQuantity(field(b, 'OPENINGBALANCE'));
         if (!bq || !/[1-9]/.test(bq.qty)) continue;
         const bv = tallyNumber(field(b, 'OPENINGVALUE'));
-        batches.push({ godown: field(b, 'GODOWNNAME'), batch: field(b, 'BATCHNAME'), qty: bq.qty.replace('-', ''), value: bv?.replace('-', '') ?? null });
+        batches.push({ godown: field(b, 'GODOWNNAME'), batch: field(b, 'BATCHNAME'), qty: bq.qty, value: stockValue(bv) });
       }
       return {
         ...c,
@@ -365,7 +390,7 @@ export function toTallyMaster(o: TallyObject): TallyMaster | null {
         hsn: latestDetail(n, 'GSTDETAILS.LIST', 'HSNCODE') ?? latestDetail(n, 'HSNDETAILS.LIST', 'HSNCODE'),
         gstRate: gstRate(n),
         batchwise: yes(n, 'ISBATCHWISEON'),
-        opening: q && /[1-9]/.test(q.qty) ? { qty: q.qty.replace('-', ''), value: value?.replace('-', '') ?? null } : null,
+        opening: q && /[1-9]/.test(q.qty) ? { qty: q.qty, value: stockValue(value) } : null,
         openingBatches: batches,
       };
     }

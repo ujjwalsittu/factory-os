@@ -4,6 +4,7 @@ import {
   tallyRoot,
   toTallyMaster,
   unpackTallyFiles,
+  TallyArchiveTooLarge,
   type TallyGroup,
   type TallyGodown,
   type TallyLedger,
@@ -26,6 +27,7 @@ import {
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
+import { z } from 'zod';
 import type { TenantRequestContext } from '../../common/access.js';
 import { AuditService } from '../../common/audit.service.js';
 import { DB } from '../../common/tokens.js';
@@ -108,7 +110,13 @@ export class TallyService {
 
   async read(ctx: TenantRequestContext, entityId: string, files: { name: string; bytes: Uint8Array }[]) {
     if (!files.length) throw new BadRequestException('Choose one or more Tally XML files');
-    const unpacked = unpackTallyFiles(files);
+    let unpacked: ReturnType<typeof unpackTallyFiles>;
+    try {
+      unpacked = unpackTallyFiles(files);
+    } catch (e) {
+      if (e instanceof TallyArchiveTooLarge) throw new BadRequestException(e.message);
+      throw e;
+    }
     if (!unpacked.length) throw new BadRequestException('The upload holds no .xml files');
     const warnings: string[] = [];
     const masters: TallyMaster[] = [];
@@ -389,10 +397,10 @@ export class TallyService {
     return this.db.select().from(tallyImport).where(eq(tallyImport.entityId, entityId)).orderBy(sql`${tallyImport.createdAt} desc`).limit(50);
   }
 
-  async get(entityId: string, id: string) {
-    const [imp] = await this.db.select().from(tallyImport).where(and(eq(tallyImport.id, id), eq(tallyImport.entityId, entityId)));
+  async get(entityId: string, id: string, db: Db = this.db) {
+    const [imp] = await db.select().from(tallyImport).where(and(eq(tallyImport.id, id), eq(tallyImport.entityId, entityId)));
     if (!imp) throw new NotFoundException('Import not found');
-    const rows = await this.db
+    const rows = await db
       .select({ kind: tallyStaged.kind, action: tallyStaged.action, n: sql<number>`count(*)::int` })
       .from(tallyStaged)
       .where(eq(tallyStaged.importId, id))
@@ -436,7 +444,7 @@ export class TallyService {
         }
         await tx.update(tallyStaged).set({ action: d.action, targetId }).where(eq(tallyStaged.id, row.id));
       }
-      return this.get(entityId, id);
+      return this.get(entityId, id, tx);
     });
   }
 
@@ -502,7 +510,12 @@ export class TallyService {
           const resultId = await w.apply(r).catch((e: unknown) => {
             if (e instanceof BadRequestException || e instanceof ConflictException) throw e;
             // Validation of Tally data (a name too short, a code clash) names the record instead of failing blindly.
-            const reason = e instanceof Error ? e.message.split('\n')[0] : String(e);
+            const reason =
+              e instanceof z.ZodError
+                ? e.issues.map((i) => `${i.path.join('.') || 'value'}: ${i.message}`).join('; ')
+                : e instanceof Error
+                  ? e.message.split('\n')[0]
+                  : String(e);
             throw new BadRequestException(`"${r.name}" (${r.kind}) could not be saved: ${reason}`);
           });
           if (resultId !== r.resultId) await tx.update(tallyStaged).set({ resultId }).where(eq(tallyStaged.id, r.id));
@@ -574,10 +587,10 @@ class CommitWriter {
     for (const uRow of await tx.select().from(uom).where(eq(uom.tenantId, this.tenantId))) this.unitByTallyName.set(uRow.code, uRow.id);
   }
 
-  private uniqueCode(kind: keyof CommitWriter['usedCodes'], base: string, max: number) {
+  private uniqueCode(kind: keyof CommitWriter['usedCodes'], base: string, max: number, sep = '-') {
     const used = this.usedCodes[kind];
     let code = base.slice(0, max);
-    for (let n = 2; used.has(code); n++) code = `${base.slice(0, max - String(n).length - 1)}-${n}`;
+    for (let n = 2; used.has(code); n++) code = `${base.slice(0, max - String(n).length - sep.length)}${sep}${n}`;
     used.add(code);
     return code;
   }
@@ -660,6 +673,8 @@ class CommitWriter {
         const input = this.partyFrom(m as TallyLedger);
         // The same party may have been created since the preview (another entity's import); link instead of duplicating.
         if (input.gstin) {
+          // Serialises concurrent imports of the same GSTIN until this transaction ends.
+          await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${this.tenantId + ':gstin:' + input.gstin}))`);
           const [existing] = await tx.select().from(party).where(and(eq(party.tenantId, this.tenantId), eq(party.gstin, input.gstin)));
           if (existing) {
             await this.markRole(existing.id, m as TallyLedger);
@@ -671,7 +686,8 @@ class CommitWriter {
       }
       case 'unit': {
         const u = m as TallyUnit;
-        const code = this.uniqueCode('uom', codeFrom(u.name, 20), 20);
+        // Unit codes are 1–8 letters or digits (the units master's rule).
+        const code = this.uniqueCode('uom', u.name.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'UNIT', 8, '');
         const [row] = await tx.insert(uom).values({ ...scope, code, name: (u.formalName ?? u.name).slice(0, 60), decimals: Math.min(Math.max(u.decimals, 0), 6) }).returning();
         return row!.id;
       }

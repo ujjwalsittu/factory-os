@@ -11,6 +11,7 @@ import {
   tallyQuantity,
   tallyRoot,
   toTallyMaster,
+  TallyArchiveTooLarge,
   unpackTallyFiles,
   type TallyGroup,
   type TallyLedger,
@@ -62,6 +63,18 @@ describe('reading Tally XML exports', () => {
     const zip = zipSync({ 'Master.xml': new TextEncoder().encode(xml), 'readme.txt': new TextEncoder().encode('x'), '__MACOSX/._Master.xml': new Uint8Array([0]) });
     const files = unpackTallyFiles([{ name: 'tally.zip', bytes: zip }]);
     expect(files.map((f) => f.name)).toEqual(['tally.zip/Master.xml']);
+  });
+
+  it('refuses a zip whose XML would expand past the limit, before decompressing it', () => {
+    const zip = zipSync({ 'Master.xml': new TextEncoder().encode(xml) });
+    // Claim a 300 MB entry in the central directory, which is what the size check reads.
+    const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+    for (let i = zip.length - 22; i >= 0; i--)
+      if (view.getUint32(i, true) === 0x02014b50) {
+        view.setUint32(i + 24, 300 * 1024 * 1024, true);
+        break;
+      }
+    expect(() => unpackTallyFiles([{ name: 'big.zip', bytes: zip }])).toThrow(TallyArchiveTooLarge);
   });
 
   it('reports a broken file instead of throwing', () => {
@@ -161,6 +174,13 @@ describe('masters', () => {
       { godown: 'Bhosari Stores', batch: 'HEAT-2240', qty: '250', value: '17500' },
     ]);
     expect(byName('Flange Assembly FA-40')).toMatchObject({ hsn: '84819090', gstRate: null, batchwise: false, opening: null });
+  });
+
+  it('keeps the sign of negative opening stock', () => {
+    const neg = readTallyXml(
+      '<ENVELOPE><BODY><TALLYMESSAGE><STOCKITEM NAME="Short Item"><BASEUNITS>Nos</BASEUNITS><OPENINGBALANCE>-5 Nos</OPENINGBALANCE><OPENINGVALUE>500.00</OPENINGVALUE></STOCKITEM></TALLYMESSAGE></BODY></ENVELOPE>',
+    ).objects.map(toTallyMaster)[0] as TallyStockItem;
+    expect(neg.opening).toEqual({ qty: '-5', value: '-500' });
   });
 
   it('skips objects this import does not read', () => {
