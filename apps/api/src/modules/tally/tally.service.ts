@@ -24,6 +24,7 @@ import {
   tallyImport,
   tallyLink,
   tallyStaged,
+  tallyVoucher,
   uom,
   warehouse,
   type Database,
@@ -488,6 +489,16 @@ export class TallyService {
           throw new BadRequestException(`"${row.name}" has no unit in Tally, so it cannot be created. Link it to an existing item, or skip it.`);
         let targetId: string | null = null;
         if (d.action === 'link' || d.action === 'update' || d.action === 'unchanged') {
+          if (row.kind === 'voucher') {
+            // A voucher only re-syncs onto the history row with its own GUID; the choice of target is not the client's.
+            const [own] = await tx
+              .select({ id: tallyVoucher.id })
+              .from(tallyVoucher)
+              .where(and(eq(tallyVoucher.entityId, entityId), eq(tallyVoucher.guid, row.guid ?? '')));
+            if (!own || (d.targetId && d.targetId !== own.id)) throw new BadRequestException(`"${row.name}" can only update its own Tally history`);
+            await tx.update(tallyStaged).set({ action: d.action, targetId: own.id }).where(eq(tallyStaged.id, row.id));
+            continue;
+          }
           targetId = d.targetId ?? row.targetId;
           if (!targetId) throw new BadRequestException(`Choose the FactoryOS record to link "${row.name}" to`);
           const taken = await this.assertTarget(tx, ctx, entityId, row.kind as Kind, targetId);

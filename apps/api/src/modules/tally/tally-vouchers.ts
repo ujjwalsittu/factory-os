@@ -58,12 +58,12 @@ export async function stageVouchers(tx: Db, entityId: string, vouchers: TallyVou
     if (v.deleted) return row({ proposed: 'skip', notes: ['Deleted in Tally.'] });
     if (!v.guid || !v.date) return row({ proposed: 'skip', notes: ['Tally gives no ID or date for this voucher, so it cannot be kept in step.'] });
     const prior = existing.get(v.guid);
-    if (prior) {
-      const newer = (v.alterId ?? 0) > (prior.alterId ?? 0);
-      return row({ proposed: newer ? 'update' : 'unchanged', targetId: prior.id, notes: newer ? ['Edited in Tally since the last import; its lines are replaced.', ...notes] : notes });
-    }
+    const newer = !prior || (v.alterId ?? 0) > (prior.alterId ?? 0);
+    // An unbalanced voucher, new or edited, is a choice. Keeping an edited one replaces the stored copy (see writeVouchers).
     const imbalance = tallyVoucherImbalance(v);
-    if (imbalance !== '0') return row({ proposed: 'conflict', notes: [`Debits and credits differ by ${imbalance.replace('-', '')} in Tally. Keep it as it is, or skip it.`, ...notes] });
+    if (newer && imbalance !== '0')
+      return row({ proposed: 'conflict', notes: [`Debits and credits differ by ${imbalance.replace('-', '')} in Tally. Keep it as it is, or skip it.`, ...notes] });
+    if (prior) return row({ proposed: newer ? 'update' : 'unchanged', targetId: prior.id, notes: newer ? ['Edited in Tally since the last import; its lines are replaced.', ...notes] : notes });
     return row({ notes });
   });
 }
@@ -132,37 +132,54 @@ export async function writeVouchers(
       }),
     );
 
+  // The ALTERID is checked again here: another import may have stored a newer copy since this one was read.
+  const replace = async (id: string, v: TallyVoucher) => {
+    const [hit] = await tx
+      .update(tallyVoucher)
+      .set({ ...header(v), updatedAt: new Date() })
+      .where(and(eq(tallyVoucher.id, id), eq(tallyVoucher.entityId, entityId), sql`coalesce(${tallyVoucher.alterId}, 0) < ${v.alterId ?? 0}`))
+      .returning({ id: tallyVoucher.id });
+    if (!hit) return;
+    await tx.delete(tallyVoucherLine).where(eq(tallyVoucherLine.voucherId, id));
+    linesOf(id, v);
+    updated++;
+  };
   const fresh = todo.filter((r) => r.action === 'new');
   for (let i = 0; i < fresh.length; i += 500) {
     const chunk = fresh.slice(i, i + 500);
     const inserted = await tx
       .insert(tallyVoucher)
       .values(chunk.map((r) => ({ tenantId, entityId, guid: (r.payload as TallyVoucher).guid!, ...header(r.payload as TallyVoucher) })))
-      // A voucher imported meanwhile by another import is refreshed instead of duplicated.
-      .onConflictDoUpdate({ target: [tallyVoucher.entityId, tallyVoucher.guid], set: { updatedAt: new Date() } })
+      .onConflictDoNothing({ target: [tallyVoucher.entityId, tallyVoucher.guid] })
       .returning({ id: tallyVoucher.id, guid: tallyVoucher.guid });
     const byGuid = new Map(inserted.map((x) => [x.guid, x.id]));
+    // Vouchers stored meanwhile, or kept from a conflict on an edited voucher, are replaced only by a newer ALTERID.
+    const stored = chunk.filter((r) => !byGuid.has((r.payload as TallyVoucher).guid!));
+    const storedIds = stored.length
+      ? await tx
+          .select({ id: tallyVoucher.id, guid: tallyVoucher.guid })
+          .from(tallyVoucher)
+          .where(and(eq(tallyVoucher.entityId, entityId), inArray(tallyVoucher.guid, stored.map((r) => (r.payload as TallyVoucher).guid!))))
+      : [];
+    const storedByGuid = new Map(storedIds.map((x) => [x.guid, x.id]));
     for (const r of chunk) {
       const v = r.payload as TallyVoucher;
-      const id = byGuid.get(v.guid!)!;
-      results.set(r.id, id);
-      await tx.delete(tallyVoucherLine).where(eq(tallyVoucherLine.voucherId, id));
-      linesOf(id, v);
-      created++;
+      const id = byGuid.get(v.guid!);
+      if (id) {
+        results.set(r.id, id);
+        linesOf(id, v);
+        created++;
+        continue;
+      }
+      const existingId = storedByGuid.get(v.guid!)!;
+      results.set(r.id, existingId);
+      await replace(existingId, v);
     }
   }
   for (const r of todo.filter((x) => x.action === 'update' || x.action === 'unchanged')) {
     const id = r.targetId!;
     results.set(r.id, id);
-    if (r.action === 'unchanged') continue;
-    const v = r.payload as TallyVoucher;
-    await tx
-      .update(tallyVoucher)
-      .set({ ...header(v), updatedAt: new Date() })
-      .where(and(eq(tallyVoucher.id, id), eq(tallyVoucher.entityId, entityId)));
-    await tx.delete(tallyVoucherLine).where(eq(tallyVoucherLine.voucherId, id));
-    linesOf(id, v);
-    updated++;
+    if (r.action === 'update') await replace(id, r.payload as TallyVoucher);
   }
   for (let i = 0; i < lineRows.length; i += 1000) await tx.insert(tallyVoucherLine).values(lineRows.slice(i, i + 1000));
   await audit.record(ctx, { tenantId, entityId, action: 'accounts.tally.history', targetType: 'tally_import', targetId: importId, after: { created, updated, lines: lineRows.length } }, tx);

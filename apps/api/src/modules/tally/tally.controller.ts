@@ -79,7 +79,7 @@ export class TallyController {
   }
 }
 
-const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const date = z.iso.date();
 const historyQuery = z.object({
   from: date.optional(),
   to: date.optional(),

@@ -212,9 +212,29 @@ const edited = daybook.replace('<AMOUNT>-4,500.00</AMOUNT>', '<AMOUNT>-5,000.00<
 const histEdit = await upload(c, [['DayBook.xml', utf16(edited)]]);
 const payRow = (await rows(c, histEdit.id, '&kind=voucher')).find((r) => r.name === 'Payment 7');
 assert.equal(payRow.proposed, 'update');
+// Skip and back again works; a voucher only updates its own history row.
+await c.req('PUT', `/tally/imports/${histEdit.id}/rows`, { decisions: [{ id: payRow.id, action: 'skip' }] });
+await c.req('PUT', `/tally/imports/${histEdit.id}/rows`, { decisions: [{ id: payRow.id, action: 'update' }] });
+assert.equal((await c.raw('PUT', `/tally/imports/${histEdit.id}/rows`, { decisions: [{ id: payRow.id, action: 'update', targetId: acme.id }] })).status, 400);
 await c.req('POST', `/tally/imports/${histEdit.id}/commit`, {}, 201);
-const pay = await c.req('GET', `/tally/vouchers/${(await c.req('GET', '/tally/vouchers?type=Payment')).data[0].id}`);
+const payId = (await c.req('GET', '/tally/vouchers?type=Payment')).data[0].id;
+let pay = await c.req('GET', `/tally/vouchers/${payId}`);
 assert.deepEqual(pay.lines.map((l) => Number(l.amount)), [5000, 5000]);
+// Two exports read before either is committed: the older one, committed last, does not overwrite the newer.
+const version = (alter, amount) => edited.replaceAll('5,000.00', amount).replace('<ALTERID> 1010</ALTERID>', `<ALTERID> ${alter}</ALTERID>`);
+const newerRead = await upload(c, [['DayBook.xml', utf16(version(1020, '6,000.00'))]]);
+const olderRead = await upload(c, [['DayBook.xml', utf16(version(1015, '5,500.00'))]]);
+await c.req('POST', `/tally/imports/${newerRead.id}/commit`, {}, 201);
+await c.req('POST', `/tally/imports/${olderRead.id}/commit`, {}, 201);
+pay = await c.req('GET', `/tally/vouchers/${payId}`);
+assert.deepEqual(pay.lines.map((l) => Number(l.amount)), [6000, 6000], 'an older ALTERID never overwrites newer history');
+// An edited voucher that no longer balances is a choice too.
+const offBalance = version(1030, '7,000.00').replace('<AMOUNT>-7,000.00</AMOUNT>', '<AMOUNT>-7,100.00</AMOUNT>');
+const unbalancedRead = await upload(c, [['DayBook.xml', utf16(offBalance)]]);
+const unbalancedRow = (await rows(c, unbalancedRead.id, '&kind=voucher')).find((r) => r.name === 'Payment 7');
+assert.equal(unbalancedRow.proposed, 'conflict');
+await c.req('POST', `/tally/imports/${unbalancedRead.id}/discard`, {}, 201);
+assert.equal((await c.raw('GET', '/tally/vouchers?from=2026-13-45')).status, 400, 'impossible dates are refused');
 // What a later export lacks is listed, never deleted.
 const withoutReceipt = daybook.replace(/<TALLYMESSAGE xmlns:UDF="TallyUDF">\s*<VOUCHER REMOTEID="v-2"[\s\S]*?<\/TALLYMESSAGE>/, '');
 const partial = await upload(c, [['DayBook.xml', utf16(withoutReceipt)]]);
