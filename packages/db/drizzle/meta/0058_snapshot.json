@@ -1,5 +1,5 @@
 {
-  "id": "3c027439-9b82-4189-aa3f-af3ecc1c6a1d",
+  "id": "f6167339-c599-469e-af4c-7b804b739560",
   "prevId": "2e3639fe-cd96-4d6a-b426-e6bddb14e9d3",
   "version": "7",
   "dialect": "postgresql",
@@ -3331,6 +3331,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'factoryos'"
         },
         "reference": {
           "name": "reference",
@@ -40212,6 +40219,125 @@
           "value": "(\"tally_import\".\"status\" = 'committed') = (\"tally_import\".\"committed_at\" is not null and \"tally_import\".\"committed_by\" is not null)"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.tally_ledger_item": {
+      "name": "tally_ledger_item",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ledger": {
+          "name": "ledger",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "set_by": {
+          "name": "set_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "set_at": {
+          "name": "set_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "tally_ledger_item_uq": {
+          "name": "tally_ledger_item_uq",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ledger",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "tally_ledger_item_tenant_id_tenant_id_fk": {
+          "name": "tally_ledger_item_tenant_id_tenant_id_fk",
+          "tableFrom": "tally_ledger_item",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tally_ledger_item_entity_id_legal_entity_id_fk": {
+          "name": "tally_ledger_item_entity_id_legal_entity_id_fk",
+          "tableFrom": "tally_ledger_item",
+          "tableTo": "legal_entity",
+          "columnsFrom": [
+            "entity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tally_ledger_item_set_by_user_id_fk": {
+          "name": "tally_ledger_item_set_by_user_id_fk",
+          "tableFrom": "tally_ledger_item",
+          "tableTo": "user",
+          "columnsFrom": [
+            "set_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.tally_link": {

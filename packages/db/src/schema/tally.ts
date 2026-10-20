@@ -191,3 +191,16 @@ export const tallyVoucherTypeMap = pgTable(
     check('tally_voucher_type_map_ck', sql`${t.documentKind} in ('sales_invoice','purchase_invoice','sales_credit_note','supplier_debit_note','none')`),
   ],
 );
+
+/** Decision 075: a Tally ledger booked as a line (freight, services, accounting-mode income) goes to this item. */
+export const tallyLedgerItem = pgTable(
+  'tally_ledger_item',
+  {
+    ...identity(),
+    ledger: text('ledger').notNull(),
+    itemId: uuid('item_id').notNull(),
+    setBy: text('set_by').notNull().references(() => user.id),
+    setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('tally_ledger_item_uq').on(t.entityId, t.ledger)],
+);
