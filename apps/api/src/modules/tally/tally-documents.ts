@@ -517,9 +517,18 @@ export async function listMappings(db: Db, tenantId: string, entityId: string) {
     .from(tallyVoucher)
     .where(eq(tallyVoucher.entityId, entityId))
     .groupBy(tallyVoucher.voucherType);
+  // Types only waiting in an open import are listed too, so they can be mapped before the first commit.
+  const waiting = await db
+    .select({ type: sql<string>`${tallyStaged.payload}->>'voucherType'`, n: sql<number>`count(*)::int` })
+    .from(tallyStaged)
+    .innerJoin(tallyImport, eq(tallyImport.id, tallyStaged.importId))
+    .where(and(eq(tallyStaged.entityId, entityId), eq(tallyStaged.kind, 'document'), eq(tallyImport.status, 'read')))
+    .groupBy(sql`${tallyStaged.payload}->>'voucherType'`);
   const mapped = await db.select().from(tallyVoucherTypeMap).where(eq(tallyVoucherTypeMap.entityId, entityId));
   const types = new Map<string, { voucherType: string; vouchers: number; documentKind: TallyDocumentKind | 'none' | null; preset: boolean }>();
   for (const s of seen) types.set(s.type, { voucherType: s.type, vouchers: s.n, documentKind: TALLY_BASE_TYPES[s.type] ?? null, preset: s.type in TALLY_BASE_TYPES });
+  for (const w of waiting)
+    if (w.type && !types.has(w.type)) types.set(w.type, { voucherType: w.type, vouchers: w.n, documentKind: TALLY_BASE_TYPES[w.type] ?? null, preset: w.type in TALLY_BASE_TYPES });
   for (const m of mapped)
     types.set(m.voucherType, { voucherType: m.voucherType, vouchers: types.get(m.voucherType)?.vouchers ?? 0, documentKind: m.documentKind as TallyDocumentKind | 'none', preset: false });
   const ledgers = await db

@@ -2,7 +2,7 @@ import {supplierReturnClaim,supplierNote} from '@factoryos/db';
 import { OperationalPostings } from './accounting/operational-postings.js';
 import { GlPostingService } from './accounting/gl-posting.service.js';
 import { lockAccounting } from './accounting/accounting-lock.js';
-import { assertFactoryOsBook } from './tally/tally-books.js';
+import { assertFactoryOsBook, assertNotFromTally } from './tally/tally-books.js';
 import { computeGst, GST_RATES, inwardSupplyType, type TaxResult } from '@factoryos/compliance-in';
 import { Dec, fyCode } from '@factoryos/core';
 import {
@@ -674,6 +674,7 @@ export class BuyingController {
       const [inv] = await tx.select().from(purchaseInvoice).where(and(eq(purchaseInvoice.id, id), eq(purchaseInvoice.entityId, entityId))).for('update');
       if (!inv) throw new NotFoundException('Purchase invoice not found');
       if (inv.status !== 'submitted') throw new ConflictException('Only submitted invoices can be cancelled');
+      assertNotFromTally(inv, 'invoice');
       const [claimDependency]=await tx.select().from(supplierReturnClaim).where(and(eq(supplierReturnClaim.entityId,entityId),eq(supplierReturnClaim.originalInvoiceId,id),eq(supplierReturnClaim.status,'submitted')));
       const [noteDependency]=await tx.select().from(supplierNote).where(and(eq(supplierNote.entityId,entityId),eq(supplierNote.originalInvoiceId,id),eq(supplierNote.status,'submitted')));
       if(claimDependency||noteDependency)throw new ConflictException('Resolve and cancel dependent supplier claims/notes first');

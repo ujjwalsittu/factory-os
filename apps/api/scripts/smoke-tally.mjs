@@ -325,6 +325,8 @@ const purchases = await c.req('GET', '/purchase-invoices');
 const tallyPurchase = (purchases.data ?? purchases).find((i) => i.number === 'TP/0001');
 assert.ok(tallyPurchase, 'the Tally purchase is a purchase invoice');
 assert.equal((await c.req('GET', `/purchase-invoices/${tallyPurchase.id}`)).supplierInvoiceNo, 'BST/771');
+assert.equal((await c.raw('POST', `/sales-invoices/${tallySale.id}/cancel`, { reason: 'Edited in Tally' })).status, 409, 'a Tally invoice changes only through Tally');
+assert.equal((await c.raw('POST', `/purchase-invoices/${tallyPurchase.id}/cancel`, { reason: 'Edited in Tally' })).status, 409);
 // The same export again changes nothing.
 const docAgain = await upload(c, [['DayBook.xml', utf16(docs)]]);
 assert.deepEqual([...new Set((await rows(c, docAgain.id, '&kind=document')).map((r) => r.proposed))], ['unchanged']);

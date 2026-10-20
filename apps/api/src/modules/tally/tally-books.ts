@@ -94,3 +94,8 @@ export function originalInvoiceOf(note: { source: string; originalInvoiceId: str
     throw new ConflictException('This note came from Tally; it changes only through Tally, not here.');
   return note.originalInvoiceId;
 }
+
+/** Decision 075: a document created from a Tally voucher is changed only through Tally (reversal comes in PR 2). */
+export function assertNotFromTally(doc: { source: string }, what: string) {
+  if (doc.source === 'tally') throw new ConflictException(`This ${what} came from Tally; it changes only through Tally, not here.`);
+}
