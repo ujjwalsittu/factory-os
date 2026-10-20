@@ -63,7 +63,12 @@ The user started it on 2026-10-20 and chose the rules for the awkward cases, rec
   counts and yes/no results. The local database was dropped afterwards, and nothing from the export is in the
   repository. Tally's own openings balance exactly, ledgers plus stock. A difference appears only when the user skips
   something: in this trial, the negative-stock items and a ledger with no mapping.
-- **Regression.** RESULTS
+- **Regression**, run locally against the built API and web app on a fresh database:
+  - 13 of 13 API smokes passed: tally, chart, accounting, accounting operations, settlements, bank charges, asset
+    items, records, home, preferences, buying, selling and inventory.
+  - 10 of 10 browser walkthroughs passed: tally, chart, accounting, walkthrough, selling, buying, records,
+    create-from-lists, menu-home and inventory.
+  - The UI audit passed: 196 page views of 98 pages, and the add-new guard is clean.
 
 ## Not in this PR
 
