@@ -34,6 +34,8 @@ import {
 import { useWorkspace } from './workspace';
 import { FormDialog } from './form-dialog';
 import { LookupSelect } from '@/components/lookup-select';
+import { ROLE_SECTIONS } from '@/lib/posting-roles';
+import type { Account, AccountGroup } from '@/lib/accounting';
 export default function Setup() {
   return (
     <AccountingPage title="Accounting setup" permission="accounts.setup.read">
@@ -132,6 +134,13 @@ function Content() {
       }),
     onSuccess: invalidate,
   });
+  const groups = useQuery({
+    queryKey: ['account-groups', ws.tenantId, ws.entityId],
+    queryFn: () => api<AccountGroup[]>('/accounts/groups', { scope: ws.scope }),
+  });
+  /** Ledgers already used by another role: the API refuses one ledger for two roles. */
+  const takenBy = (role: string) =>
+    new Set(Object.entries(mappings).filter(([r]) => r !== role).map(([, id]) => id));
   const active = settings.data?.active,
     canEdit = ws.can('accounts.setup.create') && !active,
     errors = [
@@ -162,47 +171,73 @@ function Content() {
               : 'Reconcile current stock, unbilled receipts and unpaid bills with the prior books. Activation cannot be undone.'
           }
         />
-        <div className="p-5">
-          <p className="text-sm text-muted">
-            Opening balances represent the instant before activation today.
-            Existing bills may have been settled outside FactoryOS: declare
-            those settlements before activating.
-          </p>
-        </div>
+        {!active && (
+          <div className="p-5">
+            <p className="text-sm text-muted">
+              Opening balances represent the instant before activation today.
+              Existing bills may have been settled outside FactoryOS: declare
+              those settlements before activating.
+            </p>
+          </div>
+        )}
       </Card>
       <Card>
         <CardHeader
           title="Posting accounts"
           description="Each role uses a distinct ledger of the required classification. Changes affect future postings."
         />
-        <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3">
-          {Object.entries(mappings).map(([role, id]) => (
-            <Field key={role} label={role.replaceAll('_', ' ')}>
-              {(p) => (
-                <Select
-                  {...p}
-                  value={id}
-                  disabled={
-                    !ws.can('accounts.setup.update') || mapSave.isPending
-                  }
-                  onChange={(e) => {
-                    setMappings({ ...mappings, [role]: e.target.value });
-                    edited();
-                  }}
-                >
-                  {accounts.data
-                    ?.filter((a) => a.isActive)
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
+        {accounts.error || groups.error ? (
+          // The ledger list needs accounts.account.read, which a setup reader may not hold.
+          <p className="p-5 text-sm text-muted">
+            Posting accounts could not be loaded: {(accounts.error ?? groups.error)!.message}
+          </p>
+        ) : !settings.data || !accounts.data || !groups.data ? (
+          <p className="p-5 text-sm text-muted">Loading posting accounts…</p>
+        ) : (
+          <div className="space-y-6 p-5">
+            {[
+              ...ROLE_SECTIONS,
+              // A role added to the API before it gets a plain name still shows, under its key.
+              {
+                title: 'Other roles',
+                roles: Object.fromEntries(
+                  Object.keys(mappings)
+                    .filter((r) => !ROLE_SECTIONS.some((x) => r in x.roles))
+                    .map((r) => [r, { label: r.replaceAll('_', ' '), hint: '' }]),
+                ),
+              },
+            ].map((section) => {
+              const roles = Object.keys(section.roles).filter((r) => r in mappings);
+              if (!roles.length) return null;
+              return (
+                <section key={section.title} aria-label={section.title}>
+                  <h3 className="mb-3 text-sm font-semibold">{section.title}</h3>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {roles.map((role) => (
+                      <RoleSelect
+                        key={role}
+                        role={role}
+                        label={section.roles[role]!.label}
+                        hint={section.roles[role]!.hint}
+                        value={mappings[role]!}
+                        root={settings.data!.roleRoots?.[role]}
+                        taken={takenBy(role)}
+                        accounts={accounts.data!}
+                        groups={groups.data!}
+                        disabled={!ws.can('accounts.setup.update') || mapSave.isPending}
+                        onChange={(v) => {
+                          setMappings({ ...mappings, [role]: v });
+                          edited();
+                        }}
+                      />
                     ))}
-                </Select>
-              )}
-            </Field>
-          ))}
-        </div>
-        {ws.can('accounts.setup.update') && (
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        )}
+        {ws.can('accounts.setup.update') && accounts.data && groups.data && (
           <div className="px-5 pb-5">
             <Button
               variant="secondary"
@@ -216,7 +251,7 @@ function Content() {
       </Card>
       {!active && (
         <>
-          <fieldset disabled={save.isPending} className="contents">
+          <fieldset disabled={save.isPending} className="min-w-0 space-y-5">
             <Card>
               <CardHeader
                 title="Opening trial balance"
@@ -629,5 +664,61 @@ function Content() {
         </FormDialog>
       )}
     </div>
+  );
+}
+
+/** One posting role: only active ledgers of the classification it needs and not used by another role, by group. */
+function RoleSelect({
+  role,
+  label,
+  hint,
+  value,
+  root,
+  taken,
+  accounts,
+  groups,
+  disabled,
+  onChange,
+}: {
+  role: string;
+  label: string;
+  hint: string;
+  value: string;
+  root: string | undefined;
+  taken: Set<string>;
+  accounts: Account[];
+  groups: AccountGroup[];
+  disabled: boolean;
+  onChange: (id: string) => void;
+}) {
+  const fits = (a: Account) => {
+    const g = groups.find((x) => x.id === a.groupId);
+    return a.id === value || (a.isActive && !taken.has(a.id) && (!root || g?.root === root));
+  };
+  const byGroup = groups
+    .map((g) => ({
+      g,
+      list: accounts
+        .filter((a) => a.groupId === g.id && fits(a))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+    .filter((x) => x.list.length)
+    .sort((a, b) => a.g.name.localeCompare(b.g.name));
+  return (
+    <Field label={label} hint={hint}>
+      {(p) => (
+        <Select {...p} data-role={role} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+          {byGroup.map(({ g, list }) => (
+            <optgroup key={g.id} label={g.name}>
+              {list.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} · {a.code}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </Select>
+      )}
+    </Field>
   );
 }

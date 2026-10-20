@@ -133,7 +133,8 @@ export class AccountingController {
       .select()
       .from(accountingSettings)
       .where(eq(accountingSettings.entityId, entityId));
-    return s;
+    // Decision 071: the classification each posting role needs, so setup can offer only fitting ledgers.
+    return { ...s!, roleRoots: Object.fromEntries(DEFAULT_ACCOUNTS.map(([role, , , root]) => [role, root])) };
   }
   @Put('settings')
   @RequirePermission('accounts.setup.update')

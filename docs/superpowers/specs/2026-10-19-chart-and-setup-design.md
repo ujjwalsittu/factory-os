@@ -26,7 +26,8 @@ updates existing data only.
 
 **Accounting setup screen:**
 
-- Before activation, the "Posting accounts" card holds only a Save button, because the chart does not exist yet.
+- While it loads, the "Posting accounts" card holds only a Save button. (Corrected during the build: the settings
+  read already creates the chart before activation; the empty card seen in the walkthrough was the loading state.)
 - After activation it shows about 45 dropdowns in no order, labelled with raw role names such as "rcm cess".
 - Each dropdown lists every active ledger, including ones of the wrong classification.
 - The cut-over text still says "…before activating" after activation.
@@ -117,8 +118,8 @@ does not change `gl_entry`, mappings or ledger ids.
     ledgers already chosen for another role.
   - Options are grouped by group and show as "Name · CODE".
   - The settings read returns each role's required classification, so the web does not keep its own copy.
-- **Before activation:** the card explains that the default ledgers are created at activation, and that roles can then
-  be changed.
+- **While loading:** the card says it is loading instead of showing an empty grid with a Save button. (The design
+  first proposed a pre-activation message; the build found the chart already exists before activation.)
 - **Status text and layout.**
   - After activation, the cut-over card shows only the activation line.
   - The worksheet actions get their own row and no longer overlap the cards.

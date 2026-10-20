@@ -6,11 +6,44 @@ import {
 import { and, eq } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import type { Tx } from './accounting-lock.js';
+/**
+ * Decision 071: Tally's standard groups as [name, root, parent]. A parent shares its child's root; primaries come
+ * first so their ids exist when sub-groups are added. Input taxes have their own asset group because a group has one root.
+ */
+export const STANDARD_GROUPS = [
+  ['Capital Account', 'equity', null],
+  ['Reserves & Surplus', 'equity', 'Capital Account'],
+  ['Loans (Liability)', 'liability', null],
+  ['Bank OD A/c', 'liability', 'Loans (Liability)'],
+  ['Secured Loans', 'liability', 'Loans (Liability)'],
+  ['Unsecured Loans', 'liability', 'Loans (Liability)'],
+  ['Current Liabilities', 'liability', null],
+  ['Duties & Taxes', 'liability', 'Current Liabilities'],
+  ['Provisions', 'liability', 'Current Liabilities'],
+  ['Sundry Creditors', 'liability', 'Current Liabilities'],
+  ['Suspense A/c', 'liability', null],
+  ['Fixed Assets', 'asset', null],
+  ['Investments', 'asset', null],
+  ['Current Assets', 'asset', null],
+  ['Bank Accounts', 'asset', 'Current Assets'],
+  ['Cash-in-Hand', 'asset', 'Current Assets'],
+  ['Deposits (Asset)', 'asset', 'Current Assets'],
+  ['Loans & Advances (Asset)', 'asset', 'Current Assets'],
+  ['Stock-in-Hand', 'asset', 'Current Assets'],
+  ['Sundry Debtors', 'asset', 'Current Assets'],
+  ['Input tax credits', 'asset', 'Current Assets'],
+  ['Sales Accounts', 'income', null],
+  ['Direct Incomes', 'income', null],
+  ['Indirect Incomes', 'income', null],
+  ['Purchase Accounts', 'expense', null],
+  ['Direct Expenses', 'expense', null],
+  ['Indirect Expenses', 'expense', null],
+] as const;
 export const DEFAULT_ACCOUNTS = [
   ['tds_payable', 'TDS payable', 'Duties & Taxes', 'liability'],
-  ['tds_receivable', 'TDS receivable', 'Current Assets', 'asset'],
+  ['tds_receivable', 'TDS receivable', 'Loans & Advances (Asset)', 'asset'],
   ['tcs_payable', 'TCS payable', 'Duties & Taxes', 'liability'],
-  ['tcs_recoverable', 'TCS recoverable', 'Current Assets', 'asset'],
+  ['tcs_recoverable', 'TCS recoverable', 'Loans & Advances (Asset)', 'asset'],
   ['bank_charges', 'Bank charges', 'Indirect Expenses', 'expense'],
   ['cash', 'Cash', 'Cash-in-Hand', 'asset'],
   ['bank', 'Bank', 'Bank Accounts', 'asset'],
@@ -22,7 +55,7 @@ export const DEFAULT_ACCOUNTS = [
   ['grni', 'Goods received not invoiced', 'Current Liabilities', 'liability'],
   ['equity', 'Opening capital', 'Capital Account', 'equity'],
   ['sales', 'Sales', 'Sales Accounts', 'income'],
-  ['purchases', 'Service purchases', 'Direct Expenses', 'expense'],
+  ['purchases', 'Service purchases', 'Purchase Accounts', 'expense'],
   ['production', 'Cost of production', 'Direct Expenses', 'expense'],
   ['wip', 'Work in progress', 'Stock-in-Hand', 'asset'],
   ['overhead_absorbed', 'Manufacturing overhead absorbed', 'Direct Expenses', 'expense'],
@@ -51,7 +84,7 @@ export const DEFAULT_ACCOUNTS = [
     'liability',
   ],
   ...['cgst', 'sgst', 'igst', 'cess'].flatMap((t) => [
-    [`input_${t}`, `Input ${t.toUpperCase()}`, 'Duties & Taxes', 'asset'],
+    [`input_${t}`, `Input ${t.toUpperCase()}`, 'Input tax credits', 'asset'],
     [`output_${t}`, `Output ${t.toUpperCase()}`, 'Duties & Taxes', 'liability'],
     [
       `rcm_${t}`,
@@ -62,7 +95,7 @@ export const DEFAULT_ACCOUNTS = [
     [
       `pending_${t}`,
       `RCM credit pending ${t.toUpperCase()}`,
-      'Current Assets',
+      'Input tax credits',
       'asset',
     ],
   ]),
@@ -75,23 +108,28 @@ export async function seedChart(
   onlyRoles?: readonly string[],
 ) {
   const scope = { tenantId: ctx.tenant.tenantId, entityId };
+  const groupIds = new Map(
+    (await tx.select().from(accountGroup).where(eq(accountGroup.entityId, entityId))).map((g) => [g.key, g.id]),
+  );
+  const groupId = async (name: string, root: string, parentId: string | null) => {
+    const key = `${name}:${root}`;
+    if (!groupIds.has(key)) {
+      // A new group gets its standard parent; an existing one keeps wherever people moved it.
+      await tx.insert(accountGroup).values({ ...scope, key, name, root, parentId }).onConflictDoNothing();
+      const [g] = await tx
+        .select()
+        .from(accountGroup)
+        .where(and(eq(accountGroup.key, key), eq(accountGroup.entityId, entityId)));
+      if (!g) throw new Error('Account group seed failed');
+      groupIds.set(key, g.id);
+    }
+    return groupIds.get(key)!;
+  };
+  for (const [name, root, parent] of STANDARD_GROUPS)
+    await groupId(name, root, parent ? await groupId(parent, root, null) : null);
   for (const [key, name, group, root] of DEFAULT_ACCOUNTS) {
     if (onlyRoles && !onlyRoles.includes(key)) continue;
-    const groupKey = `${group}:${root}`;
-    await tx
-      .insert(accountGroup)
-      .values({ ...scope, key: groupKey, name: group, root })
-      .onConflictDoNothing();
-    const [g] = await tx
-      .select()
-      .from(accountGroup)
-      .where(
-        and(
-          eq(accountGroup.key, groupKey),
-          eq(accountGroup.entityId, entityId),
-        ),
-      );
-    if (!g) throw new Error('Account group seed failed');
+    const g = { id: await groupId(group, root, null) };
     await tx
       .insert(account)
       .values({

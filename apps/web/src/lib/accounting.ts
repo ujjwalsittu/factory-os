@@ -18,6 +18,8 @@ export interface AccountingSettings {
   activatedAt: string | null;
   openingVoucherId: string | null;
   mappings: Record<string, string>;
+  /** The classification (asset, liability, equity, income or expense) each posting role needs. */
+  roleRoots: Record<string, string>;
 }
 export interface JournalLine {
   accountId: string;
