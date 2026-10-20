@@ -20,6 +20,7 @@ import { useOurGstins } from './purchase-order-form';
 import { TaxSummary } from './tax-summary';
 import { useWorkspace } from './workspace';
 import { LookupSelect } from '@/components/lookup-select';
+import { useFiledReturnGuard } from './filed-return';
 
 interface DraftLine {
   key: string;
@@ -74,6 +75,7 @@ const fromPo = (po: PurchaseOrderDetail): DraftLine[] =>
 
 export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseInvoiceDetail; fromPoId?: string }) {
   const ws = useWorkspace();
+  const guard = useFiledReturnGuard();
   const router = useRouter();
   const qc = useQueryClient();
   const editable = !invoice || invoice.status === 'draft';
@@ -247,11 +249,13 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
         window.history.replaceState(null, '', `/app/buying/invoices/${id}`);
       }
       if (mode !== 'draft')
-        await api(`/purchase-invoices/${id}/submit`, {
-          method: 'POST',
-          body: { acceptRateVariance: mode === 'accept' },
-          scope: ws.scope,
-        });
+        await guard((extra) =>
+          api(`/purchase-invoices/${id}/submit`, {
+            method: 'POST',
+            body: { acceptRateVariance: mode === 'accept', ...extra },
+            scope: ws.scope,
+          }),
+        );
       return id;
     },
     onSuccess: (id, mode) => {
@@ -654,15 +658,20 @@ export function PurchaseInvoiceForm({ invoice, fromPoId }: { invoice?: PurchaseI
 
 function CancelDialog({ invoice, onClose }: { invoice: PurchaseInvoiceDetail; onClose: () => void }) {
   const ws = useWorkspace();
+  const guard = useFiledReturnGuard();
   const qc = useQueryClient();
   const [reason, setReason] = useState('');
   const m = useMutation({
     mutationFn: () =>
-      api(`/purchase-invoices/${invoice.id}/cancel`, {
-        method: 'POST',
-        body: { reason },
-        scope: ws.scope,
-      }),
+      guard(
+        (extra) =>
+          api(`/purchase-invoices/${invoice.id}/cancel`, {
+            method: 'POST',
+            body: { reason, ...extra },
+            scope: ws.scope,
+          }),
+        reason,
+      ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['purchase-invoice', invoice.id] });
       void qc.invalidateQueries({ queryKey: ['invoice-balance', ws.tenantId, ws.entityId, 'purchase', invoice.id] });

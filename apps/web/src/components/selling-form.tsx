@@ -39,6 +39,7 @@ import { useOurGstins } from './purchase-order-form';
 import { TaxSummary } from './tax-summary';
 import { useWorkspace } from './workspace';
 import { LookupSelect } from '@/components/lookup-select';
+import { useFiledReturnGuard } from './filed-return';
 
 interface DraftLine {
   key: string;
@@ -77,6 +78,7 @@ export function SellingForm({
   doc?: SellingDocument;
   sourceOrder?: SellingDocument;
 }) {
+  const guard = useFiledReturnGuard();
   const ws = useWorkspace(),
     router = useRouter(),
     qc = useQueryClient(),
@@ -285,11 +287,13 @@ export function SellingForm({
         // Reviewers can submit an unchanged draft without editing it. The API
         // validates submission and credit override permissions independently.
         setError(null);
-        await api(`/${config.endpoint}/${doc.id}/submit`, {
-          method: 'POST',
-          body: { acceptCreditWarning: override },
-          scope: ws.scope,
-        });
+        await guard((extra) =>
+          api(`/${config.endpoint}/${doc.id}/submit`, {
+            method: 'POST',
+            body: { acceptCreditWarning: override, ...extra },
+            scope: ws.scope,
+          }),
+        );
         return { id: doc.id, automatic };
       }
       if (!valid)
@@ -320,11 +324,13 @@ export function SellingForm({
         lastSaved.current = payload;
         setSavedPayload(payload);
         if (submit)
-          await api(`/${config.endpoint}/${id}/submit`, {
-            method: 'POST',
-            body: { acceptCreditWarning: override },
-            scope: ws.scope,
-          });
+          await guard((extra) =>
+            api(`/${config.endpoint}/${id}/submit`, {
+              method: 'POST',
+              body: { acceptCreditWarning: override, ...extra },
+              scope: ws.scope,
+            }),
+          );
         return { id, automatic };
       } catch (e) {
         failedPayload.current = payload;
@@ -1066,6 +1072,7 @@ function SellingAction({
   action: 'cancel' | 'close' | 'delete';
   onClose: () => void;
 }) {
+  const guard = useFiledReturnGuard();
   const ws = useWorkspace(),
     qc = useQueryClient(),
     router = useRouter(),
@@ -1079,13 +1086,17 @@ function SellingAction({
         : `Cancel ${config.singular}`;
   const m = useMutation({
     mutationFn: () =>
-      api(
-        `/${config.endpoint}/${id}${action === 'delete' ? '' : `/${action}`}`,
-        {
-          method: action === 'delete' ? 'DELETE' : 'POST',
-          body: action === 'delete' ? undefined : { reason },
-          scope: ws.scope,
-        },
+      guard(
+        (extra) =>
+          api(
+            `/${config.endpoint}/${id}${action === 'delete' ? '' : `/${action}`}`,
+            {
+              method: action === 'delete' ? 'DELETE' : 'POST',
+              body: action === 'delete' ? undefined : { reason, ...extra },
+              scope: ws.scope,
+            },
+          ),
+        reason,
       ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['selling'] });

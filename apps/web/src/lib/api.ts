@@ -5,6 +5,8 @@ export class ApiError extends Error {
     public status: number,
     message: string,
     public issues: { path: string; message: string }[] = [],
+    /** A machine-readable reason the API gave, such as `gst_return_filed`. */
+    public code?: string,
   ) {
     super(message);
   }
@@ -35,7 +37,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) {
     const msg = typeof data?.message === 'string' ? data.message : Array.isArray(data?.message) ? data.message.join(', ') : res.statusText;
-    throw new ApiError(res.status, msg, data?.issues ?? []);
+    throw new ApiError(res.status, msg, data?.issues ?? [], typeof data?.code === 'string' ? data.code : undefined);
   }
   return data as T;
 }

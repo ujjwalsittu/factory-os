@@ -1,5 +1,5 @@
 'use client';
-import { Button, Card, CardHeader, DateInput, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
+import { Alert, Button, Card, CardHeader, DateInput, EmptyState, Field, Input, PageHeader, Select, Table, Td, Th, Tr } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
@@ -7,6 +7,7 @@ import { HsnDialog, UomDialog } from '@/components/master-dialogs';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/format';
+import { UQC_CODES } from '@/lib/gst-returns';
 import type { HsnCode, Uom } from '@/lib/types';
 
 const GST_RATES = ['0', '0.1', '0.25', '1.5', '3', '5', '6', '7.5', '12', '18', '28', '40'];
@@ -16,12 +17,18 @@ export default function UnitsPage() {
   const uoms = useQuery({ queryKey: ['uoms', ws.tenantId], queryFn: () => api<Uom[]>('/uoms', { scope: ws.scope }) });
   const hsn = useQuery({ queryKey: ['hsn', ws.tenantId], queryFn: () => api<HsnCode[]>('/hsn-codes', { scope: ws.scope }), enabled: ws.can('masters.hsn.read') });
   const [dialog, setDialog] = useState<'uom' | 'hsn' | null>(null);
+  const qc = useQueryClient();
+  const uqc = useMutation({
+    mutationFn: ({ id, gstUqc }: { id: string; gstUqc: string | null }) => api(`/uoms/${id}`, { method: 'PATCH', body: { gstUqc }, scope: ws.scope }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['uoms'] }),
+  });
 
   return (
     <>
       <PageHeader title="Units & HSN/SAC" description="Units of measure and the GST rate for each HSN (goods) or SAC (services) code, with effective dates." />
       <div className="grid gap-6 lg:grid-cols-[1fr_1.6fr]">
         <Card>
+          {uqc.error && <Alert tone="danger" className="m-4">{uqc.error.message}</Alert>}
           <CardHeader
             title="Units of measure"
             actions={
@@ -38,6 +45,7 @@ export default function UnitsPage() {
                 <Th>Code</Th>
                 <Th>Name</Th>
                 <Th className="text-right">Decimals</Th>
+                <Th>GST code</Th>
               </tr>
             </thead>
             <tbody>
@@ -46,6 +54,20 @@ export default function UnitsPage() {
                   <Td className="font-mono text-[13px] font-medium">{u.code}</Td>
                   <Td>{u.name}</Td>
                   <Td className="tabular text-right">{u.decimals}</Td>
+                  <Td>
+                    {ws.can('masters.uom.update') ? (
+                      <Select aria-label={`GST unit code for ${u.code}`} value={u.gstUqc ?? ''} disabled={uqc.isPending} onChange={(e) => uqc.mutate({ id: u.id, gstUqc: e.target.value || null })}>
+                        <option value="">Not set</option>
+                        {UQC_CODES.map(([c, label]) => (
+                          <option key={c} value={c}>
+                            {c} · {label}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : (
+                      <span className="font-mono text-[13px]">{u.gstUqc ?? '—'}</span>
+                    )}
+                  </Td>
                 </Tr>
               ))}
             </tbody>

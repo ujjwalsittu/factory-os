@@ -20,6 +20,8 @@ export const uom = pgTable(
     name: text('name').notNull(),
     /** Allowed decimal places for quantities in this unit (Nos = 0, kg = 3). */
     decimals: integer('decimals').notNull().default(3),
+    /** GST unit quantity code for the HSN summary (NOS, KGS, MTR…); decision 074. */
+    gstUqc: text('gst_uqc'),
     ...timestamps,
   },
   (t) => [uniqueIndex('uom_tenant_code_uq').on(t.tenantId, t.code)],

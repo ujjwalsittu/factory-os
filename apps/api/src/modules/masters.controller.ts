@@ -19,6 +19,8 @@ const uomInput = z.object({
   code: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{1,8}$/, '1–8 letters or digits'),
   name: z.string().trim().min(1).max(60),
   decimals: z.number().int().min(0).max(6),
+  /** The unit's GST Unit Quantity Code for the HSN summary of GSTR-1 (decision 074). */
+  gstUqc: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Three letters, e.g. NOS or KGS').nullable().optional(),
 });
 
 const hsnInput = z.object({
@@ -140,6 +142,20 @@ export class MastersController {
   async createUom(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
     const input = parse(uomInput, body);
     return this.insertAudited(ctx, 'uom', (tx) => tx.insert(uom).values({ ...input, tenantId: ctx.tenant.tenantId }).onConflictDoNothing().returning(), 'A unit with this code exists');
+  }
+
+  /** Only the GST code changes on an existing unit; code and decimals stay as stock was recorded in them. */
+  @Patch('uoms/:id')
+  @RequirePermission('masters.uom.update')
+  async updateUom(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const { gstUqc } = parse(uomInput.pick({ gstUqc: true }).strict(), body);
+    return this.db.transaction(async (tx) => {
+      const [before] = await tx.select().from(uom).where(and(eq(uom.id, id), eq(uom.tenantId, ctx.tenant.tenantId))).for('update');
+      if (!before) throw new NotFoundException('Unit not found');
+      const [after] = await tx.update(uom).set({ gstUqc: gstUqc ?? null }).where(eq(uom.id, id)).returning();
+      await this.audit.record(ctx, { tenantId: ctx.tenant.tenantId, action: 'uom.update', targetType: 'uom', targetId: id, before, after }, tx);
+      return after;
+    });
   }
 
   // ---- HSN / SAC ----

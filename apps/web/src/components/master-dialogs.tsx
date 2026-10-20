@@ -19,6 +19,7 @@ import { WAREHOUSE_TYPE_LABELS } from "@/lib/format";
 import { fieldErrors, FormDialog } from "./form-dialog";
 import { HsnAdd, LookupSelect } from "./lookup-select";
 import { useWorkspace } from "./workspace";
+import { UQC_CODES } from "@/lib/gst-returns";
 
 // One form per master record. The master pages and the "Add new" dialogs on every other screen use these.
 
@@ -794,12 +795,13 @@ export function UomDialog({
     code: prefill?.code?.toUpperCase().slice(0, 12) ?? "",
     name: "",
     decimals: "0",
+    gstUqc: "",
   });
   const m = useMutation({
     mutationFn: () =>
       api<Uom>("/uoms", {
         method: "POST",
-        body: { ...f, decimals: Number(f.decimals) },
+        body: { ...f, decimals: Number(f.decimals), gstUqc: f.gstUqc || null },
         scope: ws.scope,
       }),
     onSuccess: (r) => (
@@ -865,6 +867,22 @@ export function UomDialog({
             >
               {[0, 1, 2, 3, 4, 5, 6].map((d) => (
                 <option key={d}>{d}</option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <Field label="GST unit code" error={e.gstUqc} hint="For the HSN summary in GSTR-1." className="sm:col-span-3">
+          {(p) => (
+            <Select
+              {...p}
+              value={f.gstUqc}
+              onChange={(ev) => setF({ ...f, gstUqc: ev.target.value })}
+            >
+              <option value="">Not set</option>
+              {UQC_CODES.map(([c, label]) => (
+                <option key={c} value={c}>
+                  {c} · {label}
+                </option>
               ))}
             </Select>
           )}
