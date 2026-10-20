@@ -72,10 +72,20 @@ Build of the first of three PRs in the [design](../specs/2026-10-20-tally-import
   - a conflict blocks Import until decided, then Import;
   - re-uploading proposes nothing new;
   - no sideways scroll.
-- **Regression.** RESULTS
+- **Regression**, run locally against the built API and web app (`node --env-file=.env apps/api/scripts/<smoke>` and
+  `node e2e/<name>.mjs` from `apps/web`):
+  - 13 of 13 API smokes passed: tally, chart, accounting, accounting operations, settlements, bank charges, asset
+    items, records, home, preferences, buying, selling and inventory.
+  - 10 of 10 browser walkthroughs passed: tally, chart, accounting, walkthrough, selling, buying, records,
+    create-from-lists, menu-home and inventory.
+  - The UI audit covered 196 page views of 98 pages and found no layout problems. Its add-new guard flagged the Tally
+    link-target lists in `lib/tally.ts`. These lists pick an existing record to link to, and creating a new one is
+    the row's own Create action, so they are now allowed by name in `e2e/add-new-allow.json`. The guard passes.
+  - After the review fixes (upload and zip limits, unit codes, the GSTIN lock, negative stock, the preview's page
+    clamp), the core tests (168), `smoke-tally` and `e2e/tally` were run again on the rebuilt code, and all passed.
 
 ## Not in this PR
 
 - Opening balances and stock (PR 2), and voucher history and the history screens (PR 3).
 - **Real Tally export.** The fixtures are hand-written to Tally's schema. One real export from the user's Tally is
-  still needed before merging, to check the parser against their release.
+  still needed, to check the parser against their release before PR 2 builds on it.

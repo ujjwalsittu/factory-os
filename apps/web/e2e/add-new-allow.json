@@ -22,5 +22,10 @@
   "components/bank-reconciliation/workspace.tsx#account": "chooses which bank to reconcile (a selector, not a saved reference)",
   "app/app/masters/items/[id]/page.tsx#item": "a record page: reads one item and its overview",
   "app/app/masters/items/[id]/page.tsx#uom": "shows the unit code of one item",
-  "app/app/masters/parties/[id]/page.tsx#party": "a record page: reads one party and its overview"
+  "app/app/masters/parties/[id]/page.tsx#party": "a record page: reads one party and its overview",
+  "lib/tally.ts#party": "Tally import: picks an existing record to link a Tally master to; creating one is the row's Create action",
+  "lib/tally.ts#item": "Tally import: picks an existing record to link a Tally master to; creating one is the row's Create action",
+  "lib/tally.ts#warehouse": "Tally import: picks an existing record to link a Tally master to; creating one is the row's Create action",
+  "lib/tally.ts#uom": "Tally import: picks an existing record to link a Tally master to; creating one is the row's Create action",
+  "lib/tally.ts#account": "Tally import: picks an existing record to link a Tally master to; creating one is the row's Create action"
 }
