@@ -27,5 +27,6 @@
   "lib/tally.ts#item": "Tally import: picks an existing record to link a Tally master to; creating one is the row's Create action",
   "lib/tally.ts#warehouse": "Tally import: picks an existing record to link a Tally master to; creating one is the row's Create action",
   "lib/tally.ts#uom": "Tally import: picks an existing record to link a Tally master to; creating one is the row's Create action",
-  "lib/tally.ts#account": "Tally import: picks an existing record to link a Tally master to; creating one is the row's Create action"
+  "lib/tally.ts#account": "Tally import: picks an existing record to link a Tally master to; creating one is the row's Create action",
+  "app/app/buying/orders/new/page.tsx#item": "hand-off (decision 068): fetches the one item named in the link to prefill the first line; the line's item picker has add-new"
 }

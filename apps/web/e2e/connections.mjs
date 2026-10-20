@@ -87,7 +87,8 @@ try {
   step('"Record receipt" opens with the customer chosen');
   await page.goto(`${B}/app/accounts/settlements/new?direction=receipt&party=${customer.id}`);
   const select = L('Customer');
-  await select.waitFor();
+  // The customer list loads after the page; the choice is checked once its option is there.
+  await select.locator(`option[value="${customer.id}"]`).waitFor({ state: 'attached' });
   expect((await select.inputValue()) === customer.id, 'the customer is preselected');
   console.log('  ✓ the receipt opens for that customer');
 

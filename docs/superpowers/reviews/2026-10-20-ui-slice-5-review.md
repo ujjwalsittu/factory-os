@@ -60,7 +60,12 @@ built to the [plan](../plans/2026-10-20-ui-slice-5-connections-handoffs.md). No 
   - "Record receipt" opens with the customer chosen;
   - no sideways scroll.
 - **`pnpm typecheck` and `pnpm build`** pass.
-- **Regression:** see the PR.
+- **Regression** (local, after the merge, against the built API and web):
+  - 14 of 14 API smokes and 11 of 11 browser walkthroughs passed.
+  - The UI audit passed: 200 page views of 100 pages.
+  - Two problems were found and fixed in the follow-up:
+    - the walkthrough read the preselected customer before the list had loaded;
+    - the add-new guard needed the purchase order page's single-item prefill fetch allowed by name.
 
 ## Not in this slice
 
