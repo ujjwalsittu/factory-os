@@ -6,18 +6,18 @@ type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 type Db = Database | Tx;
 
 /** Units every manufacturer needs on day one. Tenants can add more. */
-export const DEFAULT_UOMS: { code: string; name: string; decimals: number }[] = [
-  { code: 'NOS', name: 'Numbers', decimals: 0 },
-  { code: 'SET', name: 'Set', decimals: 0 },
-  { code: 'BOX', name: 'Box', decimals: 0 },
+export const DEFAULT_UOMS: { code: string; name: string; decimals: number; gstUqc?: string }[] = [
+  { code: 'NOS', name: 'Numbers', decimals: 0, gstUqc: 'NOS' },
+  { code: 'SET', name: 'Set', decimals: 0, gstUqc: 'SET' },
+  { code: 'BOX', name: 'Box', decimals: 0, gstUqc: 'BOX' },
   { code: 'REEL', name: 'Reel', decimals: 0 },
-  { code: 'KG', name: 'Kilogram', decimals: 3 },
-  { code: 'G', name: 'Gram', decimals: 3 },
-  { code: 'M', name: 'Metre', decimals: 3 },
+  { code: 'KG', name: 'Kilogram', decimals: 3, gstUqc: 'KGS' },
+  { code: 'G', name: 'Gram', decimals: 3, gstUqc: 'GMS' },
+  { code: 'M', name: 'Metre', decimals: 3, gstUqc: 'MTR' },
   { code: 'MM', name: 'Millimetre', decimals: 1 },
-  { code: 'L', name: 'Litre', decimals: 3 },
-  { code: 'ML', name: 'Millilitre', decimals: 1 },
-  { code: 'SQM', name: 'Square metre', decimals: 3 },
+  { code: 'L', name: 'Litre', decimals: 3, gstUqc: 'LTR' },
+  { code: 'ML', name: 'Millilitre', decimals: 1, gstUqc: 'MLT' },
+  { code: 'SQM', name: 'Square metre', decimals: 3, gstUqc: 'SQM' },
   { code: 'HR', name: 'Hour', decimals: 2 },
   { code: 'DAY', name: 'Day', decimals: 2 },
 ];
