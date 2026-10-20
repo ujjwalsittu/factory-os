@@ -3,7 +3,8 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import type { AuditService } from '../../common/audit.service.js';
-import type { Db } from '../accounting/accounting-lock.js';
+import { lockAccounting, type Db } from '../accounting/accounting-lock.js';
+import { refreshOpenImports } from './tally-documents.js';
 
 /**
  * Decision 075: each month of an entity is kept in one book, FactoryOS (the default) or Tally. A Tally month's
@@ -64,6 +65,8 @@ async function documentsIn(db: Db, entityId: string, month: string, source: Book
 
 export async function setBook(db: Database, ctx: TenantRequestContext, entityId: string, audit: AuditService, month: string, book: Book) {
   return db.transaction(async (tx) => {
+    // The accounting lock serialises this with invoice and note submits, which check the book under the same lock.
+    await lockAccounting(tx, entityId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`tally-books:${entityId}`}))`);
     const [settings] = await tx.select({ cutoverDate: accountingSettings.cutoverDate }).from(accountingSettings).where(eq(accountingSettings.entityId, entityId));
     if (book === 'tally') {
@@ -81,6 +84,8 @@ export async function setBook(db: Database, ctx: TenantRequestContext, entityId:
       .values({ tenantId: ctx.tenant.tenantId, entityId, month, source: book, setBy: ctx.user.id })
       .onConflictDoUpdate({ target: [tallyBookMonth.entityId, tallyBookMonth.month], set: { source: book, setBy: ctx.user.id, setAt: new Date() } });
     await audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'accounts.tally.book', targetType: 'tally_book_month', targetId: null, after: { month, book } }, tx);
+    // Open imports were staged against the old book.
+    await refreshOpenImports(tx, ctx.tenant.tenantId, entityId);
     return { month, book };
   });
 }

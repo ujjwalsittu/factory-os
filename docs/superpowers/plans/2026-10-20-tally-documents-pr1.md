@@ -25,7 +25,7 @@ clash with a FactoryOS document means a real duplicate, and it is shown as a con
 ## Tasks
 
 **T1 · Core (`packages/core/src/tally-documents.ts`), pure and tested.**
-- `voucherDocument(voucher, typeMap, links)` returns a document draft, or the reasons it cannot be made:
+- `tallyDocument(v, kind, links)` returns a document draft, or the reasons it cannot be made:
   - **Kind:** from the type map. Tally's base types are preset: Sales → sales invoice, Purchase → purchase invoice,
     Credit Note → customer credit note, Debit Note → supplier debit note.
   - **Lines in invoice mode:** item, quantity, rate and amount, with the godown taken from the batch allocations.
@@ -41,8 +41,8 @@ clash with a FactoryOS document means a real duplicate, and it is shown as a con
 - `tally_book_month`: entity, month (`yyyy-mm`), source (`tally` or `factoryos`), who and when.
 - `tally_voucher_type_map`: entity, Tally voucher type, document kind.
 - `tally_voucher.document_kind` and `document_id`.
-- `source` and `tally_guid` on `sales_invoice`, `purchase_invoice`, `sales_note` and `supplier_note`, with an index
-  on (entity, `tally_guid`).
+- `source` and `tally_guid` on `sales_invoice`, `purchase_invoice`, `sales_note` and `supplier_note`; a unique index
+  on (entity, `tally_guid`) for live sales and purchase invoices. Notes are kept unique by their number checks.
 - A `tax_difference` json on the same four tables.
 
 **T3 · API: books by month and the guard.**
@@ -77,7 +77,7 @@ clash with a FactoryOS document means a real duplicate, and it is shown as a con
   - a Tally month creates documents;
   - stock and the trial balance move by Tally's amounts;
   - FactoryOS entry is refused in that month;
-  - a newer ALTERID cancels and recreates;
+  - a newer ALTERID is a conflict (reversal and recreation come in PR 2, decision 075a);
   - a FactoryOS month keeps history only;
   - months before the cut-over are refused;
   - a duplicate number is a conflict;

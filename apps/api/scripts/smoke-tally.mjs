@@ -291,6 +291,19 @@ await c.req('PUT', '/tally/mappings/ledgers', { ledger: 'Machining Charges', ite
 serviceRow = (await rows(c, docImport.id, '&kind=document')).find((r) => r.name === 'Sales invoice TS/0002');
 assert.equal(serviceRow.proposed, 'new');
 assert.equal((await c.req('GET', '/tally/mappings')).ledgers[0].itemCode, 'SVC-MACH');
+// A skip on a document survives a re-check; a document needs its voucher kept as history.
+const creditRow = (await rows(c, docImport.id, '&kind=document')).find((r) => r.name === 'Customer credit note TCN/0001');
+await c.req('PUT', `/tally/imports/${docImport.id}/rows`, { decisions: [{ id: creditRow.id, action: 'skip' }] });
+await c.req('POST', `/tally/imports/${docImport.id}/recheck`, {}, 201);
+const creditAgain = (await rows(c, docImport.id, '&kind=document')).find((r) => r.name === 'Customer credit note TCN/0001');
+assert.equal(creditAgain.action, 'skip', 'a re-check keeps the person’s skip');
+await c.req('PUT', `/tally/imports/${docImport.id}/rows`, { decisions: [{ id: creditAgain.id, action: 'new' }] });
+const saleVoucher = (await rows(c, docImport.id, '&kind=voucher')).find((r) => r.guid === 'doc-sale-1');
+await c.req('PUT', `/tally/imports/${docImport.id}/rows`, { decisions: [{ id: saleVoucher.id, action: 'skip' }] });
+const unlinked = await c.raw('POST', `/tally/imports/${docImport.id}/commit`, {});
+assert.equal(unlinked.status, 400);
+assert.match(unlinked.data.message, /keep the voucher in Tally history/);
+await c.req('PUT', `/tally/imports/${docImport.id}/rows`, { decisions: [{ id: saleVoucher.id, action: 'new' }] });
 await c.req('POST', `/tally/imports/${docImport.id}/commit`, {}, 201);
 const sales = await c.req('GET', '/sales-invoices');
 const tallySale = (sales.data ?? sales).find((i) => i.number === 'TS/0001');

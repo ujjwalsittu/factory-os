@@ -32,6 +32,7 @@ import type { AuditService } from '../../common/audit.service.js';
 import type { Db, Tx } from '../accounting/accounting-lock.js';
 import type { OperationalPostings } from '../accounting/operational-postings.js';
 import type { StockPostingService } from '../stock-posting.service.js';
+import { bookOf } from './tally-books.js';
 import { voucherLabel } from './tally-vouchers.js';
 
 /**
@@ -263,6 +264,11 @@ export async function writeDocuments(tx: Tx, ctx: TenantRequestContext, entityId
     const v = vouchers.get(row.guid!);
     const kind = (row.payload as { documentKind: TallyDocumentKind }).documentKind;
     if (!v) continue;
+    // The book may have changed since the upload; it is read again under the commit's accounting lock.
+    if (!v.date || (await bookOf(tx, entityId, v.date)) !== 'tally') {
+      problems.push(`${voucherLabel(v)}: ${v.date?.slice(0, 7) ?? 'its month'} is no longer kept in Tally. Choose Check again.`);
+      continue;
+    }
     const res = tallyDocument(v, kind, links);
     if (res.problems) problems.push(...res.problems.map((p) => `${voucherLabel(v)}: ${p}`));
     else drafts.push({ row, v, draft: res.draft });
@@ -284,7 +290,13 @@ export async function writeDocuments(tx: Tx, ctx: TenantRequestContext, entityId
             ? await salesNoteFrom(tx, ctx, entityId, reg, v, draft, r, s)
             : await supplierNoteFrom(tx, ctx, entityId, reg, v, draft, r, s);
     results.set(row.id, id);
-    await tx.update(tallyVoucher).set({ documentKind: draft.kind, documentId: id }).where(and(eq(tallyVoucher.entityId, entityId), eq(tallyVoucher.guid, v.guid!)));
+    // Re-sync finds the document through its history row, so a document needs its voucher kept as history.
+    const linked = await tx
+      .update(tallyVoucher)
+      .set({ documentKind: draft.kind, documentId: id })
+      .where(and(eq(tallyVoucher.entityId, entityId), eq(tallyVoucher.guid, v.guid!)))
+      .returning({ id: tallyVoucher.id });
+    if (!linked.length) throw new BadRequestException(`${voucherLabel(v)}: keep the voucher in Tally history to bring it in as a document, or skip the document too.`);
     created++;
   }
   await s.audit.record(ctx, { tenantId: ctx.tenant.tenantId, entityId, action: 'accounts.tally.documents', targetType: 'tally_import', targetId: importId, after: { created } }, tx);
@@ -489,14 +501,22 @@ async function purchaseInvoiceFrom(tx: Tx, ctx: TenantRequestContext, entityId: 
  * The voucher rows and the person's other decisions are kept.
  */
 export async function refreshDocuments(tx: Db, tenantId: string, entityId: string, importId: string) {
-  const staged = await tx.select({ kind: tallyStaged.kind, payload: tallyStaged.payload, ordinal: tallyStaged.ordinal }).from(tallyStaged).where(eq(tallyStaged.importId, importId));
+  // Never under a commit: the import row is locked and must still be open.
+  const [imp] = await tx.select({ status: tallyImport.status }).from(tallyImport).where(and(eq(tallyImport.id, importId), eq(tallyImport.entityId, entityId))).for('update');
+  if (imp?.status !== 'read') return;
+  const staged = await tx
+    .select({ kind: tallyStaged.kind, guid: tallyStaged.guid, payload: tallyStaged.payload, ordinal: tallyStaged.ordinal, proposed: tallyStaged.proposed, action: tallyStaged.action })
+    .from(tallyStaged)
+    .where(eq(tallyStaged.importId, importId));
+  // A document the person skipped stays skipped while what was proposed for it is the same.
+  const skipped = new Set(staged.filter((r) => r.kind === 'document' && r.action === 'skip' && r.proposed !== 'skip').map((r) => `${r.guid}:${r.proposed}`));
   const vouchers = staged.filter((r) => r.kind === 'voucher').map((r) => r.payload as unknown as TallyVoucher);
   const withMasters = staged.some((r) => !['voucher', 'document', 'opening', 'stock'].includes(r.kind));
   const next = staged.reduce((m, r) => Math.max(m, r.ordinal), -1) + 1;
   await tx.delete(tallyStaged).where(and(eq(tallyStaged.importId, importId), eq(tallyStaged.kind, 'document')));
   const docs = await stageDocuments(tx, tenantId, entityId, vouchers, withMasters);
   for (let i = 0; i < docs.length; i += 500)
-    await tx.insert(tallyStaged).values(docs.slice(i, i + 500).map((d, j) => ({ ...d, tenantId, entityId, importId, ordinal: next + i + j, action: d.proposed })));
+    await tx.insert(tallyStaged).values(docs.slice(i, i + 500).map((d, j) => ({ ...d, tenantId, entityId, importId, ordinal: next + i + j, action: skipped.has(`${d.guid}:${d.proposed}`) ? 'skip' : d.proposed })));
   const counts: Record<string, number> = {};
   for (const r of await tx
     .select({ kind: tallyStaged.kind, proposed: tallyStaged.proposed, n: sql<number>`count(*)::int` })
@@ -507,8 +527,8 @@ export async function refreshDocuments(tx: Db, tenantId: string, entityId: strin
   await tx.update(tallyImport).set({ counts }).where(eq(tallyImport.id, importId));
 }
 
-/** Refreshes every open import of the entity; a mapping applies to all of them. */
-async function refreshOpenImports(tx: Db, tenantId: string, entityId: string) {
+/** Refreshes every open import of the entity; a mapping or a month's book applies to all of them. */
+export async function refreshOpenImports(tx: Db, tenantId: string, entityId: string) {
   for (const imp of await tx.select({ id: tallyImport.id }).from(tallyImport).where(and(eq(tallyImport.entityId, entityId), eq(tallyImport.status, 'read'))))
     await refreshDocuments(tx, tenantId, entityId, imp.id);
 }
