@@ -1,0 +1,139 @@
+# Tally import and re-sync from XML exports — design (decision 072)
+
+The user asked on 2026-10-20 to import their Tally data, sync all of it, avoid duplicates and handle it carefully.
+Decisions 008 and 019 already approve a Tally import and ongoing sync; [doc 12](../../12-tally.md) describes it. The
+user chose:
+
+- **Input:** TallyPrime's XML export files, uploaded in FactoryOS. A Tally backup (the company data folder, `.tbk` or
+  `.zip`) is a proprietary binary format and cannot be read reliably, so it is not an input.
+- **Scope:** masters, opening balances, historical vouchers, and re-sync from later exports.
+- **Duplicates:** match first, show a dry-run preview, write nothing until the user confirms. A matched record is
+  linked, never copied.
+
+The live connection to Tally's XML server through the edge agent (doc 12 §1) is not in this design. It can feed the
+same import engine later.
+
+## What the user exports from Tally
+
+TallyPrime: **Export → Masters** (All Masters) and **Export → Transactions → Day Book** for the period wanted. In
+both, choose format **XML (Data Interchange)**. The user uploads the files, or a `.zip` of them, into **Accounts →
+Tally import**. A help panel on that page shows these steps.
+
+Tally writes XML as UTF-16 or UTF-8, with an `ENVELOPE` of `TALLYMESSAGE` elements. Each element is one master
+(`GROUP`, `LEDGER`, `STOCKGROUP`, `STOCKITEM`, `UNIT`, `GODOWN`, `VOUCHERTYPE`) or one `VOUCHER`. Every object carries
+a stable `GUID`, plus an `ALTERID` that grows each time the object is edited.
+
+## How an import runs
+
+1. **Upload.** Files go to the existing storage service. One import belongs to one legal entity (the active one).
+2. **Read.** A streaming parser (no full-file DOM, so a few hundred MB fits in memory) reads each object into a
+   staging row. Rules:
+   - amounts are kept as exact decimal strings;
+   - Tally's sign (negative is debit) is turned into a debit/credit side;
+   - dates are `YYYYMMDD`.
+   Anything the parser does not understand is listed as a warning and never dropped silently.
+3. **Match.** Every staged object gets one proposed action: **new**, **link** (an existing FactoryOS record), **update**
+   (linked before, with a newer `ALTERID`), **unchanged** (same `ALTERID` as last time) or **conflict** (needs a
+   choice). Matching is tried in this order:
+   1. The Tally GUID already linked to a FactoryOS record from an earlier import. This makes re-sync idempotent.
+   2. For parties: the GSTIN, then the PAN.
+   3. An exact name match, ignoring case and extra spaces. For ledgers and items, the code or alias is tried too.
+
+   More than one candidate, or a match whose classification differs (for example a Tally asset ledger against a
+   FactoryOS expense ledger), is a **conflict**.
+4. **Preview.** The dry run, with nothing written yet:
+   - tabs for Masters, Opening balances and History, each listing counts by action;
+   - every conflict with its candidates;
+   - a reconciliation: the Tally trial balance against the opening worksheet, party totals against bill-wise
+     outstanding, and stock value by godown.
+
+   The user can change any proposed action (link to another record, create new, or skip), one by one or in bulk.
+5. **Commit.** One database transaction, under the entity's accounting lock. Either all of it is written or none.
+   The import records who committed it and when, and every link it made.
+
+Re-importing a newer export repeats the same steps. Linked records with a higher `ALTERID` show as **update**,
+unchanged ones are skipped, and new ones are added. Records missing from a newer export are never deleted; they are
+listed as "not in this export" for the user to review.
+
+## What each Tally object becomes
+
+| Tally | FactoryOS | Notes |
+|---|---|---|
+| Company, GSTIN, state | checked against the legal entity and GST registration | A mismatch is a warning on the preview |
+| Group | account group | Tally's reserved groups map to the standard tree (decision 071) by name and parent. Custom groups are created under their parent |
+| Ledger under Sundry Debtors or Creditors | party (customer or supplier), with GSTIN, PAN, state, address, credit days | Parties share one control ledger with a bill-wise sub-ledger (decision 036), so no GL ledger is created per party |
+| Bank, cash and other ledgers | GL ledger in the matched group | |
+| GST and TDS ledgers (Duties & Taxes) | matched to the posting-role ledgers by tax type and side | Tally often uses one CGST ledger for input and output. The preview asks which FactoryOS ledger takes its opening balance |
+| Stock group, unit, godown | item category, unit, warehouse | |
+| Stock item | item, with HSN, GST rate, unit and batch tracking | |
+| Ledger opening balances and bill-wise details | opening worksheet lines and outstanding bills | Only while accounting is not yet active. The existing cut-over reconciliation still has to pass before activation |
+| Item opening stock by godown and batch | an opening stock entry per godown, saved as draft | Pre-activation only, like today's manual opening stock |
+| Vouchers (Day Book) | read-only Tally history: voucher and lines | Kept apart from the general ledger, as in doc 12 §2. Never posted, never sent to GST or e-invoicing |
+
+After accounting is active, an import can still add and update masters and history. Opening balances and opening
+stock are refused, with a message saying the cut-over is closed.
+
+## Data (migration 0054)
+
+- `tally_import`: tenant, entity, files, Tally company and period, status (`read`, `previewed`, `committed`,
+  `failed`), counts, created and committed by and when.
+- `tally_staged`: one row per object in an import. It holds the kind, Tally GUID, `ALTERID`, name, parsed payload
+  (JSONB), proposed and chosen action, matched FactoryOS id, and warnings. Rows are kept for the audit trail.
+- `tally_link`: entity, kind, Tally GUID (unique per entity and kind), FactoryOS record id, last `ALTERID`, and the
+  import that made the link. This is what prevents duplicates across imports.
+- `tally_voucher` and `tally_voucher_line`: the history. Each voucher holds GUID, `ALTERID`, type, number, date,
+  narration, party and amounts. Each line holds the ledger name and its linked FactoryOS ledger when known, the side,
+  the amount and any bill allocations. A newer `ALTERID` replaces a voucher's lines inside the commit; the replaced
+  version stays in `tally_staged`.
+
+Every table carries `tenant_id` and `entity_id`.
+
+## Permissions
+
+| Permission | Allows |
+|---|---|
+| `accounts.tally.import` | Upload, preview, change actions and commit (Finance by default) |
+| `accounts.tally.read` | View past imports and the Tally history (Finance and Accountant by default) |
+
+## Screens
+
+- **Accounts → Tally import.**
+  - The export steps and an upload area.
+  - Past imports with their status and counts.
+  - An import's preview, with filters, bulk actions and the reconciliation.
+- **Tally history.**
+  - A Day Book of imported vouchers, by period and voucher type.
+  - Each voucher's lines.
+  - Linked from the ledger and party pages: "History from Tally".
+
+## Built in three PRs, each verified on its own
+
+1. **Masters.** Parser, staging, matching, preview, commit and links, for groups, ledgers, parties, units, godowns,
+   stock groups and items.
+2. **Opening balances and stock.** Into the opening worksheet and draft opening stock entries, with the
+   reconciliation in the preview.
+3. **History and re-sync.** Vouchers, the update and "not in this export" handling, and the Tally history screens.
+
+## Verification
+
+- **Hand-written fixtures** following Tally's XML schema: UTF-8 and UTF-16, reserved and custom groups, parties with
+  and without GSTIN, a CGST ledger used for both sides, batches, bill-wise openings, and voucher types.
+- **Real export check.** The user is asked for one real export, which can be anonymised, before PR 1 is merged.
+- **Smoke tests:**
+  - importing the same files twice creates nothing the second time;
+  - a newer `ALTERID` updates;
+  - conflicts block commit until resolved;
+  - a failed commit leaves nothing;
+  - opening balances are refused after activation;
+  - history never reaches the general ledger or GST.
+- **Browser walkthrough** on desktop and at 390 px. The usual regression and UI audit.
+
+## New dependency
+
+A small streaming XML parser (`saxes`, MIT, no dependencies). Node has no built-in XML parser.
+
+## Not in this design
+
+- The live link to Tally through the edge agent.
+- FactoryOS → Tally export, and the CA journal review queue (doc 12 §3).
+- Payroll, cost centres and order vouchers. Order vouchers are kept as history only.

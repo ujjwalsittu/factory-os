@@ -288,3 +288,6 @@ Append-only. One entry per session: `date · who · what changed · what's next`
   - chart smoke (8 checks incl. both migration paths), chart walkthrough (desktop and 390 px), 17 API smokes, 14 browser walkthroughs and the UI audit pass.
 
   Next: build PR to main; then slice 5 (Connections page and hand-offs) when the user asks.
+- 2026-10-20 · agent · Chart clean-up merged (PR 61) and deployed. User asked to import Tally data without duplicates; agreed XML export input, full scope (masters, openings, history, re-sync) and match-then-review. Wrote the design and proposed decision 072; claimed.
+
+  Next: user approves the design and merges the claim; then build PR 1 (masters).
