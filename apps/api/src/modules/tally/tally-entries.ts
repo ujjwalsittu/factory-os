@@ -24,6 +24,32 @@ export const isEntryKind = (k: unknown): k is EntryKind => ENTRY_KINDS.includes(
 
 const CASH_GROUPS = ['Cash-in-Hand', 'Bank Accounts'];
 
+interface TaxLedgerPayload {
+  gstDutyHead?: string | null;
+  taxType?: string | null;
+  opening?: { side: 'debit' | 'credit' } | null;
+}
+
+/**
+ * The tax role of a Tally tax ledger on a journal, receipt or payment. A line's side does not say input or output (a
+ * GST payment debits the output ledger), so the direction comes from the name (Input/ITC or Output, Receivable or
+ * Payable), else from the side of its opening balance; a ledger that says neither stays unlinked and is named.
+ */
+export function taxRoleOf(name: string, l: TaxLedgerPayload): string | null {
+  const head = `${l.gstDutyHead ?? ''} ${name}`.toLowerCase();
+  const kind = /\b(cgst|central tax)\b/.test(head) ? 'cgst' : /\b(sgst|utgst|state tax|ut tax)\b/.test(head) ? 'sgst' : /\b(igst|integrated tax)\b/.test(head) ? 'igst' : /\bcess\b/.test(head) ? 'cess' : null;
+  const n = name.toLowerCase();
+  const fromOpening = l.opening?.side ?? null;
+  if (kind) {
+    const input = /\b(input|itc)\b/.test(n) ? true : /\boutput\b/.test(n) ? false : fromOpening ? fromOpening === 'debit' : null;
+    return input === null ? null : `${input ? 'input' : 'output'}_${kind}`;
+  }
+  const type = (l.taxType ?? '').toLowerCase();
+  if (type === 'tds' || /\btds\b/.test(n)) return /receivable/.test(n) || (!/payable/.test(n) && fromOpening === 'debit') ? 'tds_receivable' : 'tds_payable';
+  if (type === 'tcs' || /\btcs\b/.test(n)) return /receivable|recoverable/.test(n) || (!/payable/.test(n) && fromOpening === 'debit') ? 'tcs_recoverable' : 'tcs_payable';
+  return null;
+}
+
 export type EntryResolver = Awaited<ReturnType<typeof entryResolver>>;
 
 /** Ledger names → GL accounts (cash or bank or not) and parties, with the side each party's ledger sits on in Tally. */
@@ -52,6 +78,17 @@ export async function entryResolver(tx: Db, tenantId: string, entityId: string, 
     .where(and(eq(tallyStaged.entityId, entityId), eq(tallyImport.status, 'committed')));
   const parentOf = new Map<string, string | null>();
   for (const s of staged) if (s.kind === 'group' || s.kind === 'party') parentOf.set(`${s.kind}:${s.name}`, ((s.payload as { parent?: string | null }).parent ?? null) || null);
+  // Tax ledgers are not linked by the masters import (they are matched by duty head); here they go to the tax account
+  // of their role. Accounts with a role, then the entity's mappings, as for opening balances.
+  const roleAccount = new Map<string, string>([...accounts.values()].filter((a) => a.role).map((a) => [a.role!, a.id]));
+  for (const [role, id] of Object.entries(settings?.mappings ?? {})) if (id) roleAccount.set(role, id);
+  const taxLedgers = new Map<string, string>();
+  for (const s of staged) {
+    if (s.kind !== 'ledger') continue;
+    const role = taxRoleOf(s.name, s.payload as TaxLedgerPayload);
+    const id = role ? roleAccount.get(role) : undefined;
+    if (id) taxLedgers.set(s.name, id);
+  }
   const creditorLedger = (name: string) => {
     const seen = new Set<string>();
     for (let g = parentOf.get(`party:${name}`) ?? null; g && !seen.has(g); g = parentOf.get(`group:${g}`) ?? null) {
@@ -62,9 +99,10 @@ export async function entryResolver(tx: Db, tenantId: string, entityId: string, 
     return null;
   };
   const byName = new Map<string, TallyLedgerTarget>();
+  for (const [name, id] of taxLedgers) byName.set(name, { kind: 'account', id, cash: false });
   for (const l of links) {
     if (l.kind === 'party' && parties.has(l.targetId)) byName.set(l.name, { kind: 'party', id: l.targetId });
-    if (l.kind === 'ledger' && accounts.has(l.targetId) && !byName.has(l.name)) byName.set(l.name, { kind: 'account', id: l.targetId, cash: cash(accounts.get(l.targetId)!.groupId) });
+    if (l.kind === 'ledger' && accounts.has(l.targetId)) byName.set(l.name, { kind: 'account', id: l.targetId, cash: cash(accounts.get(l.targetId)!.groupId) });
   }
   const sideByName = new Map<string, TradeSide>();
   for (const l of links)

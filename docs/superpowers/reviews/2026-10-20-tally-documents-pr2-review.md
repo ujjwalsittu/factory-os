@@ -25,6 +25,9 @@ Migration `0059_tally_entries`.
     - The party's side comes from its Tally group (under Sundry Creditors is a payable), else from whether it is a
       customer or a supplier.
     - A journal posting to an inventory or GRNI account is a conflict: stock value moves only with stock.
+    - **Tax ledgers** (GST, TDS, TCS) are not linked by the masters import. They post to the tax account of their role.
+      The direction comes from the name (Input/ITC or Output, Receivable or Payable), else from the side of the opening
+      balance. A tax ledger that says neither is named as a problem to link. Found by the real Day Book check.
   - **Stock journals:**
     - Same items moved between godowns is a transfer.
     - Anything else is one adjustment: consumed lines out at FIFO cost, produced lines in at Tally's value, and the
@@ -78,9 +81,28 @@ Migration `0059_tally_entries`.
   - an edited voucher, following the links between the reversed and the edited invoice;
   - a receipt from Tally;
   - switching the month back through the preview.
-- **Regression:** see the PR.
-- **The user's real masters and Day Book:** see the PR. The check ran in a throwaway workspace and printed aggregates
-  only. The local database was dropped afterwards and nothing from the export is committed.
+- **Regression:** all pass:
+  - settlements and settlement improvements;
+  - bank charges;
+  - accounting baseline and operations;
+  - customer note lifecycle and returns;
+  - supplier notes and supplier return cancel;
+  - the selling and buying shell smokes.
+- **UI audit:** 202 page views, no problems. The add-new guard passes.
+- **The user's real masters and Day Book**, in a throwaway workspace with aggregates only. The local database was
+  dropped afterwards and nothing from the export is committed.
+  - Every voucher month was kept in Tally. Receipts, payments and journals were most of the document rows.
+  - **First run:** 16 unlinked tax ledgers stopped about 90 journals and payments. Fixed with the tax-ledger rule
+    above.
+  - **After the fix:** 448 documents came in. Most receipts and payments became journals: expenses paid straight from
+    the bank, and several ledgers on one voucher.
+  - **Still skipped:**
+    - vouchers naming 2 ledgers that cannot be resolved (Profit & Loss, and a GST ledger with no direction);
+    - a few sales that could not ship, because the check has no opening stock. This is an artefact of the check.
+  - **Allocations:** most payments stayed on account, because the check imports no opening bills to match.
+  - **Checks:** the GL balanced and bills matched the books. A re-upload proposed the committed documents unchanged.
+  - **Switching back:** the latest month switched back (76 documents reversed, no dependents), and the books still
+    balanced.
 
 ## Open points and limits
 

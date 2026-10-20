@@ -384,6 +384,7 @@ ${docVoucher('rcpt-2', 'Receipt', 'R/2', `${partyLine('Acme Castings Private Lim
 ${docVoucher('rcpt-3', 'Receipt', 'R/3', `${partyLine('Acme Castings Private Limited', '700.00', [['NOT/THERE', 'Agst Ref', '700.00']])}${ledger('HDFC Bank CA 0042', '-700.00')}`)}
 ${docVoucher('pay-1', 'Payment', 'P/1', `${partyLine('Bharat Steel Traders', '-2000.00', [['BST/771', 'Agst Ref', '2000.00']])}${ledger('HDFC Bank CA 0042', '2000.00')}`)}
 ${docVoucher('jv-1', 'Journal', 'J/1', `${ledger('Power and Fuel', '-300.00')}${partyLine('Bharat Steel Traders', '300.00', [['BST/PF/1', 'New Ref', '300.00']])}`)}
+${docVoucher('jv-2', 'Journal', 'J/2', `${ledger('Input CGST', '-18.00')}${ledger('Power and Fuel', '18.00')}`)}
 ${docVoucher('contra-1', 'Contra', 'C/1', `${ledger('HDFC Bank CA 0042', '-1000.00')}${ledger("Proprietor's Capital", '1000.00')}`)}
 ${docVoucher('sj-1', 'Stock Journal', 'SJ/1', `${move('INVENTORYENTRIESOUT.LIST', 'Main Location', 5)}${move('INVENTORYENTRIESIN.LIST', 'Bhosari Stores', 5)}`)}
 `);
@@ -391,7 +392,7 @@ const entryImport = await upload(c, [['DayBook.xml', utf16(entries)]]);
 const entryRows = await rows(c, entryImport.id, '&kind=document');
 assert.deepEqual(
   entryRows.map((r) => `${r.name}:${r.proposed}`).sort(),
-  ['Journal C/1:new', 'Journal J/1:new', 'Payment P/1:new', 'Receipt R/1:new', 'Receipt R/2:new', 'Receipt R/3:new', 'Stock journal SJ/1:new'],
+  ['Journal C/1:new', 'Journal J/1:new', 'Journal J/2:new', 'Payment P/1:new', 'Receipt R/1:new', 'Receipt R/2:new', 'Receipt R/3:new', 'Stock journal SJ/1:new'],
   JSON.stringify(entryRows.filter((r) => r.proposed !== 'new').map((r) => r.notes)),
 );
 await c.req('POST', `/tally/imports/${entryImport.id}/commit`, {}, 201);
@@ -412,7 +413,7 @@ assert.equal(Number(acmeBills.find((b) => b.reference === 'TS/0002').openAmount)
 const bharatBills = await c.req('GET', `/accounts/bills?partyId=${bharat.id}&side=payable`);
 assert.equal(Number(bharatBills.find((b) => b.reference === 'BST/771').openAmount), 3900);
 assert.equal(Number(bharatBills.find((b) => b.reference === 'BST/PF/1').openAmount), 300, 'a journal opens the bill it names');
-assert.equal(listOf(await c.req('GET', '/accounts/journals?sourceType=tally_journal')).length, 2, 'the journal and the contra post');
+assert.equal(listOf(await c.req('GET', '/accounts/journals?sourceType=tally_journal')).length, 3, 'the journals and the contra post; a tax ledger books to its tax account');
 const transfer = (await c.req('GET', '/stock-entries?status=submitted')).find((e) => e.reference === 'SJ/1');
 assert.equal(transfer.purpose, 'transfer', 'moving between godowns is a transfer');
 for (const r of await c.req('GET', '/accounts/trade-reconciliation')) assert.equal(Number(r.glInr), Number(r.subledgerInr), `bills match the books for ${r.partyName}`);
