@@ -1,3 +1,4 @@
+import {originalInvoiceOf} from '../tally/tally-books.js';
 import {Dec,splitAcquisitionCost,type AccountingLine} from '@factoryos/core';
 import {accountingSettings,fifoLayer,glDisposition,glEntry,journalVoucher,salesInvoice,salesInvoiceLine,salesNote,salesNoteLine,salesReturnEffect,stockEntry,stockEntryLine,stockLedgerEntry} from '@factoryos/db';
 import {ConflictException,Injectable} from '@nestjs/common';
@@ -14,7 +15,7 @@ export class SalesReturnService {
   const lines=previewLines.filter(x=>Dec.of(x.returnQty).gt('0'));if(!lines.length)return {stockEntryId:null,valueInr:'0.000000'};
   const [note]=await tx.select().from(salesNote).where(and(eq(salesNote.id,noteId),eq(salesNote.entityId,entityId),eq(salesNote.tenantId,ctx.tenant.tenantId)));
   if(!note)throw new ConflictException('Return note missing');
-  const [invoice]=await tx.select().from(salesInvoice).where(eq(salesInvoice.id,note.originalInvoiceId));
+  const [invoice]=await tx.select().from(salesInvoice).where(eq(salesInvoice.id,originalInvoiceOf(note)));
   const [entry]=await tx.insert(stockEntry).values({tenantId:ctx.tenant.tenantId,entityId,purpose:'sales_return',postingDate:note.postingDate,partyId:note.customerId,reference:note.number,remarks:`Return on ${note.number}`,systemGenerated:true,createdBy:ctx.user.id}).returning();
   const costs=lines.map(x=>splitAcquisitionCost({amount:x.returnValueInr,quantity:x.returnQty,remaining:x.returnQty,oldRate:'0'}));
   for(let i=0;i<lines.length;i++){

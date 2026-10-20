@@ -263,18 +263,21 @@ const docVoucher = (guid, type, number, body) => `
       <DATE>${docDay}</DATE><GUID>${guid}</GUID><VOUCHERTYPENAME>${type}</VOUCHERTYPENAME><VOUCHERNUMBER>${number}</VOUCHERNUMBER><ALTERID> 9001</ALTERID>${body}
      </VOUCHER>
     </TALLYMESSAGE>`;
-const ledger = (name, amount, party = false) => `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${name}</LEDGERNAME><ISPARTYLEDGER>${party ? 'Yes' : 'No'}</ISPARTYLEDGER><AMOUNT>${amount}</AMOUNT></ALLLEDGERENTRIES.LIST>`;
+const ledger = (name, amount, party = false, agst = null) =>
+  `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${name}</LEDGERNAME><ISPARTYLEDGER>${party ? 'Yes' : 'No'}</ISPARTYLEDGER><AMOUNT>${amount}</AMOUNT>${agst ? `<BILLALLOCATIONS.LIST><NAME>${agst}</NAME><BILLTYPE>Agst Ref</BILLTYPE><AMOUNT>${amount}</AMOUNT></BILLALLOCATIONS.LIST>` : ''}</ALLLEDGERENTRIES.LIST>`;
 const stock = (qty, rate, amount, batchName, allocLedger) =>
   `<ALLINVENTORYENTRIES.LIST><STOCKITEMNAME>MS Round Bar 25mm</STOCKITEMNAME><RATE>${rate}/Kgs</RATE><AMOUNT>${amount}</AMOUNT><ACTUALQTY> ${qty} Kgs</ACTUALQTY><BATCHALLOCATIONS.LIST><GODOWNNAME>Main Location</GODOWNNAME><BATCHNAME>${batchName}</BATCHNAME><ACTUALQTY> ${qty} Kgs</ACTUALQTY></BATCHALLOCATIONS.LIST><ACCOUNTINGALLOCATIONS.LIST><LEDGERNAME>${allocLedger}</LEDGERNAME><AMOUNT>${amount}</AMOUNT></ACCOUNTINGALLOCATIONS.LIST></ALLINVENTORYENTRIES.LIST>`;
 const docs = `<ENVELOPE><HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER><BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>Vouchers</REPORTNAME></REQUESTDESC><REQUESTDATA>
 ${docVoucher('doc-purchase-1', 'Purchase', 'TP/0001', `<REFERENCE>BST/771</REFERENCE>${ledger('Bharat Steel Traders', '5900.00', true)}${ledger('Input CGST', '-450.00')}${ledger('Input SGST', '-450.00')}${stock(50, '100.00', '-5000.00', 'HEAT-9001', 'Purchase - Local')}`)}
 ${docVoucher('doc-service-1', 'Sales GST', 'TS/0002', `${ledger('Acme Castings Private Limited', '-1180.00', true)}${ledger('Machining Charges', '1000.00')}${ledger('CGST', '90.00')}${ledger('Output SGST', '90.00')}`)}
+${docVoucher('doc-credit-1', 'Credit Note', 'TCN/0001', `${ledger('Acme Castings Private Limited', '944.00', true, 'TS/0001')}${ledger('CGST', '-72.00')}${ledger('Output SGST', '-72.00')}${stock(10, '80.00', '-800.00', 'HEAT-2231', 'Sales - Local')}`)}
+${docVoucher('doc-debit-1', 'Debit Note', 'TDN/0001', `${ledger('Bharat Steel Traders', '-236.00', true, 'BST/100')}${ledger('Machining Charges', '200.00')}${ledger('Input CGST', '18.00')}${ledger('Input SGST', '18.00')}`)}
 ${docVoucher('doc-sale-1', 'Sales', 'TS/0001', `${ledger('Acme Castings Private Limited', '-9440.00', true)}${ledger('CGST', '720.00')}${ledger('Output SGST', '720.00')}${stock(100, '80.00', '8000.00', 'HEAT-2231', 'Sales - Local')}`)}
 </REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>`;
 const tbBeforeDocs = await c.req('GET', '/accounts/reports/trial-balance');
 const docImport = await upload(c, [['DayBook.xml', utf16(docs)]]);
 const docRows = await rows(c, docImport.id, '&kind=document');
-assert.deepEqual(docRows.map((r) => `${r.name}:${r.proposed}`).sort(), ['Purchase invoice TP/0001:new', 'Sales GST TS/0002:skip', 'Sales invoice TS/0001:new']);
+assert.deepEqual(docRows.map((r) => `${r.name}:${r.proposed}`).sort(), ['Customer credit note TCN/0001:new', 'Purchase invoice TP/0001:new', 'Sales GST TS/0002:skip', 'Sales invoice TS/0001:new', 'Supplier debit note TDN/0001:conflict']);
 assert.match(docRows.find((r) => r.name.startsWith('Sales GST')).notes[0], /not mapped/);
 // A custom voucher type is mapped once; the open import is checked again and the income ledger needs a service item.
 const mapped = await c.req('PUT', '/tally/mappings/voucher-types', { voucherType: 'Sales GST', documentKind: 'sales_invoice' });
@@ -301,6 +304,23 @@ const tbAfterDocs = await c.req('GET', '/accounts/reports/trial-balance');
 assert.notDeepEqual(tbAfterDocs, tbBeforeDocs, 'the documents reach the books');
 const serviceSale = (sales.data ?? sales).find((i) => i.number === 'TS/0002');
 assert.equal(Number((await c.req('GET', `/sales-invoices/${serviceSale.id}`)).grandTotal), 1180, 'an accounting-mode sale becomes a service invoice');
+// Notes come in as value notes (075a): against the FactoryOS invoice when there is one, else with Tally's reference.
+const creditNote = (await c.req('GET', '/sales-notes')).find((n) => n.number === 'TCN/0001');
+const creditDoc = await c.req('GET', `/sales-notes/${creditNote.id}`);
+assert.equal(creditDoc.source, 'tally');
+assert.equal(creditDoc.originalInvoiceId, tallySale.id, 'the credit note is against the Tally sale');
+assert.equal(Number(creditDoc.grandTotal), 944);
+assert.ok(creditDoc.stockEntryId, 'returned goods came back into stock');
+assert.equal(creditDoc.tallyLines.length, 1);
+assert.equal((await c.raw('POST', `/sales-notes/${creditNote.id}/cancel`, { reason: 'Edited in Tally' })).status, 409, 'a Tally note changes only through Tally');
+const debitNote = (await c.req('GET', '/buying/supplier-notes')).find((n) => n.supplierNoteNo === 'TDN/0001');
+const debitDoc = await c.req('GET', `/buying/supplier-notes/${debitNote.id}`);
+assert.equal(debitDoc.originalInvoiceId, null, 'an invoice from before the cut-over is not a FactoryOS document');
+assert.equal(debitDoc.tallyBillReference, 'BST/100');
+assert.equal(Number(debitDoc.grandTotal), 236);
+const recon = await c.req('GET', '/accounts/trade-reconciliation');
+assert.ok(recon.length > 0);
+for (const r of recon) assert.equal(Number(r.glInr), Number(r.subledgerInr), `bills match the books for ${r.partyName}`);
 const purchases = await c.req('GET', '/purchase-invoices');
 const tallyPurchase = (purchases.data ?? purchases).find((i) => i.number === 'TP/0001');
 assert.ok(tallyPurchase, 'the Tally purchase is a purchase invoice');

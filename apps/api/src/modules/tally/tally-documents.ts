@@ -1,4 +1,4 @@
-import { Dec } from '@factoryos/core';
+import { Dec, fyCode } from '@factoryos/core';
 import type { TallyVoucher } from '@factoryos/core/tally';
 import { TALLY_BASE_TYPES, tallyDocument, type TallyDocumentDraft, type TallyDocumentKind, type TallyDocumentLinks, type TaxHead } from '@factoryos/core/tally-documents';
 import {
@@ -11,6 +11,8 @@ import {
   purchaseInvoiceLine,
   salesInvoice,
   salesInvoiceLine,
+  salesNote,
+  supplierNote,
   stockEntry,
   stockEntryLine,
   stockLedgerEntry,
@@ -56,8 +58,6 @@ const KIND_LABEL: Record<TallyDocumentKind, string> = {
   sales_credit_note: 'Customer credit note',
   supplier_debit_note: 'Supplier debit note',
 };
-/** Notes come in a later step of PR 1; until then their vouchers stay history with a note. */
-const BUILT: ReadonlySet<TallyDocumentKind> = new Set(['sales_invoice', 'purchase_invoice']);
 
 /** What each voucher type of this entity becomes: the person's mapping, else Tally's base type, else nothing. */
 export async function voucherTypeKinds(db: Db, entityId: string) {
@@ -110,10 +110,6 @@ export async function stageDocuments(tx: Db, tenantId: string, entityId: string,
     });
     if (!kind) {
       out.push(row({ proposed: 'skip', notes: [`Voucher type "${v.type}" is not mapped to a FactoryOS document, so it stays history. Map it under Tally import → Mappings to bring it in.`] }));
-      continue;
-    }
-    if (!BUILT.has(kind)) {
-      out.push(row({ proposed: 'skip', notes: [`${KIND_LABEL[kind]}s from Tally come in the next step; this one stays history for now.`] }));
       continue;
     }
     const prior = history.get(v.guid!);
@@ -251,7 +247,8 @@ export async function writeDocuments(tx: Tx, ctx: TenantRequestContext, entityId
     );
   const reg = r.regs[0]!;
   const links = r.links(reg.stateCode);
-  const order = (k: unknown) => (k === 'purchase_invoice' ? 0 : 1);
+  // On one day: purchases first so stock is there to ship, notes last so the invoice they are against exists.
+  const order = (k: unknown) => (k === 'purchase_invoice' ? 0 : k === 'sales_invoice' ? 1 : 2);
   const sorted = [...todo].sort((a, b) => {
     const pa = a.payload as { date: string; documentKind: string },
       pb = b.payload as { date: string; documentKind: string };
@@ -278,7 +275,11 @@ export async function writeDocuments(tx: Tx, ctx: TenantRequestContext, entityId
     const id =
       draft.kind === 'sales_invoice'
         ? await salesInvoiceFrom(tx, ctx, entityId, reg, v, draft, r, s)
-        : await purchaseInvoiceFrom(tx, ctx, entityId, reg, v, draft, r, s);
+        : draft.kind === 'purchase_invoice'
+          ? await purchaseInvoiceFrom(tx, ctx, entityId, reg, v, draft, r, s)
+          : draft.kind === 'sales_credit_note'
+            ? await salesNoteFrom(tx, ctx, entityId, reg, v, draft, r, s)
+            : await supplierNoteFrom(tx, ctx, entityId, reg, v, draft, r, s);
     results.set(row.id, id);
     await tx.update(tallyVoucher).set({ documentKind: draft.kind, documentId: id }).where(and(eq(tallyVoucher.entityId, entityId), eq(tallyVoucher.guid, v.guid!)));
     created++;
@@ -549,4 +550,190 @@ export async function setLedgerItem(tx: Tx, ctx: TenantRequestContext, entityId:
   if (itemId) await tx.insert(tallyLedgerItem).values({ tenantId, entityId, ledger, itemId, setBy: ctx.user.id });
   await refreshOpenImports(tx, tenantId, entityId);
   await audit.record(ctx, { tenantId, entityId, action: 'accounts.tally.mapping', targetType: 'tally_ledger', targetId: null, after: { ledger, itemId } }, tx);
+}
+
+/** Tally's lines as the note keeps them (075a), tax shared across lines by taxable value. */
+function noteLines(d: TallyDocumentDraft, r: Resolver) {
+  const shares = (['cgst', 'sgst', 'igst', 'cess'] as const).map((h) => shareTax(d.lines, d.tax[h]));
+  const fallbackRate = impliedRate(d);
+  return d.lines.map((l, i) => ({
+    itemId: l.itemId,
+    hsnCode: r.items.get(l.itemId)?.hsnCode ?? null,
+    qty: l.qty,
+    rate: l.rate,
+    gstRate: l.gstRate ?? fallbackRate,
+    taxableValue: l.taxableValue,
+    cgst: shares[0]![i]!,
+    sgst: shares[1]![i]!,
+    igst: shares[2]![i]!,
+    cess: shares[3]![i]!,
+  }));
+}
+
+/** What an item's stock is carried at in the entity on a date: value over quantity in the stock ledger. */
+async function averageCost(tx: Tx, entityId: string, itemId: string, date: string) {
+  const [row] = await tx
+    .select({ qty: sql<string>`coalesce(sum(${stockLedgerEntry.qty}), 0)::text`, value: sql<string>`coalesce(sum(${stockLedgerEntry.value}), 0)::text` })
+    .from(stockLedgerEntry)
+    .where(and(eq(stockLedgerEntry.entityId, entityId), eq(stockLedgerEntry.itemId, itemId), sql`${stockLedgerEntry.postingDate} <= ${date}`, isNotNull(stockLedgerEntry.value)));
+  const qty = Dec.of(row?.qty ?? '0');
+  return qty.gt('0') ? Dec.of(row!.value).div(qty) : null;
+}
+
+async function entryValue(tx: Tx, entryId: string) {
+  const [value] = await tx
+    .select({ v: sql<string>`coalesce(sum(${stockLedgerEntry.value}), 0)::text` })
+    .from(stockLedgerEntry)
+    .where(and(eq(stockLedgerEntry.voucherType, 'stock_entry'), eq(stockLedgerEntry.voucherId, entryId), isNotNull(stockLedgerEntry.value)));
+  return Dec.of(value?.v ?? '0').abs();
+}
+
+const noteTotals = (d: TallyDocumentDraft) => ({
+  taxableValue: d.taxableValue,
+  cgst: d.tax.cgst,
+  sgst: d.tax.sgst,
+  igst: d.tax.igst,
+  cess: d.tax.cess,
+  grandTotal: d.grandTotal,
+});
+
+/** A Tally credit note: a value note against the FactoryOS invoice when there is one, goods returned at carrying cost. */
+async function salesNoteFrom(tx: Tx, ctx: TenantRequestContext, entityId: string, reg: Registration, v: TallyVoucher, d: TallyDocumentDraft, r: Resolver, s: DocumentServices) {
+  const tenantId = ctx.tenant.tenantId;
+  const p = r.parties.get(d.partyId);
+  const [dup] = await tx.select({ id: salesNote.id }).from(salesNote).where(and(eq(salesNote.gstRegistrationId, reg.id), eq(salesNote.number, d.number)));
+  if (dup) throw new BadRequestException(`${voucherLabel(v)}: note number ${d.number} already exists for this GSTIN in FactoryOS.`);
+  const [original] = d.billReference
+    ? await tx
+        .select({ id: salesInvoice.id })
+        .from(salesInvoice)
+        .where(and(eq(salesInvoice.entityId, entityId), eq(salesInvoice.customerId, d.partyId), eq(salesInvoice.number, d.billReference), ne(salesInvoice.status, 'cancelled')))
+    : [];
+  // Goods come back at what the item is carried at; Tally's selling value stays the note's.
+  const stockLines = d.lines.filter((l) => r.items.get(l.itemId)?.isStockItem);
+  let stockEntryId: string | null = null;
+  let stockValue = Dec.ZERO;
+  if (stockLines.length) {
+    const rows = [];
+    for (const [i, l] of stockLines.entries()) {
+      const cost = await averageCost(tx, entityId, l.itemId, d.date);
+      if (!cost) throw new BadRequestException(`${voucherLabel(v)}: line ${i + 1} returns an item FactoryOS has no cost for yet.`);
+      const known = await batchId(tx, tenantId, l.itemId, l.batch);
+      const tracked = r.items.get(l.itemId)?.tracking !== 'none';
+      rows.push({ lineNo: i + 1, itemId: l.itemId, qty: l.qty, toWarehouseId: l.warehouseId, rate: cost.toString(), batchId: known, newBatchNo: !known && tracked ? (l.batch ?? `TALLY-${d.number}`.slice(0, 40)) : null });
+    }
+    const [entry] = await tx
+      .insert(stockEntry)
+      .values({ tenantId, entityId, purpose: 'receipt', postingDate: d.date, partyId: d.partyId, reference: d.number, remarks: `Returned on credit note ${d.number} (from Tally)`, systemGenerated: true, source: 'tally', createdBy: ctx.user.id })
+      .returning();
+    await tx.insert(stockEntryLine).values(rows.map((row) => ({ ...row, entryId: entry!.id })));
+    await s.stock.submitIn(tx, ctx, entityId, entry!.id).catch((e: unknown) => {
+      throw new BadRequestException(`${voucherLabel(v)}: can't take the goods back: ${e instanceof Error ? e.message : String(e)}`);
+    });
+    stockEntryId = entry!.id;
+    stockValue = await entryValue(tx, entry!.id);
+  }
+  const [note] = await tx
+    .insert(salesNote)
+    .values({
+      tenantId,
+      entityId,
+      originalInvoiceId: original?.id ?? null,
+      kind: 'credit',
+      taxTreatment: 'gst',
+      number: d.number,
+      status: 'submitted',
+      customerId: d.partyId,
+      gstRegistrationId: reg.id,
+      postingDate: d.date,
+      reason: (v.narration ?? 'Credit note from Tally').slice(0, 500),
+      currency: 'INR',
+      exchangeRate: '1',
+      supplyType: supplyTypeOf(p?.gstTreatment, d.tax.igst, true),
+      placeOfSupplyStateCode: p?.gstTreatment === 'overseas' ? '96' : d.placeOfSupplyStateCode,
+      ...noteTotals(d),
+      stockEntryId,
+      source: 'tally',
+      tallyGuid: v.guid,
+      taxDifference: d.taxDifference,
+      tallyBillReference: d.billReference,
+      tallyLines: noteLines(d, r),
+      createdBy: ctx.user.id,
+      submittedBy: ctx.user.id,
+      submittedAt: new Date(),
+    })
+    .returning();
+  const posted = await s.accounting.tallySalesNoteIn(tx, ctx, entityId, note!, stockValue);
+  await tx.update(salesNote).set(posted).where(eq(salesNote.id, note!.id));
+  return note!.id;
+}
+
+/** A Tally debit note on a supplier: lowers what is owed; goods sent back leave stock at carrying cost. */
+async function supplierNoteFrom(tx: Tx, ctx: TenantRequestContext, entityId: string, reg: Registration, v: TallyVoucher, d: TallyDocumentDraft, r: Resolver, s: DocumentServices) {
+  const tenantId = ctx.tenant.tenantId;
+  const fy = fyCode(new Date(`${d.date}T00:00:00Z`));
+  const [dup] = await tx
+    .select({ id: supplierNote.id })
+    .from(supplierNote)
+    .where(and(eq(supplierNote.entityId, entityId), eq(supplierNote.supplierId, d.partyId), eq(supplierNote.supplierFy, fy), sql`upper(${supplierNote.supplierNoteNo}) = upper(${d.number})`, ne(supplierNote.status, 'cancelled')));
+  if (dup) throw new BadRequestException(`${voucherLabel(v)}: note ${d.number} already exists for this supplier in FactoryOS.`);
+  const [original] = d.billReference
+    ? await tx
+        .select({ id: purchaseInvoice.id })
+        .from(purchaseInvoice)
+        .where(and(eq(purchaseInvoice.entityId, entityId), eq(purchaseInvoice.supplierId, d.partyId), eq(purchaseInvoice.supplierInvoiceNo, d.billReference), ne(purchaseInvoice.status, 'cancelled')))
+    : [];
+  const stockLines = d.lines.filter((l) => r.items.get(l.itemId)?.isStockItem);
+  let stockValue = Dec.ZERO;
+  if (stockLines.length) {
+    const rows = [];
+    for (const [i, l] of stockLines.entries()) {
+      const known = await batchId(tx, tenantId, l.itemId, l.batch);
+      if (r.items.get(l.itemId)?.tracking !== 'none' && !known) throw new BadRequestException(`${voucherLabel(v)}: line ${i + 1} needs a batch FactoryOS knows.`);
+      rows.push({ lineNo: i + 1, itemId: l.itemId, qty: l.qty, fromWarehouseId: l.warehouseId, batchId: known });
+    }
+    const [entry] = await tx
+      .insert(stockEntry)
+      .values({ tenantId, entityId, purpose: 'adjustment', postingDate: d.date, partyId: d.partyId, reference: d.number, remarks: `Sent back on debit note ${d.number} (from Tally)`, systemGenerated: true, source: 'tally', createdBy: ctx.user.id })
+      .returning();
+    await tx.insert(stockEntryLine).values(rows.map((row) => ({ ...row, entryId: entry!.id })));
+    await s.stock.submitIn(tx, ctx, entityId, entry!.id).catch((e: unknown) => {
+      throw new BadRequestException(`${voucherLabel(v)}: can't send the goods back: ${e instanceof Error ? e.message : String(e)}`);
+    });
+    stockValue = await entryValue(tx, entry!.id);
+  }
+  const [note] = await tx
+    .insert(supplierNote)
+    .values({
+      tenantId,
+      entityId,
+      originalInvoiceId: original?.id ?? null,
+      supplierId: d.partyId,
+      number: d.number,
+      status: 'submitted',
+      // FactoryOS records the supplier's side: our debit note lowers what we owe, as a supplier credit note does.
+      kind: 'credit',
+      taxTreatment: 'gst',
+      supplierNoteNo: d.number,
+      supplierNoteDate: d.date,
+      supplierFy: fy,
+      postingDate: d.date,
+      reason: (v.narration ?? 'Debit note from Tally').slice(0, 500),
+      currency: 'INR',
+      exchangeRate: '1',
+      taxEligibilityConfirmed: true,
+      ...noteTotals(d),
+      source: 'tally',
+      tallyGuid: v.guid,
+      taxDifference: d.taxDifference,
+      tallyBillReference: d.billReference,
+      tallyLines: noteLines(d, r),
+      createdBy: ctx.user.id,
+      submittedBy: ctx.user.id,
+      submittedAt: new Date(),
+    })
+    .returning();
+  const posted = await s.accounting.tallySupplierNoteIn(tx, ctx, entityId, note!, stockValue);
+  await tx.update(supplierNote).set(posted).where(eq(supplierNote.id, note!.id));
+  return note!.id;
 }

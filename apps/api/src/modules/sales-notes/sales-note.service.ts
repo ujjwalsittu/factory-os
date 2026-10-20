@@ -6,7 +6,7 @@ import {and,asc,desc,eq} from 'drizzle-orm';
 import type {TenantRequestContext} from '../../common/access.js';
 import {AuditService} from '../../common/audit.service.js';
 import {businessDate,lockAccounting,type Tx} from '../accounting/accounting-lock.js';
-import {assertFactoryOsBook} from '../tally/tally-books.js';
+import {assertFactoryOsBook,originalInvoiceOf} from '../tally/tally-books.js';
 import {BillService} from '../accounting/bill.service.js';
 import {GlPostingService} from '../accounting/gl-posting.service.js';
 import {SalesNotePreviewService} from './sales-note-preview.service.js';
@@ -26,13 +26,13 @@ export class SalesNoteService {
  async getIn(tx:Tx,ctx:TenantRequestContext,entityId:string,id:string){
   const note=await this.noteIn(tx,ctx,entityId,id);
   const rows=await tx.select({line:salesNoteLine,source:salesInvoiceLine,itemName:item.name,itemCode:item.code}).from(salesNoteLine).innerJoin(salesInvoiceLine,eq(salesInvoiceLine.id,salesNoteLine.invoiceLineId)).innerJoin(item,eq(item.id,salesInvoiceLine.itemId)).where(and(eq(salesNoteLine.noteId,id),eq(salesNoteLine.tenantId,ctx.tenant.tenantId),eq(salesNoteLine.entityId,entityId))).orderBy(asc(salesNoteLine.lineNo));
-  const [invoice]=await tx.select().from(salesInvoice).where(eq(salesInvoice.id,note.originalInvoiceId));
+  const [invoice]=note.originalInvoiceId?await tx.select().from(salesInvoice).where(eq(salesInvoice.id,note.originalInvoiceId)):[];
   const [reg]=await tx.select().from(gstRegistration).where(eq(gstRegistration.id,note.gstRegistrationId));
   const [entity]=await tx.select().from(legalEntity).where(eq(legalEntity.id,entityId));
   await this.bills.syncIn(tx,ctx,entityId);
   const [creditBalance]=note.billId?await this.bills.list(tx,entityId,{billIds:[note.billId]}):[];
   const applications=await tx.select().from(settlementAllocationDocument).where(and(eq(settlementAllocationDocument.creditNoteId,id),eq(settlementAllocationDocument.entityId,entityId))).orderBy(asc(settlementAllocationDocument.createdAt));
-  return {...note,originalInvoiceNumber:invoice!.number,originalInvoiceDate:invoice!.invoiceDate,ourGstin:note.sellerGstin??reg!.gstin,ourAddress:note.sellerAddress,entityName:note.sellerName??entity!.legalName,lines:rows.map(x=>({...x.line,itemCode:x.itemCode,itemName:x.itemName,description:x.source.description,hsnCode:x.source.hsnCode,gstRate:x.source.gstRate,originalQty:x.source.qty,originalRate:x.source.rate})),creditBalance:creditBalance??null,applications};
+  return {...note,originalInvoiceNumber:invoice?.number??note.tallyBillReference,originalInvoiceDate:invoice?.invoiceDate??null,ourGstin:note.sellerGstin??reg!.gstin,ourAddress:note.sellerAddress,entityName:note.sellerName??entity!.legalName,lines:rows.map(x=>({...x.line,itemCode:x.itemCode,itemName:x.itemName,description:x.source.description,hsnCode:x.source.hsnCode,gstRate:x.source.gstRate,originalQty:x.source.qty,originalRate:x.source.rate})),creditBalance:creditBalance??null,applications};
  }
  async saveIn(tx:Tx,ctx:TenantRequestContext,entityId:string,input:NoteDraftInput,id?:string){
   await lockAccounting(tx,entityId);
@@ -50,7 +50,7 @@ export class SalesNoteService {
  }
  async inputIn(tx:Tx,note:SalesNote):Promise<NoteDraftInput>{
   const rows=await tx.select().from(salesNoteLine).where(eq(salesNoteLine.noteId,note.id)).orderBy(asc(salesNoteLine.lineNo));
-  return {invoiceId:note.originalInvoiceId,kind:note.kind as 'credit'|'debit',taxTreatment:note.taxTreatment as 'gst'|'commercial',postingDate:note.postingDate,...(note.dueDate?{dueDate:note.dueDate}:{}),reason:note.reason,taxEligibilityConfirmed:note.taxEligibilityConfirmed,lines:rows.map(l=>({invoiceLineId:l.invoiceLineId,mode:l.mode as 'quantity'|'value',...(l.mode==='quantity'?{qty:l.qty}:{taxableAmount:l.taxableAmount}),...(Dec.of(l.returnQty).gt('0')?{returnQty:l.returnQty,warehouseId:l.warehouseId!}:{})}))};
+  return {invoiceId:originalInvoiceOf(note),kind:note.kind as 'credit'|'debit',taxTreatment:note.taxTreatment as 'gst'|'commercial',postingDate:note.postingDate,...(note.dueDate?{dueDate:note.dueDate}:{}),reason:note.reason,taxEligibilityConfirmed:note.taxEligibilityConfirmed,lines:rows.map(l=>({invoiceLineId:l.invoiceLineId,mode:l.mode as 'quantity'|'value',...(l.mode==='quantity'?{qty:l.qty}:{taxableAmount:l.taxableAmount}),...(Dec.of(l.returnQty).gt('0')?{returnQty:l.returnQty,warehouseId:l.warehouseId!}:{})}))};
  }
  async submitIn(tx:Tx,ctx:TenantRequestContext,entityId:string,id:string){
   await lockAccounting(tx,entityId);const prior=await this.noteIn(tx,ctx,entityId,id,true);
@@ -79,7 +79,8 @@ export class SalesNoteService {
  await lockAccounting(tx,entityId);await guardSandboxSourceIn(tx,ctx,entityId,'sales_note',id);
   await lockAccounting(tx,entityId);const note=await this.noteIn(tx,ctx,entityId,id,true);
   if(note.status!=='submitted')throw new ConflictException('Only submitted notes can be cancelled');
-  if(note.kind==='debit')await this.preview.assertDebitCancellableIn(tx,ctx,entityId,id,note.originalInvoiceId);
+  const originalId=originalInvoiceOf(note);
+  if(note.kind==='debit')await this.preview.assertDebitCancellableIn(tx,ctx,entityId,id,originalId);
   const dependencies=await tx.select().from(settlementAllocationDocument).where(and(eq(settlementAllocationDocument.entityId,entityId),eq(settlementAllocationDocument.creditNoteId,id),eq(settlementAllocationDocument.status,'submitted')));
   if(dependencies.length)throw new ConflictException(`Reverse applications ${dependencies.map(d=>d.number).join(', ')} first`);
   await this.credits.reverseIn(tx,ctx,entityId,id,reason);

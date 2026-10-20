@@ -84,3 +84,13 @@ export async function setBook(db: Database, ctx: TenantRequestContext, entityId:
     return { month, book };
   });
 }
+
+/**
+ * Decision 075a: a note from Tally may have no FactoryOS invoice behind it, and changes only through Tally (reversal of
+ * Tally documents comes with switching a month back). Paths that edit, post or cancel a note go through this.
+ */
+export function originalInvoiceOf(note: { source: string; originalInvoiceId: string | null }) {
+  if (note.source === 'tally' || !note.originalInvoiceId)
+    throw new ConflictException('This note came from Tally; it changes only through Tally, not here.');
+  return note.originalInvoiceId;
+}

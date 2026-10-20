@@ -1,5 +1,5 @@
 {
-  "id": "d9cc311a-6d0d-41ce-a237-9d4726677996",
+  "id": "528ee4a0-c1a9-40b2-b5d2-a46955cd45e8",
   "prevId": "2e3639fe-cd96-4d6a-b426-e6bddb14e9d3",
   "version": "7",
   "dialect": "postgresql",
@@ -11018,7 +11018,7 @@
           "name": "original_invoice_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "kind": {
           "name": "kind",
@@ -11236,6 +11236,18 @@
         },
         "tax_difference": {
           "name": "tax_difference",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tally_bill_reference": {
+          "name": "tally_bill_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tally_lines": {
+          "name": "tally_lines",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
@@ -11519,6 +11531,10 @@
         "sales_note_rate": {
           "name": "sales_note_rate",
           "value": "\"sales_note\".\"exchange_rate\">0"
+        },
+        "sales_note_original_ck": {
+          "name": "sales_note_original_ck",
+          "value": "\"sales_note\".\"source\"='tally' or \"sales_note\".\"original_invoice_id\" is not null"
         }
       },
       "isRLSEnabled": false
@@ -12198,7 +12214,7 @@
           "name": "original_invoice_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "supplier_id": {
           "name": "supplier_id",
@@ -12363,6 +12379,18 @@
         },
         "tax_difference": {
           "name": "tax_difference",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tally_bill_reference": {
+          "name": "tally_bill_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tally_lines": {
+          "name": "tally_lines",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
@@ -12597,6 +12625,10 @@
         "supplier_note_values": {
           "name": "supplier_note_values",
           "value": "\"supplier_note\".\"kind\" in ('credit','debit') and \"supplier_note\".\"tax_treatment\" in ('gst','commercial') and \"supplier_note\".\"exchange_rate\">0"
+        },
+        "supplier_note_original_ck": {
+          "name": "supplier_note_original_ck",
+          "value": "\"supplier_note\".\"source\"='tally' or \"supplier_note\".\"original_invoice_id\" is not null"
         }
       },
       "isRLSEnabled": false

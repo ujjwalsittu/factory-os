@@ -31,6 +31,8 @@ CREATE TABLE "tally_voucher_type_map" (
 );
 --> statement-breakpoint
 ALTER TABLE "tally_staged" DROP CONSTRAINT "tally_staged_kind_ck";--> statement-breakpoint
+ALTER TABLE "sales_note" ALTER COLUMN "original_invoice_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "supplier_note" ALTER COLUMN "original_invoice_id" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "stock_entry" ADD COLUMN "source" text DEFAULT 'factoryos' NOT NULL;--> statement-breakpoint
 ALTER TABLE "purchase_invoice" ADD COLUMN "source" text DEFAULT 'factoryos' NOT NULL;--> statement-breakpoint
 ALTER TABLE "purchase_invoice" ADD COLUMN "tally_guid" text;--> statement-breakpoint
@@ -41,9 +43,13 @@ ALTER TABLE "sales_invoice" ADD COLUMN "tax_difference" jsonb;--> statement-brea
 ALTER TABLE "sales_note" ADD COLUMN "source" text DEFAULT 'factoryos' NOT NULL;--> statement-breakpoint
 ALTER TABLE "sales_note" ADD COLUMN "tally_guid" text;--> statement-breakpoint
 ALTER TABLE "sales_note" ADD COLUMN "tax_difference" jsonb;--> statement-breakpoint
+ALTER TABLE "sales_note" ADD COLUMN "tally_bill_reference" text;--> statement-breakpoint
+ALTER TABLE "sales_note" ADD COLUMN "tally_lines" jsonb;--> statement-breakpoint
 ALTER TABLE "supplier_note" ADD COLUMN "source" text DEFAULT 'factoryos' NOT NULL;--> statement-breakpoint
 ALTER TABLE "supplier_note" ADD COLUMN "tally_guid" text;--> statement-breakpoint
 ALTER TABLE "supplier_note" ADD COLUMN "tax_difference" jsonb;--> statement-breakpoint
+ALTER TABLE "supplier_note" ADD COLUMN "tally_bill_reference" text;--> statement-breakpoint
+ALTER TABLE "supplier_note" ADD COLUMN "tally_lines" jsonb;--> statement-breakpoint
 ALTER TABLE "tally_voucher" ADD COLUMN "document_kind" text;--> statement-breakpoint
 ALTER TABLE "tally_voucher" ADD COLUMN "document_id" uuid;--> statement-breakpoint
 ALTER TABLE "tally_book_month" ADD CONSTRAINT "tally_book_month_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -60,4 +66,6 @@ CREATE UNIQUE INDEX "tally_ledger_item_uq" ON "tally_ledger_item" USING btree ("
 CREATE UNIQUE INDEX "tally_voucher_type_map_uq" ON "tally_voucher_type_map" USING btree ("entity_id","voucher_type");--> statement-breakpoint
 CREATE UNIQUE INDEX "purchase_invoice_tally_guid_uq" ON "purchase_invoice" USING btree ("entity_id","tally_guid") WHERE "purchase_invoice"."tally_guid" is not null and "purchase_invoice"."status" <> 'cancelled';--> statement-breakpoint
 CREATE UNIQUE INDEX "sales_invoice_tally_guid_uq" ON "sales_invoice" USING btree ("entity_id","tally_guid") WHERE "sales_invoice"."tally_guid" is not null and "sales_invoice"."status" <> 'cancelled';--> statement-breakpoint
+ALTER TABLE "sales_note" ADD CONSTRAINT "sales_note_original_ck" CHECK ("sales_note"."source"='tally' or "sales_note"."original_invoice_id" is not null);--> statement-breakpoint
+ALTER TABLE "supplier_note" ADD CONSTRAINT "supplier_note_original_ck" CHECK ("supplier_note"."source"='tally' or "supplier_note"."original_invoice_id" is not null);--> statement-breakpoint
 ALTER TABLE "tally_staged" ADD CONSTRAINT "tally_staged_kind_ck" CHECK ("tally_staged"."kind" in ('group','ledger','party','stockgroup','unit','godown','stockitem','opening','stock','voucher','document'));
