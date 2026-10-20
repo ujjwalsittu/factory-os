@@ -3,7 +3,7 @@
 // Decision 051: the platform owner may save the R2 settings on Platform → Storage; STORAGE_DRIVER, when set,
 // overrides them. Saved settings are re-read at most every 30 seconds so every API instance follows a change.
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -156,6 +156,13 @@ export class StorageService implements OnModuleInit {
     if (d.kind === 'local') return readFile(localPath(d.root, key));
     const out = await d.client.send(new GetObjectCommand({ Bucket: d.bucket, Key: key }));
     return Buffer.from(await out.Body!.transformToByteArray());
+  }
+
+  /** Deletes an object; used only by the connection test, since stored files are kept. */
+  async remove(key: string): Promise<void> {
+    const d = await this.require();
+    if (d.kind === 'local') await rm(localPath(d.root, key), { force: true });
+    else await d.client.send(new DeleteObjectCommand({ Bucket: d.bucket, Key: key }));
   }
 
   /** A five-minute download link (S3), or null when the API must stream the bytes itself (local). */

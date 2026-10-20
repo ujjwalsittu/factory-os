@@ -45,4 +45,6 @@ export interface Overview {
   needsEntity: boolean;
   sections: RecordSection[];
   outstandingHref?: string | null;
+  /** Items only: own stock below the reorder level, and what to order to reach it. */
+  belowReorder?: { onHand: string; shortfall: string } | null;
 }

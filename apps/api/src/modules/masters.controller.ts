@@ -189,9 +189,14 @@ export class MastersController {
   @Get('items/:id')
   @RequirePermission('masters.item.read')
   async getItem(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string) {
-    const [row] = await this.db.select().from(item).where(and(eq(item.id, id), eq(item.tenantId, ctx.tenant.tenantId)));
+    const [row] = await this.db
+      .select({ item, uomCode: uom.code, uomDecimals: uom.decimals })
+      .from(item)
+      .innerJoin(uom, eq(uom.id, item.stockUomId))
+      .where(and(eq(item.id, id), eq(item.tenantId, ctx.tenant.tenantId)));
     if (!row) throw new NotFoundException('Item not found');
-    return row;
+    // The unit code as in the list, so a form opened with this item shows its unit.
+    return { ...row.item, uomCode: row.uomCode, uomDecimals: row.uomDecimals };
   }
 
   @Post('items')

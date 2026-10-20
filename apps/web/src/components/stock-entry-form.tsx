@@ -1,7 +1,7 @@
 'use client';
 import { AccountingSourceLinks } from './accounting-source-links';
 import { RelatedPanel } from './related-panel';
-import { Alert, Badge, Button, Card, Field, Input, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
+import { Alert, Badge, Button, buttonClass, Card, Field, Input, Select, Table, Td, Th, DateInput } from '@factoryos/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, Plus, Send, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { formatDate, formatDateTime, formatMoney, formatQty, today, WAREHOUSE_TYPE_LABELS } from '@/lib/format';
 import { PURPOSE_LABELS, STATUS_TONE, WASTE_CATEGORY_LABELS } from '@/lib/stock';
-import type { Batch, Item, Party, PurchaseOrderDetail, StockEntryDetail, StockPurpose, Warehouse } from '@/lib/types';
+import type { Batch, Item, Party, PendingInspection, PurchaseOrderDetail, StockEntryDetail, StockPurpose, Warehouse } from '@/lib/types';
 import { fieldErrors, FormDialog } from './form-dialog';
 import { ItemPicker } from './item-picker';
 import { useWorkspace } from './workspace';
@@ -246,6 +246,7 @@ export function StockEntryForm({ entry, initialPurpose, poId }: { entry?: StockE
     <div className="space-y-6">
       {entry && entry.status !== 'draft' && <AccountingSourceLinks type="stock_entry" id={entry.id} />}
       {entry && entry.status !== 'draft' && <RelatedPanel type="stock_entry" id={entry.id} />}
+      {entry && entry.status === 'submitted' && entry.purpose === 'receipt' && <InspectHandoff receiptId={entry.id} />}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[13px] text-muted">
@@ -583,5 +584,29 @@ function CancelDialog({ entry, onClose }: { entry: StockEntryDetail; onClose: ()
         {(p) => <Input {...p} value={reason} onChange={(e) => setReason(e.target.value)} minLength={5} required autoFocus />}
       </Field>
     </FormDialog>
+  );
+}
+
+/** A receipt with lines in quarantine (decision 068 hand-off): "Inspect" opens incoming inspection. */
+function InspectHandoff({ receiptId }: { receiptId: string }) {
+  const ws = useWorkspace();
+  const pending = useQuery({
+    queryKey: ['inspections-pending', ws.entityId],
+    queryFn: () => api<PendingInspection[]>('/inspections/pending', { scope: ws.scope }),
+    enabled: ws.can('quality.inspection.read'),
+  });
+  const n = pending.data?.filter((p) => p.receiptId === receiptId).length ?? 0;
+  if (!n) return null;
+  return (
+    <Alert tone="warning">
+      <span className="flex flex-wrap items-center gap-3">
+        <span className="flex-1">
+          {n} line{n === 1 ? ' is' : 's are'} in quarantine waiting for incoming inspection.
+        </span>
+        <Link href="/app/buying/inspections" className={buttonClass('secondary', 'sm')}>
+          Inspect
+        </Link>
+      </span>
+    </Alert>
   );
 }

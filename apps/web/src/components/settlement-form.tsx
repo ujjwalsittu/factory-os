@@ -45,7 +45,7 @@ function useCashAccounts() {
 }
 
 /** Customer receipt or supplier payment. Server computes every INR value; the form only explains them. */
-export function SettlementForm({ settlement, initialDirection = 'receipt' }: { settlement?: Settlement; initialDirection?: Direction }) {
+export function SettlementForm({ settlement, initialDirection = 'receipt', initialPartyId }: { settlement?: Settlement; initialDirection?: Direction; initialPartyId?: string }) {
   const ws = useWorkspace();
   const router = useRouter();
   const qc = useQueryClient();
@@ -66,7 +66,7 @@ export function SettlementForm({ settlement, initialDirection = 'receipt' }: { s
   });
 
   const [h, setH] = useState({
-    partyId: settlement?.partyId ?? '',
+    partyId: settlement?.partyId ?? initialPartyId ?? '',
     postingDate: settlement?.postingDate ?? today(),
     currency: settlement?.currency ?? 'INR',
     exchangeRate: settlement && settlement.currency !== 'INR' ? String(Number(settlement.exchangeRate)) : '',

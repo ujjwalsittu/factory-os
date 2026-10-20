@@ -36,6 +36,8 @@ export interface TileRow {
   label: string;
   detail: string;
   href: string;
+  /** The next step for this row (decision 068 hand-offs), shown only with the permission to take it. */
+  action?: { label: string; href: string; permission: string };
 }
 
 export interface Tile {
@@ -126,7 +128,9 @@ export class HomeController {
     const tiles = mine.map((d, i): Tile => {
       const r = settled[i]!;
       const base = { id: d.id, group: d.group, title: d.title, href: d.href };
-      return r.status === 'fulfilled' ? { ...base, ...r.value } : { ...base, count: 0, rows: [], error: true };
+      if (r.status !== 'fulfilled') return { ...base, count: 0, rows: [], error: true };
+      const rows = r.value.rows.map(({ action, ...row }) => (action && ctx.tenant.permissions.has(action.permission) ? { ...row, action } : row));
+      return { ...base, ...r.value, rows };
     });
     return { needsEntity: false, asOf, tiles };
   }
@@ -231,7 +235,12 @@ export class HomeController {
           return {
             count: late.length,
             amountInr: late.reduce((s, b) => s.add(b.carryingInr), Dec.ZERO).toFixed(2),
-            rows: late.slice(0, ROWS).map((b) => ({ label: names.get(b.partyId) ?? b.reference, detail: `${b.reference} · INR ${Dec.of(b.carryingInr).toFixed(2)} · due ${b.dueDate}`, href: '/app/accounts/outstanding' })),
+            rows: late.slice(0, ROWS).map((b) => ({
+              label: names.get(b.partyId) ?? b.reference,
+              detail: `${b.reference} · INR ${Dec.of(b.carryingInr).toFixed(2)} · due ${b.dueDate}`,
+              href: '/app/accounts/outstanding',
+              action: { label: 'Record receipt', href: `/app/accounts/settlements/new?direction=receipt&party=${b.partyId}`, permission: 'accounts.settlement.create' },
+            })),
           };
         },
       },
@@ -298,7 +307,12 @@ export class HomeController {
           return {
             count: soon.length,
             amountInr: soon.reduce((s, b) => s.add(b.carryingInr), Dec.ZERO).toFixed(2),
-            rows: soon.slice(0, ROWS).map((b) => ({ label: names.get(b.partyId) ?? b.reference, detail: `${b.reference} · INR ${Dec.of(b.carryingInr).toFixed(2)} · due ${b.dueDate}`, href: '/app/accounts/outstanding?side=payable' })),
+            rows: soon.slice(0, ROWS).map((b) => ({
+              label: names.get(b.partyId) ?? b.reference,
+              detail: `${b.reference} · INR ${Dec.of(b.carryingInr).toFixed(2)} · due ${b.dueDate}`,
+              href: '/app/accounts/outstanding?side=payable',
+              action: { label: 'Record payment', href: `/app/accounts/settlements/new?direction=payment&party=${b.partyId}`, permission: 'accounts.settlement.create' },
+            })),
           };
         },
       },
@@ -320,7 +334,13 @@ export class HomeController {
             having coalesce(sum(b.qty), 0) < i.reorder_level
             order by (i.reorder_level - coalesce(sum(b.qty), 0)) desc, i.code`);
           const all = res.rows;
-          return { count: all.length, rows: all.slice(0, ROWS).map((r) => ({ label: `${r.code} ${r.name}`, detail: `${qtyText(r.on_hand)} on hand, reorder at ${qtyText(r.reorder)}`, href: '/app/inventory/balance' })) };
+          return { count: all.length, rows: all.slice(0, ROWS).map((r) => ({
+              label: `${r.code} ${r.name}`,
+              detail: `${qtyText(r.on_hand)} on hand, reorder at ${qtyText(r.reorder)}`,
+              href: '/app/inventory/balance',
+              // Prefilled with the shortfall up to the reorder level.
+              action: { label: 'Create purchase order', href: `/app/buying/orders/new?item=${r.id}&qty=${qtyText(Dec.of(r.reorder).sub(r.on_hand).toString())}`, permission: 'buying.purchase_order.create' },
+            })) };
         },
       },
       {
@@ -385,7 +405,15 @@ export class HomeController {
           const where = and(eq(ncr.entityId, e.entityId), eq(ncr.status, 'open'));
           const [c] = await db.select({ n: count() }).from(ncr).where(where);
           const rows = await db.select({ id: ncr.id, number: ncr.number, description: ncr.description }).from(ncr).where(where).orderBy(asc(ncr.createdAt)).limit(ROWS);
-          return { count: num(c?.n), rows: rows.map((r) => ({ label: r.number ?? 'NCR', detail: short(r.description), href: `/app/quality/ncrs/${r.id}` })) };
+          return {
+            count: num(c?.n),
+            rows: rows.map((r) => ({
+              label: r.number ?? 'NCR',
+              detail: short(r.description),
+              href: `/app/quality/ncrs/${r.id}`,
+              action: { label: 'Raise CAPA', href: `/app/quality/ncrs/${r.id}?capa=1`, permission: 'quality.capa.create' },
+            })),
+          };
         },
       },
       {
