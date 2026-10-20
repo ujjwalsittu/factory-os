@@ -410,6 +410,12 @@ function DetailContent({ id }: { id: string }) {
               stock and books, at Tally&apos;s numbers and amounts.
             </p>
           )}
+          {total(current, (k, a) => k === 'document' && a === 'update') > 0 && (
+            <p className="text-sm">
+              {total(current, (k, a) => k === 'document' && a === 'update')} documents were edited in Tally: each is reversed and created again from the
+              edited voucher. The reversed one stays, marked as replaced.
+            </p>
+          )}
           {openings && openings.included > 0 && (
             <p className="text-sm">
               Opening balances replace the opening worksheet&apos;s lines and bills, and opening stock is saved as draft receipts to
@@ -441,6 +447,7 @@ function DocumentsNote({ counts, status }: { counts: Record<string, number>; sta
       {status === 'committed'
         ? `${n('new')} vouchers in months kept in Tally became FactoryOS documents.`
         : `${n('new')} vouchers in months kept in Tally will become FactoryOS documents; ${n('unchanged')} already are.`}{' '}
+      {status !== 'committed' && n('update') > 0 && `${n('update')} were edited in Tally and will replace their documents. `}
       {n('conflict') > 0 && `${n('conflict')} need a link or mapping first: fix the masters or `}
       {n('conflict') > 0 && (
         <Link href="/app/accounts/tally/books" className="text-accent hover:underline">
