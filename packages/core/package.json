@@ -29,6 +29,10 @@
     "./tally-entries": {
       "types": "./dist/tally-entries.d.ts",
       "default": "./dist/tally-entries.js"
+    },
+    "./gst-returns": {
+      "types": "./dist/gst-returns.d.ts",
+      "default": "./dist/gst-returns.js"
     }
   },
   "files": [
