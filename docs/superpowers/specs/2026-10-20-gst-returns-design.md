@@ -1,4 +1,4 @@
-# GST returns: GSTR-1 and GSTR-3B from the books — design (decision 074, proposed)
+# GST returns: GSTR-1 and GSTR-3B from the books — design (decision 074)
 
 Builds the returns part of the compliance scope already agreed: decision 004 (GSTR-1/3B, 2B/IMS), decision 007
 (maker-checker filing) and decision 020 (returns through a GSP, Adaequare). The general plan is in
@@ -10,7 +10,7 @@ FactoryOS already holds, and what waits for the GSP.
 Every outward invoice and note already carries the GSTIN, place of supply, supply type, reverse charge and the tax
 split per line. Purchase invoices, supplier notes, bank charges and landed cost (import IGST) carry the input tax.
 Today Finance still prepares GSTR-1 and GSTR-3B by hand, outside FactoryOS. The figures should come from the books,
-be checked by a second person, and be locked once filed, so the books and the returns cannot drift apart.
+be checked by a second person, and any change after filing must show, so the books and the returns cannot drift apart unseen.
 
 ## What already exists
 
@@ -28,7 +28,7 @@ be checked by a second person, and be locked once filed, so the books and the re
 
 **Missing:**
 - A unit's GST UQC code. The HSN summary needs it: `NOS`, `KGS` and so on.
-- A place to hold a prepared return, its review and its lock.
+- A place to hold a prepared return, its review and what was filed.
 
 ## Scope, in three PRs
 
@@ -73,10 +73,12 @@ be checked by a second person, and be locked once filed, so the books and the re
 - **Export for the portal.** GSTR-1 is exported as the GSTN offline-tool JSON, for upload on the portal. GSTR-3B
   is exported as a sheet that matches the portal's tables, because the portal takes 3B as typed or GSP-pushed
   values, not a file. Both exports need `export`.
-- **The lock.** Once a period is marked Filed, documents of that period cannot be cancelled or changed. A late
-  document dated in a filed month goes into the next open return, flagged as late. Corrections to filed supplies
-  are made through credit or debit notes, which the rules require anyway. Amendment tables (B2BA, CDNRA) come in
-  PR 3.
+- **After filing: warn, don't lock** (the user's choice). Documents in a filed month can still be cancelled or changed,
+  but only after a warning that names the filed return; the person confirms with a reason, and the change is
+  audited. The filed return keeps its frozen snapshot. Its page shows "Changed since filing": each document whose
+  current figures differ from what was filed, with the difference, so it can be corrected on the portal or through
+  a note in an open month. A late document dated in a filed month goes into the next open return, flagged as late.
+  Amendment tables (B2BA, CDNRA) come in PR 3.
 - **Data (one migration):**
   - `gst_return` (registration, period, kind, status, prepared-at snapshot hash, ARN, people and times);
   - `gst_return_line` (section, the document, figures) as the frozen snapshot of what was reviewed and filed;
@@ -132,17 +134,18 @@ in `docs/compliance/` before the export is built, and golden tests use invented 
 - **Golden tests:** a month of invented documents, with the expected GSTR-1 JSON and 3B figures.
 - **A smoke test:**
   - prepare, re-prepare and the maker-checker rules (the preparer cannot approve);
-  - filing locks the period;
+  - changing a filed month needs a reason, is audited and shows as changed since filing;
   - a late document flows to the next return;
   - the GL check;
   - permissions and isolation.
 - **A browser walkthrough**, on desktop and at 390 px.
 - **The usual regression and UI audit.**
 
-## Choices for you (recorded in decision 074 once approved)
+## Choices made (decision 074, 2026-10-20)
 
-1. **First step without the GSP:** prepare, review and export for portal upload now (recommended), or wait for
-   Adaequare credentials and build filing first.
-2. **Filing frequency:** monthly only for now (recommended if turnover is above ₹5 crore), or QRMP as well.
-3. **After filing:** lock the period's documents so changes go through notes (recommended), or only warn.
-4. **Where 3B ITC comes from:** documents, with the GL as a cross-check (recommended), or GL ledger balances only.
+1. **First step without the GSP:** prepare, review and export for portal upload now; filing through Adaequare comes
+   in PR 3.
+2. **Filing frequency:** monthly only. QRMP can be added per GSTIN later.
+3. **After filing:** warn, don't lock. A change to a filed month needs a confirmed reason, is audited, and shows on
+   the filed return as "Changed since filing".
+4. **3B ITC:** built from documents, with the GST ledgers as a cross-check that names any difference.
