@@ -44,6 +44,7 @@ import { OpeningWriter, openingActions, openingSummary, stageOpenings } from './
 import { notInExport, stageVouchers, writeVouchers } from './tally-vouchers.js';
 import { refreshDocuments, stageDocuments, writeDocuments } from './tally-documents.js';
 import { BillService } from '../accounting/bill.service.js';
+import type { ReversalServices } from './tally-reversal.js';
 import { SettlementService } from '../accounting/settlement.service.js';
 import { OperationalPostings } from '../accounting/operational-postings.js';
 import { StockPostingService } from '../stock-posting.service.js';
@@ -123,6 +124,11 @@ export class TallyService {
     private readonly settlements: SettlementService,
     private readonly bills: BillService,
   ) {}
+
+  /** The services the reversal of Tally documents runs through (re-sync and switching a month back). */
+  get reversal(): ReversalServices {
+    return { stock: this.stock, gl: this.gl, bills: this.bills, settlements: this.settlements, audit: this.audit };
+  }
 
   // ── Read and stage ──
 

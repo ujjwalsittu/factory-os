@@ -13,6 +13,7 @@ import { getVoucher, listVouchers } from './tally-vouchers.js';
 import { listMappings, setLedgerItem, setVoucherType } from './tally-documents.js';
 import { TALLY_DOCUMENT_KINDS } from '@factoryos/core/tally-documents';
 import { ENTRY_KINDS } from './tally-entries.js';
+import { switchBackPreview } from './tally-reversal.js';
 
 const KINDS = ['group', 'ledger', 'party', 'stockgroup', 'unit', 'godown', 'stockitem', 'opening', 'stock', 'voucher', 'document'] as const;
 const ACTIONS = ['new', 'link', 'update', 'unchanged', 'conflict', 'skip'] as const;
@@ -120,7 +121,8 @@ export class TallyHistoryController {
   }
 }
 
-const bookInput = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), book: z.enum(['tally', 'factoryos']) });
+const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
+const bookInput = z.object({ month: z.string().regex(monthPattern), book: z.enum(['tally', 'factoryos']), confirm: z.boolean().optional() });
 
 /** Decision 075: which book each month is kept in, from the cut-over on. */
 @Controller('tally/books')
@@ -128,6 +130,7 @@ export class TallyBooksController {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly tally: TallyService,
   ) {}
 
   @Get()
@@ -139,8 +142,16 @@ export class TallyBooksController {
   @Put()
   @RequirePermission('accounts.tally.import')
   set(@Ctx() ctx: TenantRequestContext, @Body() body: unknown) {
-    const { month, book } = parse(bookInput, body);
-    return setBook(this.db, ctx, entityOf(ctx), this.audit, month, book);
+    const { month, book, confirm } = parse(bookInput, body);
+    return setBook(this.db, ctx, entityOf(ctx), this.audit, month, book, this.tally.reversal, confirm);
+  }
+
+  /** Decision 075b: the documents from Tally that switching the month back would reverse, and any that block it. */
+  @Get(':month/switch-back')
+  @RequirePermission('accounts.tally.read')
+  switchBack(@Ctx() ctx: TenantRequestContext, @Param('month') month: string) {
+    const m = parse(z.string().regex(monthPattern), month);
+    return switchBackPreview(this.db, entityOf(ctx), m);
   }
 }
 
