@@ -1,9 +1,9 @@
 'use client';
-import { Alert, Badge, Card, CardHeader, Table, Td, Th } from '@factoryos/ui';
+import { Alert, Badge, Button, Card, CardHeader, Table, Td, Th } from '@factoryos/ui';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { formatDate, formatMoney, formatQty } from '@/lib/format';
-import { type Amounts, type Attention, type Check, documentHref, type Gstr1, type Gstr3b, SECTION_LABEL, type Taxes } from '@/lib/gst-returns';
+import { AMEND_LABEL, type Amendment, type Amounts, type Attention, type Check, documentHref, type Gstr1, type Gstr3b, monthLabel, SECTION_LABEL, type Taxes } from '@/lib/gst-returns';
 
 const money = (v: string) => formatMoney(v);
 const HEADS = ['igst', 'cgst', 'sgst', 'cess'] as const;
@@ -369,5 +369,101 @@ export function Gstr3bView({ g }: { g: Gstr3b }) {
       </Card>
       <Alert>Rows are labelled by what they hold. Key them into the current GSTR-3B form on the portal.</Alert>
     </div>
+  );
+}
+
+const taxTotal = (a: Amounts) => HEADS.reduce((t, h) => t + Number(a[h]), 0).toFixed(2);
+const figuresOf = (f: Amendment['reported']) =>
+  'rows' in f
+    ? { taxable: f.rows.reduce((t, r) => t + Number(r.taxable), 0).toFixed(2), tax: f.rows.reduce((t, r) => t + Number(taxTotal(r)), 0).toFixed(2), gstin: null as string | null }
+    : { taxable: f.amounts.taxable, tax: taxTotal(f.amounts), gstin: f.counterpartyGstin };
+const AMEND_STATUS: Record<Amendment['status'], { label: string; tone: 'warning' | 'success' | 'neutral' }> = {
+  proposed: { label: 'Needs a decision', tone: 'warning' },
+  included: { label: 'Included', tone: 'success' },
+  dropped: { label: 'Dropped', tone: 'neutral' },
+};
+
+/**
+ * Decision 074b: corrections to filed months, each with what was last reported and what the document says now.
+ * `onDecide` is given when the person may include or drop them.
+ */
+export function AmendmentsCard({ amendments, onDecide, busy }: { amendments: Amendment[]; onDecide?: (a: Amendment, decision: 'include' | 'drop') => void; busy?: boolean }) {
+  if (!amendments.length) return null;
+  const open = amendments.filter((a) => a.status === 'proposed').length;
+  return (
+    <Card>
+      <CardHeader
+        title="Amendments to filed months"
+        description={`Documents changed after their month was filed. ${open ? `${open} need${open === 1 ? 's' : ''} a decision before review: include it, or drop it with a reason (for example, when a credit note already corrects it).` : 'Each is decided; included ones adjust this month\'s GSTR-3B.'}`}
+      />
+      <div className="overflow-x-auto">
+        <Table>
+          <thead>
+            <tr>
+              <Th>Table</Th>
+              <Th>Original</Th>
+              <Th className="text-right">Last reported</Th>
+              <Th className="text-right">Now</Th>
+              <Th className="text-right">Difference</Th>
+              <Th>Decision</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {amendments.map((a) => {
+              const was = figuresOf(a.reported),
+                now = figuresOf(a.revised);
+              return (
+                <tr key={a.key} className="border-t border-line align-top text-[13px]">
+                  <Td className="whitespace-nowrap">{AMEND_LABEL[a.table]}</Td>
+                  <Td className="whitespace-nowrap">
+                    {a.documentId && a.documentType ? (
+                      <Link className="font-mono hover:text-accent" href={documentHref(a.documentType, a.documentId)}>
+                        {a.number}
+                      </Link>
+                    ) : (
+                      'Small sales (B2CS)'
+                    )}
+                    <span className="block text-subtle">
+                      {a.date ? `${formatDate(a.date)} · ` : ''}filed in {monthLabel(a.originalPeriod)}
+                    </span>
+                    {now.gstin !== was.gstin && <span className="block text-warning">GSTIN {was.gstin ?? '—'} → {now.gstin ?? '—'}</span>}
+                  </Td>
+                  <Td className="tabular text-right whitespace-nowrap">
+                    {money(was.taxable)}
+                    <span className="block text-subtle">tax {money(was.tax)}</span>
+                  </Td>
+                  <Td className="tabular text-right whitespace-nowrap">
+                    {money(now.taxable)}
+                    <span className="block text-subtle">tax {money(now.tax)}</span>
+                  </Td>
+                  <Td className="tabular text-right whitespace-nowrap">
+                    {money(a.difference.taxable)}
+                    <span className="block text-subtle">tax {money(taxTotal(a.difference))}</span>
+                  </Td>
+                  <Td>
+                    <Badge tone={AMEND_STATUS[a.status].tone}>{AMEND_STATUS[a.status].label}</Badge>
+                    {a.reason && <span className="mt-1 block text-subtle">{a.reason}</span>}
+                    {onDecide && (
+                      <span className="mt-2 flex flex-wrap gap-1">
+                        {a.status !== 'included' && (
+                          <Button size="sm" variant="secondary" disabled={busy} onClick={() => onDecide(a, 'include')}>
+                            Include
+                          </Button>
+                        )}
+                        {a.status !== 'dropped' && (
+                          <Button size="sm" variant="ghost" disabled={busy} onClick={() => onDecide(a, 'drop')}>
+                            Drop…
+                          </Button>
+                        )}
+                      </span>
+                    )}
+                  </Td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
+      </div>
+    </Card>
   );
 }

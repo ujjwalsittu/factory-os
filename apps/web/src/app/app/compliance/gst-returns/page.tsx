@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
-import { AttentionCard, ChecksCard, Gstr1View, Gstr3bView } from '@/components/gst-return-view';
+import { AmendmentsCard, AttentionCard, ChecksCard, Gstr1View, Gstr3bView } from '@/components/gst-return-view';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDate, formatMoney, today } from '@/lib/format';
@@ -120,6 +120,7 @@ function Returns() {
             This is what the books give for {monthLabel(period)} right now. Preparing saves it as a draft to review; documents changed afterwards need the return prepared again.
           </Alert>
           <AttentionCard items={p.attention} />
+          {p.gstr1.amendments && <AmendmentsCard amendments={p.gstr1.amendments} />}
           <ChecksCard checks={p.checks} />
           <div className="flex gap-1" role="tablist" aria-label="Return">
             {(['gstr1', 'gstr3b'] as const).map((k) => (
