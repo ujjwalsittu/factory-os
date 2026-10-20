@@ -31,7 +31,7 @@ const hsnInput = z.object({
 });
 
 const ITEM_TYPES = ['raw_material', 'powder', 'component', 'consumable', 'sub_assembly', 'finished_good', 'kit', 'tool', 'gauge', 'service', 'scrap', 'asset'] as const;
-const itemInput = z.object({
+export const itemInput = z.object({
   code: z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9._/-]{0,39}$/, 'Up to 40 letters, digits, . _ / -'),
   name: z.string().trim().min(2).max(200),
   description: z.string().trim().max(2000).optional(),
@@ -70,7 +70,7 @@ const addressInput = z.object({
   pincode: z.string().regex(/^\d{6}$/, 'PIN code must be 6 digits'),
   country: z.string().length(2).default('IN'),
 });
-const partyInput = z
+export const partyInput = z
   .object({
     code: z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9._-]{0,29}$/, 'Up to 30 letters, digits, . _ -'),
     name: z.string().trim().min(2).max(200),
@@ -100,7 +100,7 @@ const partyInput = z
   .refine((p) => p.isCustomer || p.isSupplier, { message: 'Mark the party as a customer, a supplier, or both', path: ['isCustomer'] });
 
 /** GST rules for a party: registered/SEZ/composition need a valid GSTIN; state and PAN come from it. */
-function normaliseParty<T extends z.infer<typeof partyInput>>(p: T): T {
+export function normaliseParty<T extends z.infer<typeof partyInput>>(p: T): T {
   if (p.isJobWorker && !p.isSupplier) throw new BadRequestException({ message: 'A job worker is a supplier', issues: [{ path: 'isJobWorker', message: 'Mark as supplier too' }] });
   const needsGstin = ['registered', 'composition', 'sez'].includes(p.gstTreatment);
   if (needsGstin || p.gstin) {

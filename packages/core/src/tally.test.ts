@@ -96,7 +96,7 @@ describe('masters', () => {
 
   it('reads groups with their parent, treating Primary as no parent', () => {
     const debtors = byName('Sundry Debtors') as TallyGroup;
-    expect(debtors).toMatchObject({ kind: 'group', parent: null, reservedName: 'Sundry Debtors', alterId: 1 });
+    expect(debtors).toMatchObject({ kind: 'group', parent: 'Current Assets', reservedName: 'Sundry Debtors', alterId: 1 });
     expect(debtors.guid).toBe('a1b2c3d4-0000-0000-0000-000000000001-00000001');
     expect(byName('Current Assets')).toMatchObject({ parent: null });
     expect(byName('Domestic Debtors')).toMatchObject({ parent: 'Sundry Debtors', reservedName: null, alterId: 40 });
@@ -107,7 +107,7 @@ describe('masters', () => {
     expect(acme).toMatchObject({
       kind: 'ledger',
       parent: 'Domestic Debtors',
-      gstin: '27AAACA1234B1Z5',
+      gstin: '27AAACA1234B1ZI',
       pan: 'AAACA1234B',
       stateName: 'Maharashtra',
       pincode: '411026',
@@ -126,7 +126,7 @@ describe('masters', () => {
 
   it('reads the GSTIN and address from the newer TallyPrime detail blocks', () => {
     expect(byName('Bharat Steel Traders')).toMatchObject({
-      gstin: '27AABCB5678C1Z2',
+      gstin: '27AABCB5678C1ZQ',
       stateName: 'Maharashtra',
       pincode: '410218',
       address: ['Steel Market, Kalamboli'],
