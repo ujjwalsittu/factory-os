@@ -114,6 +114,34 @@ Every table carries `tenant_id` and `entity_id`.
    reconciliation in the preview.
 3. **History and re-sync.** Vouchers, the update and "not in this export" handling, and the Tally history screens.
 
+## PR 2: opening balances and stock
+
+Decision 073 records the user's choices for the awkward cases. Opening balances and stock are imported only while
+accounting is not active; afterwards their rows are proposed as skip with a note, and only skip is allowed.
+
+- **Ledger balances** become opening worksheet lines.
+  - A GL ledger's balance goes to the ledger it was linked to or created as.
+  - A tax ledger that FactoryOS skipped as a master goes to a posting ledger chosen by duty head and side: a CGST
+    ledger with a debit balance goes to Input CGST, with a credit balance to Output CGST, and the same for SGST, IGST
+    and cess. A TDS ledger goes to TDS payable or TDS receivable. Anything else needs a decision: pick a ledger or
+    skip.
+  - Tally's Profit & Loss A/c goes to a "Profit & Loss A/c" ledger under Reserves & Surplus, created if missing.
+  - A ledger whose master was skipped needs a decision: pick a ledger to take its balance, or skip it.
+- **Party balances** become outstanding bills, one worksheet line per bill on the trade control that matches the
+  bill's side (debit bills on Trade receivables, credit bills on Trade payables), which is what the cut-over
+  reconciliation checks. Tally's bill-wise openings give the bills; any part of the balance not covered by bills, and
+  the whole balance of a party without bill-wise details, becomes an "On account" bill.
+- **Opening stock** becomes one draft stock receipt per godown, dated on the day of the import, with a line per item
+  and batch at Tally's value (rate = value ÷ quantity, kept to six decimals). The user reviews and submits the drafts;
+  submitting them is what the cut-over's inventory check counts. The worksheet's Inventory line is the total of those
+  lines. Negative quantities need a decision (skip). On a later import, a draft that is still a draft is rewritten;
+  one already submitted is left alone, and its rows are proposed as skip with a note.
+- **The difference.** Ledger balances plus stock should balance. If they do not, the preview shows the amount, and the
+  commit asks the user to accept it. It is booked to "Opening difference (Tally)" under Suspense A/c.
+- **The worksheet.** An import with opening balances replaces the worksheet's lines and bills. Settlements and receipt
+  baselines are kept. The preview warns when the worksheet already has lines.
+- **Data.** Migration 0056 adds the staged kinds `opening` and `stock`. Nothing else changes in the schema.
+
 ## Verification
 
 - **Hand-written fixtures** following Tally's XML schema: UTF-8 and UTF-16, reserved and custom groups, parties with
