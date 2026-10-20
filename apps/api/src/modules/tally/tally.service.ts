@@ -30,7 +30,7 @@ import type { TenantRequestContext } from '../../common/access.js';
 import { AuditService } from '../../common/audit.service.js';
 import { DB } from '../../common/tokens.js';
 import { lockAccounting, type Db, type Tx } from '../accounting/accounting-lock.js';
-import { STANDARD_GROUPS } from '../accounting/chart.js';
+import { seedChart, STANDARD_GROUPS } from '../accounting/chart.js';
 import { itemInput, normaliseParty, partyInput } from '../masters.controller.js';
 
 /**
@@ -46,6 +46,8 @@ type Root = 'asset' | 'liability' | 'equity' | 'income' | 'expense';
 
 /** Order of commit: parents and units before what refers to them. */
 const KIND_ORDER: Kind[] = ['group', 'ledger', 'party', 'unit', 'godown', 'stockgroup', 'stockitem'];
+/** Readable names for Tally objects this import does not read. */
+const TAG_NAMES: Record<string, string> = { VOUCHERTYPE: 'voucher type', COSTCENTRE: 'cost centre', COSTCATEGORY: 'cost category', CURRENCY: 'currency', BUDGET: 'budget', EMPLOYEE: 'employee', ATTENDANCETYPE: 'attendance type' };
 /** Ledgers whose balance FactoryOS computes itself. */
 const COMPUTED_LEDGERS = new Set(['profit & loss a/c']);
 const STATE_CODE = new Map(Object.entries(GST_STATES).map(([code, name]) => [name.toLowerCase(), code]));
@@ -126,12 +128,15 @@ export class TallyService {
       warnings.push(
         tag === 'VOUCHER'
           ? `${n} vouchers were found; voucher history is imported by a later version of Tally import.`
-          : `${n} ${tag.toLowerCase()} object${n === 1 ? '' : 's'} not imported (not used by FactoryOS yet).`,
+          : `${n} ${(TAG_NAMES[tag] ?? tag.toLowerCase()) + (n === 1 ? '' : 's')} not imported (not used by FactoryOS yet).`,
       );
     if (!masters.length) throw new BadRequestException({ message: 'No Tally masters were found in the upload', issues: warnings.map((w) => ({ path: 'files', message: w })) });
     const deduped = this.lastOfEachGuid(masters, warnings);
 
     return this.db.transaction(async (tx) => {
+      // The standard chart may not exist yet in a new workspace; Tally's groups are matched against it.
+      await lockAccounting(tx, entityId);
+      await seedChart(tx, ctx, entityId);
       const staged = await this.match(tx, ctx, entityId, deduped);
       const counts = this.countActions(staged);
       const [imp] = await tx
@@ -483,6 +488,7 @@ export class TallyService {
   async commit(ctx: TenantRequestContext, entityId: string, id: string) {
     return this.db.transaction(async (tx) => {
       await lockAccounting(tx, entityId);
+      await seedChart(tx, ctx, entityId);
       const imp = await this.openImport(tx, entityId, id);
       const rows = await tx.select().from(tallyStaged).where(eq(tallyStaged.importId, imp.id)).orderBy(asc(tallyStaged.ordinal));
       const open = rows.filter((r) => r.action === 'conflict');

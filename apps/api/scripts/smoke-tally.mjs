@@ -43,7 +43,7 @@ const partiesBefore = (await c.req('GET', '/parties?limit=500')).length ?? (awai
 const imp = await upload(c, [['Master.xml', utf16(fixture)]]);
 assert.equal(imp.status, 'read');
 assert.equal(imp.company, 'Fixture Engineering Private Limited');
-assert.match(imp.warnings.join(' '), /voucher ?type/i);
+assert.match(imp.warnings.join(' '), /1 voucher type not imported/);
 let list = await rows(c, imp.id);
 const action = (name) => row(list, name).action;
 assert.equal(action('Sundry Debtors'), 'link');
