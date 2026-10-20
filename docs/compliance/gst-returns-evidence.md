@@ -57,6 +57,27 @@ pinned is listed under "Not verified" and named in the code where it is used.
 4. **Form GSTR-3B instruction 1:** the value of taxable supplies is invoices plus debit notes, minus credit notes.
    **Build:** 3.1 nets notes into the month they are dated in.
 
+5. **Form GSTR-1 table 9 (amendments, PR 3, checked 2026-10-20 against the same pinned file).**
+   - Each row gives the original document's GSTIN, number and date, then the revised:
+     - GSTIN and invoice number and date;
+     - shipping bill number and date, for exports only;
+     - value, rate and taxable value;
+     - integrated, central and State/UT tax, and cess;
+     - place of supply, only when it differs from the recipient's location.
+   - 9A amends what tables 4, 5 and 6 reported (B2B, B2CL, exports, SEZ and deemed exports), rate-wise.
+   - 9C amends debit and credit notes reported earlier; its first columns hold the original note.
+
+   **Build:** B2BA, B2CLA and EXPA rows (9A) and CDNRA and CDNURA rows (9C), one per rate, each with its original
+   reference and revised figures.
+6. **Form GSTR-1 table 10:** it is "similar to Table 9" for the B2C supplies reported in table 7. It names the tax
+   period being revised, then rate-wise intra-State rows (10A) and inter-State rows by place of supply (10B).
+
+   **Build:** B2CSA rows by original month, place of supply and rate.
+7. **Form GSTR-3B instruction 3:** "Amendment in any details to be adjusted and not shown separately."
+
+   **Build:** 3.1 of the amending month carries the difference between the revised figures and the figures last
+   reported.
+
 ## Not verified (named in the code; to check before filing)
 
 - **The B2CL threshold, now ₹1 lakh.** The pinned rules say ₹2.5 lakh. As far as the build environment knows,
@@ -70,3 +91,6 @@ pinned is listed under "Not verified" and named in the code where it is used.
 - **The GSTR-1 offline-tool JSON schema and UQC list.** These are hosted on tutorial.gst.gov.in. Per decision 074a,
   the JSON export waits. The UQC codes used for the unit mapping are the common ones (NOS, KGS, MTR, LTR, PCS, SET
   and others), to check against the tool's list when it is pinned.
+- **A cancelled invoice is amended to zero values.** This is common practice when an invoice reported in a filed
+  GSTR-1 is cancelled; the pinned rules don't say it. **Build:** the proposal's revised figures are zero, and a
+  person can drop it, for example when a credit note in an open month corrects it instead.
