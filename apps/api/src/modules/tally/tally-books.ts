@@ -1,4 +1,4 @@
-import { accountingSettings, purchaseInvoice, salesInvoice, salesNote, supplierNote, tallyBookMonth, type Database } from '@factoryos/db';
+import { accountingSettings, partySettlement, purchaseInvoice, salesInvoice, salesNote, supplierNote, tallyBookMonth, type Database } from '@factoryos/db';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
@@ -47,6 +47,7 @@ const DOCUMENTS = [
   { table: purchaseInvoice, date: purchaseInvoice.postingDate, label: 'purchase invoices' },
   { table: salesNote, date: salesNote.postingDate, label: 'customer notes' },
   { table: supplierNote, date: supplierNote.postingDate, label: 'supplier notes' },
+  { table: partySettlement, date: partySettlement.postingDate, label: 'receipts and payments' },
 ] as const;
 
 /** Counts live documents of one source in a month, by kind. */

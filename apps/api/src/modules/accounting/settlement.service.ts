@@ -8,6 +8,7 @@ import { and, eq } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import { AuditService } from '../../common/audit.service.js';
 import { StockPostingService } from '../stock-posting.service.js';
+import { assertFactoryOsBook, assertNotFromTally } from '../tally/tally-books.js';
 import { businessDate, lockAccounting, type Db, type Tx } from './accounting-lock.js';
 import { type BillBalance, BillService, type NewEffect, type TradeSide } from './bill.service.js';
 import { GlPostingService } from './gl-posting.service.js';
@@ -184,17 +185,19 @@ export class SettlementService {
     };
   }
 
-  async submitIn(tx: Tx, ctx: TenantRequestContext, entityId: string, id: string) {
+  /** A receipt or payment from Tally (decision 075) passes Tally's number; one entered here takes the next in the series. */
+  async submitIn(tx: Tx, ctx: TenantRequestContext, entityId: string, id: string, opts: { number?: string } = {}) {
     await lockAccounting(tx, entityId);
     const [s] = await tx.select().from(partySettlement).where(and(eq(partySettlement.id, id), eq(partySettlement.entityId, entityId))).for('update');
     if (!s) throw new NotFoundException('Receipt or payment not found');
     if (s.status !== 'draft') throw new ConflictException('Only drafts can be submitted');
+    if (s.source === 'factoryos') await assertFactoryOsBook(tx, entityId, s.postingDate, s.direction);
     await this.settings(tx, entityId);
     await this.bills.syncIn(tx, ctx, entityId);
     await this.bills.assertReconciledIn(tx, entityId);
     const input = this.inputOf(s);
     if(input.charge&&(!ctx.tenant.permissions.has('accounts.bank_charge.create')||!ctx.tenant.permissions.has('accounts.bank_charge.submit')))throw new ForbiddenException('Charge submission permission is required');
-    const number = await this.posting.allocateNumber(tx, ctx.tenant.tenantId, entityId, s.direction === 'receipt' ? 'customer_receipt' : 'supplier_payment', s.postingDate);
+    const number = opts.number ?? (await this.posting.allocateNumber(tx, ctx.tenant.tenantId, entityId, s.direction === 'receipt' ? 'customer_receipt' : 'supplier_payment', s.postingDate));
     const p = await this.previewIn(tx, ctx, entityId, input, number);
     const { voucherId } = await this.gl.postIn(
       tx,
@@ -255,10 +258,12 @@ export class SettlementService {
     return after!;
   }
 
-  async cancelIn(tx: Tx, ctx: TenantRequestContext, entityId: string, id: string, reason: string) {
+  /** `fromTally` is set only by the reversal of Tally documents; one from Tally is otherwise changed only in Tally. */
+  async cancelIn(tx: Tx, ctx: TenantRequestContext, entityId: string, id: string, reason: string, opts: { fromTally?: boolean } = {}) {
     await lockAccounting(tx, entityId);
     const [s] = await tx.select().from(partySettlement).where(and(eq(partySettlement.id, id), eq(partySettlement.entityId, entityId))).for('update');
     if (!s) throw new NotFoundException('Receipt or payment not found');
+    if (!opts.fromTally) assertNotFromTally(s, s.direction);
     if (s.status !== 'submitted') throw new ConflictException('Only submitted documents can be cancelled');
     const later = await tx.select({ number: settlementAllocationDocument.number }).from(settlementAllocationDocument).where(and(eq(settlementAllocationDocument.settlementId, id), eq(settlementAllocationDocument.status, 'submitted')));
     if (later.length) throw new ConflictException(`Its on-account money was applied by ${later.map((l) => l.number).join(', ')}. Cancel those allocations first.`);

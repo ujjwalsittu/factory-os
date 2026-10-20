@@ -43,6 +43,8 @@ import { itemInput, normaliseParty, partyInput } from '../masters.controller.js'
 import { OpeningWriter, openingActions, openingSummary, stageOpenings } from './tally-openings.js';
 import { notInExport, stageVouchers, writeVouchers } from './tally-vouchers.js';
 import { refreshDocuments, stageDocuments, writeDocuments } from './tally-documents.js';
+import { BillService } from '../accounting/bill.service.js';
+import { SettlementService } from '../accounting/settlement.service.js';
 import { OperationalPostings } from '../accounting/operational-postings.js';
 import { StockPostingService } from '../stock-posting.service.js';
 
@@ -118,6 +120,8 @@ export class TallyService {
     private readonly gl: GlPostingService,
     private readonly stock: StockPostingService,
     private readonly accounting: OperationalPostings,
+    private readonly settlements: SettlementService,
+    private readonly bills: BillService,
   ) {}
 
   // ── Read and stage ──
@@ -650,7 +654,7 @@ export class TallyService {
       }
       for (const r of voucherRows) results[`${r.kind}.${r.action}`] = (results[`${r.kind}.${r.action}`] ?? 0) + 1;
       // Decision 075: documents last, after the masters they link to and the history rows that point at them.
-      const documentResults = await writeDocuments(tx, ctx, entityId, imp.id, rows, { stock: this.stock, accounting: this.accounting, audit: this.audit });
+      const documentResults = await writeDocuments(tx, ctx, entityId, imp.id, rows, { stock: this.stock, accounting: this.accounting, audit: this.audit, settlements: this.settlements, bills: this.bills, gl: this.gl });
       for (const r of rows.filter((x) => x.kind === 'document')) {
         const resultId = documentResults.get(r.id) ?? r.targetId ?? null;
         if (resultId !== r.resultId) await tx.update(tallyStaged).set({ resultId }).where(eq(tallyStaged.id, r.id));

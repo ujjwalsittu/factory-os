@@ -12,6 +12,7 @@ import { TallyService } from './tally.service.js';
 import { getVoucher, listVouchers } from './tally-vouchers.js';
 import { listMappings, setLedgerItem, setVoucherType } from './tally-documents.js';
 import { TALLY_DOCUMENT_KINDS } from '@factoryos/core/tally-documents';
+import { ENTRY_KINDS } from './tally-entries.js';
 
 const KINDS = ['group', 'ledger', 'party', 'stockgroup', 'unit', 'godown', 'stockitem', 'opening', 'stock', 'voucher', 'document'] as const;
 const ACTIONS = ['new', 'link', 'update', 'unchanged', 'conflict', 'skip'] as const;
@@ -143,7 +144,7 @@ export class TallyBooksController {
   }
 }
 
-const voucherTypeInput = z.object({ voucherType: z.string().trim().min(1).max(120), documentKind: z.enum([...TALLY_DOCUMENT_KINDS, 'none']).nullable() });
+const voucherTypeInput = z.object({ voucherType: z.string().trim().min(1).max(120), documentKind: z.enum([...TALLY_DOCUMENT_KINDS, ...ENTRY_KINDS, 'none']).nullable() });
 const ledgerItemInput = z.object({ ledger: z.string().trim().min(1).max(200), itemId: z.uuid().nullable() });
 
 /** Decision 075: what each Tally voucher type becomes, and which service item a ledger is booked as. */

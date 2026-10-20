@@ -14,6 +14,7 @@ import {
   salesNote,
   supplierNote,
   stockEntry,
+  tallyDocumentVersion,
   stockEntryLine,
   stockLedgerEntry,
   tallyBookMonth,
@@ -26,13 +27,18 @@ import {
   warehouse,
 } from '@factoryos/db';
 import { BadRequestException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { and, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import type { TenantRequestContext } from '../../common/access.js';
 import type { AuditService } from '../../common/audit.service.js';
 import type { Db, Tx } from '../accounting/accounting-lock.js';
+import type { BillService } from '../accounting/bill.service.js';
+import type { GlPostingService } from '../accounting/gl-posting.service.js';
 import type { OperationalPostings } from '../accounting/operational-postings.js';
+import type { SettlementService } from '../accounting/settlement.service.js';
 import type { StockPostingService } from '../stock-posting.service.js';
 import { bookOf } from './tally-books.js';
+import { createEntry, ENTRY_BASE_TYPES, ENTRY_LABEL, entryResolver, isEntryKind, planEntry, type EntryKind } from './tally-entries.js';
 import { voucherLabel } from './tally-vouchers.js';
 
 /**
@@ -53,19 +59,29 @@ type StagedDocument = {
   notes: string[];
 };
 
-const KIND_LABEL: Record<TallyDocumentKind, string> = {
+/** Invoices and notes (PR 1) and receipts, payments, journals and stock journals (PR 2). */
+export type DocKind = TallyDocumentKind | EntryKind;
+
+const KIND_LABEL: Record<DocKind, string> = {
   sales_invoice: 'Sales invoice',
   purchase_invoice: 'Purchase invoice',
   sales_credit_note: 'Customer credit note',
   supplier_debit_note: 'Supplier debit note',
+  ...ENTRY_LABEL,
 };
+
+/** Tally's own voucher types and what each becomes unless a person maps it otherwise. */
+export const BASE_TYPES: Readonly<Record<string, DocKind>> = { ...TALLY_BASE_TYPES, ...ENTRY_BASE_TYPES };
+
+/** On one day: purchases first so stock is there to ship or consume, notes after their invoices, money last. */
+const ORDER: Record<DocKind, number> = { purchase_invoice: 0, stock_journal: 1, sales_invoice: 2, sales_credit_note: 3, supplier_debit_note: 3, receipt: 4, payment: 4, journal: 4 };
 
 /** What each voucher type of this entity becomes: the person's mapping, else Tally's base type, else nothing. */
 export async function voucherTypeKinds(db: Db, entityId: string) {
   const rows = await db.select().from(tallyVoucherTypeMap).where(eq(tallyVoucherTypeMap.entityId, entityId));
-  const mapped = new Map(rows.map((r) => [r.voucherType, r.documentKind as TallyDocumentKind | 'none']));
-  return (type: string): TallyDocumentKind | null => {
-    const k = mapped.get(type) ?? TALLY_BASE_TYPES[type] ?? null;
+  const mapped = new Map(rows.map((r) => [r.voucherType, r.documentKind as DocKind | 'none']));
+  return (type: string): DocKind | null => {
+    const k = mapped.get(type) ?? BASE_TYPES[type] ?? null;
     return k === 'none' ? null : k;
   };
 }
@@ -92,8 +108,13 @@ export async function stageDocuments(tx: Db, tenantId: string, entityId: string,
       history.set(r.guid, r);
   const r = inMonth.length ? await resolver(tx, tenantId, entityId) : null;
   const links = r?.regs.length === 1 ? r.links(r.regs[0]!.stateCode) : null;
-  const check = (v: TallyVoucher, kind: TallyDocumentKind) =>
-    !links ? [r?.regs.length ? 'This entity has several GSTINs; documents from Tally need one GSTIN for the entity for now.' : 'Add the GST registration of this entity first.'] : (tallyDocument(v, kind, links).problems ?? []);
+  const er = r ? await entryResolver(tx, tenantId, entityId, r.links('')) : null;
+  const check = (v: TallyVoucher, kind: DocKind) =>
+    isEntryKind(kind)
+      ? (planEntry(v, kind, er!).problems ?? [])
+      : !links
+        ? [r?.regs.length ? 'This entity has several GSTINs; documents from Tally need one GSTIN for the entity for now.' : 'Add the GST registration of this entity first.']
+        : (tallyDocument(v, kind, links).problems ?? []);
   const out: StagedDocument[] = [];
   for (const v of inMonth) {
     const kind = kindOf(v.type);
@@ -124,7 +145,7 @@ export async function stageDocuments(tx: Db, tenantId: string, entityId: string,
       continue;
     }
     const becomes = `Becomes a submitted ${KIND_LABEL[kind].toLowerCase()} with Tally's number and amounts.`;
-    const problems = check ? check(v, kind) : [];
+    const problems = check(v, kind);
     // Only a missing link can be cured by masters in the same upload (an unlinked item also leaves its ledger unbooked,
     // so all of that voucher waits for commit); otherwise it needs a decision now.
     const later = withMasters && problems.some((p) => / is not linked to /.test(p)) ? problems : [];
@@ -233,6 +254,9 @@ export interface DocumentServices {
   stock: StockPostingService;
   accounting: OperationalPostings;
   audit: AuditService;
+  settlements: SettlementService;
+  bills: BillService;
+  gl: GlPostingService;
 }
 
 /**
@@ -245,28 +269,37 @@ export async function writeDocuments(tx: Tx, ctx: TenantRequestContext, entityId
   if (!todo.length) return results;
   const vouchers = new Map(rows.filter((r) => r.kind === 'voucher' && r.guid).map((r) => [r.guid!, r.payload as unknown as TallyVoucher]));
   const r = await resolver(tx, ctx.tenant.tenantId, entityId);
-  if (r.regs.length !== 1)
+  const kindOfRow = (row: (typeof rows)[number]) => (row.payload as { documentKind: DocKind }).documentKind;
+  // Invoices and notes carry GST, so they need the entity's one GSTIN; receipts, journals and stock journals do not.
+  const needsGstin = todo.some((row) => !isEntryKind(kindOfRow(row)));
+  if (needsGstin && r.regs.length !== 1)
     throw new BadRequestException(
       r.regs.length ? 'This entity has several GSTINs; documents from Tally need one GSTIN for the entity for now.' : 'Add the GST registration of this entity before bringing in Tally documents.',
     );
   const reg = r.regs[0]!;
-  const links = r.links(reg.stateCode);
-  // On one day: purchases first so stock is there to ship, notes last so the invoice they are against exists.
-  const order = (k: unknown) => (k === 'purchase_invoice' ? 0 : k === 'sales_invoice' ? 1 : 2);
+  const links = r.links(reg?.stateCode ?? '');
+  const er = await entryResolver(tx, ctx.tenant.tenantId, entityId, links);
   const sorted = [...todo].sort((a, b) => {
-    const pa = a.payload as { date: string; documentKind: string },
-      pb = b.payload as { date: string; documentKind: string };
-    return pa.date.localeCompare(pb.date) || order(pa.documentKind) - order(pb.documentKind);
+    const pa = a.payload as { date: string },
+      pb = b.payload as { date: string };
+    return pa.date.localeCompare(pb.date) || ORDER[kindOfRow(a)] - ORDER[kindOfRow(b)];
   });
   const problems: string[] = [];
-  const drafts: { row: (typeof rows)[number]; v: TallyVoucher; draft: TallyDocumentDraft }[] = [];
+  const drafts: ({ row: (typeof rows)[number]; v: TallyVoucher } & ({ draft: TallyDocumentDraft; kind?: undefined } | { kind: EntryKind; draft?: undefined }))[] = [];
   for (const row of sorted) {
     const v = vouchers.get(row.guid!);
-    const kind = (row.payload as { documentKind: TallyDocumentKind }).documentKind;
+    const kind = kindOfRow(row);
     if (!v) continue;
     // The book may have changed since the upload; it is read again under the commit's accounting lock.
     if (!v.date || (await bookOf(tx, entityId, v.date)) !== 'tally') {
       problems.push(`${voucherLabel(v)}: ${v.date?.slice(0, 7) ?? 'its month'} is no longer kept in Tally. Choose Check again.`);
+      continue;
+    }
+    if (isEntryKind(kind)) {
+      // Planned again at creation, after the documents before it on the day exist.
+      const res = planEntry(v, kind, er);
+      if (res.problems) problems.push(...res.problems.map((p) => `${voucherLabel(v)}: ${p}`));
+      else drafts.push({ row, v, kind });
       continue;
     }
     const res = tallyDocument(v, kind, links);
@@ -280,20 +313,32 @@ export async function writeDocuments(tx: Tx, ctx: TenantRequestContext, entityId
     });
 
   let created = 0;
-  for (const { row, v, draft } of drafts) {
-    const id =
-      draft.kind === 'sales_invoice'
-        ? await salesInvoiceFrom(tx, ctx, entityId, reg, v, draft, r, s)
-        : draft.kind === 'purchase_invoice'
-          ? await purchaseInvoiceFrom(tx, ctx, entityId, reg, v, draft, r, s)
-          : draft.kind === 'sales_credit_note'
-            ? await salesNoteFrom(tx, ctx, entityId, reg, v, draft, r, s)
-            : await supplierNoteFrom(tx, ctx, entityId, reg, v, draft, r, s);
+  const tracked = (itemId: string) => (r.items.get(itemId)?.tracking ?? 'none') !== 'none';
+  for (const { row, v, draft, kind } of drafts) {
+    const versionId = randomUUID();
+    let documentKind: string, id: string;
+    const parts: Part[] = [];
+    if (kind) {
+      const made = await createEntry(tx, ctx, entityId, v, planEntry(v, kind, er), versionId, { ...s, tracked });
+      documentKind = made.documentKind;
+      id = made.documentId;
+    } else {
+      documentKind = draft.kind;
+      id =
+        draft.kind === 'sales_invoice'
+          ? await salesInvoiceFrom(tx, ctx, entityId, reg, v, draft, r, s)
+          : draft.kind === 'purchase_invoice'
+            ? await purchaseInvoiceFrom(tx, ctx, entityId, reg, v, draft, r, s, parts)
+            : draft.kind === 'sales_credit_note'
+              ? await salesNoteFrom(tx, ctx, entityId, reg, v, draft, r, s)
+              : await supplierNoteFrom(tx, ctx, entityId, reg, v, draft, r, s, parts);
+    }
     results.set(row.id, id);
+    await tx.insert(tallyDocumentVersion).values({ id: versionId, tenantId: ctx.tenant.tenantId, entityId, guid: v.guid!, alterId: v.alterId, documentKind, documentId: id, importId, parts });
     // Re-sync finds the document through its history row, so a document needs its voucher kept as history.
     const linked = await tx
       .update(tallyVoucher)
-      .set({ documentKind: draft.kind, documentId: id })
+      .set({ documentKind, documentId: id })
       .where(and(eq(tallyVoucher.entityId, entityId), eq(tallyVoucher.guid, v.guid!)))
       .returning({ id: tallyVoucher.id });
     if (!linked.length) throw new BadRequestException(`${voucherLabel(v)}: keep the voucher in Tally history to bring it in as a document, or skip the document too.`);
@@ -304,6 +349,7 @@ export async function writeDocuments(tx: Tx, ctx: TenantRequestContext, entityId
 }
 
 type Resolver = Awaited<ReturnType<typeof resolver>>;
+type Part = { kind: string; id: string };
 type Registration = typeof gstRegistration.$inferSelect;
 
 /** Batch by number for an item; a receipt may name a new one, a delivery must find it. */
@@ -402,7 +448,8 @@ async function salesInvoiceFrom(tx: Tx, ctx: TenantRequestContext, entityId: str
   return inv!.id;
 }
 
-async function purchaseInvoiceFrom(tx: Tx, ctx: TenantRequestContext, entityId: string, reg: Registration, v: TallyVoucher, d: TallyDocumentDraft, r: Resolver, s: DocumentServices) {
+/** `parts` collects records the document made beyond its own row (its stock receipt), reversed with it. */
+async function purchaseInvoiceFrom(tx: Tx, ctx: TenantRequestContext, entityId: string, reg: Registration, v: TallyVoucher, d: TallyDocumentDraft, r: Resolver, s: DocumentServices, parts: Part[]) {
   const tenantId = ctx.tenant.tenantId;
   const p = r.parties.get(d.partyId);
   const [dup] = await tx.select({ id: purchaseInvoice.id }).from(purchaseInvoice).where(and(eq(purchaseInvoice.entityId, entityId), eq(purchaseInvoice.number, d.number), ne(purchaseInvoice.status, 'cancelled')));
@@ -485,6 +532,7 @@ async function purchaseInvoiceFrom(tx: Tx, ctx: TenantRequestContext, entityId: 
     await s.stock.submitIn(tx, ctx, entityId, entry!.id).catch((e: unknown) => {
       throw new BadRequestException(`${voucherLabel(v)}: can't receive the goods: ${e instanceof Error ? e.message : String(e)}`);
     });
+    parts.push({ kind: 'stock_entry', id: entry!.id });
     const [value] = await tx
       .select({ v: sql<string>`coalesce(sum(${stockLedgerEntry.value}), 0)::text` })
       .from(stockLedgerEntry)
@@ -548,12 +596,12 @@ export async function listMappings(db: Db, tenantId: string, entityId: string) {
     .where(and(eq(tallyStaged.entityId, entityId), eq(tallyStaged.kind, 'document'), eq(tallyImport.status, 'read')))
     .groupBy(sql`${tallyStaged.payload}->>'voucherType'`);
   const mapped = await db.select().from(tallyVoucherTypeMap).where(eq(tallyVoucherTypeMap.entityId, entityId));
-  const types = new Map<string, { voucherType: string; vouchers: number; documentKind: TallyDocumentKind | 'none' | null; preset: boolean }>();
-  for (const s of seen) types.set(s.type, { voucherType: s.type, vouchers: s.n, documentKind: TALLY_BASE_TYPES[s.type] ?? null, preset: s.type in TALLY_BASE_TYPES });
+  const types = new Map<string, { voucherType: string; vouchers: number; documentKind: DocKind | 'none' | null; preset: boolean }>();
+  for (const s of seen) types.set(s.type, { voucherType: s.type, vouchers: s.n, documentKind: BASE_TYPES[s.type] ?? null, preset: s.type in BASE_TYPES });
   for (const w of waiting)
-    if (w.type && !types.has(w.type)) types.set(w.type, { voucherType: w.type, vouchers: w.n, documentKind: TALLY_BASE_TYPES[w.type] ?? null, preset: w.type in TALLY_BASE_TYPES });
+    if (w.type && !types.has(w.type)) types.set(w.type, { voucherType: w.type, vouchers: w.n, documentKind: BASE_TYPES[w.type] ?? null, preset: w.type in BASE_TYPES });
   for (const m of mapped)
-    types.set(m.voucherType, { voucherType: m.voucherType, vouchers: types.get(m.voucherType)?.vouchers ?? 0, documentKind: m.documentKind as TallyDocumentKind | 'none', preset: false });
+    types.set(m.voucherType, { voucherType: m.voucherType, vouchers: types.get(m.voucherType)?.vouchers ?? 0, documentKind: m.documentKind as DocKind | 'none', preset: false });
   const ledgers = await db
     .select({ ledger: tallyLedgerItem.ledger, itemId: tallyLedgerItem.itemId, itemCode: item.code, itemName: item.name })
     .from(tallyLedgerItem)
@@ -563,7 +611,7 @@ export async function listMappings(db: Db, tenantId: string, entityId: string) {
   return { voucherTypes: [...types.values()].sort((a, b) => a.voucherType.localeCompare(b.voucherType)), ledgers };
 }
 
-export async function setVoucherType(tx: Tx, ctx: TenantRequestContext, entityId: string, audit: AuditService, voucherType: string, documentKind: TallyDocumentKind | 'none' | null) {
+export async function setVoucherType(tx: Tx, ctx: TenantRequestContext, entityId: string, audit: AuditService, voucherType: string, documentKind: DocKind | 'none' | null) {
   const tenantId = ctx.tenant.tenantId;
   await tx.delete(tallyVoucherTypeMap).where(and(eq(tallyVoucherTypeMap.entityId, entityId), eq(tallyVoucherTypeMap.voucherType, voucherType)));
   if (documentKind) await tx.insert(tallyVoucherTypeMap).values({ tenantId, entityId, voucherType, documentKind, setBy: ctx.user.id });
@@ -701,7 +749,7 @@ async function salesNoteFrom(tx: Tx, ctx: TenantRequestContext, entityId: string
 }
 
 /** A Tally debit note on a supplier: lowers what is owed; goods sent back leave stock at carrying cost. */
-async function supplierNoteFrom(tx: Tx, ctx: TenantRequestContext, entityId: string, reg: Registration, v: TallyVoucher, d: TallyDocumentDraft, r: Resolver, s: DocumentServices) {
+async function supplierNoteFrom(tx: Tx, ctx: TenantRequestContext, entityId: string, reg: Registration, v: TallyVoucher, d: TallyDocumentDraft, r: Resolver, s: DocumentServices, parts: Part[]) {
   const tenantId = ctx.tenant.tenantId;
   const fy = fyCode(new Date(`${d.date}T00:00:00Z`));
   const [dup] = await tx
@@ -732,6 +780,7 @@ async function supplierNoteFrom(tx: Tx, ctx: TenantRequestContext, entityId: str
     await s.stock.submitIn(tx, ctx, entityId, entry!.id).catch((e: unknown) => {
       throw new BadRequestException(`${voucherLabel(v)}: can't send the goods back: ${e instanceof Error ? e.message : String(e)}`);
     });
+    parts.push({ kind: 'stock_entry', id: entry!.id });
     stockValue = await entryValue(tx, entry!.id);
   }
   const [note] = await tx
