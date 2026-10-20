@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-20 (Asia/Kolkata) · Tally documents PR 1 (decision 075) built, waiting for review_
+_Last updated: 2026-10-20 (Asia/Kolkata) · Tally documents PR 1 (decision 075) merged as PR 72_
 
 ## Done
 - [x] **UI, menu, Home and connections (decision 068)**. [Audit](../superpowers/reviews/2026-10-13-ui-audit.md), [design](../superpowers/specs/2026-10-13-ui-menu-connections-design.md); five slices, each its own PR. Slices 1 (PR 53), 2 (PR 55), 3 (PR 57) and 4 (PR 59) merged. **Slice 5 (Connections page and hand-offs) merged as PR 69** ([review](../superpowers/reviews/2026-10-20-ui-slice-5-review.md)): Settings → Connections with a status card per outside connection and a storage test; hand-offs from Home rows, item pages, invoices and receipts. No migration.
@@ -213,7 +213,7 @@ _Last updated: 2026-10-20 (Asia/Kolkata) · Tally documents PR 1 (decision 075) 
 
 
 ## Next (user-authorized sequence; review each written design/plan)
-0. **Tally transactions as FactoryOS documents (decision 075, accepted 2026-10-20):** [design](../superpowers/specs/2026-10-20-tally-transactions-design.md). **PR 1 built, waiting for review and merge** (migration 0058, decision 075a, [review](../superpowers/reviews/2026-10-20-tally-documents-pr1-review.md)): Books by month, voucher-type and ledger mappings, sales and purchase invoices and value notes from Tally with stock and books. **PR 2 next:** receipts, payments, journals, stock journals, the reversal of Tally documents (re-sync of edited vouchers and switching a month back). Feeds the GST returns below, which must read notes from Tally from `tally_lines`.
+0. **Tally transactions as FactoryOS documents (decision 075, accepted 2026-10-20):** [design](../superpowers/specs/2026-10-20-tally-transactions-design.md). **PR 1 merged as PR 72** (migration 0058, decision 075a, [review](../superpowers/reviews/2026-10-20-tally-documents-pr1-review.md)): Books by month, voucher-type and ledger mappings, sales and purchase invoices and value notes from Tally with stock and books. **PR 2 next:** receipts, payments, journals, stock journals, the reversal of Tally documents (re-sync of edited vouchers and switching a month back). Feeds the GST returns below, which must read notes from Tally from `tally_lines`.
 0. **GST returns from the books (decision 074, accepted 2026-10-20):** [design](../superpowers/specs/2026-10-20-gst-returns-design.md). PR 1 (GSTR-1 and 3B prepared, reviewed, exported for portal upload) needs the GSTR-1 offline-tool JSON schema pinned in `docs/compliance/` first. Not yet claimed.
 1. Support access live enablement (needs the user): set `SUPPORT_ACCESS_ENABLED=true` on the API app in Coolify only when wanted, then a tenant administrator turns the policy on and a real operator acceptance over HTTPS is done. PostgreSQL RLS is a separate design.
 2. Resume individual statutory bundles/TDS/TCS source workflows and verified NIC adapter when the documented primary-guidance/provider prerequisites become available.
