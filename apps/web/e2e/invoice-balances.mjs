@@ -29,7 +29,8 @@ try {
     const bill = bills.find(b => b.sourceId === invoice.id);
     const settlement = await c.req('POST', '/accounts/settlements', { direction: type === 'purchase' ? 'payment' : 'receipt', partyId: type === 'purchase' ? supplier.id : customer.id, postingDate: c.settings.cutoverDate, currency: 'INR', exchangeRate: '1', accountId: c.account('bank'), amount: '40', allocations: [{ billId: bill.id, amount: '40' }] }, 201);
     await c.req('POST', `/accounts/settlements/${settlement.id}/submit`, {});
-    await page.locator('nav').getByRole('link', { name: 'Receipts & payments', exact: true }).click();
+    // The menu also lists recent pages; take the link in its own area.
+    await page.locator('nav [data-area="accounts"]').getByRole('link', { name: 'Receipts & payments', exact: true }).click();
     await page.waitForURL('**/accounts/settlements');
     await page.goBack();
     await page.getByText(/Remaining bill balance:.*INR 60\.000000/).waitFor();

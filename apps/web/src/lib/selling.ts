@@ -65,6 +65,8 @@ export interface SellingLine {
 }
 export interface SellingDocument {
   id: string;
+  /** 'tally' for documents brought in from Tally (decision 075). */
+  source?: string;
   number: string | null;
   status: DocStatus;
   customerId: string;
