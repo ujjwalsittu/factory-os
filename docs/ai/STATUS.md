@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-21 (Asia/Kolkata) · GST amendments speed fix built, in review_
+_Last updated: 2026-10-21 (Asia/Kolkata) · Approvals inbox claimed_
 
 ## Done
 - [x] **UI, menu, Home and connections (decision 068)**. [Audit](../superpowers/reviews/2026-10-13-ui-audit.md), [design](../superpowers/specs/2026-10-13-ui-menu-connections-design.md); five slices, each its own PR. Slices 1 (PR 53), 2 (PR 55), 3 (PR 57) and 4 (PR 59) merged. **Slice 5 (Connections page and hand-offs) merged as PR 69** ([review](../superpowers/reviews/2026-10-20-ui-slice-5-review.md)): Settings → Connections with a status card per outside connection and a storage test; hand-offs from Home rows, item pages, invoices and receipts. No migration.
@@ -208,6 +208,7 @@ _Last updated: 2026-10-21 (Asia/Kolkata) · GST amendments speed fix built, in r
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
+- **Approvals inbox (UX decision X12)** · owner: agent, cloud session on branch `claude/zealous-allen-35g1vm` · started: 2026-10-21 22:02 IST. One page listing every document waiting on the signed-in person's approval or verification, with approve and reject from the list where the document allows it. Chosen by the user on 2026-10-21 because every item under Next is blocked or waiting on the user. [Design](../superpowers/specs/2026-10-21-approvals-inbox-design.md) and decision 076 written with the user's three answers (all entities, simple approvals in the list, a Waiting on others tab); build after this PR merges.
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
 
 
