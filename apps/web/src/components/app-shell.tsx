@@ -7,7 +7,8 @@ import { type ReactNode, Suspense, useEffect, useRef, useState } from 'react';
 import { authClient } from '@/lib/auth-client';
 import { fyLabel, initials } from '@/lib/format';
 import { CommandPalette } from './command-palette';
-import { ALL_ITEMS, AREAS, areaOf, HOME, isActive, type NavItem } from './nav-data';
+import { useApprovals } from '@/lib/approvals';
+import { ALL_ITEMS, APPROVALS, AREAS, areaOf, HOME, isActive, type NavItem } from './nav-data';
 import { ThemeToggle } from './theme';
 import { flushPendingPreferences, MAX_RECENT, usePreferences } from './use-preferences';
 import { useWorkspace } from './workspace';
@@ -103,14 +104,14 @@ function MenuTracker() {
   const area = areaOf(pathname, role);
   useEffect(() => {
     if (!settled || !item) return;
-    if (item.href !== HOME.href) visit(item.href);
+    if (item.href !== HOME.href && item.href !== APPROVALS.href) visit(item.href);
     if (area) openArea(area);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settled, item?.href, area]);
   return null;
 }
 
-function NavLink({ item, active, starred, onStar, onNavigate }: { item: NavItem; active: boolean; starred?: boolean; onStar?: (href: string) => void; onNavigate?: () => void }) {
+function NavLink({ item, active, starred, onStar, onNavigate, count }: { item: NavItem; active: boolean; starred?: boolean; onStar?: (href: string) => void; onNavigate?: () => void; count?: number }) {
   const Icon = item.icon;
   return (
     <div className="group relative">
@@ -126,6 +127,11 @@ function NavLink({ item, active, starred, onStar, onNavigate }: { item: NavItem;
       >
         <Icon className="size-4 shrink-0" />
         <span className="truncate">{item.label}</span>
+        {!!count && (
+          <span className="tabular ml-auto rounded-full bg-accent px-1.5 text-[11px] leading-[18px] font-semibold text-accent-fg" aria-label={`${count} waiting`}>
+            {count}
+          </span>
+        )}
       </Link>
       {onStar && (
         <button
@@ -155,12 +161,14 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
   // Stored links the person can no longer open (permission removed) stay stored but are not shown.
   const pick = (hrefs: string[]) => hrefs.map((h) => byHref.get(h)).filter((i): i is NavItem => !!i && visible(i));
   const active = (i: NavItem) => isActive(i, pathname, role);
+  const approvals = useApprovals();
   const favourites = pick(prefs.favourites);
   const recent = pick(prefs.recent).filter((i) => !active(i)).slice(0, MAX_RECENT);
   return (
     <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label="Main">
       <div className="mt-3">
         <NavLink item={HOME} active={active(HOME)} onNavigate={onNavigate} />
+        <NavLink item={APPROVALS} active={active(APPROVALS)} onNavigate={onNavigate} count={approvals.data?.needsMe.length} />
       </div>
       {favourites.length > 0 && (
         <div className="mt-3" aria-label="Favourites">

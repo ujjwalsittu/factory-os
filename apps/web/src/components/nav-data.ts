@@ -2,6 +2,7 @@ import {
   FileUp,
   Cable,
   History,
+  Inbox,
   ArrowLeftRight,
   BadgePercent,
   Banknote,
@@ -77,6 +78,9 @@ export interface NavArea {
 }
 
 export const HOME: NavItem = { href: '/app', label: 'My work', icon: Home };
+
+/** Decision 076: everything waiting on me, across my entities. Anyone may open it; each source checks its own permission. */
+export const APPROVALS: NavItem = { href: '/app/approvals', label: 'Approvals', icon: Inbox };
 
 /** The menu, by area of work (decision 068). Every page a person opens from the menu appears here once. */
 export const AREAS: NavArea[] = [
@@ -214,7 +218,7 @@ export const AREAS: NavArea[] = [
 ];
 
 /** Every menu link, flat. */
-export const ALL_ITEMS: NavItem[] = [HOME, ...AREAS.flatMap((a) => a.items)];
+export const ALL_ITEMS: NavItem[] = [HOME, APPROVALS, ...AREAS.flatMap((a) => a.items)];
 
 /** The path part of a menu href. */
 export const pathOf = (href: string) => href.split('?')[0]!;
