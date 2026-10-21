@@ -497,7 +497,8 @@ export function SellingForm({
                 Short-close
               </Button>
             )}
-          {submitted && kind === 'invoices' && ws.can('compliance.sandbox_irn.create') && <Link className={buttonClass('secondary','md')} href={`/app/compliance/sandbox/new?sourceKind=sales_invoice&sourceId=${doc.id}`}>Prepare sandbox registration</Link>}
+          {/* Decision 075: an invoice from Tally keeps its e-invoice in Tally. */}
+          {submitted && kind === 'invoices' && doc?.source !== 'tally' && ws.can('compliance.sandbox_irn.create') && <Link className={buttonClass('secondary','md')} href={`/app/compliance/sandbox/new?sourceKind=sales_invoice&sourceId=${doc.id}`}>Prepare sandbox registration</Link>}
           {submitted && kind === 'invoices' && ws.can('selling.sales_note.create') && (
             <><Link className={buttonClass('secondary','md')} href={`/app/selling/notes/new?invoiceId=${doc.id}&kind=credit`}>Create credit note</Link><Link className={buttonClass('secondary','md')} href={`/app/selling/notes/new?invoiceId=${doc.id}&kind=debit`}>Create debit note</Link></>
           )}
