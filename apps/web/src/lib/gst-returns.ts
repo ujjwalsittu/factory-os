@@ -39,7 +39,32 @@ export interface Gstr1 {
   attention: Attention[];
   totals: Record<'b2b' | 'b2cl' | 'b2cs' | 'exp' | 'cdnr' | 'cdnur', Amounts>;
   documents: { nature: string; series: string; from: string; to: string; total: number; cancelled: number; gaps: string[] }[];
+  amendments?: Amendment[];
 }
+export type B2csRow = Amounts & { placeOfSupply: string; rate: string };
+/** Decision 074b: a correction to a filed month, proposed in a later GSTR-1. */
+export interface Amendment {
+  key: string;
+  table: 'b2ba' | 'b2cla' | 'expa' | 'cdnra' | 'cdnura' | 'b2csa';
+  originalPeriod: string;
+  documentId: string | null;
+  documentType: Gstr1Entry['documentType'] | null;
+  number: string | null;
+  date: string | null;
+  reported: (Gstr1Entry & { counterpartyGstin: string | null }) | { rows: B2csRow[] };
+  revised: (Gstr1Entry & { counterpartyGstin: string | null }) | { rows: B2csRow[] };
+  difference: Amounts;
+  status: 'proposed' | 'included' | 'dropped';
+  reason: string | null;
+}
+export const AMEND_LABEL: Record<Amendment['table'], string> = {
+  b2ba: 'B2BA (9A)',
+  b2cla: 'B2CLA (9A)',
+  expa: 'EXPA (9A)',
+  cdnra: 'CDNRA (9C)',
+  cdnura: 'CDNURA (9C)',
+  b2csa: 'B2CSA (10)',
+};
 export interface Gstr3b {
   '3.1': Record<'a' | 'b' | 'c' | 'd' | 'e', Amounts>;
   '3.2': { placeOfSupply: string; unregistered: { taxable: string; igst: string }; composition: { taxable: string; igst: string } }[];
@@ -81,7 +106,8 @@ export interface ReturnDetail extends ReturnRow {
   approvedAt: string | null;
   filedAt: string | null;
   lines: ReturnLine[];
-  changedSinceFiling: { documentId: string; documentType: string; number: string; what: string }[];
+  amendments: { id: string; key: string; status: Amendment['status']; reason: string | null; decidedAt: string | null }[];
+  changedSinceFiling: { documentId: string; documentType: string; number: string; what: string; amendedIn?: string }[];
 }
 
 export const KIND_LABEL: Record<ReturnKind, string> = { gstr1: 'GSTR-1', gstr3b: 'GSTR-3B' };

@@ -74,3 +74,49 @@ export const gstReturnLine = pgTable(
   },
   (t) => [index('gst_return_line_return_idx').on(t.returnId), index('gst_return_line_document_idx').on(t.documentId)],
 );
+
+/**
+ * Decision 074b: a correction to a filed month, proposed in the next GSTR-1 of the GSTIN. A person includes it or
+ * drops it with a reason; included ones go into the return's amendment tables and adjust its GSTR-3B. Frozen with
+ * the return once filed.
+ */
+export const gstAmendment = pgTable(
+  'gst_amendment',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id),
+    entityId: uuid('entity_id')
+      .notNull()
+      .references(() => legalEntity.id),
+    /** The GSTR-1 that carries the amendment. */
+    returnId: uuid('return_id')
+      .notNull()
+      .references(() => gstReturn.id, { onDelete: 'cascade' }),
+    /** The document id, or `b2cs:<month>` for a B2CS revision. */
+    key: text('key').notNull(),
+    /** b2ba | b2cla | expa | cdnra | cdnura | b2csa */
+    amendTable: text('amend_table').notNull(),
+    documentType: text('document_type'),
+    documentId: uuid('document_id'),
+    /** The filed month whose figures are revised. */
+    originalPeriod: text('original_period').notNull(),
+    reported: jsonb('reported').$type<Record<string, unknown>>().notNull(),
+    revised: jsonb('revised').$type<Record<string, unknown>>().notNull(),
+    difference: jsonb('difference').$type<Record<string, string>>().notNull(),
+    /** proposed | included | dropped */
+    status: text('status').notNull().default('proposed'),
+    reason: text('reason'),
+    decidedBy: text('decided_by').references(() => user.id),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('gst_amendment_key_uq').on(t.returnId, t.key),
+    index('gst_amendment_document_idx').on(t.documentId),
+    check('gst_amendment_table_ck', sql`${t.amendTable} in ('b2ba','b2cla','expa','cdnra','cdnura','b2csa')`),
+    check('gst_amendment_status_ck', sql`${t.status} in ('proposed','included','dropped')`),
+    check('gst_amendment_dropped_reason_ck', sql`${t.status} <> 'dropped' or length(trim(coalesce(${t.reason}, ''))) >= 5`),
+    check('gst_amendment_decided_ck', sql`(${t.status} = 'proposed') = (${t.decidedBy} is null)`),
+  ],
+);

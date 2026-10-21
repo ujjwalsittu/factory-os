@@ -190,3 +190,66 @@ describe('sheets', () => {
     expect(gstr3bSheet(buildGstr3b(g1, docs, [], OUR))).toMatch(/^Table,Description/);
   });
 });
+
+describe('amendments (PR 3)', () => {
+  it('proposes a B2BA to zero for a cancelled invoice and adjusts 3B by the difference', async () => {
+    const { entryAmendment, applyAmendments, gstr1Sheets } = await import('./gst-returns.js');
+    const filed = buildGstr1([doc({ counterpartyGstin: '27AAAAA0000A1Z5', treatment: 'registered', lines: [line('1000', '18', 'local')] })], OUR, { turnoverAboveFiveCrore: false }).entries[0]!;
+    expect(entryAmendment('2026-10', filed, filed)).toBeNull();
+    // Read back from storage with its keys in another order, it is still unchanged.
+    const stored = JSON.parse(JSON.stringify({ ...filed, byRate: filed.byRate.map(({ cess, sgst, cgst, igst, taxable, rate }) => ({ cess, sgst, cgst, igst, taxable, rate })) }));
+    expect(entryAmendment('2026-10', stored, filed)).toBeNull();
+    const a = entryAmendment('2026-10', filed, null)!;
+    expect(a.table).toBe('b2ba');
+    expect((a.revised as typeof filed).byRate).toEqual([{ rate: '18.00', taxable: '0.00', igst: '0.00', cgst: '0.00', sgst: '0.00', cess: '0.00' }]);
+    expect(a.difference).toEqual({ taxable: '-1000.00', igst: '0.00', cgst: '-90.00', sgst: '-90.00', cess: '0.00' });
+    // Once an amendment has reported it as zero, the cancellation is settled.
+    expect(entryAmendment('2026-10', a.revised as typeof filed, null)).toBeNull();
+    // The amending month: one new sale of 500, and the cancellation included.
+    const month = [doc({ counterpartyGstin: '27AAAAA0000A1Z5', treatment: 'registered', lines: [line('500', '18', 'local')] })];
+    const g1 = { ...buildGstr1(month, OUR, { turnoverAboveFiveCrore: false }), amendments: [{ ...a, status: 'included' as const, reason: null }] };
+    const g3 = applyAmendments(buildGstr3b(g1, month, [], OUR), g1);
+    expect(g3['3.1'].a).toEqual({ taxable: '-500.00', igst: '0.00', cgst: '-45.00', sgst: '-45.00', cess: '0.00' });
+    expect(g3['6.1']).toEqual({ igst: '0.00', cgst: '-45.00', sgst: '-45.00', cess: '0.00' });
+    expect(checkGstr1Against3b(g1, g3, month).ok).toBe(true);
+    const sheet = gstr1Sheets(g1).find((s) => s.name === 'b2ba.csv')!;
+    expect(sheet.csv.split('\n')[1]).toBe(`${filed.number},2026-11-10,2026-10,27AAAAA0000A1Z5,${filed.number},2026-11-10,0.00,27,N,R,18.00,0.00,0.00,0.00,0.00,0.00`);
+    // A dropped amendment changes neither 3B nor the sheets.
+    const dropped = { ...g1, amendments: [{ ...a, status: 'dropped' as const, reason: 'Corrected by a credit note' }] };
+    expect(applyAmendments(buildGstr3b(dropped, month, [], OUR), dropped)['3.1'].a.taxable).toBe('500.00');
+    expect(gstr1Sheets(dropped).some((s) => s.name === 'b2ba.csv')).toBe(false);
+  });
+
+  it('revises a changed buyer GSTIN and an export, the export to 3.1(b)', async () => {
+    const { entryAmendment } = await import('./gst-returns.js');
+    const filed = buildGstr1([doc({ counterpartyGstin: '27AAAAA0000A1Z5', treatment: 'registered', lines: [line('1000', '18', 'local')] })], OUR, { turnoverAboveFiveCrore: false }).entries[0]!;
+    const fixed = { ...filed, counterpartyGstin: '27BBBBB0000B1Z5' };
+    const a = entryAmendment('2026-10', filed, fixed)!;
+    expect(a.difference.taxable).toBe('0.00');
+    expect((a.revised as typeof filed).counterpartyGstin).toBe('27BBBBB0000B1Z5');
+    const exp = buildGstr1([doc({ supplyType: 'export_under_lut', treatment: 'overseas', placeOfSupply: '96', portCode: 'INNSA1', shippingBillNo: '1', shippingBillDate: '2026-11-12', lines: [line('5000', '0', 'igst')] })], OUR, { turnoverAboveFiveCrore: false }).entries[0]!;
+    const e = entryAmendment('2026-10', exp, { ...exp, shippingBillNo: '2' })!;
+    expect([e.table, e.zeroRated]).toEqual(['expa', true]);
+    // A note on an SEZ supply is zero rated in 3B, so its amendment goes to 3.1(b) too.
+    const sezNote = buildGstr1([doc({ type: 'credit_note', counterpartyGstin: '27AAAAA0000A1Z5', treatment: 'sez', supplyType: 'sez_without_payment', lines: [line('300', '0', 'igst')] })], OUR, { turnoverAboveFiveCrore: false }).entries[0]!;
+    expect([sezNote.section, sezNote.subtype]).toEqual(['cdnr', 'SEWOP']);
+    expect(entryAmendment('2026-10', sezNote, null)!.zeroRated).toBe(true);
+  });
+
+  it('revises B2CS for a filed month by place of supply and rate, a rate gone to zero', async () => {
+    const { b2csAmendment } = await import('./gst-returns.js');
+    const was = [
+      { placeOfSupply: '27', rate: '18.00', taxable: '300.00', igst: '0.00', cgst: '27.00', sgst: '27.00', cess: '0.00' },
+      { placeOfSupply: '27', rate: '5.00', taxable: '100.00', igst: '0.00', cgst: '2.50', sgst: '2.50', cess: '0.00' },
+    ];
+    expect(b2csAmendment('2026-10', was, was)).toBeNull();
+    const now = [{ placeOfSupply: '27', rate: '18.00', taxable: '200.00', igst: '0.00', cgst: '18.00', sgst: '18.00', cess: '0.00' }];
+    const a = b2csAmendment('2026-10', was, now)!;
+    expect(a.key).toBe('b2cs:2026-10');
+    expect((a.revised as { rows: typeof was }).rows.map((r) => [r.rate, r.taxable])).toEqual([
+      ['5.00', '0.00'],
+      ['18.00', '200.00'],
+    ]);
+    expect(a.difference).toEqual({ taxable: '-200.00', igst: '0.00', cgst: '-11.50', sgst: '-11.50', cess: '0.00' });
+  });
+});

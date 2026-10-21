@@ -6,11 +6,11 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { EntityGate } from '@/components/entity-gate';
 import { fieldErrors, FormDialog } from '@/components/form-dialog';
-import { AttentionCard, ChecksCard, Gstr1View, Gstr3bView } from '@/components/gst-return-view';
+import { AmendmentsCard, AttentionCard, ChecksCard, Gstr1View, Gstr3bView } from '@/components/gst-return-view';
 import { useWorkspace } from '@/components/workspace';
 import { api } from '@/lib/api';
 import { formatDate, formatDateTime, today } from '@/lib/format';
-import { documentHref, KIND_LABEL, monthLabel, type ReturnDetail, SECTION_LABEL, STATUS } from '@/lib/gst-returns';
+import { type Amendment, documentHref, KIND_LABEL, monthLabel, type ReturnDetail, SECTION_LABEL, STATUS } from '@/lib/gst-returns';
 
 export default function GstReturnPage() {
   return (
@@ -25,6 +25,7 @@ function ReturnView() {
   const ws = useWorkspace();
   const qc = useQueryClient();
   const [filing, setFiling] = useState(false);
+  const [dropping, setDropping] = useState<Amendment | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const q = useQuery({ queryKey: ['gst-return', ws.entityId, id], queryFn: () => api<ReturnDetail>(`/gst-returns/${id}`, { scope: ws.scope }) });
   const step = useMutation({
@@ -35,6 +36,17 @@ function ReturnView() {
     },
   });
   const r = q.data;
+  const decide = useMutation({
+    mutationFn: ({ a, decision, reason }: { a: Amendment; decision: 'include' | 'drop'; reason?: string }) =>
+      api(`/gst-returns/${id}/amendments/${r!.amendments.find((x) => x.key === a.key)!.id}/${decision}`, { method: 'POST', scope: ws.scope, body: reason ? { reason } : {} }),
+    onSuccess: () => {
+      setDropping(null);
+      step.reset();
+      void qc.invalidateQueries({ queryKey: ['gst-return', ws.entityId] });
+      void qc.invalidateQueries({ queryKey: ['gst-returns'] });
+    },
+  });
+  const canDecide = !!r && r.kind === 'gstr1' && (r.status === 'draft' || r.status === 'reviewed') && ws.can('compliance.gst_return.create');
   const download = async () => {
     setExportError(null);
     const res = await fetch(`/api/gst-returns/${id}/export`, { headers: { ...(ws.tenantId ? { 'x-tenant-id': ws.tenantId } : {}), ...(ws.entityId ? { 'x-entity-id': ws.entityId } : {}) }, credentials: 'include' });
@@ -82,6 +94,7 @@ function ReturnView() {
         </Link>
         {q.error && <Alert tone="danger">{q.error.message}</Alert>}
         {step.error && <Alert tone="danger">{step.error.message}</Alert>}
+        {decide.error && !dropping && <Alert tone="danger">{decide.error.message}</Alert>}
         {exportError && <Alert tone="danger">{exportError}</Alert>}
         {r && (
           <>
@@ -139,6 +152,13 @@ function ReturnView() {
               </Alert>
             )}
             {r.snapshot.attention && <AttentionCard items={r.snapshot.attention} />}
+            {r.snapshot.gstr1?.amendments && (
+              <AmendmentsCard
+                amendments={r.snapshot.gstr1.amendments}
+                busy={decide.isPending}
+                onDecide={canDecide ? (a, decision) => (decision === 'drop' ? setDropping(a) : decide.mutate({ a, decision })) : undefined}
+              />
+            )}
             <ChecksCard checks={r.snapshot.checks} />
             {r.kind === 'gstr1' && r.snapshot.gstr1 && <Gstr1View g={r.snapshot.gstr1} />}
             {r.kind === 'gstr3b' && r.snapshot.gstr3b && <Gstr3bView g={r.snapshot.gstr3b} />}
@@ -179,6 +199,7 @@ function ReturnView() {
         )}
       </div>
       {filing && r && <FileDialog id={r.id} onClose={() => setFiling(false)} />}
+      {dropping && <DropDialog amendment={dropping} pending={decide.isPending} error={decide.error} onClose={() => (decide.reset(), setDropping(null))} onDrop={(reason) => decide.mutate({ a: dropping, decision: 'drop', reason })} />}
     </>
   );
 }
@@ -206,6 +227,26 @@ function FileDialog({ id, onClose }: { id: string; onClose: () => void }) {
           {(f) => <DateInput {...f} value={form.filedOn} onChange={(e) => setForm({ ...form, filedOn: e.target.value })} required />}
         </Field>
       </div>
+    </FormDialog>
+  );
+}
+
+function DropDialog({ amendment, pending, error, onClose, onDrop }: { amendment: Amendment; pending: boolean; error: unknown; onClose: () => void; onDrop: (reason: string) => void }) {
+  const [reason, setReason] = useState('');
+  return (
+    <FormDialog
+      title={`Drop the amendment to ${amendment.number ?? `small sales of ${monthLabel(amendment.originalPeriod)}`}`}
+      description="It will not be reported in this return. Say why, for example that a credit note in an open month corrects it; the reason is kept with the return."
+      onClose={onClose}
+      onSubmit={() => onDrop(reason.trim())}
+      pending={pending}
+      error={error}
+      submitLabel="Drop amendment"
+      submitDisabled={reason.trim().length < 5}
+    >
+      <Field label="Reason" error={fieldErrors(error).reason}>
+        {(f) => <Input {...f} value={reason} onChange={(e) => setReason(e.target.value)} required minLength={5} autoFocus />}
+      </Field>
     </FormDialog>
   );
 }

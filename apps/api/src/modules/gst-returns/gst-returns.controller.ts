@@ -74,6 +74,16 @@ export class GstReturnsController {
     return this.returns.file(ctx, entityOf(ctx), id, arn, filedOn);
   }
 
+  /** Decision 074b: include a proposed amendment, or drop it with a reason. The month's returns are prepared again. */
+  @Post(':id/amendments/:amendmentId/:decision')
+  @HttpCode(200)
+  @RequirePermission('compliance.gst_return.create')
+  decide(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Param('amendmentId', ParseUUIDPipe) amendmentId: string, @Param('decision') decision: string, @Body() body: unknown) {
+    const d = parse(z.enum(['include', 'drop']), decision);
+    const { reason } = parse(z.object({ reason: z.string().trim().max(500).optional() }), body ?? {});
+    return this.returns.decideAmendment(ctx, entityOf(ctx), id, amendmentId, d, reason ?? null);
+  }
+
   /** The return's snapshot as sheets: one CSV per GSTR-1 section, or the 3B sheet, in a zip. */
   @Get(':id/export')
   @RequirePermission('compliance.gst_return.export')
