@@ -199,9 +199,9 @@ try {
   // ── generation is stable ──
   const dir = new URL('../../../packages/db/drizzle/', import.meta.url);
   const journal = JSON.parse(await readFile(new URL('meta/_journal.json', dir), 'utf8'));
-  assert.equal(journal.entries.at(-1).tag, '0035_support_access');
-  assert.equal(journal.entries.filter((e) => e.tag.endsWith('_support_access')).length, 1);
-  pass('one additive support_access migration at the end of the journal');
+  // Later migrations follow it; the support access one stays single and keeps its number.
+  assert.deepEqual(journal.entries.filter((e) => e.tag.endsWith('_support_access')).map((e) => e.tag), ['0035_support_access']);
+  pass('one additive support_access migration in the journal');
 } finally {
   await f.close();
 }

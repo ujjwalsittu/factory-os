@@ -128,8 +128,8 @@ try {
     const [old] = await q(
       `insert into support_access_grant (tenant_id, entity_id, operator_user_id, subject_user_id, subject_membership_id, approver_user_id, areas, reason, duration_seconds, approved_at, start_by,
          policy_config_revision, tenant_authority_revision, operator_epoch, subject_epoch, approver_epoch, approver_password_version, approver_session_id)
-       select $1, $2, $3, $4, $5, $6, array['inventory'], 'Old consent', 900, clock_timestamp() - interval '601 seconds', clock_timestamp() - interval '1 second',
-         p.config_revision, p.authority_revision, 0, 0, 0, 'x', 'x' from support_access_policy p where p.tenant_id = $1 returning id`,
+       select $1, $2, $3, $4, $5, $6, array['inventory'], 'Old consent', 900, c.now - interval '601 seconds', c.now - interval '1 second',
+         p.config_revision, p.authority_revision, 0, 0, 0, 'x', 'x' from support_access_policy p, (select clock_timestamp() as now) c where p.tenant_id = $1 returning id`,
       [t.tenantId, t.entityId, operator.id, clerk.id, clerkMember.membershipId, owner2.id],
     );
     const r = await op(operator, 'POST', `/grants/${old.id}/start`, { password: PASSWORD });
