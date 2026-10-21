@@ -315,3 +315,4 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 - 2026-10-21 · agent · GST returns PR 3 merged as PR 81 after four review fixes (lock order, filed-only amendedIn, SEZ note rows, drop-reason check). Next: GSP filing once Adaequare credentials exist; GSTR-1 offline-tool JSON once the tool is pinned (074a).
 - 2026-10-21 · agent · Claimed the GST amendments speed fix (load outward documents once instead of once per filed month).
 - 2026-10-21 · agent · GST amendments speed fix: amendments() reads every filed return's lines in one query and loads outward documents once up to the latest filed month, instead of one full load per filed month. smoke-gst-amendments 64 and smoke-gst-returns 68 pass unchanged. Next: merge when the user says.
+- 2026-10-21 · agent · GST amendments speed fix merged as PR 84 (with a review fix keeping each filed month's date bound). Claimed the approvals inbox, chosen by the user; next: its design for approval.
