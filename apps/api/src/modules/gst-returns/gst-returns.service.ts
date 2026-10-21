@@ -143,6 +143,7 @@ export class GstReturnsService {
    * named, dated up to that period's end, without the month and late-document rules (amendments use this).
    */
   private async outward(db: Db, entityId: string, regId: string, period: string, only?: Set<string>) {
+    if (only?.size === 0) return { docs: [] as OutwardDoc[], placed: [] as Placed[], issued: [] as IssuedDocument[] };
     const filed = only ? null : await this.filedPeriods(db, regId, 'gstr1', period);
     const end = monthEnd(period);
     const take = (date: string, id: string) => (only ? { take: only.has(id), late: null } : this.within(date, period, filed!, id));
@@ -160,7 +161,7 @@ export class GstReturnsService {
       .select({ inv: salesInvoice, treatment: party.gstTreatment })
       .from(salesInvoice)
       .innerJoin(party, eq(party.id, salesInvoice.customerId))
-      .where(and(eq(salesInvoice.entityId, entityId), eq(salesInvoice.gstRegistrationId, regId), inArray(salesInvoice.status, ['submitted', 'cancelled']), sql`${salesInvoice.invoiceDate} <= ${end}`));
+      .where(and(eq(salesInvoice.entityId, entityId), eq(salesInvoice.gstRegistrationId, regId), inArray(salesInvoice.status, ['submitted', 'cancelled']), sql`${salesInvoice.invoiceDate} <= ${end}`, only && inArray(salesInvoice.id, [...only])));
     const invLines = invoices.length
       ? await db.select().from(salesInvoiceLine).where(inArray(salesInvoiceLine.invoiceId, invoices.map((i) => i.inv.id)))
       : [];
@@ -197,7 +198,7 @@ export class GstReturnsService {
       .select({ note: salesNote, treatment: party.gstTreatment })
       .from(salesNote)
       .innerJoin(party, eq(party.id, salesNote.customerId))
-      .where(and(eq(salesNote.entityId, entityId), eq(salesNote.gstRegistrationId, regId), inArray(salesNote.status, ['submitted', 'cancelled']), eq(salesNote.taxTreatment, 'gst'), sql`${salesNote.postingDate} <= ${end}`));
+      .where(and(eq(salesNote.entityId, entityId), eq(salesNote.gstRegistrationId, regId), inArray(salesNote.status, ['submitted', 'cancelled']), eq(salesNote.taxTreatment, 'gst'), sql`${salesNote.postingDate} <= ${end}`, only && inArray(salesNote.id, [...only])));
     const noteLines = notes.length
       ? await db
           .select({ l: salesNoteLine, src: salesInvoiceLine })
@@ -460,7 +461,8 @@ export class GstReturnsService {
     for (const r of filed) {
       const snap = (r.snapshot as { gstr1: Gstr1 }).gstr1;
       const ids = idsOf.get(r.id) ?? new Set<string>();
-      const now = buildGstr1(docs.filter((d) => ids.has(d.id)), ourState, { turnoverAboveFiveCrore: false });
+      // Dated after this month, a document is not this return's any more (as when each month was read on its own).
+      const now = buildGstr1(docs.filter((d) => ids.has(d.id) && d.date <= monthEnd(r.period)), ourState, { turnoverAboveFiveCrore: false });
       const nowById = new Map(now.entries.map((e) => [e.documentId, e]));
       for (const e of snap.entries) {
         const p = entryAmendment(r.period, (reportedLast.get(e.documentId) as Gstr1Entry | undefined) ?? e, nowById.get(e.documentId) ?? null);
