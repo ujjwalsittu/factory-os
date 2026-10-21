@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-21 (Asia/Kolkata) · Approvals inbox built, in review_
+_Last updated: 2026-10-21 (Asia/Kolkata) · Clean-up round claimed_
 
 ## Done
 - [x] **Approvals inbox (decision 076; no migration)**. [Design](../superpowers/specs/2026-10-21-approvals-inbox-design.md), [review](../superpowers/reviews/2026-10-21-approvals-inbox-review.md). `GET /approvals` and the Approvals page under My work, with a count in the menu: what waits on me in every entity I can open (GST returns, NCR dispositions, FAI, CAPA checks, maintenance verification, timesheets, return claims, test reports, usage reviews), each gated by its own approve permission per entity and separation-of-duties rule; timesheets and maintenance verification act from the list, the rest open in their entity; a Waiting on others tab. Home's matching tiles open the inbox. Verified: approvals smoke (56 checks), new browser walkthrough (desktop and 390 px), Home smoke, menu walkthrough, typecheck, tests, build.
@@ -209,6 +209,7 @@ _Last updated: 2026-10-21 (Asia/Kolkata) · Approvals inbox built, in review_
   - Verified: build11/typecheck16,63 uncached unit tests,52 API/schema scenarios and11 distinct production browsers. Six supplier PostgreSQL barriers. Lint executes0 tasks. All five Important review findings plus default-credit browser validation fixed with RED→GREEN evidence; [review, rulings and two deferred minors](../superpowers/reviews/2026-10-05-supplier-notes-returns-review.md). Shared books remain inactive and old migrations0011–0013 unchanged.
 
 ## In progress
+- **Clean-up round from "Noticed"** · owner: agent, cloud session on branch `claude/zealous-allen-35g1vm` · started: 2026-10-21 23:20 IST. Chosen by the user on 2026-10-21. Scope: the two support-access smokes that fail on main (schema expects migration 0035 last; lifecycle window from two clock readings), the invoice-balances walkthrough's menu locator, and no e-invoice sandbox action on invoices from Tally (decision 075).
 - **Accounting TDS/TCS remaining implementation** · owner: agent, Native default-branch session · started:2026-10-06. Approved decision040 and [eleven-task plan](../superpowers/plans/2026-10-06-accounting-tax-bank-charges.md). Tasks2–3 and available Task4/7 plus charge-only6/10 implemented; available-scope review and regression complete; stopped before numerical source workflow implementation. **Task1 full numerical-profile bundles blocked**; catalog remains empty, profile enablement/context refuses and positive newTax settlement requests are rejected. Remaining work: verified profiles, atomic invoice/advice/advance recognition, tax settlement hooks, separate TCS totals/print, remittances/protected corrections and Finance/Accountant tax UI. Bank-charge cancellation reserves original references; replacement/later evidence-only GST adjustment is not implemented. No automatic withholding, tax filing, NIC adapter or shared activation claim.
 
 
