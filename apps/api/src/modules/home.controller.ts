@@ -144,7 +144,7 @@ export class HomeController {
         id: 'timesheets-approve',
         group: 'needs_me',
         title: 'Timesheets waiting for my approval',
-        href: '/app/services/timesheets',
+        href: '/app/approvals?kind=timesheet',
         needs: ['services.timesheet.read', 'services.timesheet.approve'],
         run: async (e) => {
           const where = and(eq(timesheetEntry.entityId, e.entityId), eq(timesheetEntry.status, 'submitted'), ne(timesheetEntry.userId, e.userId));
@@ -164,7 +164,7 @@ export class HomeController {
         id: 'ncr-dispositions',
         group: 'needs_me',
         title: 'NCR dispositions waiting for approval',
-        href: '/app/quality/ncrs',
+        href: '/app/approvals?kind=ncr',
         needs: ['quality.ncr.read', 'quality.ncr.approve'],
         run: async (e) => {
           const where = and(eq(ncr.entityId, e.entityId), eq(ncr.status, 'open'), sql`exists (select 1 from ncr_disposition d where d.ncr_id = ${ncr.id} and d.status = 'proposed')`);
@@ -177,7 +177,7 @@ export class HomeController {
         id: 'maintenance-verify',
         group: 'needs_me',
         title: 'Maintenance orders waiting for my verification',
-        href: '/app/maintenance',
+        href: '/app/approvals?kind=maintenance',
         needs: ['maintenance.order.read', 'maintenance.order.approve'],
         run: async (e) => {
           // Critical machines only; the person who signed the work off cannot verify it.

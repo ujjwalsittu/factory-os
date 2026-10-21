@@ -50,7 +50,8 @@
     "guard:add-new": "node e2e/guard-add-new.mjs",
     "e2e:records": "node e2e/records.mjs",
     "e2e:chart": "node e2e/chart.mjs",
-    "e2e:tally": "node e2e/tally.mjs"
+    "e2e:tally": "node e2e/tally.mjs",
+    "e2e:approvals": "node e2e/approvals.mjs"
   },
   "devDependencies": {
     "@factoryos/config": "workspace:*",
