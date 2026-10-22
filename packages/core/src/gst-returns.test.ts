@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   b2clThreshold,
@@ -179,15 +180,83 @@ describe('GSTR-3B', () => {
   });
 });
 
-describe('sheets', () => {
-  it('writes one CSV per GSTR-1 section and a 3B sheet', async () => {
+describe('sheets for the GST offline tool (3.2.4)', () => {
+  // Header-only copies of the tool's own section-wise CSV templates.
+  const template = (name: string) => readFileSync(new URL(`../../../docs/compliance/gstr1-offline-tool/${name}`, import.meta.url), 'utf8');
+  const rows = (csv: string) => csv.split('\r\n').slice(1, -1);
+
+  it('writes each section in the tool file with its exact header, dates, places of supply and units', async () => {
     const { gstr1Sheets, gstr3bSheet } = await import('./gst-returns.js');
-    const docs = [doc({ counterpartyGstin: '27AAAAA0000A1Z5', treatment: 'registered', lines: [line('1000', '18', 'local')] })];
-    const g1 = buildGstr1(docs, OUR, { turnoverAboveFiveCrore: false });
-    const sheets = gstr1Sheets(g1);
-    expect(sheets.map((s) => s.name)).toEqual(['b2b.csv', 'b2cl.csv', 'b2cs.csv', 'exp.csv', 'cdnr.csv', 'cdnur.csv', 'nil.csv', 'hsn.csv', 'docs.csv']);
-    expect(sheets[0]!.csv.split('\n')[1]).toBe(`27AAAAA0000A1Z5,${docs[0]!.number},2026-11-10,1180.00,27,N,R,18.00,1000.00,0.00,90.00,90.00,0.00`);
+    const b2b = doc({ counterpartyGstin: '27AAAAA0000A1Z5', treatment: 'registered', date: '2026-11-05', lines: [line('1000', '18', 'local'), line('200', '0', 'local', '84829900', '4', 'KGS')] });
+    const igstHere = doc({ counterpartyGstin: '27AAAAA0000A1Z5', treatment: 'registered', lines: [line('300', '5', 'igst')] });
+    const deemed = doc({ counterpartyGstin: '29AAAAA0000A1Z5', treatment: 'deemed_export', placeOfSupply: '29', lines: [line('400', '0.1', 'igst')] });
+    const b2cl = doc({ placeOfSupply: '29', lines: [line('150000', '18', 'igst', '998365', '1', 'XYZ')] });
+    const b2cs = doc({ placeOfSupply: '29', lines: [line('5000', '7.5', 'igst')] });
+    const exp = doc({ supplyType: 'export_under_lut', treatment: 'overseas', placeOfSupply: '96', portCode: 'INNSA1', shippingBillNo: '77', shippingBillDate: '2026-11-12', lines: [line('9000', '0', 'igst')] });
+    const credit = doc({ type: 'credit_note', number: 'CN/1', counterpartyGstin: '27AAAAA0000A1Z5', treatment: 'registered', value: '118.00', lines: [line('100', '18', 'local')] });
+    const urCredit = doc({ type: 'debit_note', number: 'DN/1', placeOfSupply: '29', original: { number: 'X/1', date: '2026-10-02', value: '200000' }, value: '590.00', lines: [line('500', '18', 'igst')] });
+    const docs = [b2b, igstHere, deemed, b2cl, b2cs, exp, credit, urCredit];
+    const g1 = { ...buildGstr1(docs, OUR, { turnoverAboveFiveCrore: false }), documents: documentSummary([{ nature: 'invoice', number: 'INV/001', cancelled: false }, { nature: 'invoice', number: 'INV/002', cancelled: true }, { nature: 'credit_note', number: 'CN/1', cancelled: false }]) };
+    const sheets = gstr1Sheets(g1, { ourState: OUR });
+    const by = Object.fromEntries(sheets.map((s) => [s.name, s.csv]));
+    expect(Object.keys(by)).toEqual(['b2b,sez,de.csv', 'b2cl.csv', 'b2cs.csv', 'cdnr.csv', 'cdnur.csv', 'exp.csv', 'exemp.csv', 'hsn(b2b).csv', 'hsn(b2c).csv', 'docs.csv']);
+    for (const s of sheets) {
+      expect(s.csv.split('\r\n')[0] + '\r\n').toBe(template(s.name));
+      expect(s.csv).not.toMatch(/[^\r]\n/);
+    }
+    expect(rows(by['b2b,sez,de.csv']!)).toEqual([
+      `27AAAAA0000A1Z5,,${b2b.number},5-Nov-26,${b2b.value},27-Maharashtra,N,,Regular B2B,,18,1000.00,0.00`,
+      `27AAAAA0000A1Z5,,${igstHere.number},10-Nov-26,${igstHere.value},27-Maharashtra,N,,Intra-State supplies attracting IGST,,5,300.00,0.00`,
+      `29AAAAA0000A1Z5,,${deemed.number},10-Nov-26,${deemed.value},29-Karnataka,N,,Deemed Exp,,0.1,400.00,0.00`,
+    ]);
+    expect(rows(by['b2cl.csv']!)).toEqual([`${b2cl.number},10-Nov-26,${b2cl.value},29-Karnataka,,18,150000.00,0.00,`]);
+    expect(rows(by['b2cs.csv']!)).toEqual(['OE,29-Karnataka,7.5,,5000.00,0.00,']);
+    // A credit note is reported with positive figures and its type.
+    expect(rows(by['cdnr.csv']!)).toEqual(['27AAAAA0000A1Z5,,CN/1,10-Nov-26,C,27-Maharashtra,N,Regular B2B,118.00,,18,100.00,0.00']);
+    expect(rows(by['cdnur.csv']!)).toEqual(['B2CL,DN/1,10-Nov-26,D,29-Karnataka,590.00,,18,500.00,0.00']);
+    expect(rows(by['exp.csv']!)).toEqual([`WOPAY,${exp.number},10-Nov-26,${exp.value},INNSA1,77,12-Nov-26,0,9000.00,0.00`]);
+    expect(rows(by['exemp.csv']!)).toEqual([
+      'Inter-State supplies to registered persons,0.00,0.00,0.00',
+      'Intra-State supplies to registered persons,200.00,0.00,0.00',
+      'Inter-State supplies to unregistered persons,0.00,0.00,0.00',
+      'Intra-State supplies to unregistered persons,0.00,0.00,0.00',
+    ]);
+    expect(rows(by['hsn(b2b).csv']!)).toContain('84829900,,KGS-KILOGRAMS,4.00,200.00,200.00,0.00,0.00,0.00,0.00,0');
+    // A unit the tool does not list is reported as OTH-OTHERS.
+    expect(rows(by['hsn(b2c).csv']!)).toContain('998365,,OTH-OTHERS,1.00,177000.00,150000.00,27000.00,0.00,0.00,0.00,18');
+    expect(rows(by['docs.csv']!)).toEqual(['Credit Note,CN/1,CN/1,1,0', 'Invoices for outward supply,INV/001,INV/002,2,1']);
     expect(gstr3bSheet(buildGstr3b(g1, docs, [], OUR))).toMatch(/^Table,Description/);
+  });
+
+  it('writes nothing for an empty month', async () => {
+    const { gstr1Sheets } = await import('./gst-returns.js');
+    expect(gstr1Sheets(buildGstr1([], OUR, { turnoverAboveFiveCrore: false }))).toEqual([]);
+  });
+
+  it('writes included amendments in the tool amendment files', async () => {
+    const { entryAmendment, b2csAmendment, gstr1Sheets } = await import('./gst-returns.js');
+    const g = (d: OutwardDoc[]) => buildGstr1(d, OUR, { turnoverAboveFiveCrore: false });
+    const exp = g([doc({ supplyType: 'export_with_payment', treatment: 'overseas', placeOfSupply: '96', date: '2026-01-15', portCode: 'INNSA1', shippingBillNo: '1', shippingBillDate: '2026-01-16', lines: [line('5000', '18', 'igst')] })]).entries[0]!;
+    const b2cl = g([doc({ placeOfSupply: '29', date: '2026-01-15', lines: [line('150000', '18', 'igst')] })]).entries[0]!;
+    const note = g([doc({ type: 'credit_note', number: 'CN/9', counterpartyGstin: '27AAAAA0000A1Z5', treatment: 'registered', date: '2026-01-20', value: '118.00', lines: [line('100', '18', 'local')] })]).entries[0]!;
+    const inc = <T extends object>(a: T | null) => ({ ...a!, status: 'included' as const, reason: null });
+    const before = g([doc({ placeOfSupply: '29', date: '2026-01-10', lines: [line('5000', '18', 'igst')] })]).b2cs;
+    const after = g([doc({ placeOfSupply: '29', date: '2026-01-10', lines: [line('4000', '18', 'igst')] })]).b2cs;
+    const amendments = [
+      inc(entryAmendment('2026-01', exp, { ...exp, shippingBillNo: '2' })),
+      inc(entryAmendment('2026-01', b2cl, { ...b2cl, placeOfSupply: '33' })),
+      inc(entryAmendment('2026-01', note, null)),
+      inc(b2csAmendment('2026-01', before, after)),
+    ];
+    const sheets = gstr1Sheets({ ...g([]), amendments }, { ourState: OUR });
+    const by = Object.fromEntries(sheets.map((s) => [s.name, s.csv]));
+    expect(Object.keys(by)).toEqual(['b2cla.csv', 'cdnra.csv', 'expa.csv', 'b2csa.csv']);
+    for (const s of sheets) expect(s.csv.split('\r\n')[0] + '\r\n').toBe(template(s.name));
+    expect(rows(by['b2cla.csv']!)).toEqual([`${b2cl.number},15-Jan-26,29-Karnataka,${b2cl.number},15-Jan-26,${b2cl.value},,18,150000.00,0.00,`]);
+    expect(rows(by['cdnra.csv']!)).toEqual(['27AAAAA0000A1Z5,,CN/9,20-Jan-26,CN/9,20-Jan-26,C,27-Maharashtra,N,Regular B2B,0.00,,18,0.00,0.00']);
+    expect(rows(by['expa.csv']!)).toEqual([`WPAY,${exp.number},15-Jan-26,${exp.number},15-Jan-26,${exp.value},INNSA1,2,16-Jan-26,18,5000.00,0.00`]);
+    // January 2026 falls in financial year 2025-26.
+    expect(rows(by['b2csa.csv']!)).toEqual(['2025-26,JANUARY,29-Karnataka,OE,18,,4000.00,0.00,']);
   });
 });
 
@@ -213,7 +282,7 @@ describe('amendments (PR 3)', () => {
     expect(g3['6.1']).toEqual({ igst: '0.00', cgst: '-45.00', sgst: '-45.00', cess: '0.00' });
     expect(checkGstr1Against3b(g1, g3, month).ok).toBe(true);
     const sheet = gstr1Sheets(g1).find((s) => s.name === 'b2ba.csv')!;
-    expect(sheet.csv.split('\n')[1]).toBe(`${filed.number},2026-11-10,2026-10,27AAAAA0000A1Z5,${filed.number},2026-11-10,0.00,27,N,R,18.00,0.00,0.00,0.00,0.00,0.00`);
+    expect(sheet.csv.split('\r\n')[1]).toBe(`27AAAAA0000A1Z5,,${filed.number},10-Nov-26,${filed.number},10-Nov-26,0.00,27-Maharashtra,N,,Regular B2B,,18,0.00,0.00`);
     // A dropped amendment changes neither 3B nor the sheets.
     const dropped = { ...g1, amendments: [{ ...a, status: 'dropped' as const, reason: 'Corrected by a credit note' }] };
     expect(applyAmendments(buildGstr3b(dropped, month, [], OUR), dropped)['3.1'].a.taxable).toBe('500.00');

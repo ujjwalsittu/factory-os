@@ -1,0 +1,2 @@
+# Header-only copies of the GST offline tool 3.2.4 templates: keep their CRLF bytes as they are.
+*.csv -text

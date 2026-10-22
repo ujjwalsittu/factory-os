@@ -84,18 +84,20 @@ export class GstReturnsController {
     return this.returns.decideAmendment(ctx, entityOf(ctx), id, amendmentId, d, reason ?? null);
   }
 
-  /** The return's snapshot as sheets: one CSV per GSTR-1 section, or the 3B sheet, in a zip. */
+  /** The return's snapshot as sheets in a zip: GSTR-1 as the offline tool's section-wise CSV files, or the 3B sheet. */
   @Get(':id/export')
   @RequirePermission('compliance.gst_return.export')
   async export(@Ctx() ctx: TenantRequestContext, @Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
     const r = await this.returns.get(entityOf(ctx), id);
     const enc = new TextEncoder();
     const entries: Record<string, Uint8Array> = {};
-    if (r.kind === 'gstr1') for (const s of gstr1Sheets((r.snapshot as { gstr1: Gstr1 & { documents: DocSummaryRow[] } }).gstr1)) entries[s.name] = enc.encode(s.csv);
+    if (r.kind === 'gstr1') for (const s of gstr1Sheets((r.snapshot as { gstr1: Gstr1 & { documents: DocSummaryRow[] } }).gstr1, { ourState: r.gstin.slice(0, 2) })) entries[s.name] = enc.encode(s.csv);
     else entries['gstr3b.csv'] = enc.encode(gstr3bSheet((r.snapshot as { gstr3b: Gstr3b }).gstr3b));
     entries['README.txt'] = enc.encode(
       `${r.kind === 'gstr1' ? 'GSTR-1' : 'GSTR-3B'} for ${r.gstin}, ${r.period} (${r.status}).\nPrepared from FactoryOS documents; snapshot ${r.snapshotHash}.\n` +
-        (r.kind === 'gstr1' ? 'The GST offline-tool JSON comes once its schema is pinned (decision 074a); key these sheets into the tool meanwhile.\n' : 'Key these figures into the GSTR-3B form on the portal.\n'),
+        (r.kind === 'gstr1'
+          ? 'The CSV files are in the GST offline tool 3.2.4 section-wise format. In the tool, open GSTR-1 for this GSTIN and period, import each\nfile into its section, then generate the JSON and upload it on the portal. A section with nothing to report has no file.\n'
+          : 'Key these figures into the GSTR-3B form on the portal.\n'),
     );
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`${r.kind}-${r.gstin}-${r.period}.zip`)}`);
