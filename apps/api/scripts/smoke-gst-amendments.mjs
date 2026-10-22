@@ -94,12 +94,13 @@ try {
   const audit = await db.$client.query("select action from audit_event where action like 'gst_amendment.%' and tenant_id = $1 order by occurred_at", [c.tenantId]);
   assert.deepEqual(audit.rows.map((r) => r.action), ['gst_amendment.include', 'gst_amendment.drop', 'gst_amendment.include']);
 
-  // The export carries the amendment sheets: B2BA with the original reference revised to zero, and B2CSA.
+  // The export carries the offline tool's amendment files: B2BA with the original reference revised to zero, and B2CSA.
   const res = await fetch(`${c.base}/gst-returns/${novG1.id}/export`, { headers: { Origin: c.origin, Cookie: c.cookie, 'x-tenant-id': c.tenantId, 'x-entity-id': c.entityId } });
   const files = unzipSync(new Uint8Array(await res.arrayBuffer()));
-  const b2ba = new TextDecoder().decode(files['b2ba.csv']).split('\n')[1];
-  assert.match(b2ba, new RegExp(`^${first.number.replace(/\//g, '\\/')},${date},${oct},27AAACB1234B1Z.,`));
-  assert.match(b2ba, /,18\.00,0\.00,0\.00,0\.00,0\.00,0\.00$/);
+  const b2ba = new TextDecoder().decode(files['b2ba.csv']).split('\r\n')[1];
+  const toolDate = (iso) => `${Number(iso.slice(8, 10))}-${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(iso.slice(5, 7)) - 1]}-${iso.slice(2, 4)}`;
+  const num = first.number.replace(/\//g, '\\/');
+  assert.match(b2ba, new RegExp(`^27AAACB1234B1Z.,,${num},${toolDate(date)},${num},${toolDate(date)},0\\.00,27-Maharashtra,N,,Regular B2B,,18,0\\.00,0\\.00$`), b2ba);
   assert.ok(files['b2csa.csv'] && !files['cdnra.csv'], Object.keys(files).join(','));
 
   // The database itself refuses a dropped amendment without a reason.

@@ -88,9 +88,9 @@ pinned is listed under "Not verified" and named in the code where it is used.
 - **The current Form GSTR-3B layout.** Later notifications re-labelled table 4(B) and 4(D), among them Notification
   14/2022-Central Tax. **Build:** the 3B sheet labels table 4 rows by what they hold (import of goods, reverse
   charge, all other, reversed, ineligible), so they can be keyed into the current portal form.
-- **The GSTR-1 offline-tool JSON schema and UQC list.** These are hosted on tutorial.gst.gov.in. Per decision 074a,
-  the JSON export waits. The UQC codes used for the unit mapping are the common ones (NOS, KGS, MTR, LTR, PCS, SET
-  and others), to check against the tool's list when it is pinned.
+- **The GSTR-1 offline-tool JSON schema.** It is hosted on tutorial.gst.gov.in. Per decision 074a, no JSON is
+  written. Since 2026-10-22 the export is the offline tool 3.2.4's section-wise CSV files instead, and the UQC list is
+  pinned with them ([offline tool evidence](gstr1-offline-tool-evidence.md), decision 074c).
 - **A cancelled invoice is amended to zero values.** This is common practice when an invoice reported in a filed
   GSTR-1 is cancelled; the pinned rules don't say it. **Build:** the proposal's revised figures are zero, and a
   person can drop it, for example when a credit note in an open month corrects it instead.

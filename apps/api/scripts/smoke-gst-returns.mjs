@@ -106,12 +106,15 @@ try {
   const jRead = await c.req('GET', `/accounts/journals/${j.id}`);
   assert.ok(glCheck.detail.includes(jRead.number), `The check names the journal: ${glCheck.detail}`);
 
-  // Exports: a zip of section sheets.
+  // Exports: a zip of the offline tool's section-wise CSV files.
   const res = await fetch(`${c.base}/gst-returns/${g1.id}/export`, { headers: { Origin: c.origin, Cookie: c.cookie, 'x-tenant-id': c.tenantId, 'x-entity-id': c.entityId } });
   assert.equal(res.status, 200);
   const files = unzipSync(new Uint8Array(await res.arrayBuffer()));
-  assert.ok(files['b2b.csv'] && files['hsn.csv'] && files['README.txt'], Object.keys(files).join(','));
-  assert.match(new TextDecoder().decode(files['b2b.csv']), /27AAACB1234B1Z/);
+  assert.ok(files['b2b,sez,de.csv'] && files['hsn(b2b).csv'] && files['docs.csv'] && files['README.txt'], Object.keys(files).join(','));
+  const b2bCsv = new TextDecoder().decode(files['b2b,sez,de.csv']);
+  assert.ok(b2bCsv.startsWith('GSTIN/UIN of Recipient,Receiver Name,Invoice Number,Invoice date,Invoice Value,Place Of Supply,Reverse Charge,Applicable % of Tax Rate,Invoice Type,E-Commerce GSTIN,Rate,Taxable Value,Cess Amount\r\n'), b2bCsv);
+  assert.match(b2bCsv, /\r\n27AAACB1234B1Z.,,[^,]+,\d{1,2}-[A-Z][a-z]{2}-\d{2},[\d.]+,27-Maharashtra,N,,Regular B2B,,18,/);
+  assert.ok(!Object.keys(files).some((f) => f === 'b2b.csv' || f === 'hsn.csv'), 'Only the tool file names');
 
   // Isolation: another tenant sees neither returns nor the registration.
   const other = await new Client().init('GST returns outsider');

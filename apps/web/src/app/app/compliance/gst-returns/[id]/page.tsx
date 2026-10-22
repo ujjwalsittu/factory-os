@@ -123,7 +123,7 @@ function ReturnView() {
               </p>
             </Card>
             {r.status === 'reviewed' && <Alert>The person who prepared the return cannot approve it. Approval and filing re-check the books first.</Alert>}
-            {r.kind === 'gstr1' && <Alert>The GST offline-tool file comes once its format is pinned (decision 074a). Meanwhile the export gives one sheet per section to key into the tool.</Alert>}
+            {r.kind === 'gstr1' && <Alert>The export holds the GST offline tool's section-wise CSV files (tool 3.2.4). Import them into the tool's GSTR-1 for this GSTIN and month, then generate the JSON there and upload it on the portal.</Alert>}
             {r.changedSinceFiling.length > 0 && (
               <Alert tone="warning" title="Changed since filing">
                 <ul className="mt-1 space-y-1">

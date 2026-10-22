@@ -99,7 +99,7 @@ export interface Gstr1Entry {
   date: string;
   counterpartyGstin: string | null;
   placeOfSupply: string | null;
-  /** b2b: R (regular), SEWP/SEWOP (SEZ), DE (deemed export); cdnr: SEWP/SEWOP for SEZ notes; exp: WPAY/WOPAY; cdnur: B2CL/EXPWP/EXPWOP. */
+  /** b2b: R (regular), SEWP/SEWOP (SEZ), DE (deemed export); cdnr: SEWP/SEWOP for SEZ notes, DE for deemed exports; exp: WPAY/WOPAY; cdnur: B2CL/EXPWP/EXPWOP. */
   subtype: string | null;
   reverseCharge: boolean;
   value: string;
@@ -216,6 +216,8 @@ export function buildGstr1(docs: OutwardDoc[], ourState: string, opts: { turnove
           ? doc.supplyType === 'sez_with_payment'
             ? 'SEWP'
             : 'SEWOP'
+          : section === 'cdnr' && doc.treatment === 'deemed_export'
+            ? 'DE'
         : section === 'exp'
           ? doc.supplyType === 'export_with_payment'
             ? 'WPAY'
@@ -572,62 +574,169 @@ export function checkDocumentSeries(rows: DocSummaryRow[]): Check {
   return { name: 'Document series have no unexplained gaps', ok: !gaps.length, detail: gaps.length ? `Missing: ${gaps.slice(0, 20).join(', ')}` : 'No gaps' };
 }
 
-// ───────────────────────── sheets for the portal (decision 074a: until the offline-tool JSON is pinned) ─────────────────────────
+// ───────────────────────── GSTR-1 for the GST offline tool (release 3.2.4) ─────────────────────────
 
 const csvCell = (v: unknown) => {
   const s = v === null || v === undefined ? '' : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
-const csv = (head: string[], rows: unknown[][]) => [head, ...rows].map((r) => r.map(csvCell).join(',')).join('\n') + '\n';
+/** The tool's own templates end every line with CRLF and carry no byte-order mark. */
+const csv = (head: string[], rows: unknown[][]) => [head, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
 
-/** GSTR-1 as one CSV per section, in the order of Form GSTR-1's tables. */
-export function gstr1Sheets(g: Gstr1 & { documents?: DocSummaryRow[] }): { name: string; csv: string }[] {
-  const docRows = (section: Gstr1Section) =>
-    g.entries
-      .filter((e) => e.section === section)
-      .flatMap((e) => e.byRate.map((r) => [e.counterpartyGstin, e.number, e.date, e.value, e.placeOfSupply, e.reverseCharge ? 'Y' : 'N', e.subtype, r.rate, r.taxable, r.igst, r.cgst, r.sgst, r.cess]));
-  const head = ['GSTIN', 'Number', 'Date', 'Value', 'Place of supply', 'Reverse charge', 'Type', 'Rate', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess'];
-  const exp = g.entries
-    .filter((e) => e.section === 'exp')
-    .flatMap((e) => e.byRate.map((r) => [e.subtype, e.number, e.date, e.value, e.portCode, e.shippingBillNo, e.shippingBillDate, r.rate, r.taxable, r.igst, r.cess]));
-  return [
-    { name: 'b2b.csv', csv: csv(head, docRows('b2b')) },
-    { name: 'b2cl.csv', csv: csv(head, docRows('b2cl')) },
-    { name: 'b2cs.csv', csv: csv(['Place of supply', 'Rate', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess'], g.b2cs.map((r) => [r.placeOfSupply, r.rate, r.taxable, r.igst, r.cgst, r.sgst, r.cess])) },
-    { name: 'exp.csv', csv: csv(['Type', 'Number', 'Date', 'Value', 'Port code', 'Shipping bill', 'Shipping bill date', 'Rate', 'Taxable value', 'IGST', 'Cess'], exp) },
-    { name: 'cdnr.csv', csv: csv(head, docRows('cdnr')) },
-    { name: 'cdnur.csv', csv: csv(head, docRows('cdnur')) },
-    { name: 'nil.csv', csv: csv(['Table', 'Nil rated'], g.nil.map((n) => [n.table, n.nil])) },
-    { name: 'hsn.csv', csv: csv(['Part', 'HSN', 'UQC', 'Rate', 'Quantity', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess'], g.hsn.map((h) => [h.part.toUpperCase(), h.hsn, h.uqc, h.rate, h.qty, h.taxable, h.igst, h.cgst, h.sgst, h.cess])) },
-    { name: 'docs.csv', csv: csv(['Nature', 'Series', 'From', 'To', 'Total', 'Cancelled'], (g.documents ?? []).map((d) => [d.nature, d.series, d.from, d.to, d.total, d.cancelled])) },
-    ...amendmentSheets(g),
+/** Place of supply as the tool's master list writes it ("27-Maharashtra"); docs/compliance/gstr1-offline-tool-evidence.md. */
+export const OFFLINE_TOOL_POS: Readonly<Record<string, string>> = {
+  '01': 'Jammu & Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh', '05': 'Uttarakhand', '06': 'Haryana',
+  '07': 'Delhi', '08': 'Rajasthan', '09': 'Uttar Pradesh', '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh',
+  '13': 'Nagaland', '14': 'Manipur', '15': 'Mizoram', '16': 'Tripura', '17': 'Meghalaya', '18': 'Assam', '19': 'West Bengal',
+  '20': 'Jharkhand', '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh', '24': 'Gujarat', '25': 'Daman & Diu',
+  '26': 'Dadra & Nagar Haveli & Daman & Diu', '27': 'Maharashtra', '29': 'Karnataka', '30': 'Goa', '31': 'Lakshdweep',
+  '32': 'Kerala', '33': 'Tamil Nadu', '34': 'Puducherry', '35': 'Andaman & Nicobar Islands', '36': 'Telangana',
+  '37': 'Andhra Pradesh', '38': 'Ladakh', '96': 'Foreign Country', '97': 'Other Territory',
+};
+/** Units as the tool's master list writes them ("NOS-NUMBERS"). */
+export const OFFLINE_TOOL_UQC: Readonly<Record<string, string>> = {
+  BAG: 'BAGS', BAL: 'BALE', BDL: 'BUNDLES', BKL: 'BUCKLES', BOU: 'BILLION OF UNITS', BOX: 'BOX', BTL: 'BOTTLES', BUN: 'BUNCHES',
+  CAN: 'CANS', CBM: 'CUBIC METERS', CCM: 'CUBIC CENTIMETERS', CMS: 'CENTIMETERS', CTN: 'CARTONS', DOZ: 'DOZENS', DRM: 'DRUMS',
+  GGK: 'GREAT GROSS', GMS: 'GRAMMES', GRS: 'GROSS', GYD: 'GROSS YARDS', KGS: 'KILOGRAMS', KLR: 'KILOLITRE', KME: 'KILOMETRE',
+  LTR: 'LITRES', MLT: 'MILILITRE', MTR: 'METERS', MTS: 'METRIC TON', NOS: 'NUMBERS', PAC: 'PACKS', PCS: 'PIECES', PRS: 'PAIRS',
+  QTL: 'QUINTAL', ROL: 'ROLLS', SET: 'SETS', SQF: 'SQUARE FEET', SQM: 'SQUARE METERS', SQY: 'SQUARE YARDS', TBS: 'TABLETS',
+  TGM: 'TEN GROSS', THD: 'THOUSANDS', TON: 'TONNES', TUB: 'TUBES', UGS: 'US GALLONS', UNT: 'UNITS', YDS: 'YARDS', OTH: 'OTHERS',
+};
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_NAMES = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+
+/** 2026-11-05 as the tool writes it: 5-Nov-26. */
+export const toolDate = (iso: string | null) => {
+  if (!iso) return '';
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return `${Number(d)}-${MONTHS[Number(m) - 1]}-${y!.slice(2)}`;
+};
+export const toolPos = (code: string | null) => (code ? (OFFLINE_TOOL_POS[code] ? `${code}-${OFFLINE_TOOL_POS[code]}` : code) : '');
+export const toolUqc = (code: string) => (OFFLINE_TOOL_UQC[code] ? `${code}-${OFFLINE_TOOL_UQC[code]}` : 'OTH-OTHERS');
+/** Rates as the tool lists them: 18, 0.25, 7.5. */
+const toolRate = (rate: string) => Dec.of(rate).toFixed(2).replace(/\.?0+$/, '');
+const abs = (v: string) => Dec.of(v).abs().toFixed(2);
+const yn = (b: boolean) => (b ? 'Y' : 'N');
+
+/** b2b "Invoice Type" and cdnr "Note Supply Type" from the entry. */
+const supplyTypeLabel = (e: Gstr1Entry, ourState: string | undefined) => {
+  if (e.subtype === 'SEWP') return 'SEZ supplies with payment';
+  if (e.subtype === 'SEWOP') return 'SEZ supplies without payment';
+  if (e.subtype === 'DE') return 'Deemed Exp';
+  // IGST charged although the place of supply is our own State.
+  if (ourState && e.placeOfSupply === ourState && e.byRate.some((r) => !Dec.of(r.igst).isZero())) return 'Intra-State supplies attracting IGST';
+  return 'Regular B2B';
+};
+const noteType = (e: Gstr1Entry) => (e.documentType === 'debit_note' ? 'D' : 'C');
+const NATURE: Record<IssuedDocument['nature'], string> = { invoice: 'Invoices for outward supply', credit_note: 'Credit Note', debit_note: 'Debit Note' };
+
+const HSN_HEAD = ['HSN', 'Description', 'UQC', 'Total Quantity', 'Total Value', 'Taxable Value', 'Integrated Tax Amount', 'Central Tax Amount', 'State/UT Tax Amount', 'Cess Amount', 'Rate'];
+const NIL_ROWS = [
+  ['8A', 'Inter-State supplies to registered persons'],
+  ['8B', 'Intra-State supplies to registered persons'],
+  ['8C', 'Inter-State supplies to unregistered persons'],
+  ['8D', 'Intra-State supplies to unregistered persons'],
+] as const;
+
+/**
+ * GSTR-1 as the offline tool's section-wise CSV files (tool release 3.2.4): the tool's own file names, headers, dates,
+ * places of supply and units, so the tool imports them and generates the portal JSON. Only sections with rows are
+ * written. Notes carry positive values and their type (C or D), as the tool's templates do. Receiver names, the
+ * differential-rate percentage and the e-commerce GSTIN are left blank. `ourState` names intra-State supplies that
+ * attract IGST. docs/compliance/gstr1-offline-tool-evidence.md.
+ */
+export function gstr1Sheets(g: Gstr1 & { documents?: DocSummaryRow[] }, opts: { ourState?: string } = {}): { name: string; csv: string }[] {
+  const of = (section: Gstr1Section) => g.entries.filter((e) => e.section === section);
+  const sheets: [string, string[], unknown[][]][] = [
+    [
+      'b2b,sez,de.csv',
+      ['GSTIN/UIN of Recipient', 'Receiver Name', 'Invoice Number', 'Invoice date', 'Invoice Value', 'Place Of Supply', 'Reverse Charge', 'Applicable % of Tax Rate', 'Invoice Type', 'E-Commerce GSTIN', 'Rate', 'Taxable Value', 'Cess Amount'],
+      of('b2b').flatMap((e) => e.byRate.map((r) => [e.counterpartyGstin, '', e.number, toolDate(e.date), e.value, toolPos(e.placeOfSupply), yn(e.reverseCharge), '', supplyTypeLabel(e, opts.ourState), '', toolRate(r.rate), r.taxable, r.cess])),
+    ],
+    [
+      'b2cl.csv',
+      ['Invoice Number', 'Invoice date', 'Invoice Value', 'Place Of Supply', 'Applicable % of Tax Rate', 'Rate', 'Taxable Value', 'Cess Amount', 'E-Commerce GSTIN'],
+      of('b2cl').flatMap((e) => e.byRate.map((r) => [e.number, toolDate(e.date), e.value, toolPos(e.placeOfSupply), '', toolRate(r.rate), r.taxable, r.cess, ''])),
+    ],
+    ['b2cs.csv', ['Type', 'Place Of Supply', 'Rate', 'Applicable % of Tax Rate', 'Taxable Value', 'Cess Amount', 'E-Commerce GSTIN'], g.b2cs.map((r) => ['OE', toolPos(r.placeOfSupply), toolRate(r.rate), '', r.taxable, r.cess, ''])],
+    [
+      'cdnr.csv',
+      ['GSTIN/UIN of Recipient', 'Receiver Name', 'Note Number', 'Note Date', 'Note Type', 'Place Of Supply', 'Reverse Charge', 'Note Supply Type', 'Note Value', 'Applicable % of Tax Rate', 'Rate', 'Taxable Value', 'Cess Amount'],
+      of('cdnr').flatMap((e) =>
+        e.byRate.map((r) => [e.counterpartyGstin, '', e.number, toolDate(e.date), noteType(e), toolPos(e.placeOfSupply), yn(e.reverseCharge), supplyTypeLabel(e, opts.ourState), abs(e.value), '', toolRate(r.rate), abs(r.taxable), abs(r.cess)]),
+      ),
+    ],
+    [
+      'cdnur.csv',
+      ['UR Type', 'Note Number', 'Note Date', 'Note Type', 'Place Of Supply', 'Note Value', 'Applicable % of Tax Rate', 'Rate', 'Taxable Value', 'Cess Amount'],
+      of('cdnur').flatMap((e) => e.byRate.map((r) => [e.subtype, e.number, toolDate(e.date), noteType(e), e.subtype === 'B2CL' ? toolPos(e.placeOfSupply) : '', abs(e.value), '', toolRate(r.rate), abs(r.taxable), abs(r.cess)])),
+    ],
+    [
+      'exp.csv',
+      ['Export Type', 'Invoice Number', 'Invoice date', 'Invoice Value', 'Port Code', 'Shipping Bill Number', 'Shipping Bill Date', 'Rate', 'Taxable Value', 'Cess Amount'],
+      of('exp').flatMap((e) => e.byRate.map((r) => [e.subtype, e.number, toolDate(e.date), e.value, e.portCode, e.shippingBillNo, toolDate(e.shippingBillDate), toolRate(r.rate), r.taxable, r.cess])),
+    ],
+    [
+      'exemp.csv',
+      ['Description', 'Nil Rated Supplies', 'Exempted(other than nil rated/non GST supply)', 'Non-GST Supplies'],
+      g.nil.length ? NIL_ROWS.map(([t, label]) => [label, g.nil.find((n) => n.table === t)?.nil ?? '0.00', '0.00', '0.00']) : [],
+    ],
+    ...(['b2b', 'b2c'] as const).map((part): [string, string[], unknown[][]] => [
+      `hsn(${part}).csv`,
+      HSN_HEAD,
+      g.hsn.filter((h) => h.part === part).map((h) => [h.hsn, '', toolUqc(h.uqc), h.qty, Dec.of(h.taxable).add(taxOf(h)).toFixed(2), h.taxable, h.igst, h.cgst, h.sgst, h.cess, toolRate(h.rate)]),
+    ]),
+    ['docs.csv', ['Nature of Document', 'Sr. No. From', 'Sr. No. To', 'Total Number', 'Cancelled'], (g.documents ?? []).map((d) => [NATURE[d.nature], d.from, d.to, d.total, d.cancelled])],
   ];
+  return [...sheets.filter(([, , rows]) => rows.length).map(([name, head, rows]) => ({ name, csv: csv(head, rows) })), ...amendmentSheets(g, opts.ourState)];
 }
 
-/** Included amendments, one sheet per table that has any: the original reference, then the revised figures. */
-function amendmentSheets(g: Gstr1): { name: string; csv: string }[] {
+/** "2026-10" as the tool's b2csa writes it: financial year 2026-27, month OCTOBER. */
+const fyMonth = (period: string) => {
+  const [y, m] = period.split('-').map(Number) as [number, number];
+  const start = m >= 4 ? y : y - 1;
+  return [`${start}-${String((start + 1) % 100).padStart(2, '0')}`, MONTH_NAMES[m - 1]];
+};
+
+/** Included amendments in the tool's amendment files (tables 9A, 9C and 10), one file per table that has any. */
+function amendmentSheets(g: Gstr1, ourState: string | undefined): { name: string; csv: string }[] {
   const included = includedAmendments(g);
-  const out: { name: string; csv: string }[] = [];
-  const docHead = ['Original number', 'Original date', 'Original month', 'GSTIN', 'Number', 'Date', 'Value', 'Place of supply', 'Reverse charge', 'Type', 'Rate', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess'];
-  for (const table of ['b2ba', 'b2cla', 'cdnra', 'cdnura'] as const) {
-    const rows = included
-      .filter((a) => a.table === table)
-      .flatMap((a) => {
-        const e = a.revised as Gstr1Entry;
-        return e.byRate.map((r) => [a.number, a.date, a.originalPeriod, e.counterpartyGstin, e.number, e.date, e.value, e.placeOfSupply, e.reverseCharge ? 'Y' : 'N', e.subtype, r.rate, r.taxable, r.igst, r.cgst, r.sgst, r.cess]);
-      });
-    if (rows.length) out.push({ name: `${table}.csv`, csv: csv(docHead, rows) });
-  }
-  const expa = included
-    .filter((a) => a.table === 'expa')
-    .flatMap((a) => {
-      const e = a.revised as Gstr1Entry;
-      return e.byRate.map((r) => [a.number, a.date, a.originalPeriod, e.subtype, e.number, e.date, e.value, e.portCode, e.shippingBillNo, e.shippingBillDate, r.rate, r.taxable, r.igst, r.cess]);
-    });
-  if (expa.length) out.push({ name: 'expa.csv', csv: csv(['Original number', 'Original date', 'Original month', 'Type', 'Number', 'Date', 'Value', 'Port code', 'Shipping bill', 'Shipping bill date', 'Rate', 'Taxable value', 'IGST', 'Cess'], expa) });
-  const b2csa = included.filter((a) => a.table === 'b2csa').flatMap((a) => (a.revised as B2csFigures).rows.map((r) => [a.originalPeriod, r.placeOfSupply, r.rate, r.taxable, r.igst, r.cgst, r.sgst, r.cess]));
-  if (b2csa.length) out.push({ name: 'b2csa.csv', csv: csv(['Original month', 'Place of supply', 'Rate', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess'], b2csa) });
-  return out;
+  const revised = (table: AmendTable) => included.filter((a) => a.table === table).map((a) => ({ a, e: a.revised as Gstr1Entry, was: a.reported as Gstr1Entry }));
+  const sheets: [string, string[], unknown[][]][] = [
+    [
+      'b2ba.csv',
+      ['GSTIN/UIN of Recipient', 'Receiver Name', 'Original Invoice Number', 'Original Invoice date', 'Revised Invoice Number', 'Revised Invoice date', 'Invoice Value', 'Place Of Supply', 'Reverse Charge', 'Applicable % of Tax Rate', 'Invoice Type', 'E-Commerce GSTIN', 'Rate', 'Taxable Value', 'Cess Amount'],
+      revised('b2ba').flatMap(({ a, e }) => e.byRate.map((r) => [e.counterpartyGstin, '', a.number, toolDate(a.date), e.number, toolDate(e.date), e.value, toolPos(e.placeOfSupply), yn(e.reverseCharge), '', supplyTypeLabel(e, ourState), '', toolRate(r.rate), r.taxable, r.cess])),
+    ],
+    [
+      'b2cla.csv',
+      ['Original Invoice Number', 'Original Invoice date', 'Original Place Of Supply', 'Revised Invoice Number', 'Revised Invoice date', 'Invoice Value', 'Applicable % of Tax Rate', 'Rate', 'Taxable Value', 'Cess Amount', 'E-Commerce GSTIN'],
+      revised('b2cla').flatMap(({ a, e, was }) => e.byRate.map((r) => [a.number, toolDate(a.date), toolPos(was.placeOfSupply), e.number, toolDate(e.date), e.value, '', toolRate(r.rate), r.taxable, r.cess, ''])),
+    ],
+    [
+      'cdnra.csv',
+      ['GSTIN/UIN of Recipient', 'Receiver Name', 'Original Note Number', 'Original Note Date', 'Revised Note Number', 'Revised Note Date', 'Note Type', 'Place Of Supply', 'Reverse Charge', 'Note Supply Type', 'Note Value', 'Applicable % of Tax Rate', 'Rate', 'Taxable Value', 'Cess Amount'],
+      revised('cdnra').flatMap(({ a, e }) =>
+        e.byRate.map((r) => [e.counterpartyGstin, '', a.number, toolDate(a.date), e.number, toolDate(e.date), noteType(e), toolPos(e.placeOfSupply), yn(e.reverseCharge), supplyTypeLabel(e, ourState), abs(e.value), '', toolRate(r.rate), abs(r.taxable), abs(r.cess)]),
+      ),
+    ],
+    [
+      'cdnura.csv',
+      ['UR Type', 'Original Note Number', 'Original Note Date', 'Revised Note Number', 'Revised Note Date', 'Note Type', 'Place Of Supply', 'Note Value', 'Applicable % of Tax Rate', 'Rate', 'Taxable Value', 'Cess Amount'],
+      revised('cdnura').flatMap(({ a, e }) => e.byRate.map((r) => [e.subtype, a.number, toolDate(a.date), e.number, toolDate(e.date), noteType(e), e.subtype === 'B2CL' ? toolPos(e.placeOfSupply) : '', abs(e.value), '', toolRate(r.rate), abs(r.taxable), abs(r.cess)])),
+    ],
+    [
+      'expa.csv',
+      ['Export Type', 'Original Invoice Number', 'Original Invoice date', 'Revised Invoice Number', 'Revised Invoice date', 'Invoice Value', 'Port Code', 'Shipping Bill Number', 'Shipping Bill Date', 'Rate', 'Taxable Value', 'Cess Amount'],
+      revised('expa').flatMap(({ a, e }) => e.byRate.map((r) => [e.subtype, a.number, toolDate(a.date), e.number, toolDate(e.date), e.value, e.portCode, e.shippingBillNo, toolDate(e.shippingBillDate), toolRate(r.rate), r.taxable, r.cess])),
+    ],
+    [
+      'b2csa.csv',
+      ['Financial Year', 'Original Month', 'Place Of Supply', 'Type', 'Rate', 'Applicable % of Tax Rate', 'Taxable Value', 'Cess Amount', 'E-Commerce GSTIN'],
+      included.filter((a) => a.table === 'b2csa').flatMap((a) => (a.revised as B2csFigures).rows.map((r) => [...fyMonth(a.originalPeriod), toolPos(r.placeOfSupply), 'OE', toolRate(r.rate), '', r.taxable, r.cess, ''])),
+    ],
+  ];
+  return sheets.filter(([, , rows]) => rows.length).map(([name, head, rows]) => ({ name, csv: csv(head, rows) }));
 }
 
 /** GSTR-3B as one sheet; rows of table 4 are named by what they hold (the current portal labels are not pinned). */

@@ -320,3 +320,4 @@ Append-only. One entry per session: `date · who · what changed · what's next`
 - 2026-10-21 · agent · Approvals inbox merged as PR 86. Claimed a clean-up round of items under Noticed, chosen by the user.
 - 2026-10-21 · agent · Clean-up round: fixed the support access schema and lifecycle smokes (failing on main), the invoice-balances walkthrough locator, and kept Tally invoices and notes out of the e-invoice sandbox (server refusal and hidden button). Next: merge when the user says.
 - 2026-10-22 · agent · Clean-up round merged as PR 88. The user set a new sequence (GSTR-1 offline-tool CSVs, Adaequare GSP, cost centres, Tally load and live sync, TDS/TCS and NIC research, UI redesign) and supplied the GST offline tool 3.2.4. Claimed the GSTR-1 CSV export.
+- 2026-10-22 · agent · GSTR-1 export now writes the GST offline tool 3.2.4's section-wise CSV files (decision 074c), template headers pinned. Next: merge when the user says, then the Adaequare GSP design.
