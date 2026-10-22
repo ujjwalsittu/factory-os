@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-22 (Asia/Kolkata) · GSTR-1 export in the offline tool's CSV format, PR open_
+_Last updated: 2026-10-22 (Asia/Kolkata) · **Paused by the user on 2026-10-22.** Open: PR 90 (GSTR-1 export in the offline tool's CSV format), green and mergeable, waiting on the user's word. Resume with the Next list below._
 
 ## Done
 - [x] **GSTR-1 export in the GST offline tool 3.2.4's CSV format (decision 074c; no migration).** [Evidence](../compliance/gstr1-offline-tool-evidence.md), [review](../superpowers/reviews/2026-10-22-gstr1-offline-tool-csv-review.md). The export zip now holds the tool's section-wise files with its exact names and headers, CRLF, tool dates, places of supply, units and type labels, plus the amendment files; the user imports them into the tool, which generates the portal JSON. Template headers pinned in `docs/compliance/gstr1-offline-tool/`. Verified: core tests (205), GST returns (68) and amendments (64) smokes, both GST browser walkthroughs, typecheck, build. Not yet tried in the real tool (Windows); blank receiver names and HSN descriptions are the open question.
